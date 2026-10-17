@@ -308,12 +308,21 @@ class TDestinationScopeDict(TypedDict):
     """SQL condition that selects the destination rows that the merge can delete or retire."""
 
 
-class TDeleteInsertStrategyDict(TWriteDispositionDict, TSourceFilterDict, TDestinationScopeDict):
+class TMergeConditionPlaceholdersDict(TypedDict):
+    extra_placeholders: NotRequired[Dict[str, Union[Any, Callable[[Any, str], Any]]]]
+    """Values of the merge condition placeholders. A callable gets the resource and table name."""
+
+
+class TDeleteInsertStrategyDict(
+    TWriteDispositionDict, TSourceFilterDict, TDestinationScopeDict, TMergeConditionPlaceholdersDict
+):
     strategy: Literal["delete-insert"]
     deduplicated: NotRequired[bool]
 
 
-class TScd2StrategyDict(TWriteDispositionDict, TSourceFilterDict, TDestinationScopeDict):
+class TScd2StrategyDict(
+    TWriteDispositionDict, TSourceFilterDict, TDestinationScopeDict, TMergeConditionPlaceholdersDict
+):
     strategy: Literal["scd2"]
     validity_column_names: NotRequired[List[str]]
     active_record_timestamp: NotRequired[Optional[TAnyDateTime]]
@@ -332,12 +341,18 @@ class TUpsertOptionsDict(TypedDict):
     this column to detect changed records."""
 
 
-class TUpsertStrategyDict(TWriteDispositionDict, TSourceFilterDict, TUpsertOptionsDict):
+class TUpsertStrategyDict(
+    TWriteDispositionDict, TSourceFilterDict, TMergeConditionPlaceholdersDict, TUpsertOptionsDict
+):
     strategy: Literal["upsert"]
 
 
 class TCdcStrategyDict(
-    TWriteDispositionDict, TSourceFilterDict, TDestinationScopeDict, TUpsertOptionsDict
+    TWriteDispositionDict,
+    TSourceFilterDict,
+    TDestinationScopeDict,
+    TMergeConditionPlaceholdersDict,
+    TUpsertOptionsDict,
 ):
     strategy: Literal["cdc"]
 

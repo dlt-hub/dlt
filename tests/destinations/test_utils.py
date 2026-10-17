@@ -1,10 +1,20 @@
+from datetime import date, datetime, timezone
 from typing import Any, Optional
+from zoneinfo import ZoneInfo
 
 import dlt
 import pytest
 
-from dlt.common.destination import Destination
-from dlt.common.destination.utils import prepare_load_table
+from dlt.common.configuration.container import Container
+from dlt.common.configuration.specs.timezone_context import TimezoneContext
+from dlt.common.data_writers.escape import escape_snowflake_literal
+from dlt.common.destination import Destination, DestinationCapabilitiesContext
+from dlt.common.destination import utils as destination_utils
+from dlt.common.destination.utils import (
+    expand_merge_condition,
+    get_scd2_timestamps,
+    prepare_load_table,
+)
 from dlt.common.schema import Schema
 from dlt.common.schema.typing import TTableFormat
 from dlt.destinations.utils import (
@@ -136,3 +146,112 @@ def test_verify_unsupported_merge_options(write_disposition: str) -> None:
                 " `resource.add_filter()` instead."
             ),
         ]
+
+
+@pytest.mark.parametrize(
+    "condition,expected",
+    [
+        ("{table}.id = {tenant}", "\"t\".id = 'O''B'"),
+        ("day = {day} AND n > {n}", "day = '2024-01-01' AND n > 3"),
+        ("ts >= {since}", "ts >= '2024-01-01T12:00:00+00:00'"),
+        ("name LIKE '{{x}}%'", "name LIKE '{x}%'"),
+        ("day IN {days}", "day IN ('2024-01-01', '2024-01-02')"),
+        ("tenant IN {tenants}", "tenant IN ('O''B', 'A')"),
+        ("ts IN {stamps}", "ts IN ('2024-01-01T11:00:00+00:00')"),
+        ("day IN {no_days}", "day IN (NULL)"),
+    ],
+    ids=[
+        "identifier_and_string",
+        "date_and_int",
+        "naive_datetime",
+        "literal_brace",
+        "list_of_dates",
+        "tuple_of_strings",
+        "list_of_aware_datetimes",
+        "empty_list",
+    ],
+)
+def test_expand_merge_condition(condition: str, expected: str) -> None:
+    values = {
+        "tenant": "O'B",
+        "day": date(2024, 1, 1),
+        "n": 3,
+        "since": datetime(2024, 1, 1, 12),
+        "days": [date(2024, 1, 1), date(2024, 1, 2)],
+        "tenants": ("O'B", "A"),
+        "stamps": [datetime(2024, 1, 1, 12, tzinfo=ZoneInfo("Europe/Berlin"))],
+        "no_days": [],
+    }
+    expanded = expand_merge_condition(
+        "destination_scope", condition, {"table": '"t"'}, values, escape_snowflake_literal
+    )
+    assert expanded == expected
+
+
+def test_expand_merge_condition_missing_value() -> None:
+    with pytest.raises(ValueError) as py_ex:
+        expand_merge_condition("source_filter", "day = {day}", {}, {}, escape_snowflake_literal)
+    assert "unknown placeholders `{day}`" in str(py_ex.value)
+
+
+def test_scd2_timestamps(monkeypatch: pytest.MonkeyPatch) -> None:
+    caps = DestinationCapabilitiesContext.generic_capabilities()
+    caps.timestamp_precision = 3
+    created_at = datetime(2024, 3, 1, 23, 30, 0, 123456, tzinfo=ZoneInfo("Asia/Kolkata"))
+    state: Any = {"created_at": created_at}
+    package = {"load_id": "1.2", "state": state}
+    monkeypatch.setattr(destination_utils, "load_package_state", lambda: package)
+    valid_to: Any = {
+        "name": "_dlt_valid_to",
+        "data_type": "timestamp",
+        "x-active-record-timestamp": None,
+    }
+    # a hint left by an older dlt version is a stale value
+    table: Any = {
+        "name": "items",
+        "x-boundary-timestamp": datetime(2020, 1, 1),
+        "columns": {"_dlt_valid_to": valid_to},
+    }
+
+    # the boundary defaults to the package creation time, in UTC at the precision of the destination
+    boundary, active_record = get_scd2_timestamps(table, caps)
+    assert boundary == created_at.replace(microsecond=123000)
+    assert str(boundary.tzinfo) == "UTC"
+    assert active_record is None
+
+    # the package holds the declared boundary. like loaded data, a naive value is read in the
+    # context timezone and an aware value is converted to it
+    state["placeholders"] = {"items": {"boundary_timestamp": datetime(2024, 1, 1, 12)}}
+    valid_to["x-active-record-timestamp"] = "9999-12-31T00:00:00+01:00"
+    for context_tz in ("UTC", "Europe/Berlin"):
+        with Container().injectable_context(TimezoneContext(context_tz)):
+            boundary, active_record = get_scd2_timestamps(table, caps)
+        assert boundary == datetime(2024, 1, 1, 12, tzinfo=ZoneInfo(context_tz))
+        assert active_record == datetime(9999, 12, 30, 23, tzinfo=timezone.utc)
+        assert str(active_record.tzinfo) == context_tz
+
+    # a destination without tz support stores the wall clock of the context timezone, UTC here
+    caps.supports_tz_aware_datetime = False
+    state["placeholders"]["items"]["boundary_timestamp"] = "2024-01-01T12:00:00+01:00"
+    valid_to["x-active-record-timestamp"] = "9999-12-31"
+    assert get_scd2_timestamps(table, caps) == (datetime(2024, 1, 1, 11), datetime(9999, 12, 31))
+
+
+def test_merge_placeholder_values_of_load_date(monkeypatch: pytest.MonkeyPatch) -> None:
+    # 23:30 in Kolkata is 18:00 UTC of the same day. the values follow UTC
+    created_at = datetime(2024, 3, 1, 23, 30, tzinfo=ZoneInfo("Asia/Kolkata"))
+    package: Any = {"load_id": "1.2", "state": {"created_at": created_at, "placeholders": {}}}
+    monkeypatch.setattr(destination_utils, "load_package_state", lambda: package)
+
+    values = destination_utils.get_merge_placeholder_values("items")
+    assert values["curr_date"] == date(2024, 3, 1)
+    assert (values["YYYY"], values["MM"], values["DD"], values["HH"]) == (2024, 3, 1, 18)
+    assert (values["MMMM"], values["dddd"]) == ("march", "friday")
+    assert values["load_package_timestamp"] == int(created_at.timestamp())
+    assert values["boundary_timestamp"] == created_at
+    assert values["boundary_timestamp"].tzinfo is timezone.utc
+
+    # a declared boundary is stored in the load package
+    package["state"]["placeholders"] = {"items": {"boundary_timestamp": date(2024, 1, 1)}}
+    values = destination_utils.get_merge_placeholder_values("items")
+    assert values["boundary_timestamp"] == date(2024, 1, 1)

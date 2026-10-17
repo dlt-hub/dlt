@@ -3,7 +3,7 @@ import itertools
 import inspect
 import binascii
 import pytest
-from typing import Any, Callable, Dict, Tuple
+from typing import Any, Callable, Dict, List, Tuple
 from dlt.common.exceptions import PipelineException, TerminalValueError
 
 from dlt.common.runners import Venv
@@ -17,6 +17,7 @@ from dlt.common.utils import (
     is_typeerror_due_to_wrong_call,
     map_nested_values_in_place,
     map_nested_keys_in_place,
+    map_nested_dicts_in_place,
     reveal_pseudo_secret,
     obfuscate_pseudo_secret,
     get_module_name,
@@ -87,6 +88,36 @@ def test_map_dicts_in_place() -> None:
 
     with pytest.raises(ValueError):
         map_nested_keys_in_place(lambda k: k * 2, "a")
+
+
+@pytest.mark.parametrize(
+    "max_nesting,expected_order",
+    [(None, [1, 2, 3, 1]), (2, [1, 2, 1]), (0, [])],
+    ids=["all-levels", "two-levels", "no-levels"],
+)
+def test_map_nested_dicts_in_place(max_nesting: int, expected_order: List[int]) -> None:
+    """Maps the dicts in lists, recursing through dicts without counting a level. A list in a
+    list counts a level. A dict is mapped after its nested dicts and replaced by the result."""
+    _nested: Dict[str, Any] = {
+        "a": 1,
+        "d": {"l": [{"lvl": 1}]},
+        "l": [{"lvl": 1, "l": [{"lvl": 2}, "s", [{"lvl": 3}]]}],
+    }
+    order: List[int] = []
+
+    def _tag(d: Dict[str, Any], tag: str) -> Dict[str, Any]:
+        order.append(d["lvl"])
+        return {**d, "tag": tag}
+
+    assert map_nested_dicts_in_place(_tag, _nested, "x", max_nesting=max_nesting) is _nested
+    assert order == expected_order
+    # a dict in a dict is not mapped
+    assert "tag" not in _nested["d"]
+    tagged = {1: _nested["l"][0], 2: _nested["l"][0]["l"][0], 3: _nested["l"][0]["l"][2][0]}
+    assert {lvl for lvl, d in tagged.items() if d.get("tag") == "x"} == set(expected_order)
+
+    with pytest.raises(ValueError):
+        map_nested_dicts_in_place(_tag, "a")
 
 
 def test_pseudo_obfuscation() -> None:

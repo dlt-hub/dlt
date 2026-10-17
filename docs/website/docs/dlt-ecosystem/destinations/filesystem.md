@@ -648,7 +648,7 @@ Ensure that the placeholder names match the intended usage. For example, `{test_
 Configuration options, including layout and placeholders, can be overridden dynamically when initializing and passing the filesystem destination directly to the pipeline.
 
 ```py
-import pendulum
+import datetime
 
 import dlt
 from dlt.destinations import filesystem
@@ -657,7 +657,7 @@ pipeline = dlt.pipeline(
     pipeline_name="data_things",
     destination=filesystem(
         layout="{table_name}/{test_placeholder}/{timestamp}/{load_id}.{file_id}.{ext}",
-        current_datetime=pendulum.now(),
+        current_datetime=datetime.datetime.now(datetime.timezone.utc),
         extra_placeholders={
             "test_placeholder": "test_value",
         }
@@ -668,10 +668,10 @@ pipeline = dlt.pipeline(
 Furthermore, it is possible to:
 
 1. Customize the behavior with callbacks for extra placeholder functionality. Each callback must accept the following positional arguments and return a string.
-2. Customize the `current_datetime`, which can also be a callback function and is expected to return a `pendulum.DateTime` instance.
+2. Customize the `current_datetime`, which can also be a callback function. The value is a `datetime`. dlt renders the date and time placeholders in the timezone of the value, and takes a naive value as UTC.
 
 ```py
-import pendulum
+import datetime
 
 import dlt
 from dlt.destinations import filesystem
@@ -680,8 +680,8 @@ def placeholder_callback(schema_name: str, table_name: str, load_id: str, file_i
     # Custom logic here
     return "custom_value"
 
-def get_current_datetime() -> pendulum.DateTime:
-    return pendulum.now()
+def get_current_datetime() -> datetime.datetime:
+    return datetime.datetime.now(datetime.timezone.utc)
 
 pipeline = dlt.pipeline(
     pipeline_name="data_things",

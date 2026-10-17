@@ -51,10 +51,11 @@ def dataset(module_tmp_path: pathlib.Path) -> dlt.Dataset:
             {"id": 3, "name": "charlie", "city": "barcelona"},
         )
 
+    # each xdist worker gets its own database file, a shared one fails on the duckdb file lock
     pipeline = dlt.pipeline(
         "_relation_to_ibis",
         pipelines_dir=str(module_tmp_path / "pipelines_dir"),
-        destination=dlt.destinations.duckdb(str(module_tmp_path / "relation_to_ibis.db")),
+        destination=dlt.destinations.duckdb(str(module_tmp_path / "relation_to_ibis.duckdb")),
         dev_mode=True,
     )
     pipeline.run([purchases_data])

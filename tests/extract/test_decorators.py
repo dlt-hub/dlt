@@ -1245,6 +1245,23 @@ def test_skip_unchanged_rows_hints(strategy: Optional[str], skip_unchanged_rows:
             {"strategy": "delete-insert", "row_version_column_name": "version"},
             "dlt supports `row_version_column_name` only with the `scd2`, `upsert`, `cdc`",
         ),
+        (
+            {"destination_scope": "day = {day}", "extra_placeholders": {"load_id": "1"}},
+            "redefines the placeholders `load_id`",
+        ),
+        (
+            {"strategy": "scd2", "extra_placeholders": {"boundary_timestamp": "2024-01-01"}},
+            "redefines the placeholders `boundary_timestamp`",
+        ),
+        ({"extra_placeholders": ["day"]}, "must be a dict"),
+        (
+            {"strategy": "insert-only", "extra_placeholders": {"day": 1}},
+            "`extra_placeholders` only with the `delete-insert`, `scd2`, `upsert`, `cdc`",
+        ),
+        (
+            {"destination_scope": "day = {day}", "extra_placeholders": {"days": 1}},
+            "unknown placeholders `{day}`",
+        ),
     ],
     ids=[
         "unknown_placeholder",
@@ -1255,6 +1272,11 @@ def test_skip_unchanged_rows_hints(strategy: Optional[str], skip_unchanged_rows:
         "scope_upsert",
         "filter_insert_only",
         "row_version_delete_insert",
+        "reserved_extra_placeholder",
+        "reserved_boundary_timestamp",
+        "extra_placeholders_not_dict",
+        "extra_placeholders_insert_only",
+        "undeclared_extra_placeholder",
     ],
 )
 def test_resource_rejects_invalid_merge_options(disposition: Any, expected: str) -> None:
@@ -1276,9 +1298,39 @@ def test_resource_rejects_invalid_merge_options(disposition: Any, expected: str)
         valid_resource.apply_hints(write_disposition=write_disposition)
     assert expected in str(py_ex.value)
 
+    # so do nested hints, a nested table with a key merges on its own
+    with pytest.raises(ValueError) as py_ex:
+        valid_resource.apply_hints(
+            nested_hints={
+                "sub": dlt.mark.make_nested_hints(
+                    primary_key="id", write_disposition=write_disposition
+                )
+            }
+        )
+    assert expected in str(py_ex.value)
+
     # a doubled brace is a literal brace
     literal_brace: Any = {"disposition": "merge", "destination_scope": "name LIKE '{{x}}'"}
     valid_resource.apply_hints(write_disposition=literal_brace)
+    # built-in and declared placeholders are accepted
+    placeholders: Any = {
+        "disposition": "merge",
+        "source_filter": "_dlt_load_id = {load_id}",
+        "destination_scope": "day = {day} AND {table}.id > 0",
+        "extra_placeholders": {"day": 1},
+    }
+    valid_resource.apply_hints(write_disposition=placeholders)
+    # a nested scope uses the placeholders of the root table
+    nested_scope: Any = {"disposition": "merge", "destination_scope": "day = {day}"}
+    valid_resource.apply_hints(
+        nested_hints={"sub": dlt.mark.make_nested_hints(write_disposition=nested_scope)}
+    )
+    unknown_scope: Any = {"disposition": "merge", "destination_scope": "day = {week}"}
+    with pytest.raises(ValueError) as py_ex:
+        valid_resource.apply_hints(
+            nested_hints={"sub": dlt.mark.make_nested_hints(write_disposition=unknown_scope)}
+        )
+    assert "unknown placeholders `{week}`" in str(py_ex.value)
 
 
 def test_custom_source_impl() -> None:

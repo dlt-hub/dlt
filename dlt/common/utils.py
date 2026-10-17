@@ -422,6 +422,37 @@ def map_nested_keys_in_place(
     return _nested
 
 
+def map_nested_dicts_in_place(
+    func: AnyFun,
+    _nested: TAny,
+    *args: Any,
+    max_nesting: Optional[int] = None,
+    **kwargs: Any,
+) -> TAny:
+    """Applies `func` to all dicts that are elements of lists in `_nested` recursively, replacing
+    them in place. Dicts nested in dicts are traversed, but `func` is not applied to them.
+
+    `max_nesting` limits the number of list levels, all levels if `None`. `func` gets a dict
+    after the dicts nested in it, so it does not see the values that `func` added. Additional
+    `*args` and `**kwargs` are passed to `func`.
+    """
+    if not isinstance(_nested, (dict, list)):
+        raise ValueError(_nested, "Not a nested type")
+
+    def _map(value: Any, level: int) -> None:
+        if isinstance(value, dict):
+            for nested_value in value.values():
+                _map(nested_value, level)
+        elif isinstance(value, list) and (max_nesting is None or level < max_nesting):
+            for idx, element in enumerate(value):
+                _map(element, level + 1)
+                if isinstance(element, dict):
+                    value[idx] = func(element, *args, **kwargs)
+
+    _map(_nested, 0)
+    return _nested
+
+
 def is_interactive() -> bool:
     """
     Determine if the current environment is interactive.

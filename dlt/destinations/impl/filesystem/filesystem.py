@@ -28,7 +28,7 @@ from tenacity import (
     RetryCallState,
 )
 
-from dlt.common import logger, time, json, pendulum
+from dlt.common import logger, time, json
 from dlt.common.destination.utils import resolve_merge_strategy, resolve_replace_strategy
 from dlt.common.metrics import LoadJobMetrics
 from dlt.common.schema.exceptions import TableNotFound
@@ -53,7 +53,7 @@ from dlt.common.storages.fsspec_filesystem import (
 from datetime import datetime, timezone
 
 from dlt.common.runners import create_thread_pool
-from dlt.common.time import ensure_datetime_in_tz, ensure_pendulum_datetime
+from dlt.common.time import ensure_datetime_in_tz
 from dlt.common.typing import ConfigValue, DictStrAny
 from dlt.common.schema import Schema, TSchemaTables
 from dlt.common.schema.utils import (
@@ -155,13 +155,11 @@ class FilesystemLoadJob(RunnableLoadJob):
         self._job_client.fs_client.put_file(self._file_path, remote_path)
 
     @property
-    def load_package_timestamp(self) -> Optional[pendulum.DateTime]:
-        # NOTE: pendulum stays here. `path_utils.prepare_datetime_params` formats this value with
-        # pendulum tokens, so a stdlib datetime would not render the path placeholders
+    def load_package_timestamp(self) -> Optional[datetime]:
         # package state is optional
         try:
             # UTC, never the context timezone: this timestamp renders into the object path
-            return ensure_pendulum_datetime(
+            return ensure_datetime_in_tz(
                 current_load_package()["state"]["created_at"], timezone.utc
             )
         except CurrentLoadPackageStateNotAvailable:

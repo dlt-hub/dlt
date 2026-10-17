@@ -44,7 +44,11 @@ from dlt.common.schema.utils import (
     normalize_table_identifiers,
     remove_compound_props,
 )
-from dlt.common.destination.utils import validate_merge_condition
+from dlt.common.destination.utils import (
+    MERGE_CONDITION_PLACEHOLDERS,
+    MERGE_CONDITION_VALUE_PLACEHOLDERS,
+    validate_merge_condition,
+)
 from dlt.common.typing import TAny, TDataItem, TColumnNames
 from dlt.common.time import ensure_datetime
 from dlt.common.utils import clone_dict_nested
@@ -371,6 +375,39 @@ class DltResourceHints:
                 hints,
             )
 
+    def get_extra_placeholders(
+        self, root_table_name: str, naming: NamingConvention, meta: Any = None
+    ) -> Dict[str, Dict[str, Any]]:
+        """Returns `extra_placeholders` and the `scd2` `boundary_timestamp` of the merge write
+        dispositions of the root table and its nested tables, by table name as in
+        `compute_nested_table_schemas`. Skips dynamic hints.
+        """
+        root_table_template, _, _ = self._get_root_table_template(meta)
+        if not root_table_template:
+            return {}
+        templates: List[Tuple[str, Any]] = [(root_table_name, root_table_template)]
+        # only static hints were validated when declared
+        if not callable(root_table_template.get("nested_hints")):
+            templates.extend(
+                (table_name, hints)
+                for table_name, _, hints in self.get_nested_hints(
+                    root_table_name, naming, meta=meta
+                )
+            )
+        extra_placeholders: Dict[str, Dict[str, Any]] = {}
+        for table_name, template in templates:
+            write_disposition = template.get("write_disposition")
+            if not isinstance(write_disposition, dict):
+                continue
+            placeholders = dict(write_disposition.get("extra_placeholders") or {})
+            if write_disposition.get("strategy") == "scd2" and (
+                boundary := write_disposition.get("boundary_timestamp")
+            ):
+                placeholders["boundary_timestamp"] = boundary
+            if placeholders:
+                extra_placeholders[table_name] = placeholders
+        return extra_placeholders
+
     def compute_nested_table_schemas(
         self,
         root_table_name: str,
@@ -624,6 +661,19 @@ class DltResourceHints:
     ) -> None:
         DltResourceHints.validate_dynamic_hints(hints_template)
         DltResourceHints.validate_write_disposition_hint(hints_template)
+        nested_hints = hints_template.get("nested_hints")
+        if isinstance(nested_hints, dict):
+            # nested tables use the placeholder values of the root table
+            root_wd = hints_template.get("write_disposition")
+            root_placeholders = (
+                list(cast(Dict[str, Any], root_wd).get("extra_placeholders") or {})
+                if isinstance(root_wd, dict)
+                else []
+            )
+            for nested_hint in nested_hints.values():
+                DltResourceHints.validate_write_disposition_hint(
+                    cast(TResourceHints, nested_hint), inherited_placeholders=root_placeholders
+                )
         DltResourceHints.validate_reference_hint(hints_template)
         if create_table_variant:
             # for table variants, table name must be a str
@@ -751,8 +801,7 @@ class DltResourceHints:
             }
 
         if merge_strategy == "scd2":
-            if "boundary_timestamp" in md_dict:
-                dict_["x-boundary-timestamp"] = md_dict["boundary_timestamp"]
+            # the load package holds `boundary_timestamp`, so the schema does not change per load
             if md_dict.get("validity_column_names") is None:
                 from_, to = DEFAULT_VALIDITY_COLUMN_NAMES
             else:
@@ -841,7 +890,11 @@ class DltResourceHints:
             )
 
     @staticmethod
-    def validate_write_disposition_hint(template: TResourceHints) -> None:
+    def validate_write_disposition_hint(
+        template: TResourceHints, *, inherited_placeholders: Sequence[str] = ()
+    ) -> None:
+        """Validates the merge options of `template`. Merge conditions may also use
+        `inherited_placeholders`, ie. the root `extra_placeholders` in nested hints."""
         wd = template.get("write_disposition")
         if (
             isinstance(wd, dict)
@@ -860,9 +913,34 @@ class DltResourceHints:
                     "write_disposition['strategy']", strategy, MERGE_STRATEGIES
                 )
 
+            extra_placeholders = md.get("extra_placeholders") or {}
+            if not isinstance(extra_placeholders, dict):
+                raise ValueError(
+                    "`write_disposition['extra_placeholders']` must be a dict of placeholder names"
+                    f" and values, not `{type(extra_placeholders).__name__}`."
+                )
+            reserved = (*MERGE_CONDITION_PLACEHOLDERS, *MERGE_CONDITION_VALUE_PLACEHOLDERS)
+            if clashing := sorted(set(extra_placeholders).intersection(reserved)):
+                raise ValueError(
+                    "`write_disposition['extra_placeholders']` redefines the placeholders"
+                    f" {', '.join('`' + name + '`' for name in clashing)}. dlt fills them. Rename"
+                    " these placeholders."
+                )
+            # merge conditions are the only consumers of `extra_placeholders`
+            if (
+                extra_placeholders
+                and strategy
+                and strategy not in MERGE_STRATEGY_OPTIONS["source_filter"]
+            ):
+                raise ValueError(
+                    "dlt supports `extra_placeholders` only with the `delete-insert`, `scd2`,"
+                    f" `upsert`, `cdc` merge strategies, not with `{strategy}`. Use one of these"
+                    " strategies or remove `extra_placeholders`."
+                )
+            placeholders = [*reserved, *extra_placeholders, *inherited_placeholders]
             for hint_name in ("source_filter", "destination_scope"):
                 if filter_ := md.get(hint_name):
-                    validate_merge_condition(hint_name, cast(str, filter_))
+                    validate_merge_condition(hint_name, cast(str, filter_), placeholders)
             # the default strategy depends on the destination, which checks its options
             if strategy:
                 for option, strategies in MERGE_STRATEGY_OPTIONS.items():

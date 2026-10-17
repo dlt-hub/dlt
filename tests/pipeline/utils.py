@@ -12,6 +12,7 @@ from dlt.common.pipeline import LoadInfo
 from dlt.common.typing import DictStrAny
 from dlt.destinations.fs_client import FSClientBase
 from dlt.destinations.exceptions import DestinationUndefinedEntity
+from dlt.pipeline.trace import load_trace
 from dlt.common.schema.typing import TTableSchema
 
 
@@ -177,6 +178,21 @@ def assert_load_info(info: LoadInfo, expected_load_packages: int = 1) -> None:
     assert all(p.completed_at is not None for p in info.load_packages) is True
     # no failed jobs in any of the packages
     assert all(len(p.jobs["failed_jobs"]) == 0 for p in info.load_packages) is True
+
+
+def assert_trace_restored(pipeline: dlt.Pipeline) -> None:
+    """Assert that the pipeline saved its last trace and that the restored trace serializes.
+
+    Args:
+        pipeline (dlt.Pipeline): The pipeline that ran the last step.
+
+    Raises:
+        AssertionError: If the trace was not saved or differs from the last trace.
+    """
+    restored = load_trace(pipeline.working_dir)
+    assert restored is not None, "the pipeline did not save its trace"
+    assert restored.asdict() == pipeline.last_trace.asdict()
+    json.dumps(restored)
 
 
 #

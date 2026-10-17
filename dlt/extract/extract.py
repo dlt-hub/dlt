@@ -1,7 +1,7 @@
 import contextlib
 from collections.abc import Sequence as C_Sequence
 from copy import copy
-from typing import Iterator, List, Dict, Any, Optional, cast
+from typing import Iterator, List, Dict, Any, Mapping, Optional, cast
 import yaml
 
 from dlt.common import logger
@@ -54,7 +54,11 @@ from dlt.extract.decorators import (
     SourceInjectableContext,
     SourceSchemaInjectableContext,
 )
-from dlt.extract.exceptions import DataItemRequiredForDynamicTableHints, UnknownSourceReference
+from dlt.extract.exceptions import (
+    DataItemRequiredForDynamicTableHints,
+    ExtraPlaceholderError,
+    UnknownSourceReference,
+)
 from dlt.extract.incremental import IncrementalResourceWrapper
 from dlt.extract.items import TableNameMeta
 from dlt.extract.items_transform import ItemTransform
@@ -304,6 +308,61 @@ def get_fresh_write_disposition(
     return wd_config
 
 
+def _replace_callables_with_names(value: Any) -> Any:
+    """Returns a copy of nested dicts and lists of `value` with callables replaced by their
+    names."""
+    if callable(value):
+        return get_callable_name(value)
+    if isinstance(value, dict):
+        return {k: _replace_callables_with_names(v) for k, v in value.items()}
+    if isinstance(value, list):
+        return [_replace_callables_with_names(v) for v in value]
+    return value
+
+
+def _hints_for_trace(hints: Mapping[str, Any]) -> Dict[str, Any]:
+    """Returns `hints` of a resource or a nested table in a form that the trace can pickle and
+    dump to JSON."""
+    trace_hints: Dict[str, Any] = {}
+    for name, hint in hints.items():
+        if hint is None or name == "validator":
+            continue
+        if name == "incremental":
+            # represent incremental as dictionary (it derives from BaseConfiguration)
+            if isinstance(hint, IncrementalResourceWrapper):
+                hint = hint.incremental
+            # sometimes internal incremental is not bound
+            if hint:
+                trace_hints[name] = dict(hint)
+        elif name == "original_columns":
+            # this is original type of the columns ie. Pydantic model
+            trace_hints[name] = get_full_obj_class_name(hint)
+        elif callable(hint):
+            trace_hints[name] = get_callable_name(hint)
+        elif name == "columns":
+            if hint:
+                trace_hints[name] = yaml.dump(
+                    hint, allow_unicode=True, default_flow_style=False, sort_keys=False
+                )
+        elif name == "write_disposition" and isinstance(hint, dict):
+            trace_hints[name] = _replace_callables_with_names(hint)
+            # a user named placeholder would add a trace column, an entry adds a row
+            if placeholders := trace_hints[name].get("extra_placeholders"):
+                trace_hints[name]["extra_placeholders"] = [
+                    {"name": k, "value": v} for k, v in placeholders.items()
+                ]
+        elif name == "nested_hints":
+            # a path is a tuple of identifiers and JSON keys are strings, so the trace lists them
+            trace_hints[name] = [
+                {"path": [path] if isinstance(path, str) else list(path), **_hints_for_trace(h)}
+                for path, h in hint.items()
+            ]
+        else:
+            # ie. `extra_placeholders` in write dispositions
+            trace_hints[name] = _replace_callables_with_names(hint)
+    return trace_hints
+
+
 class Extract(WithStepInfo[ExtractMetrics, ExtractInfo]):
     original_data: Any
     """Original data from which the extracted DltSource was created. Will be used to describe in extract info"""
@@ -369,37 +428,10 @@ class Extract(WithStepInfo[ExtractMetrics, ExtractInfo]):
         # collect resource hints
         clean_hints: Dict[str, Dict[str, Any]] = {}
         for resource in source.selected_resources.values():
-            # cleanup the hints
-            hints = clean_hints[resource.name] = {}
             resource_hints = copy(resource._hints) or resource.compute_table_schema()
             if resource.incremental and "incremental" not in resource_hints:
                 resource_hints["incremental"] = resource.incremental  # type: ignore
-
-            for name, hint in resource_hints.items():
-                if hint is None or name in ["validator"]:
-                    continue
-                if name == "incremental":
-                    # represent incremental as dictionary (it derives from BaseConfiguration)
-                    if isinstance(hint, IncrementalResourceWrapper):
-                        hint = hint.incremental
-                    # sometimes internal incremental is not bound
-                    if hint:
-                        hints[name] = dict(hint)  # type: ignore[call-overload]
-                    continue
-                if name == "original_columns":
-                    # this is original type of the columns ie. Pydantic model
-                    hints[name] = get_full_obj_class_name(hint)
-                    continue
-                if callable(hint):
-                    hints[name] = get_callable_name(hint)
-                    continue
-                if name == "columns":
-                    if hint:
-                        hints[name] = yaml.dump(
-                            hint, allow_unicode=True, default_flow_style=False, sort_keys=False
-                        )
-                    continue
-                hints[name] = hint
+            clean_hints[resource.name] = _hints_for_trace(resource_hints)
 
         inputs: List[TDataLocation] = []
         for resource in {r._pipe.instance_id: r for r in source.resources.extracted}.values():
@@ -483,6 +515,50 @@ class Extract(WithStepInfo[ExtractMetrics, ExtractInfo]):
         for table_name in tables_with_empty:
             json_extractor.write_empty_items_file(table_name)
 
+    def _resolve_extra_placeholders(
+        self,
+        source: DltSource,
+        extractors: Dict[TDataItemFormat, Extractor],
+        state: TLoadPackageState,
+    ) -> None:
+        """Stores the values of `extra_placeholders` and the `scd2` boundary of the merge write
+        dispositions in the load package, by root table and pseudo-root. Callable values receive
+        the resource and the table name.
+        """
+        schema = source.schema
+        # an empty materialized table also gets a job, so its merge needs the values too
+        tables_with_jobs = set().union(
+            *[e.tables_with_items | e.tables_with_empty for e in extractors.values()]
+        )
+        for root_table_name in tables_with_jobs:
+            root_table = schema.tables.get(root_table_name)
+            if root_table is None or utils.is_nested_table(root_table):
+                continue
+            resource = source.resources.get(root_table.get("resource"))
+            if resource is None:
+                continue
+            # a variant that is not declared anymore falls back to the resource hints
+            variant_name = root_table.get("variant_name")
+            placeholders = resource.get_extra_placeholders(
+                root_table_name,
+                schema.naming,
+                TableNameMeta(variant_name) if variant_name else None,
+            )
+            for table_name, extra_placeholders in placeholders.items():
+                table = schema.tables.get(table_name)
+                # a pseudo-root (nested table broken out by a key) merges on its own
+                if table is None or utils.is_nested_table(table):
+                    continue
+                values: Dict[str, Any] = {}
+                for name, value in extra_placeholders.items():
+                    if callable(value):
+                        try:
+                            value = value(resource, table_name)
+                        except Exception as ex:
+                            raise ExtraPlaceholderError(resource.name, table_name, name, ex) from ex
+                    values[name] = value
+                state.setdefault("placeholders", {})[table_name] = values
+
     def _extract_single_source(
         self,
         load_id: str,
@@ -490,6 +566,7 @@ class Extract(WithStepInfo[ExtractMetrics, ExtractInfo]):
         *,
         max_parallel_items: int,
         workers: int,
+        package_state: TLoadPackageState,
     ) -> None:
         schema = source.schema
         collector = self.collector
@@ -532,6 +609,7 @@ class Extract(WithStepInfo[ExtractMetrics, ExtractInfo]):
                         )
 
                     self._handle_empty_tables(source, extractors)
+                    self._resolve_extra_placeholders(source, extractors, package_state)
                     self._last_extractors = extractors
                     if left_gens > 0:
                         # go to 100%
@@ -610,6 +688,7 @@ class Extract(WithStepInfo[ExtractMetrics, ExtractInfo]):
                     source,
                     max_parallel_items=max_parallel_items,
                     workers=workers,
+                    package_state=load_package.state,
                 )
                 commit_load_package_state()
         return load_id

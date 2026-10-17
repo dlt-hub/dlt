@@ -4,10 +4,12 @@ Users can register custom DialectCapabilities subclasses to adapt the destinatio
 for dialects that are not built-in. See register_dialect_capabilities.
 """
 
-from typing import Any, Dict, Optional, Type
+from datetime import datetime
+from typing import Any, Callable, Dict, Optional, Type
 
 import sqlalchemy as sa  # noqa
 
+from dlt.common.data_writers.escape import format_datetime_literal
 from dlt.common.destination.capabilities import DataTypeMapper, DestinationCapabilitiesContext
 from dlt.common.destination.typing import PreparedTableSchema
 
@@ -45,6 +47,9 @@ GENERIC_TERMINAL_PATTERNS = [
 ]
 """Terminal patterns for exceptions that don't match undefined-relation but are still non-transient."""
 
+SQLITE_TIMESTAMP_FORMAT = "%Y-%m-%d %H:%M:%f"
+"""`strftime` format that renders a sqlite timestamp in UTC with milliseconds."""
+
 
 class DialectCapabilities:
     """Base class defining dialect-specific behavior for the SqlAlchemy destination.
@@ -58,6 +63,7 @@ class DialectCapabilities:
     * adapt_table -- modify an sa.Table object before it is materialized
       (e.g. reorder columns for StarRocks)
     * is_undefined_relation -- detect "table/schema not found" errors for the dialect
+    * timestamp_equals -- compare a timestamp column with a timestamp literal
 
     The sqlglot_dialect property maps backend names to sqlglot dialect names. Override
     it in subclasses or add entries to SQLGLOT_DIALECTS for non-obvious mappings.
@@ -109,6 +115,10 @@ class DialectCapabilities:
         Return the (possibly modified) table. The default implementation is a no-op.
         """
         return table
+
+    def timestamp_equals(self, column: "sa.sql.expression.ColumnElement[Any]", literal: str) -> Any:
+        """Returns a clause that compares the timestamp `column` with the timestamp `literal`."""
+        return column == sa.text(literal)
 
     def is_undefined_relation(self, e: Exception) -> Optional[bool]:
         """Classify an exception as an undefined-relation error (or not).
@@ -200,6 +210,13 @@ class SqliteDialectCapabilities(DialectCapabilities):
         # sqlite stores `DATETIME` as text and the sqlalchemy bind drops the offset
         caps.supports_tz_aware_datetime = False
 
+    def timestamp_equals(self, column: "sa.sql.expression.ColumnElement[Any]", literal: str) -> Any:
+        # text compare fails on the same instant in another form, ie. with the UTC offset that
+        # dlt 1.31 wrote, so both sides are normalized to UTC
+        return sa.func.strftime(SQLITE_TIMESTAMP_FORMAT, column) == sa.func.strftime(
+            SQLITE_TIMESTAMP_FORMAT, sa.text(literal)
+        )
+
 
 class TrinoDialectCapabilities(DialectCapabilities):
     """Capabilities for Trino."""
@@ -250,9 +267,31 @@ class DuckdbDialectCapabilities(DialectCapabilities):
 
 
 def _format_mysql_datetime_literal(v: Any, precision: int = 6, no_tz: bool = False) -> str:
-    from dlt.common.data_writers.escape import format_datetime_literal
-
     return format_datetime_literal(v, precision, no_tz=True)
+
+
+def escape_dialect_literal(
+    dialect_class: Type[sa.engine.Dialect],
+    value: Any,
+    datetime_literal: Callable[..., str] = format_datetime_literal,
+    precision: int = 6,
+    no_tz: bool = False,
+) -> str:
+    """Renders `value` as a SQL literal of the dialect. A `datetime` renders with
+    `datetime_literal` at `precision`, naive in the context timezone with `no_tz`."""
+    if isinstance(value, datetime):
+        return datetime_literal(value, precision, no_tz=no_tz)
+    try:
+        return str(
+            sa.literal(value).compile(
+                dialect=dialect_class(), compile_kwargs={"literal_binds": True}
+            )
+        )
+    except (sa.exc.CompileError, NotImplementedError):
+        # some dialects cannot render dates, 1.4.0 raises the latter. the database casts the string
+        return escape_dialect_literal(
+            dialect_class, value.isoformat() if hasattr(value, "isoformat") else str(value)
+        )
 
 
 register_dialect_capabilities("mysql", MysqlDialectCapabilities)

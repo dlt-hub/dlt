@@ -1,5 +1,6 @@
 import os
-from datetime import datetime  # noqa: I251
+import re
+from datetime import datetime, timezone  # noqa: I251
 from typing import Any, List, Optional, Dict
 import sys
 from subprocess import CalledProcessError
@@ -33,6 +34,9 @@ from dlt.destinations.impl.duckdb.configuration import DuckDbClientConfiguration
 from dlt.destinations.impl.duckdb.sql_client import DuckDbSqlClient
 from dlt.destinations.impl.filesystem.filesystem import FilesystemClient
 from dlt.destinations.impl.filesystem.sql_client import FilesystemSqlClient
+from dlt.destinations.path_utils import prepare_datetime_params
+
+from tests.pipeline.cases.github_pipeline.filesystem_layout_pipeline import LAYOUT, PIPELINES
 
 from tests.pipeline.utils import airtable_emojis, load_table_counts, assert_load_info
 from tests.utils import get_test_storage_root
@@ -818,6 +822,65 @@ def test_load_normalized_refresh_package_from_1_25(test_storage: FileStorage) ->
         assert package_state["applied_dropped_tables"] == ["items"]
         # `items` was dropped and re-created with only the second run's row
         assert load_table_counts(pipeline, "items") == {"items": 1}
+
+
+def test_load_filesystem_package_with_date_layout_from_1_25(test_storage: FileStorage) -> None:
+    """read filesystem_layout_pipeline.py docstring for test case details."""
+    shutil.copytree(
+        "tests/pipeline/cases/github_pipeline", get_test_storage_root(), dirs_exist_ok=True
+    )
+
+    with test_workspace():
+        with Venv.create(tempfile.mkdtemp(), ["dlt==1.25.0"]) as venv:
+            try:
+                old_output = venv.run_script("filesystem_layout_pipeline.py", "old")
+                print(old_output)
+            except CalledProcessError as cpe:
+                print(f"script output: {cpe.output}")
+                raise
+
+        venv = Venv.restore_current()
+        try:
+            output = venv.run_script("filesystem_layout_pipeline.py", "load")
+            print(output)
+        except CalledProcessError as cpe:
+            print(f"script output: {cpe.output}")
+            raise
+
+        def layout_paths(script_output: str, pipeline_name: str, load_id: str) -> List[str]:
+            prefix = f"FILE:{pipeline_name}:"
+            return [
+                line[len(prefix) :].replace("\\", "/")
+                for line in script_output.splitlines()
+                if line.startswith(prefix) and load_id in line
+            ]
+
+        layout_prefix = LAYOUT.split("{load_id}")[0]
+        for pipeline_name, current_datetime in PIPELINES.items():
+            pipeline = dlt.attach(pipeline_name)
+            old_load_id, new_load_id = sorted(pipeline.list_completed_load_packages())
+            # the old dlt rendered the first package, the current dlt the second one
+            for load_id, rendered in ((old_load_id, old_output), (new_load_id, output)):
+                package_state = pipeline.get_load_package_state(load_id)
+                assert "placeholders" not in package_state
+                # both versions render the creation time that the old dlt wrote to the package
+                # state, in UTC. a naive `current_datetime` from the config is UTC
+                params = prepare_datetime_params(
+                    datetime.fromisoformat(current_datetime) if current_datetime else None,
+                    package_state["created_at"],
+                )
+                expected = layout_prefix.format(table_name="items", **params) + load_id + "."
+                pattern = re.escape(expected)
+                if current_datetime and rendered is old_output:
+                    # dlt 1.25 rendered `{timestamp}` of the naive config string in the system
+                    # timezone, the current dlt renders it in UTC. the date placeholders are
+                    # the wall clock of the string in both
+                    pattern = pattern.replace(
+                        re.escape(f"{params['timestamp']}-{params['timestamp_ms']}"), r"\d+-\d+"
+                    )
+                paths = layout_paths(rendered, pipeline_name, load_id)
+                assert len(paths) == 1, paths
+                assert re.search(pattern, paths[0]), paths[0]
 
 
 def _run_datetime_key_case(old_version: str, strategy: str) -> None:
