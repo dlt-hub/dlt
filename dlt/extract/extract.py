@@ -308,15 +308,19 @@ def get_fresh_write_disposition(
     return wd_config
 
 
-def _replace_callables_with_names(value: Any) -> Any:
-    """Returns a copy of nested dicts and lists of `value` with callables replaced by their
-    names, so the trace can be pickled and serialized."""
+def _make_hint_serializable(value: Any) -> Any:
+    """Returns a copy of nested dicts and lists of `value` that the trace can pickle and dump to
+    JSON: callables become their names, tuple keys (ie. `nested_hints` paths) become their
+    elements joined with `__`."""
     if callable(value):
         return get_callable_name(value)
     if isinstance(value, dict):
-        return {k: _replace_callables_with_names(v) for k, v in value.items()}
+        return {
+            "__".join(k) if isinstance(k, tuple) else k: _make_hint_serializable(v)
+            for k, v in value.items()
+        }
     if isinstance(value, list):
-        return [_replace_callables_with_names(v) for v in value]
+        return [_make_hint_serializable(v) for v in value]
     return value
 
 
@@ -416,7 +420,7 @@ class Extract(WithStepInfo[ExtractMetrics, ExtractInfo]):
                         )
                     continue
                 # ie. `extra_placeholders` in write dispositions, also of `nested_hints`
-                hints[name] = _replace_callables_with_names(hint)
+                hints[name] = _make_hint_serializable(hint)
 
         inputs: List[TDataLocation] = []
         for resource in {r._pipe.instance_id: r for r in source.resources.extracted}.values():

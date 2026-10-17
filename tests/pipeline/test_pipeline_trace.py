@@ -1006,6 +1006,10 @@ def test_trace_replaces_callables_in_hints(fail: bool) -> None:
                 "subs": dlt.mark.make_nested_hints(
                     primary_key="id", write_disposition=subs_disposition
                 ),
+                # a path of a deeper nested table is a tuple
+                ("children", "toys"): dlt.mark.make_nested_hints(
+                    write_disposition=children_disposition
+                ),
             },
         )
         def items():
@@ -1014,7 +1018,7 @@ def test_trace_replaces_callables_in_hints(fail: bool) -> None:
             yield {
                 "day": datetime.date(2026, 10, 1),
                 "tenant": "acme",
-                "children": [{"v": 1}],
+                "children": [{"v": 1, "toys": [{"t": 1}]}],
                 "subs": [{"id": 1, "part": "a", "region": "eu"}],
             }
 
@@ -1057,6 +1061,8 @@ def test_trace_replaces_callables_in_hints(fail: bool) -> None:
             "extra_placeholders": {"part": "<lambda>", "region": "_region_of"},
         },
     }
+    # JSON keys are strings, so a tuple path is joined
+    assert hints["nested_hints"]["children__toys"] == hints["nested_hints"]["children"]
     _assert_no_callables(hints)
 
     # the resource keeps its callables
