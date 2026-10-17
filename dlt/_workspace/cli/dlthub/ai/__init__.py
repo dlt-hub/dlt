@@ -12,6 +12,7 @@ from dlt._workspace.cli.dlthub.ai.commands import (
     ai_secrets_view_redacted_command,
     ai_toolkit_info_command,
     ai_toolkit_install_command,
+    ai_toolkit_update_command,
     ai_toolkit_list_command,
 )
 
@@ -27,5 +28,6 @@ __all__ = [
     "ai_secrets_view_redacted_command",
     "ai_toolkit_info_command",
     "ai_toolkit_install_command",
+    "ai_toolkit_update_command",
     "ai_toolkit_list_command",
 ]

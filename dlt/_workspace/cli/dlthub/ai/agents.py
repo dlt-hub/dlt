@@ -47,7 +47,7 @@ class InstallAction(NamedTuple):
     source_kind: Optional[TComponentType] = None
     skip_index: bool = False
     component_dir: Optional[Path] = None
-    """For `remove`: directory of the component; empty folders are pruned only below it."""
+    """Component folder for writes; pruning boundary for removals."""
 
 
 def _copy_folder_actions(
@@ -67,6 +67,7 @@ def _copy_folder_actions(
                 op="copy",
                 content_or_path=src_file,
                 conflict=conflict,
+                component_dir=dest_dir,
             )
         )
     return actions
@@ -463,6 +464,7 @@ class _CodexAgent(_AIAgent):
                     content_or_path=wrapped,
                     conflict=not overwrite and dest.exists(),
                     source_kind="command",
+                    component_dir=dest.parent,
                 )
             ]
         # rule → always-apply skill (AGENTS.md is handled by finalize_actions)
@@ -481,6 +483,7 @@ class _CodexAgent(_AIAgent):
                 content_or_path=wrapped,
                 conflict=not overwrite and skill_dest.exists(),
                 source_kind="rule",
+                component_dir=skill_dest.parent,
             )
         ]
 
@@ -500,7 +503,7 @@ class _CodexAgent(_AIAgent):
             return actions
 
         agents_md = self.agents_md_path(project_root)
-        existing = agents_md.read_text(encoding="utf-8") if agents_md.is_file() else ""
+        existing = agents_md.read_bytes().decode("utf-8") if agents_md.is_file() else ""
         template = read_agents_md_template(workbench_base)
         merged = merge_agents_md_skills(existing, skill_names, template=template)
         if merged != existing:
