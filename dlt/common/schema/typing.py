@@ -291,6 +291,12 @@ class TMergeDispositionDict(TWriteDispositionDict):
     """The destination picks its default strategy when not set."""
 
 
+class TReplaceDispositionDict(TWriteDispositionDict):
+    exclude_pipeline_state: NotRequired[bool]
+    """If `True` (default), dlt keeps the resource state when it replaces the table allowing
+    incremental cursor to continue from last saved state."""
+
+
 class TSourceFilterDict(TypedDict):
     source_filter: NotRequired[str]
     """SQL condition that selects the merge source from the loaded rows. dlt discards the other
@@ -339,6 +345,7 @@ class TCdcStrategyDict(
 TWriteDispositionConfig = Union[
     TWriteDisposition,
     TWriteDispositionDict,
+    TReplaceDispositionDict,
     TMergeDispositionDict,
     TScd2StrategyDict,
     TUpsertStrategyDict,
