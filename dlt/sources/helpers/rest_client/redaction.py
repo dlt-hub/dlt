@@ -13,6 +13,17 @@ SENSITIVE_PARAMS = {
     "password",
     "pwd",
     "client_secret",
+    "x-api-key",
+    "x_api_key",
+    "xapikey",
+    "subscription-key",
+    "subscription_key",
+    "subscriptionkey",
+    "refresh_token",
+    "refresh-token",
+    "refreshtoken",
+    "client-secret",
+    "clientsecret",
 }
 
 

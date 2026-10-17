@@ -611,6 +611,69 @@ class TestRESTClient:
 
 
 class TestSecretRedaction:
+    @pytest.fixture(
+        params=[
+            param
+            for name in (
+                "x-api-key",
+                "x_api_key",
+                "xapikey",
+                "subscription-key",
+                "subscription_key",
+                "subscriptionkey",
+                "refresh_token",
+                "refresh-token",
+                "refreshtoken",
+                "client-secret",
+                "clientsecret",
+            )
+            for param in (name, name.title())
+        ]
+    )
+    def credential_param(self, request):
+        return request.param
+
+    def test_sanitize_url_additional_credentials(self, credential_param):
+        from dlt.sources.helpers.rest_client.redaction import sanitize_url
+
+        url = (
+            f"https://api.example.com/endpoint?{credential_param}=synthetic-secret"
+            f"&page=2&{credential_param}_hint=public&prefix_{credential_param}=visible"
+        )
+        assert (
+            sanitize_url(url)
+            == f"https://api.example.com/endpoint?{credential_param}=***"
+            f"&page=2&{credential_param}_hint=public&prefix_{credential_param}=visible"
+        )
+
+    def test_sanitize_url_custom_sensitive_params(self):
+        from dlt.sources.helpers.rest_client.redaction import sanitize_url
+
+        url = "https://api.example.com/endpoint?custom=synthetic-secret&subscription-key=public"
+        assert (
+            sanitize_url(url, sensitive={"CUSTOM"})
+            == "https://api.example.com/endpoint?custom=***&subscription-key=public"
+        )
+
+    def test_dlt_raise_for_status_additional_credentials(self, credential_param):
+        from dlt.sources.helpers.rest_client.client import _dlt_raise_for_status
+
+        response = Response()
+        response.status_code = 404
+        response.reason = "Not Found"
+        response.url = (
+            f"https://api.example.com/endpoint?{credential_param}=synthetic-secret&page=2"
+        )
+        response._content = b"Resource not found"
+
+        with pytest.raises(HTTPError) as exc_info:
+            _dlt_raise_for_status(response, show_error_body=False, max_error_body_length=0)
+
+        error_msg = str(exc_info.value)
+        assert f"{credential_param}=***&page=2" in error_msg
+        assert "synthetic-secret" not in error_msg
+        assert "404 Client Error: Not Found" in error_msg
+
     def test_sanitize_url_basic(self):
         from dlt.sources.helpers.rest_client.redaction import sanitize_url
 
