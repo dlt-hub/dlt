@@ -466,17 +466,10 @@ class Extract(WithStepInfo[ExtractMetrics, ExtractInfo]):
         for resource in source.resources.selected.values():
             if resource.name not in tables_by_resources:
                 continue
-            resource_write_disposition_dict = resource.write_disposition
             # dynamic write dispositions can't be handled here
-            if callable(resource_write_disposition_dict):
+            resource_write_disposition = resource.write_disposition_shorthand
+            if resource_write_disposition is None:
                 continue
-
-            # disposition shorthand (string) used for the replace check below
-            resource_write_disposition = (
-                resource_write_disposition_dict["disposition"]
-                if isinstance(resource_write_disposition_dict, dict)
-                else resource_write_disposition_dict
-            )
             for table in tables_by_resources[resource.name]:
                 table_name = table["name"]
                 # we only need to handle root tables
@@ -680,8 +673,15 @@ class Extract(WithStepInfo[ExtractMetrics, ExtractInfo]):
 
                 # reset resource states, the `extracted` list contains all the explicit resources and all their parents
                 for resource in source.resources.extracted:
-                    if resource.write_disposition == "replace":
-                        reset_resource_state(resource.name)
+                    if resource.write_disposition_shorthand != "replace":
+                        continue
+                    write_disposition = resource.write_disposition
+                    # the dict form keeps the state unless exclude_resource_state is False
+                    if isinstance(write_disposition, dict) and write_disposition.get(
+                        "exclude_resource_state", True
+                    ):
+                        continue
+                    reset_resource_state(resource.name)
 
                 self._extract_single_source(
                     load_id,

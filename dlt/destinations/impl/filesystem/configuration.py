@@ -18,6 +18,7 @@ from dlt.common.destination.client import (
     WithAttachableEngine,
 )
 from dlt.common.storages import FilesystemConfigurationWithLocalFiles
+from dlt.common.utils import digest128
 
 from dlt.destinations.impl.filesystem.typing import TCurrentDateTime, TExtraPlaceholders
 from dlt.destinations.path_utils import check_layout, get_unused_placeholders
@@ -36,6 +37,10 @@ class FilesystemDestinationClientConfiguration(  # type: ignore[misc]
     """Maximum number of pipeline state files to keep; 0 or negative value disables cleanup."""
     always_refresh_views: bool = False
     """Always refresh table scanner views by setting the newest table metadata or globbing table files"""
+    max_delete_workers: Optional[int] = None
+    """Maximum number of files that dlt deletes concurrently when it truncates or drops tables. The
+    default depends on the bucket protocol: 10 for s3, 32 for gs, 16 for Azure, 8 for local files
+    and 1 for all other protocols."""
     deltalake_storage_options: Optional[DictStrAny] = None
     """Additional storage options passed to `deltalake` library, overriding credentials-derived values."""
     deltalake_configuration: Optional[DictStrOptionalStr] = None
@@ -105,3 +110,9 @@ class HfFilesystemDestinationClientConfiguration(FilesystemDestinationClientConf
     @property
     def hf_namespace(self) -> str:
         return os.path.basename(self.bucket_url)
+
+    def fingerprint(self) -> str:
+        """Returns a fingerprint of the Hugging Face namespace that holds the dataset repos."""
+        if not self.bucket_url:
+            return ""
+        return digest128(f"hf://datasets/{self.hf_namespace}")

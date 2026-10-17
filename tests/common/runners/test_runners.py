@@ -5,7 +5,7 @@ import pytest
 import sys
 import time
 import multiprocessing
-from concurrent.futures import Executor
+from concurrent.futures import Executor, ThreadPoolExecutor
 from typing import ClassVar, Dict, Iterator, List, Tuple, Type
 
 from dlt.common.runtime import signals
@@ -20,6 +20,7 @@ from dlt.common.configuration.specs.base_configuration import BaseConfiguration
 from dlt.common.exceptions import DltException, SignalReceivedException
 from dlt.common.runners import pool_runner as runner, Runnable, TRunMetrics
 from dlt.common.runners.configuration import PoolRunnerConfiguration, TPoolType
+from dlt.common.managed_thread_pool import ManagedThreadPool
 
 from dlt.common.runtime.init import initialize_runtime
 from tests.common.runners.utils import (
@@ -634,3 +635,38 @@ def test_worker_contexts_thread_to_process_global() -> None:
     assert all(
         val == "global_value" for val in all_values
     ), f"All process workers should see 'global_value', got {all_values}"
+
+
+def test_create_thread_pool(mocker) -> None:
+    assert isinstance(runner.create_thread_pool(1), runner.NullExecutor)
+    assert isinstance(runner.create_thread_pool(0), runner.NullExecutor)
+    with runner.create_thread_pool(4, timeout=2.0) as pool:
+        assert isinstance(pool, runner.TimeoutThreadPoolExecutor)
+        assert pool.timeout == 2.0
+        assert pool.submit(lambda: 1).result() == 1
+
+    # both executors propagate job errors through the future and through map
+    def _raise(_: int = 0) -> None:
+        raise PermissionError("denied")
+
+    for pool in (runner.create_thread_pool(1), runner.create_thread_pool(4)):
+        with pool:
+            with pytest.raises(PermissionError):
+                pool.submit(_raise).result()
+            with pytest.raises(PermissionError):
+                list(pool.map(_raise, range(3)))
+    # platforms without threads run inline
+    mocker.patch.object(runner, "platform_supports_threading", return_value=False)
+    assert isinstance(runner.create_thread_pool(4), runner.NullExecutor)
+
+
+def test_managed_thread_pool_without_threading(mocker) -> None:
+    pool = ManagedThreadPool("test", 1)
+    assert isinstance(pool.thread_pool, ThreadPoolExecutor)
+    pool.stop()
+    # a background pool runs inline only when the platform has no threads
+    mocker.patch("dlt.common.managed_thread_pool.platform_supports_threading", return_value=False)
+    pool = ManagedThreadPool("test", 1)
+    assert isinstance(pool.thread_pool, runner.NullExecutor)
+    assert pool.thread_pool.submit(lambda: 1).result() == 1
+    pool.stop()

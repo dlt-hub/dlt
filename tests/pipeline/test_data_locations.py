@@ -3,9 +3,10 @@ from typing import Any, Dict, List, cast
 
 import dlt
 from dlt.common.metrics import TDatasetDataLocation, data_location_version
-from dlt.common.utils import uniq_id
+from dlt.common.utils import digest128, uniq_id
 
 from tests.pipeline.utils import assert_load_info
+from tests.utils import get_test_storage_root
 
 
 def _outputs(info: Any) -> List[TDatasetDataLocation]:
@@ -85,6 +86,21 @@ def test_output_locations_identify_the_dataset() -> None:
     # a new column changes the schema hash and with it the version of the location
     info = pipeline.run(dlt.resource([{"id": 2, "extra": "x"}], name="customers"))
     assert _by_resource(_outputs(info))["customers"]["version"] != location["version"]
+
+
+def test_local_filesystem_fingerprint() -> None:
+    """A local path reports the fingerprint of its file:// url, as all past dlt versions did"""
+    pipeline = dlt.pipeline(
+        pipeline_name="out_local_fs_" + uniq_id(),
+        destination=dlt.destinations.filesystem(os.path.join(get_test_storage_root(), "lake")),
+        dataset_name="local_" + uniq_id(),
+    )
+    info = pipeline.run(dlt.resource([{"id": 1}], name="customers"))
+    assert_load_info(info)
+
+    assert info.destination_fingerprint == digest128("file://")
+    location = _by_resource(_outputs(info))["customers"]
+    assert location["destination_fingerprint"] == digest128("file://")
 
 
 def test_output_locations_of_multiple_datasets() -> None:

@@ -19,6 +19,7 @@ from dlt.common.schema.typing import (
     TPartialTableSchema,
     TTableSchema,
     TTableSchemaColumns,
+    TWriteDisposition,
     TWriteDispositionConfig,
     TAnySchemaColumns,
     TTableFormat,
@@ -236,6 +237,21 @@ class DltResourceHints:
         self.apply_hints(write_disposition=value)
 
     @property
+    def write_disposition_shorthand(self) -> Optional[TWriteDisposition]:
+        """Write disposition shorthand, `None` when the hint is dynamic (callable)."""
+        return DltResourceHints._write_disposition_shorthand(self.write_disposition)
+
+    @staticmethod
+    def _write_disposition_shorthand(
+        write_disposition: Optional[TTableHintTemplate[TWriteDispositionConfig]],
+    ) -> Optional[TWriteDisposition]:
+        if write_disposition is None or callable(write_disposition):
+            return None
+        if isinstance(write_disposition, dict):
+            return write_disposition["disposition"]
+        return write_disposition
+
+    @property
     def columns(self) -> TTableHintTemplate[TTableSchemaColumns]:
         """Gets columns' schema that can be modified in place"""
         return None if self._hints is None else self._hints.get("columns")  # type: ignore[return-value]
@@ -429,11 +445,11 @@ class DltResourceHints:
                 nested_table_schema["resource"] = self.name
             elif nested_write_disposition := nested_table_schema.get("write_disposition"):
                 root_table_template, _, _ = self._get_root_table_template(meta)
-                write_disposition = root_table_template.get("write_disposition")
-                if isinstance(write_disposition, dict):
-                    write_disposition = write_disposition["disposition"]
-                # TODO: write_disposition may also be a callable, in that case generate warning as well
-                if nested_write_disposition != write_disposition:
+                write_disposition = DltResourceHints._write_disposition_shorthand(
+                    root_table_template.get("write_disposition")
+                )
+                # dlt cannot compare a dynamic root disposition here
+                if write_disposition and nested_write_disposition != write_disposition:
                     logger.warning(
                         f"You defined '{nested_write_disposition}' write disposition on a nested"
                         f" table {table_name} while root table {root_table_name} has"
@@ -880,6 +896,14 @@ class DltResourceHints:
         """Validates the merge options of `template`. Merge conditions may also use
         `inherited_placeholders`, ie. the root `extra_placeholders` in nested hints."""
         wd = template.get("write_disposition")
+        if (
+            isinstance(wd, dict)
+            and "exclude_resource_state" in wd
+            and wd["disposition"] != "replace"
+        ):
+            raise ValueError(
+                "dlt supports `exclude_resource_state` only with the `replace` write disposition."
+            )
         if isinstance(wd, dict) and wd["disposition"] == "merge":
             # the keys depend on the strategy, as `TWriteDispositionConfig` defines
             md = cast(Dict[str, Any], wd)

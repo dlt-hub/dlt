@@ -44,9 +44,15 @@ from dlt.common.storages.exceptions import (
     NoMigrationPathException,
     UnsupportedStorageVersionException,
 )
-from dlt.common.storages.fsspec_filesystem import glob_files
+from dlt.common.storages.fsspec_filesystem import (
+    AZURE_BLOB_STORAGE_PROTOCOLS,
+    GCS_PROTOCOLS,
+    S3_PROTOCOLS,
+    glob_files,
+)
 from datetime import datetime, timezone
 
+from dlt.common.runners import create_thread_pool
 from dlt.common.time import ensure_datetime_in_tz
 from dlt.common.typing import ConfigValue, DictStrAny
 from dlt.common.schema import Schema, TSchemaTables
@@ -96,6 +102,10 @@ from dlt.destinations.impl.filesystem.configuration import (
     FilesystemDestinationClientConfiguration,
     HfFilesystemDestinationClientConfiguration,
 )
+from dlt.destinations.impl.filesystem.iceberg_adapter import (
+    TABLE_PROPERTIES_HINT,
+    get_partition_specs,
+)
 from dlt.destinations import path_utils
 from dlt.destinations.fs_client import FSClientBase
 from dlt.destinations.utils import (
@@ -104,14 +114,18 @@ from dlt.destinations.utils import (
     verify_unsupported_merge_options,
 )
 
-if TYPE_CHECKING:
-    from dlt.destinations.impl.filesystem.iceberg_adapter import PartitionSpec
-
 CURRENT_VERSION: int = 2
 SUPPORTED_VERSIONS: set[int] = {1, CURRENT_VERSION}
 
 INIT_FILE_NAME = "init"
 FILENAME_SEPARATOR = "__"
+# s3 matches the botocore connection pool, sftp, gdrive and memory clients are not thread-safe
+DEFAULT_DELETE_WORKERS: Dict[str, int] = {
+    **{p: 10 for p in S3_PROTOCOLS},
+    **{p: 32 for p in GCS_PROTOCOLS},
+    **{p: 16 for p in AZURE_BLOB_STORAGE_PROTOCOLS},
+    "file": 8,
+}
 
 
 class FilesystemLoadJob(RunnableLoadJob):
@@ -270,9 +284,6 @@ class IcebergLoadFilesystemJob(TableFormatLoadFilesystemJob):
             merge_iceberg_table,
             create_table,
         )
-        from dlt.destinations.impl.filesystem.iceberg_partition_spec import (
-            build_iceberg_partition_spec,
-        )
 
         try:
             table = self._job_client.load_open_table(
@@ -281,12 +292,9 @@ class IcebergLoadFilesystemJob(TableFormatLoadFilesystemJob):
                 schema=self.arrow_dataset.schema,
             )
         except DestinationUndefinedEntity:
-            from dlt.destinations.impl.filesystem.iceberg_adapter import TABLE_PROPERTIES_HINT
-
             location = self._job_client.get_open_table_location("iceberg", self.load_table_name)
             table_id = f"{self._job_client.dataset_name}.{self.load_table_name}"
 
-            spec_list = self._get_partition_spec_list()
             # merge config-level defaults with per-table adapter overrides
             config_properties = self._job_client.config.iceberg_table_properties
             adapter_properties: Optional[Dict[str, str]] = self._load_table.get(
@@ -297,26 +305,17 @@ class IcebergLoadFilesystemJob(TableFormatLoadFilesystemJob):
             else:
                 properties = None
 
-            if spec_list:
-                partition_spec, iceberg_schema = build_iceberg_partition_spec(
-                    self.arrow_dataset.schema, spec_list
-                )
-                create_table(
-                    self._job_client.get_open_table_catalog("iceberg"),
-                    table_id,
-                    table_location=location,
-                    schema=iceberg_schema,
-                    partition_spec=partition_spec,
-                    properties=properties,
-                )
-            else:
-                create_table(
-                    self._job_client.get_open_table_catalog("iceberg"),
-                    table_id,
-                    table_location=location,
-                    schema=self.arrow_dataset.schema,
-                    properties=properties,
-                )
+            create_table(
+                self._job_client.get_open_table_catalog("iceberg"),
+                table_id,
+                table_location=location,
+                schema=self.arrow_dataset.schema,
+                properties=properties,
+                partition_fields=[
+                    (spec.source_column, spec.get_transform(), spec.partition_field)
+                    for spec in get_partition_specs(self._load_table, self._schema.name)
+                ],
+            )
             # run again with created table
             self.run()
             return
@@ -334,30 +333,6 @@ class IcebergLoadFilesystemJob(TableFormatLoadFilesystemJob):
                 data=self.arrow_dataset.to_table(),
                 write_disposition=self._load_table["write_disposition"],
             )
-
-    def _get_partition_spec_list(self) -> List["PartitionSpec"]:
-        """Resolve partition specs. Combines legacy partition columns (identity transform)
-        with partition hints. Validates that identity partitions are not duplicated.
-        """
-        from dlt.destinations.impl.filesystem.iceberg_adapter import (
-            parse_partition_hints,
-            create_identity_specs,
-        )
-
-        legacy_columns = self._partition_columns
-
-        hint_specs = parse_partition_hints(self._load_table)
-
-        for spec in hint_specs:
-            if spec.transform == "identity" and spec.source_column in legacy_columns:
-                raise SchemaCorruptedException(
-                    self._schema.name,
-                    f"Column '{spec.source_column}' is defined both as a partition column "
-                    "and in partition hints.",
-                )
-
-        identity_specs = create_identity_specs(legacy_columns)
-        return identity_specs + hint_specs
 
 
 class HfFilesystemUploadJob(HasFollowupJobs, FilesystemLoadJob):
@@ -823,18 +798,20 @@ class FilesystemClient(
         transaction logs."""
         table_dirs = set(self.get_table_dirs(table_names))
         table_prefixes = [self.get_table_prefix(t) for t in table_names]
+        files: List[str] = []
         for table_dir in table_dirs:
             if self.fs_client.exists(table_dir):
-                for table_file in self.list_files_with_prefixes(table_dir, table_prefixes):
-                    # NOTE: deleting in chunks on s3 does not raise on access denied, file non existing and probably other errors
-                    # print(f"DEL {table_file}")
-                    try:
-                        self._delete_file(table_file)
-                    except FileNotFoundError:
-                        logger.info(
-                            f"Directory or path to truncate tables {table_names} does not exist but"
-                            " it should have been created previously!"
-                        )
+                files.extend(self.list_files_with_prefixes(table_dir, table_prefixes))
+        self._delete_files(files)
+
+    def _delete_files(self, files: List[str]) -> None:
+        # s3 bulk delete does not report errors like access denied, so dlt deletes files one by one
+        workers = self.config.max_delete_workers or DEFAULT_DELETE_WORKERS.get(
+            self.config.protocol, 1
+        )
+        with create_thread_pool(min(workers, len(files))) as pool:
+            # the list call consumes the iterator and raises the first error
+            list(pool.map(self._delete_file, files))
 
     def _delete_file(self, file_path: str) -> None:
         try:
