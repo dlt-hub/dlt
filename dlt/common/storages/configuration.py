@@ -264,8 +264,8 @@ class FilesystemConfiguration(BaseConfiguration):
         return self.PROTOCOL_CREDENTIALS.get(self.protocol) or Optional[CredentialsConfiguration]  # type: ignore[return-value]
 
     def fingerprint(self) -> str:
-        """Returns a fingerprint of bucket scheme and netloc. Local paths are fingerprinted as their
-        `file://` url.
+        """Returns a fingerprint of bucket scheme and netloc without the password. Local paths are
+        fingerprinted as their `file://` url.
 
         Returns:
             str: Fingerprint.
@@ -278,7 +278,11 @@ class FilesystemConfiguration(BaseConfiguration):
         if self.is_local_path(bucket_url):
             bucket_url = self.make_file_url(bucket_url)
         url = urlparse(bucket_url)
-        return digest128(f"{url.scheme}://{url.netloc}")
+        netloc = url.netloc
+        if url.password is not None:
+            # keep the username: az urls hold the container there
+            netloc = f"{url.username}@{netloc.rpartition('@')[2]}"
+        return digest128(f"{url.scheme}://{netloc}")
 
     def make_url(self, fs_path: str) -> str:
         """Makes a full url (with scheme) form fs_path which is kind-of absolute path used by fsspec to identify resources.

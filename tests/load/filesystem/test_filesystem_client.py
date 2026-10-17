@@ -101,6 +101,14 @@ def _client_factory(fs: filesystem) -> FilesystemClient:
         pytest.param("S3://Cool/path", digest128("s3://Cool"), id="scheme_lowercased"),
         pytest.param("memory:///tmp/path", digest128("memory://"), id="empty_netloc"),
         pytest.param("https://host/path?token=abc", digest128("https://host"), id="query_ignored"),
+        pytest.param(
+            "sftp://user:pass@host:22/data", digest128("sftp://user@host:22"), id="password_dropped"
+        ),
+        pytest.param(
+            "abfss://container@account.dfs.core.windows.net/path",
+            digest128("abfss://container@account.dfs.core.windows.net"),
+            id="username_kept",
+        ),
     ],
 )
 def test_filesystem_fingerprint(bucket_url: Optional[str], expected_fingerprint: str) -> None:
