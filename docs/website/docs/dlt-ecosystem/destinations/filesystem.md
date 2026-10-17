@@ -471,6 +471,13 @@ The filesystem destination handles the write dispositions as follows:
 - `replace` - all files that belong to such tables are deleted from the dataset folder, and then the current set of files is added.
 - `merge` - falls back to `append`
 
+dlt deletes files one at a time because some buckets do not report errors for a bulk delete. Where the client allows it, dlt deletes files concurrently: 32 workers on S3 and Google storage, 16 on Azure and 8 on the local filesystem. On SFTP, Google Drive and the in-memory filesystem, dlt deletes files sequentially. To change the default, set `max_delete_workers` in the destination config:
+
+```toml
+[destination.filesystem]
+max_delete_workers=4
+```
+
 ## File compression
 
 The filesystem destination in the dlt library uses `gzip` compression by default for efficiency.

@@ -36,6 +36,10 @@ class FilesystemDestinationClientConfiguration(  # type: ignore[misc]
     """Maximum number of pipeline state files to keep; 0 or negative value disables cleanup."""
     always_refresh_views: bool = False
     """Always refresh table scanner views by setting the newest table metadata or globbing table files"""
+    max_delete_workers: Optional[int] = None
+    """Maximum number of files that dlt deletes concurrently when it truncates or drops tables. The
+    default depends on the bucket protocol: 32 for s3 and gs, 16 for Azure, 8 for local files and 1
+    for all other protocols."""
     deltalake_storage_options: Optional[DictStrAny] = None
     """Additional storage options passed to `deltalake` library, overriding credentials-derived values."""
     deltalake_configuration: Optional[DictStrOptionalStr] = None

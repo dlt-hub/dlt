@@ -2,6 +2,7 @@ import posixpath
 import os
 import time as _time
 import base64
+from concurrent.futures import ThreadPoolExecutor
 from contextlib import contextmanager
 from types import TracebackType
 from typing import (
@@ -44,7 +45,12 @@ from dlt.common.storages.exceptions import (
     NoMigrationPathException,
     UnsupportedStorageVersionException,
 )
-from dlt.common.storages.fsspec_filesystem import glob_files
+from dlt.common.storages.fsspec_filesystem import (
+    AZURE_BLOB_STORAGE_PROTOCOLS,
+    GCS_PROTOCOLS,
+    S3_PROTOCOLS,
+    glob_files,
+)
 from datetime import datetime, timezone
 
 from dlt.common.time import ensure_datetime_in_tz, ensure_pendulum_datetime
@@ -112,6 +118,12 @@ SUPPORTED_VERSIONS: set[int] = {1, CURRENT_VERSION}
 
 INIT_FILE_NAME = "init"
 FILENAME_SEPARATOR = "__"
+# sftp, gdrive and memory are not listed: their shared clients are not thread-safe
+DEFAULT_DELETE_WORKERS: Dict[str, int] = {
+    **{p: 32 for p in S3_PROTOCOLS + GCS_PROTOCOLS},
+    **{p: 16 for p in AZURE_BLOB_STORAGE_PROTOCOLS},
+    "file": 8,
+}
 
 
 class FilesystemLoadJob(RunnableLoadJob):
@@ -825,18 +837,24 @@ class FilesystemClient(
         transaction logs."""
         table_dirs = set(self.get_table_dirs(table_names))
         table_prefixes = [self.get_table_prefix(t) for t in table_names]
+        files: List[str] = []
         for table_dir in table_dirs:
             if self.fs_client.exists(table_dir):
-                for table_file in self.list_files_with_prefixes(table_dir, table_prefixes):
-                    # NOTE: deleting in chunks on s3 does not raise on access denied, file non existing and probably other errors
-                    # print(f"DEL {table_file}")
-                    try:
-                        self._delete_file(table_file)
-                    except FileNotFoundError:
-                        logger.info(
-                            f"Directory or path to truncate tables {table_names} does not exist but"
-                            " it should have been created previously!"
-                        )
+                files.extend(self.list_files_with_prefixes(table_dir, table_prefixes))
+        self._delete_files(files)
+
+    def _delete_files(self, files: List[str]) -> None:
+        # s3 bulk delete does not report errors like access denied, so dlt deletes files one by one
+        workers = self.config.max_delete_workers or DEFAULT_DELETE_WORKERS.get(
+            self.config.protocol, 1
+        )
+        if workers <= 1 or len(files) <= 1:
+            for file in files:
+                self._delete_file(file)
+            return
+        with ThreadPoolExecutor(max_workers=min(workers, len(files))) as pool:
+            # the list call consumes the iterator and raises the first error
+            list(pool.map(self._delete_file, files))
 
     def _delete_file(self, file_path: str) -> None:
         try:
