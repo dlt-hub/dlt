@@ -156,7 +156,9 @@ def verify_unsupported_merge_options(
     `options` that `target` (a destination type or table format) cannot apply."""
     exception_log: List[Exception] = []
     for table in load_tables:
-        merge_strategy = resolve_merge_strategy(schema.tables, table, capabilities)
+        merge_strategy = resolve_merge_strategy(
+            schema.tables, table, capabilities, is_prepared=True
+        )
         if merge_strategy is None:
             continue
         set_options = _get_merge_options(table)
@@ -180,7 +182,9 @@ def _verify_nested_destination_scope(
     capabilities: DestinationCapabilitiesContext,
     destination_scope_placeholders: Sequence[str],
 ) -> List[Exception]:
-    merge_strategy = resolve_merge_strategy(schema.tables, root_table, capabilities)
+    merge_strategy = resolve_merge_strategy(
+        schema.tables, root_table, capabilities, is_prepared=True
+    )
     if merge_strategy is None:
         # the prepared root table does not merge, ie. on a staging filesystem
         return []
@@ -248,7 +252,9 @@ def verify_schema_merge_disposition(
                     )
                 )
 
-            merge_strategy = resolve_merge_strategy(schema.tables, table, capabilities)
+            merge_strategy = resolve_merge_strategy(
+                schema.tables, table, capabilities, is_prepared=True
+            )
             if merge_strategy is None:
                 table_format_info = ""
                 if capabilities.supported_table_formats:

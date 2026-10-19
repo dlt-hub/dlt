@@ -30,51 +30,94 @@ def test_resolve_merge_strategy() -> None:
     schema.update_table(delta_table)
     schema.update_table(iceberg_table)
 
-    assert resolve_merge_strategy(schema.tables, table) is None
-    assert resolve_merge_strategy(schema.tables, delta_table) is None
-    assert resolve_merge_strategy(schema.tables, iceberg_table) is None
+    assert resolve_merge_strategy(schema.tables, table, is_prepared=False) is None
+    assert resolve_merge_strategy(schema.tables, delta_table, is_prepared=False) is None
+    assert resolve_merge_strategy(schema.tables, iceberg_table, is_prepared=False) is None
 
     # try default merge dispositions
     from dlt.destinations import athena, filesystem, duckdb
 
-    assert resolve_merge_strategy(schema.tables, table, filesystem().capabilities()) is None
     assert (
-        resolve_merge_strategy(schema.tables, delta_table, filesystem().capabilities()) == "upsert"
+        resolve_merge_strategy(schema.tables, table, filesystem().capabilities(), is_prepared=False)
+        is None
     )
     assert (
-        resolve_merge_strategy(schema.tables, iceberg_table, athena().capabilities())
+        resolve_merge_strategy(
+            schema.tables, delta_table, filesystem().capabilities(), is_prepared=False
+        )
+        == "upsert"
+    )
+    assert (
+        resolve_merge_strategy(
+            schema.tables, iceberg_table, athena().capabilities(), is_prepared=False
+        )
         == "delete-insert"
     )
 
     # unknown table formats
     assert (
-        resolve_merge_strategy(schema.tables, iceberg_table, filesystem().capabilities())
+        resolve_merge_strategy(
+            schema.tables, iceberg_table, filesystem().capabilities(), is_prepared=False
+        )
         == "upsert"
     )
-    assert resolve_merge_strategy(schema.tables, delta_table, athena().capabilities()) is None
+    assert (
+        resolve_merge_strategy(
+            schema.tables, delta_table, athena().capabilities(), is_prepared=False
+        )
+        is None
+    )
 
     # not supported strategy
     schema.tables["delta_table"]["x-merge-strategy"] = "delete-insert"  # type: ignore[typeddict-unknown-key]
     with pytest.raises(DestinationCapabilitiesException):
-        resolve_merge_strategy(schema.tables, delta_table, filesystem().capabilities())
+        resolve_merge_strategy(
+            schema.tables, delta_table, filesystem().capabilities(), is_prepared=False
+        )
 
     # non-default strategy
     schema.tables["table"]["x-merge-strategy"] = "scd2"  # type: ignore[typeddict-unknown-key]
-    assert resolve_merge_strategy(schema.tables, table, filesystem().capabilities()) is None
-    assert resolve_merge_strategy(schema.tables, table, duckdb().capabilities()) == "scd2"
+    assert (
+        resolve_merge_strategy(schema.tables, table, filesystem().capabilities(), is_prepared=False)
+        is None
+    )
+    assert (
+        resolve_merge_strategy(schema.tables, table, duckdb().capabilities(), is_prepared=False)
+        == "scd2"
+    )
 
     # scd2 not supported on filesystem for iceberg table format
     iceberg_scd2 = new_table("iceberg_scd2", table_format="iceberg", write_disposition="merge")
     schema.update_table(iceberg_scd2)
     schema.tables["iceberg_scd2"]["x-merge-strategy"] = "scd2"  # type: ignore[typeddict-unknown-key]
     with pytest.raises(DestinationCapabilitiesException):
-        resolve_merge_strategy(schema.tables, iceberg_scd2, filesystem().capabilities())
+        resolve_merge_strategy(
+            schema.tables, iceberg_scd2, filesystem().capabilities(), is_prepared=False
+        )
 
     # scd2 not supported on filesystem for native (no table format)
     native_scd2 = new_table("native_scd2", write_disposition="merge")
     schema.update_table(native_scd2)
     schema.tables["native_scd2"]["x-merge-strategy"] = "scd2"  # type: ignore[typeddict-unknown-key]
-    assert resolve_merge_strategy(schema.tables, native_scd2, filesystem().capabilities()) is None
+    assert (
+        resolve_merge_strategy(
+            schema.tables, native_scd2, filesystem().capabilities(), is_prepared=False
+        )
+        is None
+    )
+
+    # a prepared table is used as it is: a job client may remove hints that the schema still has
+    fs_caps = filesystem().capabilities()
+    iceberg_upsert = new_table("iceberg_upsert", table_format="iceberg", write_disposition="merge")
+    schema.update_table(iceberg_upsert)
+    prepared = prepare_load_table(schema.tables, schema.tables["iceberg_upsert"], fs_caps)
+    prepared["x-merge-strategy"] = "insert-only"  # type: ignore[typeddict-unknown-key]
+    assert (
+        resolve_merge_strategy(schema.tables, prepared, fs_caps, is_prepared=True) == "insert-only"
+    )
+    assert resolve_merge_strategy(schema.tables, prepared, fs_caps, is_prepared=False) == "upsert"
+    prepared.pop("table_format")
+    assert resolve_merge_strategy(schema.tables, prepared, fs_caps, is_prepared=True) is None
 
 
 def test_verify_capabilities_ident_collisions() -> None:
