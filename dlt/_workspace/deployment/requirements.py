@@ -53,7 +53,9 @@ REQUIREMENTS_IN = "requirements.in"
 UV_LOCK = "uv.lock"
 PYPI_INDEX_URL = "https://pypi.org/simple"
 INDEX_URL_MARKER = "index-url:"
-"""Leads the non PEP 508 clause appended to a spec locked to an index other than PyPI."""
+"""Leads the non PEP 508 clause appended to a spec locked to an index other than PyPI.
+An annotated spec is not a valid PEP 508 string: strip the clause before parsing it with `Requirement()`.
+"""
 
 __all__ = [
     "DLTHUB_CLIENT_PKG_NAME",
@@ -548,9 +550,15 @@ _PINNED_SPEC_RE = re.compile(
 
 
 def _annotate_index_urls(specs: Sequence[str], index_urls: TIndexUrls) -> List[str]:
-    """Append `; index-url: <url>` to every pinned spec found in `index_urls`."""
+    """Append `; index-url: <url>` to every pinned spec found in `index_urls`.
+
+    Raises:
+        WorkspaceRequirementsError: an entry of `index_urls` matches no spec. A silent miss
+            would make the runtime install that package from PyPI.
+    """
     if not index_urls:
         return list(specs)
+    unmatched = dict(index_urls)
     annotated: List[str] = []
     for spec in specs:
         m = _PINNED_SPEC_RE.match(spec)
@@ -558,7 +566,16 @@ def _annotate_index_urls(specs: Sequence[str], index_urls: TIndexUrls) -> List[s
             key = (_normalize_name(m.group("name")), m.group("version"), m.group("marker") or "")
             if index := index_urls.get(key):
                 spec = f"{spec} ; {INDEX_URL_MARKER} {index}"
+                unmatched.pop(key, None)
         annotated.append(spec)
+    if unmatched:
+        entries = ", ".join(
+            f"{name}=={version} ; {marker}".rstrip(" ;") for name, version, marker in unmatched
+        )
+        raise WorkspaceRequirementsError(
+            f"Locked packages {entries} come from an index other than PyPI but match no exported"
+            " spec"
+        )
     return annotated
 
 

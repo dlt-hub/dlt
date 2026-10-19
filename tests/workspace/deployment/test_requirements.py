@@ -216,37 +216,32 @@ def test_pyproject_with_lock_annotates_alternative_index() -> None:
         Requirement(stripped)
 
 
-@pytest.mark.parametrize(
-    "spec, expected",
-    [
-        ("six==1.17.0", "six==1.17.0"),
-        (
-            "mpmath==1.4.1 ; sys_platform == 'linux'",
-            f"mpmath==1.4.1 ; sys_platform == 'linux' ; {INDEX_URL_MARKER} {_PYTORCH_INDEX}",
-        ),
-        ("mpmath==1.3.0 ; sys_platform != 'linux'", "mpmath==1.3.0 ; sys_platform != 'linux'"),
-        ("sympy==1.12", f"sympy==1.12 ; {INDEX_URL_MARKER} {_PYTORCH_INDEX}"),
-        ("Sympy_Fork==1.12", f"Sympy_Fork==1.12 ; {INDEX_URL_MARKER} {_PYTORCH_INDEX}"),
-        ("sympy==1.13", "sympy==1.13"),
-        ("attrs @ git+https://github.com/python-attrs/attrs@9e443b1", None),
-    ],
-    ids=[
-        "pypi-untouched",
-        "marker-match",
-        "marker-mismatch",
-        "no-marker",
-        "name-normalized",
-        "version-mismatch",
-        "git-spec-untouched",
-    ],
-)
-def test_annotate_index_urls(spec: str, expected: str) -> None:
+def test_annotate_index_urls() -> None:
     index_urls = {
         ("mpmath", "1.4.1", "sys_platform == 'linux'"): _PYTORCH_INDEX,
         ("sympy", "1.12", ""): _PYTORCH_INDEX,
         ("sympy-fork", "1.12", ""): _PYTORCH_INDEX,
     }
-    assert _annotate_index_urls([spec], index_urls) == [expected or spec]
+    specs = [
+        "six==1.17.0",
+        "mpmath==1.4.1 ; sys_platform == 'linux'",
+        "mpmath==1.3.0 ; sys_platform != 'linux'",
+        "sympy==1.12",
+        "Sympy_Fork==1.12",
+        "attrs @ git+https://github.com/python-attrs/attrs@9e443b1",
+    ]
+    # pypi, marker mismatch and git specs stay untouched, names are normalized before lookup
+    assert _annotate_index_urls(specs, index_urls) == [
+        "six==1.17.0",
+        f"mpmath==1.4.1 ; sys_platform == 'linux' ; {INDEX_URL_MARKER} {_PYTORCH_INDEX}",
+        "mpmath==1.3.0 ; sys_platform != 'linux'",
+        f"sympy==1.12 ; {INDEX_URL_MARKER} {_PYTORCH_INDEX}",
+        f"Sympy_Fork==1.12 ; {INDEX_URL_MARKER} {_PYTORCH_INDEX}",
+        "attrs @ git+https://github.com/python-attrs/attrs@9e443b1",
+    ]
+    # an entry no spec consumes would silently install from PyPI at run time
+    with pytest.raises(WorkspaceRequirementsError, match="sympy==1.12"):
+        _annotate_index_urls(["sympy==1.13"], {("sympy", "1.12", ""): _PYTORCH_INDEX})
 
 
 def test_parse_pylock_index_urls() -> None:
