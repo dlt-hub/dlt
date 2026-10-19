@@ -11,7 +11,7 @@ from dlt._workspace.typing import TWorkspaceAccess
 MANIFEST_ENGINE_VERSION = 2
 WORKSPACE_DEPRECATED_SINCE = "1.29.0"
 """dlt version the job-definition field renames were introduced in."""
-REQUIREMENTS_ENGINE_VERSION = 3
+REQUIREMENTS_ENGINE_VERSION = 2
 AGENT_DEFINITION_ENGINE_VERSION = 1
 JOB_RESULT_ENGINE_VERSION = 1
 JOB_RESULT_PAYLOAD_TYPE = "job_result"
@@ -466,39 +466,6 @@ class TJobsDeploymentManifest(TypedDict):
     jobs: List[TJobDefinition]
 
 
-TPackageSourceKind = Literal["registry", "git", "url", "path", "directory", "editable", "virtual"]
-"""Where a resolved package comes from."""
-
-TRequirementsExportSource = Literal[
-    "uv.lock", "pyproject.toml", "requirements.txt", "requirements.in"
-]
-"""Workspace file the requirements were exported from."""
-
-
-class TPackageSource(TypedDict):
-    """Resolution source of a single resolved package entry."""
-
-    kind: TPackageSourceKind
-    location: NotRequired[str]
-    """Index URL, git URL, file URL or local path as written by uv. Omitted for `virtual`."""
-    markers: NotRequired[List[str]]
-    """Environments the entry applies to: `resolution-markers` of a `uv.lock` entry or the marker
-    of a compiled requirement. Present when the package is resolved per environment."""
-
-
-class TRequirementsResolution(TypedDict):
-    """How the groups were resolved and where their packages are installed from."""
-
-    exported_from: TRequirementsExportSource
-    """File the groups were exported from."""
-    package_sources: Dict[str, List[TPackageSource]]
-    """PEP 503 normalized package name to its sources, one per resolved entry. Read from `uv.lock`,
-    or from the index annotations of a compiled requirements file. Empty otherwise."""
-    index_options: List[str]
-    """`--index-url`, `--extra-index-url` and `--find-links` lines of a requirements file export,
-    as written, `${VAR}` placeholders included. Empty for `pyproject.toml` exports."""
-
-
 class TWorkspaceRequirementsManifest(TypedDict):
     """Workspace Python dependencies exported per dependency group."""
 
@@ -514,5 +481,3 @@ class TWorkspaceRequirementsManifest(TypedDict):
     """Group name to sorted PEP 508 specs. Always contains `"main"`."""
     launcher_requirements: Dict[str, List[str]]
     """Launcher module path to mandatory specs installed for jobs of that launcher."""
-    resolution: Optional[TRequirementsResolution]
-    """`None` when the workspace has no dependency file or the manifest predates engine 3."""

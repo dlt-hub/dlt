@@ -1,5 +1,6 @@
 """Export, save, load, and migrate `TWorkspaceRequirementsManifest` — the wire format for workspace dependencies shipped to the runtime.
 Supports requirements.txt and requirements.in. If uv installed - supports pyproject with dependency groups and uv/PEP lock files.
+Specs locked to an index other than PyPI carry it as a trailing `; index-url: <url>` clause.
 poetry/PDM support can be easily added.
 """
 
@@ -9,21 +10,10 @@ import shutil
 import subprocess
 import sys
 from pathlib import Path
-from typing import (
-    Any,
-    BinaryIO,
-    Dict,
-    Final,
-    List,
-    NamedTuple,
-    Optional,
-    Sequence,
-    Set,
-    Tuple,
-    cast,
-)
+from typing import Any, BinaryIO, Dict, Final, List, Optional, Sequence, Set, Tuple
+
 import tomlkit
-from packaging.requirements import InvalidRequirement, Requirement
+from packaging.requirements import Requirement
 
 from dlt.common import json
 from dlt.common.exceptions import DictValidationException
@@ -53,10 +43,6 @@ from dlt._workspace.deployment.typing import (
     REQUIREMENTS_ENGINE_VERSION,
     TInstallMode,
     TInstallSpec,
-    TPackageSource,
-    TPackageSourceKind,
-    TRequirementsExportSource,
-    TRequirementsResolution,
     TWorkspaceRequirementsManifest,
 )
 
@@ -65,17 +51,18 @@ PYPROJECT_TOML = "pyproject.toml"
 REQUIREMENTS_TXT = "requirements.txt"
 REQUIREMENTS_IN = "requirements.in"
 UV_LOCK = "uv.lock"
+PYPI_INDEX_URL = "https://pypi.org/simple"
+INDEX_URL_MARKER = "index-url:"
+"""Leads the non PEP 508 clause appended to a spec locked to an index other than PyPI."""
 
 __all__ = [
     "DLTHUB_CLIENT_PKG_NAME",
     "DLTHUB_PKG_NAME",
+    "INDEX_URL_MARKER",
     "MAIN_GROUP",
     "REQUIREMENTS_ENGINE_VERSION",
     "TInstallSpec",
     "TInstallMode",
-    "TPackageSource",
-    "TRequirementsExportSource",
-    "TRequirementsResolution",
     "TWorkspaceRequirementsManifest",
     "WorkspaceRequirementsError",
     "build_dashboard_group",
@@ -365,7 +352,6 @@ def default_requirements_manifest() -> TWorkspaceRequirementsManifest:
         "default_groups": [MAIN_GROUP],
         "groups": groups,
         "launcher_requirements": launcher_requirements,
-        "resolution": None,
     }
 
 
@@ -395,32 +381,12 @@ def export_workspace_requirements(
     requirements_in_path = workspace_root / REQUIREMENTS_IN
 
     # detection order: pyproject -> requirements.txt -> requirements.in -> empty main
-    resolution: Optional[TRequirementsResolution] = None
     if pyproject_path.exists():
         groups = _export_from_pyproject(workspace_root, pyproject_path, uv_lock_path)
-        if uv_lock_path.exists():
-            resolution = {
-                "exported_from": "uv.lock",
-                "package_sources": _parse_uv_lock_sources(uv_lock_path),
-                "index_options": [],
-            }
-        else:
-            resolution = {
-                "exported_from": "pyproject.toml",
-                "package_sources": {},
-                "index_options": [],
-            }
-    elif requirements_txt_path.exists() or requirements_in_path.exists():
-        requirements_path = (
-            requirements_txt_path if requirements_txt_path.exists() else requirements_in_path
-        )
-        compiled = _compile_requirements_file(workspace_root, requirements_path)
-        groups = {MAIN_GROUP: compiled.specs}
-        resolution = {
-            "exported_from": cast(TRequirementsExportSource, requirements_path.name),
-            "package_sources": compiled.package_sources,
-            "index_options": compiled.index_options,
-        }
+    elif requirements_txt_path.exists():
+        groups = {MAIN_GROUP: _compile_requirements_file(workspace_root, requirements_txt_path)}
+    elif requirements_in_path.exists():
+        groups = {MAIN_GROUP: _compile_requirements_file(workspace_root, requirements_in_path)}
     else:
         groups = {MAIN_GROUP: []}
 
@@ -448,7 +414,6 @@ def export_workspace_requirements(
         "default_groups": resolved_default_groups,
         "groups": dict(sorted(groups.items())),
         "launcher_requirements": launcher_requirements,
-        "resolution": resolution,
     }
 
 
@@ -471,10 +436,6 @@ def migrate_requirements(
         # engine 2 adds dlt_version; engine-1 manifests predate it, assume 1.28.0
         manifest_dict.setdefault("dlt_version", dict(PRE_TRACKING_DLT_INSTALL_SPEC))
         from_engine = 2
-    if from_engine == 2 and to_engine > 2:
-        # engine 3 adds resolution; older manifests do not record where packages come from
-        manifest_dict["resolution"] = None
-        from_engine = 3
     if from_engine != to_engine:
         raise ValueError(f"no requirements migration path from engine {from_engine} to {to_engine}")
     manifest_dict["engine_version"] = to_engine
@@ -518,36 +479,9 @@ def _export_from_pyproject(
         _require_uv()
         # verify the lock is in sync — non-mutating
         _run_uv(["lock", "--check"], cwd=workspace_root)
-        result: Dict[str, List[str]] = {}
-        result[MAIN_GROUP] = _parse_uv_output(
-            _run_uv(
-                [
-                    "export",
-                    "--no-hashes",
-                    "--no-emit-project",
-                    "--no-default-groups",
-                    "--format",
-                    "requirements.txt",
-                ],
-                cwd=workspace_root,
-            )
-        )
+        result: Dict[str, List[str]] = {MAIN_GROUP: _export_lock_group(workspace_root, None)}
         for name in group_names:
-            result[name] = _parse_uv_output(
-                _run_uv(
-                    [
-                        "export",
-                        "--no-hashes",
-                        "--no-emit-project",
-                        "--no-default-groups",
-                        "--only-group",
-                        name,
-                        "--format",
-                        "requirements.txt",
-                    ],
-                    cwd=workspace_root,
-                )
-            )
+            result[name] = _export_lock_group(workspace_root, name)
         return dict(sorted(result.items()))
 
     # no lock — parse declarations directly
@@ -561,59 +495,77 @@ def _export_from_pyproject(
     return dict(sorted(result.items()))
 
 
-_PACKAGE_SOURCE_KINDS: Tuple[TPackageSourceKind, ...] = (
-    "registry",
-    "git",
-    "url",
-    "path",
-    "directory",
-    "editable",
-    "virtual",
-)
-"""`[[package]].source` keys uv writes, in the order they are probed."""
+def _export_lock_group(workspace_root: Path, group: Optional[str]) -> List[str]:
+    """Export one dependency group from `uv.lock` as sorted pinned specs, annotated with the
+    index url of every package not locked to PyPI."""
+    scope = ["--no-emit-project", "--no-default-groups"]
+    if group is not None:
+        scope += ["--only-group", group]
+    specs = _parse_uv_output(
+        _run_uv(
+            ["export", "--no-hashes", *scope, "--format", "requirements.txt"], cwd=workspace_root
+        )
+    )
+    # pylock is exported with the same scope so its markers match the specs verbatim
+    index_urls = _parse_pylock_index_urls(
+        _run_uv(["export", *scope, "--format", "pylock.toml"], cwd=workspace_root)
+    )
+    return _annotate_index_urls(specs, index_urls)
 
 
-def _parse_uv_lock_sources(uv_lock_path: Path) -> Dict[str, List[TPackageSource]]:
-    """Map PEP 503 normalized package name to the `[[package]].source` of each of its entries.
+TIndexUrls = Dict[Tuple[str, str, str], str]
+"""(normalized name, version, marker or "") of a locked package to the index url it comes from."""
 
-    A package locked per platform or Python version has several entries, each with its own
-    `resolution-markers`. Entries without a source of a kind in `_PACKAGE_SOURCE_KINDS` are omitted.
+
+def _parse_pylock_index_urls(text: str) -> TIndexUrls:
+    """Map the packages of a pylock.toml blob that are not locked to PyPI to their index url.
+
+    Packages locked to a vcs, url or directory source carry that source in the spec itself and
+    are skipped.
     """
     try:
-        doc = tomlkit.parse(uv_lock_path.read_text(encoding="utf-8"))
+        doc = tomlkit.parse(text)
     except Exception as ex:
-        raise WorkspaceRequirementsError(f"Failed to parse {uv_lock_path}: {ex}") from ex
-
-    sources: Dict[str, List[TPackageSource]] = {}
-    for package in doc.get("package", []) or []:
-        name = package.get("name")
-        source = package.get("source") or {}
-        if not name or not source:
+        raise WorkspaceRequirementsError(f"Failed to parse pylock.toml export: {ex}") from ex
+    index_urls: TIndexUrls = {}
+    for package in doc.get("packages", []) or []:
+        index = package.get("index")
+        if not index or index == PYPI_INDEX_URL:
             continue
-        for kind in _PACKAGE_SOURCE_KINDS:
-            if kind not in source:
-                continue
-            entry: TPackageSource = {"kind": kind}
-            if kind != "virtual":
-                entry["location"] = str(source[kind])
-            if markers := package.get("resolution-markers"):
-                entry["markers"] = [str(m) for m in markers]
-            sources.setdefault(_normalize_name(str(name)), []).append(entry)
-            break
-    return dict(sorted(sources.items()))
+        key = (
+            _normalize_name(str(package["name"])),
+            str(package["version"]),
+            str(package.get("marker", "")),
+        )
+        index_urls[key] = str(index)
+    return index_urls
 
 
-class _CompiledRequirements(NamedTuple):
-    specs: List[str]
-    package_sources: Dict[str, List[TPackageSource]]
-    index_options: List[str]
+_PINNED_SPEC_RE = re.compile(
+    r"^(?P<name>[A-Za-z0-9][A-Za-z0-9_.\-]*)(?:\[[^\]]*\])?==(?P<version>[^\s;]+)"
+    r"(?:\s*;\s*(?P<marker>.+?))?\s*$"
+)
 
 
-def _compile_requirements_file(workspace_root: Path, file_path: Path) -> _CompiledRequirements:
-    """Export a `requirements.txt` / `requirements.in` file as sorted PEP 508 specs, the index
-    each package resolves from and the file's index options."""
+def _annotate_index_urls(specs: Sequence[str], index_urls: TIndexUrls) -> List[str]:
+    """Append `; index-url: <url>` to every pinned spec found in `index_urls`."""
+    if not index_urls:
+        return list(specs)
+    annotated: List[str] = []
+    for spec in specs:
+        m = _PINNED_SPEC_RE.match(spec)
+        if m:
+            key = (_normalize_name(m.group("name")), m.group("version"), m.group("marker") or "")
+            if index := index_urls.get(key):
+                spec = f"{spec} ; {INDEX_URL_MARKER} {index}"
+        annotated.append(spec)
+    return annotated
+
+
+def _compile_requirements_file(workspace_root: Path, file_path: Path) -> List[str]:
+    """Export a `requirements.txt` / `requirements.in` file as sorted PEP 508 specs."""
     # with uv: `uv pip compile --universal` for a resolved, platform-independent
-    # lockset. without uv: pure-Python parse, specs returned as authored, no sources
+    # lockset. without uv: pure-Python parse, specs returned as authored
     if is_uv_available():
         stdout = _run_uv(
             [
@@ -622,65 +574,12 @@ def _compile_requirements_file(workspace_root: Path, file_path: Path) -> _Compil
                 "--universal",
                 "--no-header",
                 "--no-annotate",
-                "--emit-index-annotation",
-                "--emit-index-url",
-                "--emit-find-links",
                 file_path.name,
             ],
             cwd=workspace_root,
         )
-        return _parse_compile_output(stdout)
-    lines = file_path.read_text(encoding="utf-8").splitlines()
-    index_options = [line.strip() for line in lines if _is_index_option(line.strip())]
-    return _CompiledRequirements(_parse_requirements_file(file_path), {}, index_options)
-
-
-_INDEX_OPTIONS = ("--index-url", "--extra-index-url", "--find-links", "-i", "-f")
-
-
-def _is_index_option(line: str) -> bool:
-    if not line.startswith("-"):
-        return False
-    return line.split("=", 1)[0].split(None, 1)[0] in _INDEX_OPTIONS
-
-
-_INDEX_ANNOTATION = "# from "
-
-
-def _parse_compile_output(text: str) -> _CompiledRequirements:
-    """Split `uv pip compile` output into specs, per-package index sources and index options.
-
-    Expects `--emit-index-annotation`: uv writes `# from <index url>` under every package it
-    resolved from an index.
-    """
-    specs: Set[str] = set()
-    sources: Dict[str, List[TPackageSource]] = {}
-    index_options: List[str] = []
-    current: Optional[Requirement] = None
-    for raw_line in text.splitlines():
-        line = raw_line.strip()
-        if not line:
-            continue
-        if _is_index_option(line):
-            index_options.append(line)
-        elif line.startswith(_INDEX_ANNOTATION):
-            if current is None:
-                continue
-            entry: TPackageSource = {
-                "kind": "registry",
-                "location": line[len(_INDEX_ANNOTATION) :].strip(),
-            }
-            if current.marker:
-                entry["markers"] = [str(current.marker)]
-            sources.setdefault(_normalize_name(current.name), []).append(entry)
-        elif not line.startswith("#"):
-            specs.add(line)
-            try:
-                current = Requirement(line)
-            except InvalidRequirement:
-                # flag lines such as `-e <path>` carry no index
-                current = None
-    return _CompiledRequirements(sorted(specs), dict(sorted(sources.items())), index_options)
+        return _parse_uv_output(stdout)
+    return _parse_requirements_file(file_path)
 
 
 def _parse_requirements_file(file_path: Path) -> List[str]:

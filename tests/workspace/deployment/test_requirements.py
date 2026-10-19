@@ -29,6 +29,7 @@ from dlt._workspace.cli.dlthub._init_command import init_dlthub_workspace
 from dlt._workspace.cli.dlthub.utils import fetch_init_plan
 from dlt._workspace.deployment.manifest import default_dashboard_job
 from dlt._workspace.deployment.requirements import (
+    INDEX_URL_MARKER,
     MAIN_GROUP,
     PRE_TRACKING_DLT_INSTALL_SPEC,
     REQUIREMENTS_ENGINE_VERSION,
@@ -46,11 +47,9 @@ from dlt._workspace.deployment.requirements import (
     python_version,
     save_requirements,
     _add_transitive_names,
+    _annotate_index_urls,
     _collect_package_names,
-    _normalize_name,
-    _is_index_option,
-    _parse_compile_output,
-    _parse_uv_lock_sources,
+    _parse_pylock_index_urls,
 )
 from dlt._workspace.deployment.typing import DASHBOARD_JOB_REF, TWorkspaceRequirementsManifest
 
@@ -117,8 +116,6 @@ def test_empty_workspace_dlt_in_every_launcher() -> None:
     assert result["default_groups"] == [MAIN_GROUP]
     # main is empty — no dep files in the workspace
     assert result["groups"][MAIN_GROUP] == []
-    # nothing to resolve from
-    assert result["resolution"] is None
     # dlt got injected into every launcher entry (including dashboard)
     dlt_spec = get_dlt_requirement_spec()
     for launcher, specs in result["launcher_requirements"].items():
@@ -163,13 +160,15 @@ def test_pyproject_with_lock_resolves_all_groups() -> None:
     }
     assert set(user_groups.keys()) == {"main", "dev", "gpu"}
 
-    # every user spec must be pinned, and free of hashes / local paths
+    # every user spec must be pinned, and free of hashes / local paths. all packages come
+    # from PyPI so no spec carries an index annotation
     for group, specs in user_groups.items():
         assert specs, f"group {group!r} is empty"
         for spec in specs:
             assert "==" in spec, f"unpinned spec in {group!r}: {spec}"
             assert "file://" not in spec, f"local path in {group!r}: {spec}"
             assert "sha256:" not in spec, f"hash leaked into {group!r}: {spec}"
+            assert INDEX_URL_MARKER not in spec, f"index annotation in {group!r}: {spec}"
 
     # named packages landed in the right groups
     main_names = {Requirement(s).name for s in groups["main"]}
@@ -180,6 +179,109 @@ def test_pyproject_with_lock_resolves_all_groups() -> None:
 
     gpu_names = {Requirement(s).name for s in groups["gpu"]}
     assert "numpy" in gpu_names
+
+
+_PYTORCH_INDEX = "https://download.pytorch.org/whl/cpu"
+_INDEX_URL_SUFFIX_RE = re.compile(r"\s*;\s*index-url:\s*(?P<url>\S+)\s*$")
+"""Strips the annotation the way the backend does, leaving a PEP 508 spec."""
+
+
+def test_pyproject_with_lock_annotates_alternative_index() -> None:
+    with isolated_workspace("deps_pyproject_index") as ctx:
+        _run_uv_lock(ctx.run_dir)
+        result = export_workspace_requirements(Path(ctx.run_dir))
+
+    main = result["groups"][MAIN_GROUP]
+    # mpmath is split by marker: the linux entry is pinned to the pytorch index, the
+    # other one comes from PyPI and stays a plain spec
+    linux = [s for s in main if s.startswith("mpmath==") and "== 'linux'" in s]
+    other = [s for s in main if s.startswith("mpmath==") and "!= 'linux'" in s]
+    assert len(linux) == 1 and len(other) == 1
+    assert linux[0].endswith(f" ; sys_platform == 'linux' ; {INDEX_URL_MARKER} {_PYTORCH_INDEX}")
+    assert other[0].endswith(" ; sys_platform != 'linux'")
+    assert INDEX_URL_MARKER not in other[0]
+    # PyPI packages are untouched
+    assert not any(INDEX_URL_MARKER in s for s in main if s.startswith("six=="))
+
+    # the group is exported on its own, every sympy entry comes from the pytorch index
+    tools = [s for s in result["groups"]["tools"] if s.startswith("sympy==")]
+    assert tools
+    for spec in tools:
+        assert spec.endswith(f" ; {INDEX_URL_MARKER} {_PYTORCH_INDEX}"), spec
+
+    # every annotated spec is a valid PEP 508 spec once the suffix is stripped
+    for spec in main + tools:
+        stripped = _INDEX_URL_SUFFIX_RE.sub("", spec)
+        assert INDEX_URL_MARKER not in stripped
+        Requirement(stripped)
+
+
+@pytest.mark.parametrize(
+    "spec, expected",
+    [
+        ("six==1.17.0", "six==1.17.0"),
+        (
+            "mpmath==1.4.1 ; sys_platform == 'linux'",
+            f"mpmath==1.4.1 ; sys_platform == 'linux' ; {INDEX_URL_MARKER} {_PYTORCH_INDEX}",
+        ),
+        ("mpmath==1.3.0 ; sys_platform != 'linux'", "mpmath==1.3.0 ; sys_platform != 'linux'"),
+        ("sympy==1.12", f"sympy==1.12 ; {INDEX_URL_MARKER} {_PYTORCH_INDEX}"),
+        ("Sympy_Fork==1.12", f"Sympy_Fork==1.12 ; {INDEX_URL_MARKER} {_PYTORCH_INDEX}"),
+        ("sympy==1.13", "sympy==1.13"),
+        ("attrs @ git+https://github.com/python-attrs/attrs@9e443b1", None),
+    ],
+    ids=[
+        "pypi-untouched",
+        "marker-match",
+        "marker-mismatch",
+        "no-marker",
+        "name-normalized",
+        "version-mismatch",
+        "git-spec-untouched",
+    ],
+)
+def test_annotate_index_urls(spec: str, expected: str) -> None:
+    index_urls = {
+        ("mpmath", "1.4.1", "sys_platform == 'linux'"): _PYTORCH_INDEX,
+        ("sympy", "1.12", ""): _PYTORCH_INDEX,
+        ("sympy-fork", "1.12", ""): _PYTORCH_INDEX,
+    }
+    assert _annotate_index_urls([spec], index_urls) == [expected or spec]
+
+
+def test_parse_pylock_index_urls() -> None:
+    pylock = f"""
+lock-version = "1.0"
+created-by = "uv"
+
+[[packages]]
+name = "six"
+version = "1.17.0"
+index = "https://pypi.org/simple"
+
+[[packages]]
+name = "mpmath"
+version = "1.4.1"
+marker = "sys_platform == 'linux'"
+index = "{_PYTORCH_INDEX}"
+
+[[packages]]
+name = "Sympy"
+version = "1.12"
+index = "{_PYTORCH_INDEX}"
+
+[[packages]]
+name = "attrs"
+version = "23.2.0"
+vcs = {{ type = "git", url = "https://github.com/python-attrs/attrs", commit-id = "9e443b1" }}
+"""
+    # default index and non-registry sources are not in the map
+    assert _parse_pylock_index_urls(pylock) == {
+        ("mpmath", "1.4.1", "sys_platform == 'linux'"): _PYTORCH_INDEX,
+        ("sympy", "1.12", ""): _PYTORCH_INDEX,
+    }
+    with pytest.raises(WorkspaceRequirementsError):
+        _parse_pylock_index_urls("[[packages]\nname = ")
 
 
 def test_pyproject_lock_out_of_sync_raises() -> None:
@@ -244,10 +346,6 @@ def test_requirements_fallback_drops_flag_lines(tmp_path: Path) -> None:
         result = export_workspace_requirements(tmp_path)
     # both real specs survive; flags/comments dropped; line-continuation joined
     assert result["groups"][MAIN_GROUP] == ["pydantic>=2.0", "requests>=2.0"]
-    # index options are kept as written; nothing is resolved, so no sources
-    assert result["resolution"]["index_options"] == ["--index-url https://example.com/simple"]
-    assert result["resolution"]["package_sources"] == {}
-    assert result["resolution"]["exported_from"] == "requirements.txt"
 
 
 def test_pyproject_with_lock_missing_uv_raises_friendly_error() -> None:
@@ -289,7 +387,6 @@ def test_export_default_groups_override() -> None:
 
 def test_save_load_roundtrip() -> None:
     with isolated_workspace("deps_pyproject") as ctx:
-        _uv_lock(ctx.run_dir)
         original = export_workspace_requirements(Path(ctx.run_dir))
 
     buf = io.BytesIO()
@@ -301,7 +398,6 @@ def test_save_load_roundtrip() -> None:
     assert restored["engine_version"] == REQUIREMENTS_ENGINE_VERSION
     assert restored["default_groups"] == [MAIN_GROUP]
     assert MAIN_GROUP in restored["groups"]
-    assert restored["resolution"]["package_sources"]
 
 
 def test_migrate_requirements_same_version_is_noop() -> None:
@@ -322,7 +418,7 @@ def test_migrate_requirements_unknown_path_raises() -> None:
 
 
 def test_migrate_requirements_v1_backfills_dlt_version() -> None:
-    """Engine-1 manifests (no dlt_version) load at the current engine with the 1.28.0 default."""
+    """Engine-1 manifests (no dlt_version) load as engine 2 with the 1.28.0 default."""
     data = json.dumps(
         {
             "engine_version": 1,
@@ -336,7 +432,6 @@ def test_migrate_requirements_v1_backfills_dlt_version() -> None:
     assert manifest["engine_version"] == REQUIREMENTS_ENGINE_VERSION
     assert manifest["dlt_version"] == PRE_TRACKING_DLT_INSTALL_SPEC
     assert manifest["dlt_version"]["version"] == "1.28.0"
-    assert manifest["resolution"] is None
 
 
 def test_load_unknown_engine_version_raises() -> None:
@@ -363,20 +458,6 @@ def test_load_invalid_shape_raises_validation_error() -> None:
     ).encode("utf-8")
     with pytest.raises(WorkspaceRequirementsError, match="invalid requirements manifest"):
         load_requirements(io.BytesIO(data))
-
-
-def test_load_unknown_package_source_kind_raises() -> None:
-    manifest = default_requirements_manifest()
-    manifest["resolution"] = {
-        "exported_from": "uv.lock",
-        "package_sources": {"pkg": [{"kind": "bogus", "location": "x"}]},  # type: ignore[typeddict-item]
-        "index_options": [],
-    }
-    buf = io.BytesIO()
-    save_requirements(manifest, buf)
-    buf.seek(0)
-    with pytest.raises(WorkspaceRequirementsError, match="invalid requirements manifest"):
-        load_requirements(buf)
 
 
 def test_launcher_requirements_shape() -> None:
@@ -1153,302 +1234,3 @@ def test_get_workspace_install_specs_skips_uninstalled_packages(
     specs = req_mod.get_workspace_install_specs()
     names = {s["name"] for s in specs}
     assert names == {"dlt"}
-
-
-_SYNTHETIC_UV_LOCK = """
-version = 1
-requires-python = ">=3.9"
-
-[[package]]
-name = "public-pkg"
-version = "1.0.0"
-source = { registry = "https://pypi.org/simple" }
-
-[[package]]
-name = "Private_Pkg"
-version = "2.0.0"
-source = { registry = "https://acme.example.com/simple" }
-
-[[package]]
-name = "git-pkg"
-version = "3.0.0"
-source = { git = "https://github.com/acme/git-pkg.git?rev=main#abc123" }
-
-[[package]]
-name = "url-pkg"
-version = "4.0.0"
-source = { url = "https://example.com/url_pkg-4.0.0-py3-none-any.whl" }
-
-[[package]]
-name = "path-pkg"
-version = "4.1.0"
-source = { path = "dist/path_pkg-4.1.0-py3-none-any.whl" }
-
-[[package]]
-name = "dir-pkg"
-version = "5.0.0"
-source = { directory = "vendor/dir-pkg" }
-
-[[package]]
-name = "editable-pkg"
-version = "6.0.0"
-source = { editable = "." }
-
-[[package]]
-name = "the-workspace"
-version = "0.1.0"
-source = { virtual = "." }
-
-[[package]]
-name = "no-source-pkg"
-version = "7.0.0"
-
-[[package]]
-name = "torch"
-version = "2.5.1"
-source = { registry = "https://download.pytorch.org/whl/cpu" }
-resolution-markers = ["sys_platform == 'linux'"]
-
-[[package]]
-name = "torch"
-version = "2.5.1"
-source = { registry = "https://pypi.org/simple" }
-resolution-markers = ["sys_platform == 'darwin'"]
-"""
-
-
-def test_parse_uv_lock_sources_all_kinds(tmp_path: Path) -> None:
-    lock_path = tmp_path / "uv.lock"
-    lock_path.write_text(_SYNTHETIC_UV_LOCK)
-    sources = _parse_uv_lock_sources(lock_path)
-
-    # a private index is reported as a registry with its own URL — that is the only
-    # signal distinguishing it from PyPI, the specs are byte-identical
-    assert sources["public-pkg"] == [{"kind": "registry", "location": "https://pypi.org/simple"}]
-    assert sources["private-pkg"] == [
-        {"kind": "registry", "location": "https://acme.example.com/simple"}
-    ]
-    assert sources["git-pkg"] == [
-        {"kind": "git", "location": "https://github.com/acme/git-pkg.git?rev=main#abc123"}
-    ]
-    assert sources["url-pkg"] == [
-        {"kind": "url", "location": "https://example.com/url_pkg-4.0.0-py3-none-any.whl"}
-    ]
-    assert sources["path-pkg"] == [
-        {"kind": "path", "location": "dist/path_pkg-4.1.0-py3-none-any.whl"}
-    ]
-    assert sources["dir-pkg"] == [{"kind": "directory", "location": "vendor/dir-pkg"}]
-    assert sources["editable-pkg"] == [{"kind": "editable", "location": "."}]
-    # virtual carries no location
-    assert sources["the-workspace"] == [{"kind": "virtual"}]
-    # a package without a source block is not reported at all
-    assert "no-source-pkg" not in sources
-    # a package locked per platform keeps every entry with its markers, in lock order
-    assert sources["torch"] == [
-        {
-            "kind": "registry",
-            "location": "https://download.pytorch.org/whl/cpu",
-            "markers": ["sys_platform == 'linux'"],
-        },
-        {
-            "kind": "registry",
-            "location": "https://pypi.org/simple",
-            "markers": ["sys_platform == 'darwin'"],
-        },
-    ]
-    assert list(sources.keys()) == sorted(sources.keys())
-
-
-def test_parse_uv_lock_sources_unparsable_raises(tmp_path: Path) -> None:
-    lock_path = tmp_path / "uv.lock"
-    lock_path.write_text("[[package]\nname = ")
-    with pytest.raises(WorkspaceRequirementsError, match="Failed to parse"):
-        _parse_uv_lock_sources(lock_path)
-
-
-def test_pyproject_with_lock_exports_package_sources() -> None:
-    with isolated_workspace("deps_pyproject") as ctx:
-        _uv_lock(ctx.run_dir)
-        result = export_workspace_requirements(Path(ctx.run_dir))
-
-    sources = result["resolution"]["package_sources"]
-    # every spec exported from the lock has a source; names join on PEP 503 normalization.
-    # the dashboard and agent loop groups are built in, not resolved from the lock
-    builtin_groups = {DASHBOARD_JOB_REF, *build_agent_loop_groups()}
-    for group, specs in result["groups"].items():
-        if group in builtin_groups:
-            continue
-        for spec in specs:
-            name = _normalize_name(Requirement(spec).name)
-            assert name in sources, f"{name} from {group!r} missing a source"
-    assert sources["tomlkit"] == [{"kind": "registry", "location": "https://pypi.org/simple"}]
-    # the workspace project itself is not published anywhere
-    assert [s["kind"] for s in sources["test-workspace-deps"]] in (["virtual"], ["editable"])
-    assert result["resolution"]["exported_from"] == "uv.lock"
-    assert result["resolution"]["index_options"] == []
-
-
-def test_pyproject_without_lock_exports_no_package_sources() -> None:
-    with isolated_workspace("deps_pyproject") as ctx:
-        result = export_workspace_requirements(Path(ctx.run_dir))
-    assert result["resolution"]["package_sources"] == {}
-    assert result["resolution"]["index_options"] == []
-    assert result["resolution"]["exported_from"] == "pyproject.toml"
-
-
-@pytest.mark.parametrize(
-    "fixture_name, file_name",
-    [
-        ("deps_requirements_txt", "requirements.txt"),
-        ("deps_requirements_in", "requirements.in"),
-    ],
-    ids=["txt", "in"],
-)
-def test_requirements_file_exports_index_sources(fixture_name: str, file_name: str) -> None:
-    with isolated_workspace(fixture_name) as ctx:
-        result = export_workspace_requirements(Path(ctx.run_dir))
-
-    assert result["resolution"]["exported_from"] == file_name
-    # uv always emits the effective default index
-    assert result["resolution"]["index_options"] == ["--index-url https://pypi.org/simple"]
-    # every compiled spec resolved from an index has that index as its source; a package
-    # compiled per Python version has one entry per marker
-    sources = result["resolution"]["package_sources"]
-    for spec in result["groups"][MAIN_GROUP]:
-        name = _normalize_name(Requirement(spec).name)
-        assert {(e["kind"], e["location"]) for e in sources[name]} == {
-            ("registry", "https://pypi.org/simple")
-        }
-
-
-def test_requirements_file_keeps_index_placeholders(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    (tmp_path / ".dlt").mkdir()
-    (tmp_path / ".dlt" / ".workspace").touch()
-    (tmp_path / "links").mkdir()
-    (tmp_path / "requirements.txt").write_text(
-        "--index-url https://${PYPI_HOST}/simple\n--find-links ./links\nsix\n"
-    )
-    # uv expands the placeholder to resolve, so it must point at a reachable index
-    monkeypatch.setenv("PYPI_HOST", "pypi.org")
-    result = export_workspace_requirements(tmp_path)
-
-    # index options keep the placeholder, so no secret is written into the manifest
-    assert result["resolution"]["index_options"] == [
-        "--index-url https://${PYPI_HOST}/simple",
-        "--find-links ./links",
-    ]
-    # the source records the index the package was actually resolved from
-    assert result["resolution"]["package_sources"]["six"] == [
-        {"kind": "registry", "location": "https://pypi.org/simple"}
-    ]
-
-
-# shape of `uv pip compile --universal --no-annotate --emit-index-annotation --emit-index-url
-# --emit-find-links` output
-_COMPILE_OUTPUT = """--index-url https://pypi.org/simple
---extra-index-url https://${IDX_USER}:${IDX_PASS}@acme.example.com/simple
---find-links ./links
-
--e file:///workspace/vendor/local-pkg
-iniconfig @ git+https://github.com/pytest-dev/iniconfig@93f5930e668c0d1ddf4597e38dd0dea4e2665e7a
-Private_Pkg==2.0.0
-    # from https://acme.example.com/simple
-six==1.16.0 ; python_full_version < '3.10'
-    # from https://pypi.org/simple
-six==1.17.0 ; python_full_version >= '3.10'
-    # from https://pypi.org/simple
-"""
-
-
-def test_parse_compile_output() -> None:
-    compiled = _parse_compile_output(_COMPILE_OUTPUT)
-
-    assert compiled.index_options == [
-        "--index-url https://pypi.org/simple",
-        "--extra-index-url https://${IDX_USER}:${IDX_PASS}@acme.example.com/simple",
-        "--find-links ./links",
-    ]
-    # index lines are not specs; everything else is, sorted
-    assert compiled.specs == sorted(
-        [
-            "-e file:///workspace/vendor/local-pkg",
-            (
-                "iniconfig @"
-                " git+https://github.com/pytest-dev/iniconfig@93f5930e668c0d1ddf4597e38dd0dea4e2665e7a"
-            ),
-            "Private_Pkg==2.0.0",
-            "six==1.16.0 ; python_full_version < '3.10'",
-            "six==1.17.0 ; python_full_version >= '3.10'",
-        ]
-    )
-    assert compiled.package_sources == {
-        # a private index is told apart from PyPI only by its URL
-        "private-pkg": [{"kind": "registry", "location": "https://acme.example.com/simple"}],
-        # a package compiled per environment keeps each entry with its marker
-        "six": [
-            {
-                "kind": "registry",
-                "location": "https://pypi.org/simple",
-                "markers": ['python_full_version < "3.10"'],
-            },
-            {
-                "kind": "registry",
-                "location": "https://pypi.org/simple",
-                "markers": ['python_full_version >= "3.10"'],
-            },
-        ],
-    }
-    # direct references and editables carry their source in the spec, not as an annotation
-    assert "iniconfig" not in compiled.package_sources
-    assert "local-pkg" not in compiled.package_sources
-
-
-@pytest.mark.parametrize(
-    "line, is_option",
-    [
-        ("--index-url https://pypi.org/simple", True),
-        ("--index-url=https://pypi.org/simple", True),
-        ("-i https://pypi.org/simple", True),
-        ("--extra-index-url https://acme.example.com/simple", True),
-        ("--find-links ./links", True),
-        ("-f ./links", True),
-        ("-e ./local-pkg", False),
-        ("-r other.txt", False),
-        ("--index-strategy unsafe-best-match", False),
-        ("requests==2.31.0", False),
-    ],
-    ids=[
-        "index-url",
-        "index-url-equals",
-        "index-url-short",
-        "extra-index-url",
-        "find-links",
-        "find-links-short",
-        "editable",
-        "include",
-        "other-option",
-        "spec",
-    ],
-)
-def test_is_index_option(line: str, is_option: bool) -> None:
-    assert _is_index_option(line) is is_option
-
-
-@pytest.mark.parametrize("from_engine", [1, 2])
-def test_migrate_requirements_to_engine_3_adds_resolution(from_engine: int) -> None:
-    manifest = {
-        "engine_version": from_engine,
-        "python_version": python_version(),
-        "default_groups": [MAIN_GROUP],
-        "groups": {MAIN_GROUP: ["dlt==1.0.0"]},
-        "launcher_requirements": {LAUNCHER_JOB: ["dlt==1.0.0"]},
-    }
-    if from_engine >= 2:
-        manifest["dlt_version"] = dict(PRE_TRACKING_DLT_INSTALL_SPEC)
-    result = migrate_requirements(manifest, from_engine, 3)
-    assert result["engine_version"] == 3
-    assert result["resolution"] is None
-    assert result["dlt_version"] == PRE_TRACKING_DLT_INSTALL_SPEC
-    assert result["groups"] == {MAIN_GROUP: ["dlt==1.0.0"]}
