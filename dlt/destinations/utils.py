@@ -176,13 +176,13 @@ def verify_unsupported_merge_options(
 def _verify_nested_destination_scope(
     schema: Schema,
     table: PreparedTableSchema,
+    root_table: PreparedTableSchema,
     capabilities: DestinationCapabilitiesContext,
     destination_scope_placeholders: Sequence[str],
 ) -> List[Exception]:
-    root_table = get_root_table(schema.tables, table["name"])
     merge_strategy = resolve_merge_strategy(schema.tables, root_table, capabilities)
     if merge_strategy is None:
-        # the root table reports that the destination does not merge, ie. a staging filesystem
+        # the prepared root table does not merge, ie. on a staging filesystem
         return []
     if merge_strategy != "delete-insert" or "x-merge-destination-scope" not in root_table:
         return [
@@ -222,14 +222,17 @@ def verify_schema_merge_disposition(
     log = logger.warning if warnings else logger.info
     # collect all exceptions to show all problems in the schema
     exception_log: List[Exception] = []
+    # a nested table has data only with its root table, so its prepared root is loaded too
+    prepared_tables = {table["name"]: table for table in load_tables}
 
     # verifies schema settings specific to sql job client
     for table in load_tables:
         if is_nested_table(table):
             if "x-merge-destination-scope" in table:
+                root_table = prepared_tables[get_root_table(schema.tables, table["name"])["name"]]
                 exception_log.extend(
                     _verify_nested_destination_scope(
-                        schema, table, capabilities, destination_scope_placeholders
+                        schema, table, root_table, capabilities, destination_scope_placeholders
                     )
                 )
             continue
