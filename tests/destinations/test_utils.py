@@ -151,10 +151,11 @@ def test_verify_unsupported_merge_options(write_disposition: str) -> None:
 
 
 @pytest.mark.parametrize("root_strategy", ["delete-insert", "upsert"])
-def test_verify_nested_destination_scope(root_strategy: str) -> None:
+def test_verify_nested_destination_scope(root_strategy: str, caplog: Any) -> None:
     """A nested table with its own destination scope is verified against its prepared root
     table. A staging filesystem appends the files of an Iceberg table, so it accepts the scope.
-    A merging destination needs `delete-insert` and a destination scope on the root table."""
+    A merging destination needs `delete-insert` and a destination scope on the root table.
+    Without its root table in the load, the nested table is not verified."""
     nested_scope: Any = {
         "disposition": "merge",
         "strategy": "delete-insert",
@@ -206,6 +207,12 @@ def test_verify_nested_destination_scope(root_strategy: str) -> None:
             " only with the `delete-insert` merge strategy and when the root table `events` has"
             " `destination_scope`."
         ]
+
+    with capture_dlt_logger(caplog):
+        assert verify_schema_merge_disposition(schema, load_tables[1:], caps) == []
+    assert (
+        "dlt did not verify the `destination_scope` of nested table `events__lines`" in caplog.text
+    )
 
 
 @pytest.mark.parametrize(

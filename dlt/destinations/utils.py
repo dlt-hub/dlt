@@ -226,19 +226,26 @@ def verify_schema_merge_disposition(
     log = logger.warning if warnings else logger.info
     # collect all exceptions to show all problems in the schema
     exception_log: List[Exception] = []
-    # a nested table has data only with its root table, so its prepared root is loaded too
     prepared_tables = {table["name"]: table for table in load_tables}
 
     # verifies schema settings specific to sql job client
     for table in load_tables:
         if is_nested_table(table):
             if "x-merge-destination-scope" in table:
-                root_table = prepared_tables[get_root_table(schema.tables, table["name"])["name"]]
-                exception_log.extend(
-                    _verify_nested_destination_scope(
-                        schema, table, root_table, capabilities, destination_scope_placeholders
+                root_name = get_root_table(schema.tables, table["name"])["name"]
+                # a nested table has data only with its root table, so the root is loaded too
+                if root_table := prepared_tables.get(root_name):
+                    exception_log.extend(
+                        _verify_nested_destination_scope(
+                            schema, table, root_table, capabilities, destination_scope_placeholders
+                        )
                     )
-                )
+                else:
+                    logger.warning(
+                        "dlt did not verify the `destination_scope` of nested table"
+                        f" `{table['name']}`. Its root table `{root_name}` has no data in this"
+                        " load."
+                    )
             continue
 
         table_name = table["name"]
