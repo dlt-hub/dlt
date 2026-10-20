@@ -41,7 +41,9 @@ from dlt.common.schema.typing import (
 )
 from dlt.common.schema.utils import (
     get_inherited_table_hint,
+    get_root_table,
     has_default_column_prop_value,
+    is_nested_table,
     loads_table,
     normalize_table_identifiers,
     version_table,
@@ -1002,10 +1004,20 @@ class SqlJobClientWithStagingDataset(SqlJobClientBase, WithStagingDataset):
 
     def should_load_data_to_staging_dataset(self, table_name: str) -> bool:
         table = self.prepare_load_table(table_name)
-        if table["write_disposition"] == "merge":
+        if is_nested_table(table):
+            root_table = self.prepare_load_table(
+                get_root_table(self.schema.tables, table_name)["name"]
+            )
+            chain_write_disposition = root_table["write_disposition"]
+            chain_replace_strategy = root_table.get("x-replace-strategy")
+        else:
+            chain_write_disposition = table["write_disposition"]
+            chain_replace_strategy = table.get("x-replace-strategy")
+
+        if chain_write_disposition == "merge":
             return True
-        elif table["write_disposition"] == "replace" and (
-            table["x-replace-strategy"] in ["insert-from-staging", "staging-optimized"]  # type: ignore[typeddict-item]
+        elif chain_write_disposition == "replace" and (
+            chain_replace_strategy in ["insert-from-staging", "staging-optimized"]  # type: ignore[typeddict-item]
         ):
             return True
         return False
