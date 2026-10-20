@@ -3,8 +3,7 @@ title: Export Langfuse Observability Data
 description: Export traces, evaluations, datasets, and cost data from Langfuse to your data lake
 keywords: [langfuse, llm, observability, traces, evaluations, datasets, scores, export]
 ---
-
-## About this Example
+# Export Langfuse Observability Data
 
 [Langfuse](https://langfuse.com/) is an open-source LLM observability and evaluation platform.
 It captures traces and observations from your AI applications, manages evaluation datasets, and

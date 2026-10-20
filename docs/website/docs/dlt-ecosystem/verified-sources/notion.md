@@ -3,9 +3,9 @@ title: Notion
 description: dlt pipeline for Notion API
 keywords: [notion api, notion pipeline, notion]
 ---
-import Header from './_source-info-header.md';
-
 # Notion
+
+import Header from './_source-info-header.md';
 
 <Header/>
 
@@ -19,7 +19,7 @@ loads data using the “Notion API” to the destination of your choice.
 Sources that can be loaded using this verified source are:
 
 | Name             | Description                           |
-|------------------|---------------------------------------|
+| ---------------- | ------------------------------------- |
 | notion_databases | Retrieves data from Notion databases. |
 
 ## Setup guide
@@ -31,7 +31,6 @@ Sources that can be loaded using this verified source are:
    [My Integrations](https://www.notion.so/my-integrations).
 1. Click "New Integration" on the left and name it appropriately.
 1. Finally, click on "Submit" located at the bottom of the page.
-
 
 ### Add a connection to the database
 
@@ -45,7 +44,6 @@ Sources that can be loaded using this verified source are:
 
 > Note: The Notion UI, which is described here, might change.
 The full guide is available at [this link.](https://developers.notion.com/docs/authorization)
-
 
 ### Initialize the verified source
 
@@ -94,18 +92,24 @@ For more information, read the [General usage: Credentials.](../../general-usage
 
 1. Before running the pipeline, ensure that you have installed all the necessary dependencies by
    running the command:
+
    ```sh
    pip install -r requirements.txt
    ```
+
 2. You're now ready to run the pipeline! To get started, run the following command:
+
    ```sh
    python notion_pipeline.py
    ```
+
 3. Once the pipeline has finished running, you can verify that everything loaded correctly by using
    the following command:
+
    ```sh
    dlt pipeline <pipeline_name> show
    ```
+
    For example, the `pipeline_name` for the above pipeline example is `notion`, you may also use any
    custom name instead.
 
@@ -142,8 +146,8 @@ def notion_databases(
 It is important to note that the data is loaded in “replace” mode where the existing data is
 completely replaced.
 
-
 ## Customization
+
 ### Create your own pipeline
 
 If you wish to create your own pipelines, you can leverage source and resource methods from this

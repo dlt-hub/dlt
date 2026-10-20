@@ -2,6 +2,7 @@
 title: dbt model generator
 description: Generate dbt models automatically
 ---
+# dbt model generator
 
 The **dbt generator** creates scaffolding for dbt projects using data ingested by dlt. It analyzes the pipeline schema and automatically generates staging and fact dbt models. By integrating with dlt-configured destinations, it automates code creation and supports incremental loading, ensuring that only new records are processed in both the ingestion and transformation layers.
 
@@ -156,7 +157,6 @@ dbt_<pipeline-name>/
 
 Additionally, in the directory where you ran the generator, you will find a new Python file named `run_<pipeline-name>_dbt.py`, which you can execute to run the project.
 
-
 ## Generating fact tables
 
 After creating the base project with dimensional tables, you can create fact tables that will use the previously added relationship hints by running:
@@ -204,6 +204,7 @@ You can run your dbt project with the previously mentioned script that was gener
 ```sh
 python run_<pipeline_name>_dbt.py
 ```
+
 This script executes your dbt transformations, loads the results into a new dataset named `<original-dataset>_transformed`, and runs the dbt tests. If needed, you can adjust the dataset name directly in the script.
 
 If you want to see the `dbt run` command output, increase the logging level. For example:
@@ -213,6 +214,7 @@ RUNTIME__LOG_LEVEL=INFO python run_<pipeline_name>_dbt.py
 ```
 
 or by setting `config.toml`:
+
 ```toml
 [runtime]
 log_level="INFO"
@@ -230,4 +232,3 @@ The generated dbt project uses these load IDs to process data incrementally. To 
 
 - `<pipeline_name>_dlt_active_load_ids`: At the start of each dbt run, this table is populated with all load IDs that were successful and have not yet been processed in previous dbt runs, referred to as active load IDs. The staging tables are then populated only with rows associated with these active load IDs.
 - `<pipeline_name>_dlt_processed_load_ids`: At the end of each dbt run, the active load IDs are recorded in this table, along with a timestamp. This allows you to track when each load ID was processed.
-

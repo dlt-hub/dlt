@@ -271,7 +271,11 @@ class ClickHouseMergeJob(SqlMergeFollowupJob):
         primary_keys: Sequence[str],
         merge_keys: Sequence[str],
         for_delete: bool,
+        source_filter: Optional[str] = None,
     ) -> List[str]:
+        staging_rows = staging_root_table_name
+        if source_filter:
+            staging_rows = f"(SELECT * FROM {staging_root_table_name} WHERE {source_filter})"
         if for_delete:
             # ClickHouse lightweight DELETE doesn't support table aliases or
             # correlated subqueries with qualified column references.
@@ -281,18 +285,30 @@ class ClickHouseMergeJob(SqlMergeFollowupJob):
                     col_tuple = ", ".join(cols)
                     sql.append(
                         f"FROM {root_table_name} WHERE ({col_tuple}) IN"
-                        f" (SELECT {col_tuple} FROM {staging_root_table_name})"
+                        f" (SELECT {col_tuple} FROM {staging_rows})"
                     )
             return sql
         key_clauses = cls._gen_key_table_clauses(primary_keys, merge_keys)
         join_conditions = " OR ".join([c.format(d="d", s="s") for c in key_clauses])
-        return [
-            f"FROM {root_table_name} AS d JOIN {staging_root_table_name} AS s ON {join_conditions}"
-        ]
+        return [f"FROM {root_table_name} AS d JOIN {staging_rows} AS s ON {join_conditions}"]
 
     @classmethod
     def gen_update_table_prefix(cls, table_name: str) -> str:
         return f"ALTER TABLE {table_name} UPDATE"
+
+    @classmethod
+    def gen_merge_key_present_clause(
+        cls,
+        table_name: str,
+        staging_root_table_name: str,
+        merge_keys: Sequence[str],
+        sql_client: SqlClientBase[Any],
+        source_filter: Optional[str] = None,
+    ) -> Optional[str]:
+        # mutations do not support correlated subqueries
+        if not merge_keys:
+            return None
+        return cls._gen_keys_in_staging_cond(staging_root_table_name, merge_keys, source_filter)
 
     @classmethod
     def requires_temp_table_for_delete(cls) -> bool:
@@ -533,6 +549,8 @@ class ClickHouseClient(SqlJobClientWithStagingDataset, SupportsStagingDestinatio
         engine_name = TABLE_ENGINE_TYPE_TO_CLICKHOUSE_ATTR.get(table_type)
         sql[0] = f"{sql[0]}\nENGINE = {engine_name}{engine_params}"
 
+        sort_key = self._get_key(table, "sort")
+
         # PRIMARY KEY
         if primary_key_list := [
             self.sql_client.escape_column_name(c["name"])
@@ -540,11 +558,12 @@ class ClickHouseClient(SqlJobClientWithStagingDataset, SupportsStagingDestinatio
             if c.get("primary_key")
         ]:
             sql[0] += "\nPRIMARY KEY (" + ", ".join(primary_key_list) + ")"
-        else:
+        elif not sort_key:
+            # an explicit empty primary key would override the index ClickHouse derives from ORDER BY
             sql[0] += "\nPRIMARY KEY tuple()"
 
         # ORDER BY
-        if sort_key := self._get_key(table, "sort"):
+        if sort_key:
             sql[0] += f"\nORDER BY {sort_key}"
 
         # PARTITION BY

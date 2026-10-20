@@ -62,6 +62,7 @@ const sidebars = {
             keywords: ["release notes", "release highlights"],
           },
           items: [
+            { type: "doc", id: "release-notes/1.31", label: "1.31" },
             { type: "doc", id: "release-notes/1.30", label: "1.30" },
             { type: "doc", id: "release-notes/1.29", label: "1.29" },
             { type: "doc", id: "release-notes/1.28", label: "1.28" },
@@ -112,9 +113,9 @@ const sidebars = {
       items: [
         {
           type: "link",
-          label: "10k+ AI Context assets",
+          label: "11,000+ AI Context assets",
           description: "Build a custom dlt REST API source with your agent",
-          href: "https://dlthub.com/workspace",
+          href: "https://dlthub.com/context",
         },
         {
           type: "category",
@@ -478,6 +479,7 @@ const sidebars = {
         "hub/getting-started/oss-and-dlthub",
         "hub/getting-started/installation",
         "hub/getting-started/onboarding",
+        "hub/getting-started/agents",
         {
           type: "category",
           label: "Release highlights",
@@ -488,8 +490,9 @@ const sidebars = {
             keywords: ["release notes", "release highlights", "dlthub"],
           },
           items: [
-            { type: "doc", id: "hub/release-notes/0.27", label: "0.27" },
-            { type: "doc", id: "hub/release-notes/0.26", label: "0.26" },
+            { type: "doc", id: "hub/release-notes/2026-09-24", label: "September 24, 2026" },
+            { type: "doc", id: "hub/release-notes/2026-08-31", label: "August 31, 2026" },
+            { type: "doc", id: "hub/release-notes/2026-08-24", label: "August 24, 2026" },
           ],
         },
       ],
@@ -552,6 +555,15 @@ const sidebars = {
     },
     {
       type: "category",
+      label: "Agents",
+      items: [
+        { type: "doc", id: "hub/agents/index", label: "Background agents" },
+        { type: "doc", id: "hub/agents/agent-definitions", label: "Agent definitions" },
+        { type: "doc", id: "hub/agents/job-inspector", label: "Job inspector agent" },
+      ],
+    },
+    {
+      type: "category",
       label: "Data Apps",
       items: [
         "hub/data-discovery/datasets",
@@ -589,6 +601,7 @@ const sidebars = {
         "examples/arize_phoenix_export",
         "examples/backfill_in_chunks",
         "examples/chess_production",
+        "examples/dlthub_cicd",
         "examples/connector_x_arrow",
         "examples/custom_config_provider",
         "examples/custom_destination_bigquery",
@@ -601,6 +614,7 @@ const sidebars = {
         "examples/logfire_telemetry_export",
         "examples/nested_data",
         "examples/partial_loading",
+        "examples/partition_pruning",
         "examples/pdf_to_weaviate",
         "examples/postgres_to_postgres",
         "examples/propagate_hints",

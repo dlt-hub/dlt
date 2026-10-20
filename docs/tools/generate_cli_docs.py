@@ -33,8 +33,12 @@ import sys
 import textwrap
 from typing import List, Optional
 
-HEADER = """---
-title: Command Line Interface
+DEFAULT_TITLE = "dlt CLI reference"
+
+# `title` is the page title, `sidebar_label` keeps the navigation label stable
+HEADER_TEMPLATE = """---
+title: {title}
+sidebar_label: Command Line Interface
 description: Command line interface (CLI) full reference of dlt
 keywords: [command line interface, cli, dlt init]
 ---
@@ -59,6 +63,8 @@ Adding the flag after the pipeline keyword will not work.
 :::
 
 """
+
+HEADER = HEADER_TEMPLATE.format(title=DEFAULT_TITLE)
 
 # Developer NOTE: This generation is based on parsing the output of the help string in argparse.
 # It works very well at the moment, but there may be cases where it will break due to unanticipated
@@ -326,12 +332,22 @@ def main() -> None:
         default="dlt",
         help="Name of the executable shown in generated docs (default: dlt)",
     )
+    parser.add_argument(
+        "--title",
+        default=DEFAULT_TITLE,
+        help=f"Page title of the generated docs (default: {DEFAULT_TITLE})",
+    )
     args = parser.parse_args()
 
     from dlt._workspace.cli._dlt import _create_parser
 
     cli_parser, _, _ = _create_parser(host=args.executable_name)
-    result = render_argparse_markdown(args.executable_name, cli_parser, commands=args.commands)
+    result = render_argparse_markdown(
+        args.executable_name,
+        cli_parser,
+        header=HEADER_TEMPLATE.format(title=args.title),
+        commands=args.commands,
+    )
 
     if args.compare:
         with open(args.file_name, "r", encoding="utf-8") as f:

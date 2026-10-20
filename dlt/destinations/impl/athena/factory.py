@@ -1,9 +1,11 @@
+from functools import partial
 from typing import Any, Dict, Type, Union, TYPE_CHECKING, Optional, Sequence
 
 from dlt.common.data_types.typing import TDataType
 from dlt.common.destination import Destination, DestinationCapabilitiesContext
 from dlt.common.configuration.specs import AwsCredentials
 from dlt.common.data_writers.escape import (
+    escape_ansi_literal,
     escape_athena_identifier,
     format_bigquery_datetime_literal,
 )
@@ -164,13 +166,19 @@ class athena(Destination[AthenaClientConfiguration, "AthenaClient"]):
         caps.timestamp_precision = 3
         caps.max_timestamp_precision = 3
         caps.supports_truncate_command = False
-        caps.supported_merge_strategies = ["delete-insert", "upsert", "scd2", "insert-only"]
+        caps.supported_merge_strategies = ["delete-insert", "upsert", "scd2", "insert-only", "cdc"]
         caps.supported_replace_strategies = ["truncate-and-insert", "insert-from-staging"]
         caps.merge_strategies_selector = athena_merge_strategies_selector
         caps.replace_strategies_selector = athena_replace_strategies_selector
         caps.enforces_nulls_on_alter = False
         caps.sqlglot_dialect = "athena"
         caps.supports_tz_aware_datetime = False
+        caps.escape_literal = partial(
+            escape_ansi_literal,
+            datetime_literal=caps.format_datetime_literal,
+            precision=caps.timestamp_precision,
+            no_tz=True,
+        )
 
         return caps
 

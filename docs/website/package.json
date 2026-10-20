@@ -7,6 +7,7 @@
     "build": "cd .. && make build",
     "clear": "docusaurus clear",
     "serve": "docusaurus serve --dir build/docs",
+    "search-index": "pagefind",
     "clear-versions": "node tools/clear_versions.js",
     "update-versions": "node tools/update_versions.js",
     "compile-redirects": "node tools/compile_redirects.js",
@@ -45,6 +46,7 @@
   "devDependencies": {
     "@biomejs/biome": "2.4.16",
     "@docusaurus/module-type-aliases": "~3.9.2",
+    "pagefind": "^1.5.2",
     "wrangler": "^4.38.0"
   },
   "browserslist": {

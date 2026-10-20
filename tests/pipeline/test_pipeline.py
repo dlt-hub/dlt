@@ -67,6 +67,7 @@ from dlt.destinations import filesystem, redshift, dummy, duckdb
 from dlt.destinations.impl.dummy.dummy import DummyClient
 from dlt.destinations.impl.filesystem.filesystem import INIT_FILE_NAME
 from dlt.extract.exceptions import (
+    ExtraPlaceholderError,
     InvalidResourceDataTypeBasic,
     ResourceExtractionError,
     SourceExhausted,
@@ -96,6 +97,7 @@ from tests.pipeline.utils import (
     PIPELINE_TEST_CASES_PATH,
     assert_table_counts,
     assert_load_info,
+    assert_trace_restored,
     airtable_emojis,
     assert_only_table_columns,
     load_table_counts,
@@ -4772,6 +4774,87 @@ def test_staging_dataset_truncate(truncate) -> None:
             assert len(cur.fetchall()) == 3
 
 
+@pytest.mark.parametrize("truncate", (True, False), ids=("truncate", "keep"))
+def test_staging_merge_tables_truncate_before_load(truncate: bool) -> None:
+    dlt.config["truncate_staging_merge_tables_before_load"] = truncate
+    # replace loads through the staging dataset as well
+    os.environ["DESTINATION__REPLACE_STRATEGY"] = "insert-from-staging"
+
+    @dlt.resource(write_disposition="merge", primary_key="id")
+    def merged(ids: List[int]):
+        yield [{"field": i, "id": i} for i in ids]
+
+    @dlt.resource(write_disposition="replace")
+    def replaced(ids: List[int]):
+        yield [{"id": i} for i in ids]
+
+    pipeline = dlt.pipeline(
+        pipeline_name="test_staging_kept",
+        destination="duckdb",
+        dev_mode=True,
+    )
+    assert_load_info(pipeline.run([merged([1, 2, 3]), replaced([1, 2, 3])]))
+    assert_load_info(pipeline.run([merged([4, 5]), replaced([4, 5])]))
+
+    def ids_in(table_name: str, staging: bool = False) -> List[int]:
+        dataset_name = pipeline.dataset_name + ("_staging" if staging else "")
+        with pipeline.sql_client() as client:
+            rows = client.execute_sql(f"SELECT id FROM {dataset_name}.{table_name} ORDER BY id")
+        return [r[0] for r in rows]
+
+    # without truncation, the merge staging table keeps the records of the first load
+    assert ids_in("merged", staging=True) == ([4, 5] if truncate else [1, 2, 3, 4, 5])
+    assert ids_in("merged") == [1, 2, 3, 4, 5]
+    # replace copies the whole staging table, so dlt truncates it regardless of the setting
+    assert ids_in("replaced", staging=True) == [4, 5]
+    assert ids_in("replaced") == [4, 5]
+
+
+@pytest.mark.parametrize("truncate", (True, False), ids=("truncate", "keep"))
+def test_staging_dataset_not_created_without_staging_tables(truncate: bool) -> None:
+    dlt.config["truncate_staging_merge_tables_before_load"] = truncate
+
+    @dlt.resource(write_disposition="append")
+    def appended(ids: List[int]):
+        yield [{"id": i} for i in ids]
+
+    pipeline = dlt.pipeline(pipeline_name="test_no_staging", destination="duckdb", dev_mode=True)
+    assert_load_info(pipeline.run(appended([1, 2])))
+    assert_load_info(pipeline.run(appended([3])))
+
+    with pipeline.sql_client() as client:
+        assert client.has_dataset()
+        with client.with_staging_dataset():
+            assert not client.has_dataset()
+
+
+def test_merge_extra_placeholder_function_error() -> None:
+    @dlt.resource(
+        name="events",
+        write_disposition={
+            "disposition": "merge",
+            "strategy": "delete-insert",
+            "destination_scope": "day = {day}",
+            "extra_placeholders": {
+                "day": lambda resource, table_name: resource.explicit_args["day"]
+            },
+        },
+    )
+    def events():
+        yield {"id": 1}
+
+    pipeline = dlt.pipeline(pipeline_name="merge_placeholders_" + uniq_id(), destination="duckdb")
+    with pytest.raises(PipelineStepFailed) as py_ex:
+        pipeline.extract(events())
+    assert py_ex.value.step == "extract"
+    ex = py_ex.value.__cause__
+    assert isinstance(ex, ExtraPlaceholderError)
+    assert (ex.resource_name, ex.table_name, ex.placeholder) == ("events", "events", "day")
+    assert isinstance(ex.__cause__, KeyError)
+    # the trace keeps the name of the lambda that never returned a value
+    assert_trace_restored(pipeline)
+
+
 def test_change_naming_convention_name_collision() -> None:
     duck_ = dlt.destinations.duckdb(naming_convention="duck_case", recommended_file_size=120000)
     caps = duck_.capabilities()
@@ -6513,6 +6596,41 @@ def test_staging_tables_created_after_schema_change_without_data() -> None:
             f"SELECT val FROM {pipeline.dataset_name}.resource_b ORDER BY val"
         )
         assert [r[0] for r in rows] == ["b1", "b2"]
+
+
+@pytest.mark.parametrize("nested", [False, True], ids=["root_table", "nested_table"])
+def test_column_added_to_table_without_data(nested: bool) -> None:
+    """Regression test for #4535: a column added in a load where its table has no rows must be
+    added to the destination table before rows carrying it arrive.
+    """
+    new_column: List[TColumnSchema] = [{"name": "x", "data_type": "bigint"}]
+    hints = (
+        dlt.mark.make_hints(nested_hints={"items": dlt.mark.make_nested_hints(columns=new_column)})
+        if nested
+        else dlt.mark.make_hints(columns=new_column)
+    )
+    table_name = "a__items" if nested else "a"
+
+    @dlt.resource(name="a")
+    def a(rows: List[Any], hint: bool = False):
+        if hint:
+            yield dlt.mark.with_hints([], hints)
+        yield from rows
+
+    @dlt.resource(name="b")
+    def b():
+        yield [{"id": 1}]
+
+    p = dlt.pipeline("test_column_added_to_table_without_data", destination="duckdb", dev_mode=True)
+    # a, a__items and b are created
+    assert_load_info(p.run([a([{"id": 1, "items": [{"k": 1}]}]), b()]))
+    # schema gets the new column but its table has no rows: only b is loaded, the hash is stored
+    assert_load_info(p.run([a([], hint=True), b()]))
+    assert "x" in p.default_schema.tables[table_name]["columns"]
+    # the hash is found so the schema update is skipped and rows with the column must load
+    row = {"id": 2, "items": [{"k": 2, "x": 5}]} if nested else {"id": 2, "x": 5}
+    assert_load_info(p.run([a([row])]))
+    assert {r["x"] for r in load_tables_to_dicts(p, table_name)[table_name]} == {None, 5}
 
 
 def test_staging_tables_recreated_after_staging_dataset_dropped() -> None:

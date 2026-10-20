@@ -3,9 +3,9 @@ title: Amazon Kinesis
 description: dlt verified source for Amazon Kinesis
 keywords: [amazon kinesis, verified source]
 ---
-import Header from './_source-info-header.md';
-
 # Amazon Kinesis
+
+import Header from './_source-info-header.md';
 
 <Header/>
 
@@ -15,10 +15,9 @@ Our AWS Kinesis [verified source](https://github.com/dlt-hub/verified-sources/tr
 
 Resources that can be loaded using this verified source are:
 
-| Name             | Description                                                                              |
-|------------------|------------------------------------------------------------------------------------------|
-| kinesis_stream   | Load messages from the specified stream                                                  |
-
+| Name           | Description                             |
+| -------------- | --------------------------------------- |
+| kinesis_stream | Load messages from the specified stream |
 
 :::tip
 You can check out our pipeline example [here](https://github.com/dlt-hub/verified-sources/blob/master/sources/kinesis_pipeline.py).
@@ -87,18 +86,24 @@ For more information, read [Credentials](../../general-usage/credentials).
 
 1. Before running the pipeline, ensure that you have installed all the necessary dependencies by
    running the command:
+
    ```sh
    pip install -r requirements.txt
    ```
+
 2. You're now ready to run the pipeline! To get started, run the following command:
+
    ```sh
    python kinesis_pipeline.py
    ```
+
 3. Once the pipeline has finished running, you can verify that everything loaded correctly by using
    the following command:
+
    ```sh
    dlt pipeline <pipeline_name> show
    ```
+
    For example, the `pipeline_name` for the above pipeline example is `kinesis_pipeline`. You may
    also use any custom name instead.
 
@@ -180,8 +185,6 @@ partition key, etc. The message contains `_kinesis_msg_id`, which is the primary
 if False, `data` is returned as bytes.
 
 ## Customization
-
-
 
 ### Create your own pipeline
 

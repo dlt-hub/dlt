@@ -3,7 +3,6 @@ title: Build and deploy a marimo notebook
 description: Build a marimo notebook on a loaded dlt dataset, serve it locally, and deploy it to dltHub as an interactive job.
 keywords: [marimo, notebook, dashboard, hub, data app, deploy, dltHub]
 ---
-
 # Build and deploy a marimo notebook
 
 [marimo](https://docs.marimo.io/) is a reactive Python notebook: when you change a cell or interact with a UI element, every dependent cell re-runs. On dltHub, a marimo notebook is a plain `.py` file that creates a `marimo.App`, and the runtime serves it as an interactive job. The built-in [workspace dashboard](../ingestion/dashboard.md) is itself a marimo notebook served that way.

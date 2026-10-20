@@ -3,9 +3,9 @@ title: Airtable
 description: dlt verified source for Airtable
 keywords: [airtable api, airtable verified source, airtable]
 ---
-import Header from './_source-info-header.md';
-
 # Airtable
+
+import Header from './_source-info-header.md';
 
 <Header/>
 
@@ -18,9 +18,9 @@ loads data using the “Airtable API” to the destination of your choice.
 
 Sources and resources that can be loaded using this verified source are:
 
-| Name              | Description                                |
-| ----------------- |--------------------------------------------|
-| airtable_source   | Retrieves tables from an Airtable base     |
+| Name              | Description                                 |
+| ----------------- | ------------------------------------------- |
+| airtable_source   | Retrieves tables from an Airtable base      |
 | airtable_resource | Retrieves data from a single Airtable table |
 
 ## Setup guide
@@ -48,6 +48,7 @@ https://airtable.com/appve10kl227BIT4GV/tblOUnZVLFWbemTP1/viw3qtF76bRQC3wKx/rec9
 
 Between each slash, you'll find identifiers for the base, table, and view
 as explained in [this documentation on finding Airtable IDs](https://support.airtable.com/docs/finding-airtable-ids):
+
 - Base IDs start with "app", currently set to "appve10kl227BIT4GV".
 
 - Table IDs start with "tbl", currently set to "tblOUnZVLFWbemTP1".
@@ -181,8 +182,6 @@ def airtable_resource(
 `table`: Airtable metadata, excluding actual records.
 
 ## Customization
-
-
 
 ### Create your own pipeline
 

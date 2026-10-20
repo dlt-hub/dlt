@@ -3,8 +3,7 @@ title: Export Logfire Telemetry
 description: Incrementally export traces and metrics from Pydantic Logfire to your data lake
 keywords: [logfire, opentelemetry, traces, metrics, observability, telemetry, export]
 ---
-
-## About this Example
+# Export Logfire Telemetry
 
 [Pydantic Logfire](https://logfire.pydantic.dev/) is an observability platform from agents and LLM
 created by the team behind Pydantic.
@@ -26,7 +25,7 @@ The `dlt` library makes this trivial. In this example:
 NOTE. You will need a Pydantic Logfire read token. It can be obtained via the CLI or UI
 ([guide](https://pydantic.dev/docs/logfire/manage/query-api/#how-to-create-a-read-token))
 
-### Full source code
+## Full source code
 
 ```py noexecute
 from datetime import datetime

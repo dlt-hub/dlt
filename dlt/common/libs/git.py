@@ -90,8 +90,9 @@ def ensure_remote_head(
     Raises:
         RepositoryDirtyError: If repository has uncommitted changes or is
             not synced with origin.
+        GitError: If path is set and the repository was not cloned sparse.
     """
-    from git import Repo, RepositoryDirtyError
+    from git import GitError, Repo, RepositoryDirtyError
 
     # update remotes and check if heads are same. ignores locally modified files
     with Repo(repo_path) as repo:
@@ -99,7 +100,9 @@ def ensure_remote_head(
         with repo.git.custom_environment(GIT_SSH_COMMAND=with_git_command):
             # if path is set, use sparse checkout
             if path is not None:
-                # assume that sparse checkout was enabled when cloning
+                # a full clone keeps its whole history: fail so the caller clones it sparse
+                if not repo.config_reader().get_value("core", "sparseCheckout", False):
+                    raise GitError(f"{repo_path} is not a sparse checkout")
                 repo.git.sparse_checkout("set", path)
             # checkout branch before fetching
             repo.git.checkout(branch or get_default_branch(repo))

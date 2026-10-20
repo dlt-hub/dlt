@@ -3,9 +3,9 @@ title: OpenAPI source generator
 description: OpenAPI dlt source generator
 keywords: [openapi, rest api, swagger, source generator, cli, rest]
 ---
-import Header from './_source-info-header.md';
-
 # OpenAPI source generator
+
+import Header from './_source-info-header.md';
 
 <Header/>
 
@@ -16,6 +16,7 @@ We also have a cool [Google Colab example](https://colab.research.google.com/dri
 :::
 
 ## Features
+
 `dlt-init-openapi` generates code from an OpenAPI spec that you can use to extract data from a `rest_api` into any [`destination`](../destinations/) (e.g., Postgres, BigQuery, Redshift...) that `dlt` supports. dlt-init-openapi additionally executes a set of heuristics to discover information not explicitly defined in OpenAPI specs.
 
 Features include:
@@ -32,13 +33,14 @@ You will need Python 3.10 or higher installed, as well as pip. You can run `pip 
 
 We will create a simple example pipeline from a [PokeAPI spec](https://pokeapi.co/) in our repo. You can point to any other OpenAPI Spec instead if you prefer.
 
-
 1. Run the generator with a URL:
+
     ```sh
     dlt-init-openapi pokemon --url https://raw.githubusercontent.com/dlt-hub/dlt-init-openapi/devel/tests/cases/e2e_specs/pokeapi.yml --global-limit 2
     ```
 
 2. Alternatively, if you have a local file, you can use the --path flag:
+
     ```sh
     dlt-init-openapi pokemon --path ./my_specs/pokeapi.yml
     ```
@@ -50,17 +52,20 @@ We will create a simple example pipeline from a [PokeAPI spec](https://pokeapi.c
 5. If you have any kind of authentication on your pipeline (this example does not), open the `.dlt/secrets.toml` and provide the credentials. You can find further settings in the `.dlt/config.toml`.
 
 6. Go to the created pipeline folder and run your pipeline.
+
     ```sh
     cd pokemon-pipeline
     PROGRESS=enlighten python pipeline.py # we use enlighten for a nice progress bar :)
     ```
 
 7. Print the pipeline info to the console to see what got loaded.
+
     ```sh
     dlt pipeline pokemon_pipeline info
     ```
 
 8. You can now also install marimo to see a preview of the data in the workspace dashboard; you should have loaded 40 Pokemons and their details.
+
     ```sh
     pip install pandas marimo
     dlt pipeline pokemon_pipeline show
@@ -69,8 +74,8 @@ We will create a simple example pipeline from a [PokeAPI spec](https://pokeapi.c
 9. You can go to our docs at [https://dlthub.com/docs](https://dlthub.com/docs) to learn how to modify the generated pipeline to load to many destinations, place schema contracts on your pipeline, and many other things.
 
 :::note
-We used the `--global-limit 2` CLI flag to limit the requests to the PokeAPI 
-for this example. This way, the Pokemon collection endpoint only gets queried 
+We used the `--global-limit 2` CLI flag to limit the requests to the PokeAPI
+for this example. This way, the Pokemon collection endpoint only gets queried
 twice, resulting in 2 x 20 Pokemon details being rendered.
 :::
 
@@ -161,12 +166,13 @@ You can edit this file to adapt the behavior of the dlt rest_api accordingly. Pl
 dlt-init-openapi <source_name> [OPTIONS]
 ```
 
-### Example:
+### Example
+
 ```sh
 dlt-init-openapi pokemon --path ./path/to/my_spec.yml --no-interactive --output-path ./my_pipeline
 ```
 
-**Options**:
+#### Options
 
 _The only required options are either to supply a path or a URL to a spec._
 
@@ -183,6 +189,7 @@ _The only required options are either to supply a path or a URL to a spec._
 - `--help`: Show this message and exit.
 
 ## Config options
+
 You can pass a path to a config file with the `--config PATH` argument. To see available config values, go to [https://github.com/dlt-hub/dlt-init-openapi/blob/devel/dlt_init_openapi/config.py](https://github.com/dlt-hub/dlt-init-openapi/blob/devel/dlt_init_openapi/config.py) and read the information below each field on the `Config` class.
 
 The config file can be supplied as a JSON or YAML dictionary. For example, to change the package name, you can create a YAML file:
@@ -195,16 +202,19 @@ package_name: "other_package_name"
 And use it with the config argument:
 
 ```sh
-$ dlt-init-openapi pokemon --url ... --config config.yml
+dlt-init-openapi pokemon --url ... --config config.yml
 ```
 
 ## Telemetry
+
 We track your usage of this tool similarly to how we track other commands in the dlt core library. Read more about this and how to disable it [here](../../reference/telemetry).
 
 ## Prior work
+
 This project started as a fork of [openapi-python-client](https://github.com/openapi-generators/openapi-python-client). Pretty much all parts are heavily changed or completely replaced, but some lines of code still exist, and we like to acknowledge the many good ideas we got from the original project :)
 
 ## Implementation notes
+
 * OAuth Authentication currently is not natively supported. You can supply your own.
 * Per endpoint authentication currently is not supported by the generator. Only the first globally set securityScheme will be applied. You can add your own per endpoint if you need to.
 * Basic OpenAPI 2.0 support is implemented. We recommend updating your specs at [https://editor.swagger.io](https://editor.swagger.io) before using `dlt-init-openapi`.

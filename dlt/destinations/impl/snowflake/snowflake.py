@@ -44,11 +44,12 @@ class SnowflakeMergeJob(SqlMergeFollowupJob):
         primary_keys: Sequence[str],
         merge_keys: Sequence[str],
         for_delete: bool,
+        source_filter: Optional[str] = None,
     ) -> List[str]:
         key_clauses = cls._gen_key_table_clauses(primary_keys, merge_keys)
         return [
             f"FROM {root_table_name} AS d WHERE EXISTS (SELECT 1 FROM {staging_root_table_name} AS"
-            f" s WHERE {clause.format(d='d', s='s')})"
+            f" s WHERE {cls._gen_staging_rows_cond(clause.format(d='d', s='s'), source_filter)})"
             for clause in key_clauses
         ]
 

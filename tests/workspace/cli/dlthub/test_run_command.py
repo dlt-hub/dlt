@@ -171,7 +171,7 @@ def _invoke_local(monkeypatch: pytest.MonkeyPatch, op: str, *cli_args: str) -> T
     stderr_buf: List[str] = []
 
     def _sync_exec(argv: List[str]) -> None:
-        result = subprocess.run(argv, capture_output=True, text=True, timeout=60)
+        result = subprocess.run(argv, capture_output=True, encoding="utf-8", timeout=60)
         stdout_buf.append(result.stdout)
         stderr_buf.append(result.stderr)
         raise SystemExit(result.returncode)

@@ -13,7 +13,7 @@ from dlt.common.configuration.specs.base_configuration import (
     CredentialsConfiguration,
     extract_inner_hint,
 )
-from dlt.common.destination.exceptions import TableFormatNotSupported
+from dlt.common.destination.exceptions import DestinationUndefinedEntity, TableFormatNotSupported
 from dlt.common.destination.typing import PreparedTableSchema
 from dlt.common.known_env import DLT_LOCAL_DIR
 from dlt.common.schema.schema import Schema
@@ -65,7 +65,7 @@ NORMALIZED_FILES = [
 ]
 
 
-def _client_factory(fs: filesystem) -> FilesystemClient:
+def _client_factory(fs: filesystem, dataset_name: str = "test") -> FilesystemClient:
     config_class = (
         HfFilesystemDestinationClientConfiguration
         if fs.is_hf
@@ -73,7 +73,7 @@ def _client_factory(fs: filesystem) -> FilesystemClient:
     )
     client = fs.client(
         Schema("test"),
-        initial_config=config_class()._bind_dataset_name("test"),
+        initial_config=config_class()._bind_dataset_name(dataset_name),
     )
     return client
 
@@ -82,19 +82,51 @@ def _client_factory(fs: filesystem) -> FilesystemClient:
     "bucket_url,expected_fingerprint",
     [
         pytest.param(None, "", id="empty"),
-        pytest.param("/path/path2", digest128(""), id="local_absolute_path"),
-        pytest.param("lake", digest128(""), id="local_relative_path"),
+        pytest.param("/path/path2", digest128("file://"), id="local_absolute_path"),
+        pytest.param("lake", digest128("file://"), id="local_relative_path"),
         pytest.param("file:///home/ducklake.d", digest128("file://"), id="file_scheme"),
+        pytest.param("FILE:///home/ducklake.d", digest128("file://"), id="file_scheme_upper"),
+        pytest.param("file://server/share/lake", digest128("file://server"), id="file_scheme_host"),
         pytest.param("s3://cool", digest128("s3://cool"), id="remote_bucket"),
         pytest.param(
             "s3://cool.domain/path/path2",
             digest128("s3://cool.domain"),
             id="remote_bucket_path_ignored",
         ),
+        pytest.param("s3://cool/", digest128("s3://cool"), id="remote_bucket_trailing_slash"),
+        pytest.param("s3://data/data", digest128("s3://data"), id="path_repeats_bucket_name"),
+        pytest.param(
+            "s3://data-lake/data", digest128("s3://data-lake"), id="path_inside_bucket_name"
+        ),
+        pytest.param("S3://Cool/path", digest128("s3://Cool"), id="scheme_lowercased"),
+        pytest.param("memory:///tmp/path", digest128("memory://"), id="empty_netloc"),
+        pytest.param("https://host/path?token=abc", digest128("https://host"), id="query_ignored"),
+        pytest.param(
+            "sftp://user:pass@host:22/data", digest128("sftp://user@host:22"), id="password_dropped"
+        ),
+        pytest.param(
+            "abfss://container@account.dfs.core.windows.net/path",
+            digest128("abfss://container@account.dfs.core.windows.net"),
+            id="username_kept",
+        ),
     ],
 )
 def test_filesystem_fingerprint(bucket_url: Optional[str], expected_fingerprint: str) -> None:
     config = FilesystemDestinationClientConfiguration(bucket_url=bucket_url)
+
+    assert config.fingerprint() == expected_fingerprint
+
+
+@pytest.mark.parametrize(
+    "bucket_url,expected_fingerprint",
+    [
+        pytest.param(None, "", id="empty"),
+        pytest.param("hf://datasets/org-a", digest128("hf://datasets/org-a"), id="namespace"),
+        pytest.param("hf://datasets/org-b", digest128("hf://datasets/org-b"), id="other_namespace"),
+    ],
+)
+def test_hf_filesystem_fingerprint(bucket_url: Optional[str], expected_fingerprint: str) -> None:
+    config = HfFilesystemDestinationClientConfiguration(bucket_url=bucket_url)
 
     assert config.fingerprint() == expected_fingerprint
 
@@ -373,6 +405,50 @@ def test_replace_does_not_truncate_sibling_tables() -> None:
 
     assert not client.fs_client.isfile(event_file)
     assert client.fs_client.isfile(events_file)
+
+
+def test_truncate_tables_deletes_many_files(default_buckets_env: str) -> None:
+    """Deletes more files than there are workers on every bucket. Sibling table files stay."""
+    if default_buckets_env.startswith("hf://"):
+        pytest.skip("hf creates a commit per file. test_hf_truncate_tables covers truncation")
+    client = _client_factory(filesystem(), dataset_name="test_" + uniq_id())
+    client.initialize_storage()
+    try:
+        event_dir, events_dir = client.get_table_dir("event"), client.get_table_dir("events")
+        client.fs_client.makedirs(event_dir, exist_ok=True)
+        client.fs_client.makedirs(events_dir, exist_ok=True)
+        event_files = [client.pathlib.join(event_dir, f"{i}.jsonl") for i in range(100)]
+        events_files = [client.pathlib.join(events_dir, f"{i}.jsonl") for i in range(3)]
+        client.fs_client.pipe({file: b"{}" for file in event_files + events_files})
+        assert len(client.list_table_files("event")) == 100
+
+        client.truncate_tables(["event"])
+
+        # the table folder vanishes on buckets without real directories
+        try:
+            remaining = client.list_table_files("event")
+        except DestinationUndefinedEntity:
+            remaining = []
+        assert remaining == []
+        assert len(client.list_table_files("events")) == 3
+    finally:
+        client.drop_dataset()
+    assert not client.fs_client.exists(client.dataset_path)
+
+
+@pytest.mark.parametrize("max_delete_workers", ("1", "4"), ids=("sequential", "pool"))
+def test_truncate_tables_raises_on_delete_error(max_delete_workers: str) -> None:
+    os.environ["DESTINATION__FILESYSTEM__MAX_DELETE_WORKERS"] = max_delete_workers
+    client = _client_factory(filesystem("random_location"))
+    assert client.config.max_delete_workers == int(max_delete_workers)
+    client.initialize_storage()
+    event_dir = client.get_table_dir("event")
+    client.fs_client.makedirs(event_dir, exist_ok=True)
+    client.fs_client.pipe({client.pathlib.join(event_dir, f"{i}.jsonl"): b"{}" for i in range(3)})
+
+    with mock.patch.object(client.fs_client, "rm_file", side_effect=PermissionError("denied")):
+        with pytest.raises(PermissionError):
+            client.truncate_tables(["event"])
 
 
 def test_unsafe_layout_separator_warning(mocker) -> None:

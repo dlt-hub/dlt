@@ -18,6 +18,9 @@ from dlt.common.storages.load_package import LoadJobInfo, LoadPackageInfo, TPack
 from dlt.extract.source import DltSource
 from tests.load.utils import S3_TABLE_BUCKET_ARN, DestinationTestConfiguration
 
+LOCAL_DESTINATIONS = ("duckdb", "ducklake", "postgres", "sqlalchemy", "filesystem")
+"""Destinations that run without remote services, for tests that do not depend on the SQL dialect"""
+
 
 class TableBucketTestClient:
     def __init__(

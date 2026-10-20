@@ -3,7 +3,6 @@ title: Running
 description: Running a dlt pipeline in production
 keywords: [running, production, tips]
 ---
-
 # Adjust a pipeline to run in production
 
 When running the pipeline in production, you may consider a few additions to your script. We'll use the script below as a starting point.
@@ -47,23 +46,23 @@ The `load_info` contains plenty of useful information on the recently loaded dat
 You can also get the runtime trace from the pipeline. It contains timing information on `extract`, `normalize`, and `load` steps and also all the config and secret values with full information from where they were obtained. You can display and load trace info as shown below. Use your code editor to explore the `trace` object further. The `normalize` step information contains the counts of rows per table of data that was normalized and then loaded.
 
 ```py
-    # print human-friendly trace information
-    print(pipeline.last_trace)
-    # save trace to destination, sensitive data will be removed
-    pipeline.run([pipeline.last_trace], table_name="_trace")
+# print human-friendly trace information
+print(pipeline.last_trace)
+# save trace to destination, sensitive data will be removed
+pipeline.run([pipeline.last_trace], table_name="_trace")
 ```
 
 You can also access the last `extract`, `normalize`, and `load` infos directly:
 
-```py
-    # print human-friendly extract information
-    print(pipeline.last_trace.last_extract_info)
-    # print human-friendly normalization information
-    print(pipeline.last_trace.last_normalize_info)
-    # access row counts dictionary of normalize info
-    print(pipeline.last_trace.last_normalize_info.row_counts)  # ty: ignore
-    # print human-friendly load information
-    print(pipeline.last_trace.last_load_info)
+```py notype
+# print human-friendly extract information
+print(pipeline.last_trace.last_extract_info)
+# print human-friendly normalization information
+print(pipeline.last_trace.last_normalize_info)
+# access row counts dictionary of normalize info
+print(pipeline.last_trace.last_normalize_info.row_counts)  # ty: ignore
+# print human-friendly load information
+print(pipeline.last_trace.last_load_info)
 ```
 
 Please note that you can inspect the pipeline using [command line](../reference/command-line-interface.md#dlt-pipeline).
@@ -131,6 +130,7 @@ send_slack_message(pipeline.runtime_config.slack_incoming_hook, message)
 ```
 
 ### Send schema migration info to Slack
+
 The code snippet below demonstrates automated Slack notifications for database table updates using the `send_slack_message` function.
 
 ```py
@@ -157,6 +157,7 @@ for package in load_info.load_packages:
                 )
             )
 ```
+
 Refer to this [example](../examples/chess_production/) for a practical application of the method in a production environment.
 
 ## Enable Sentry tracing
@@ -204,7 +205,9 @@ RUNTIME__SENTRY_DSN="https:///<...>"
 The Sentry client is configured after the first pipeline is created with `dlt.pipeline()`. Feel free
 to use `sentry_sdk` init again to cover your specific needs.
 
-> 💡 `dlt` does not have Sentry client as a dependency. Remember to install it with `pip install sentry-sdk`.
+:::info
+`dlt` does not have Sentry client as a dependency. Remember to install it with `pip install sentry-sdk`.
+:::
 
 ### Disable all tracing
 
@@ -245,6 +248,7 @@ As with any other configuration, you can use environment variables instead of th
 `dlt` logs to a logger named **dlt**. `dlt` logger uses a regular Python logger, so you can configure the handlers as per your requirement.
 
 For example, to put logs to the file:
+
 ```py
 import logging
 
@@ -260,6 +264,7 @@ handler = logging.FileHandler('dlt.log')
 # Add the handler to the logger
 logger.addHandler(handler)
 ```
+
 You can intercept logs by using [loguru](https://loguru.readthedocs.io/en/stable/api/logger.html). To do so, follow the instructions below:
 
 ```py
@@ -325,6 +330,7 @@ def check(ex: Exception):
 
 If pipeline fails, your best course of action is to retry as described [below](#retry-helpers-and-tenacity). You also have tools to
 investigate the incident, fix it or start from scratch.
+
 * in `extract` and `normalize` steps you can just abort the package and start from scratch - `dlt` will rollback state and schema changes. Read the section below for details (`load` step abort procedure applies).
 * in `load` step you have more options - read the section below to understand how `dlt` deals with partial loads and inconsistent data.
 
@@ -367,12 +373,12 @@ of the load package, with the first line indicating `retry: terminal` or `retry:
 
 The full behavior matrix:
 
-| `auto_abort_on_terminal_error` | `raise_on_failed_jobs` | job | package | exception |
-|---|---|---|---|---|
-| `false` | `true` | queued for retry | stays pending | `LoadClientJobTerminalRetry` raised (default) |
-| `false` | `false` | moved to `failed_jobs` | completed as loaded | none |
-| `true` | `true` | moved to `failed_jobs` | [aborted](#abort-the-package), pending packages deleted, state restored | `LoadClientJobFailed` raised |
-| `true` | `false` | moved to `failed_jobs` | [aborted](#abort-the-package), pending packages deleted, state restored | none |
+| `auto_abort_on_terminal_error` | `raise_on_failed_jobs` | job                    | package                                                                 | exception                                     |
+| ------------------------------ | ---------------------- | ---------------------- | ----------------------------------------------------------------------- | --------------------------------------------- |
+| `false`                        | `true`                 | queued for retry       | stays pending                                                           | `LoadClientJobTerminalRetry` raised (default) |
+| `false`                        | `false`                | moved to `failed_jobs` | completed as loaded                                                     | none                                          |
+| `true`                         | `true`                 | moved to `failed_jobs` | [aborted](#abort-the-package), pending packages deleted, state restored | `LoadClientJobFailed` raised                  |
+| `true`                         | `false`                | moved to `failed_jobs` | [aborted](#abort-the-package), pending packages deleted, state restored | none                                          |
 
 If you prefer that packages with terminally failed jobs complete as loaded (the failed jobs move
 to `failed_jobs` and no exception is raised):
@@ -540,6 +546,7 @@ state inconsistent with the destination, while now they are cleaned up and resto
 [load]
 auto_abort_on_terminal_error=true
 ```
+
 :::
 
 The `drop-pending-packages` CLI command and `Pipeline.drop_pending_packages` are deprecated aliases
@@ -558,9 +565,11 @@ dlt pipeline <pipeline_name> load-package <load_id> row-counts
 :::tip
 Load package does not need to be present locally - if you are investigating remore pipeline ie. running on Airflow, sync the newest
 destination state with
+
 ```sh
 dlt pipeline <name> sync
 ```
+
 first.
 :::
 
@@ -628,17 +637,18 @@ print(len(dataset["my_table__items"].fetchall()))
 :::tip
 Here's how to lower the chances of having your destination dataset in
 inconsistent state.
+
 1. `replace` write disposition with the default `truncate-and-insert` [strategy](../general-usage/full-loading.md) will truncate tables before loading.
 2. `merge` write disposition will merge staging dataset tables into the destination dataset. This will happen only when all data for this table (and nested tables) got loaded.
 
 Here's what you can do to deal with partially loaded packages:
+
 1. Retry the load step in case of transient errors.
 2. Use replace strategy with staging dataset so replace happens only when data for the table (and all nested tables) was fully loaded and is an atomic operation (if possible).
 3. Use only "append" write disposition. When your load package fails, you are able to use `_dlt_load_id` to remove all unprocessed data.
 4. Use "staging append" (`merge` disposition without primary key and merge key defined).
 
 :::
-
 
 ### What `run` does inside
 
@@ -758,8 +768,10 @@ if __name__ == "__main__":
 ```
 
 ### Allow a graceful shutdown
+
 `dlt` attempts a graceful shutdown of a running pipeline by installing custom signal handlers. In those handlers SIGINT (Ctrl-C) and SIGTERM
 are intercepted. Handlers are activated when pipeline runs and have the following effect:
+
 - `normalize` step: raises `SignalReceivedException` at certain checkpoints, typically immediately.
 - `load` step: on the first received signal, it attempts to drain the job pool by not accepting new load jobs and waiting for executing jobs to complete.
    On a second signal, the default handler is called, resulting in a `KeyboardInterrupt` or immediate process termination (SIGTERM).
@@ -777,13 +789,13 @@ and then killing the process if it does not stop. Below are examples for common 
 
 - GitHub Actions:
   - Choose a `timeout-minutes` large enough for graceful draining.
-  
 
 We recommend increasing those timeouts to a few minutes so that load jobs can be drained properly. Note that in this case **you can still end up with
 a partially loaded package that should be retried without wiping out the pipeline working directory**. In that case, make sure the pipeline working directory (.dlt) is on persistent storage.
 
 You can also opt to run the load step until completion after a signal is received. This gives `dlt` a chance to complete the current load package and then
 terminate:
+
 ```toml
 [load]
 start_new_jobs_on_signal=true
@@ -795,6 +807,7 @@ Obviously, this requires a very long grace period to be defined in your producti
 
 :::warning
 Note that signal interception is possible only in the main Python thread. If you offload pipeline runs to a thread pool ([or async pool with thread executors](../reference/performance.md#parallelism-within-a-single-process)), intercept signal handling before any pipeline runs in the pool:
+
 ```py notype
 import asyncio
 
@@ -806,6 +819,7 @@ with signals.intercepted_signals():
 ```
 
 Signal interception works in orchestrators that run your code in a separate process and propagate SIGTERM/SIGINT:
+
 - Dagster: default multiprocess and Kubernetes executors start a process per op/run; Kubernetes will send SIGTERM, respect the Pod grace period. Avoid thread-based executors for the pipeline step or wrap with `intercepted_signals` as shown above.
 - Airflow: task runners execute each task in its own process (Local/Celery/Kubernetes executors). On cancel/timeout, the task process receives SIGTERM then SIGKILL; if using KubernetesExecutor, rely on the Pod grace period.
 - Prefect: Subprocess flow/task runners and Kubernetes jobs deliver SIGTERM to your process; if you use thread-based concurrency inside a task, wrap the outermost entrypoint with intercepted_signals.
@@ -813,16 +827,21 @@ Signal interception works in orchestrators that run your code in a separate proc
 :::
 
 #### Write custom signal handler
+
 You can disable dlt signal handlers and prevent interception of SIGINT and SIGTERM: for all or for a selected pipeline:
+
 ```toml
 [runtime]
 intercept_signals=false
 ```
+
 or
+
 ```toml
 [pipelines.my_pipeline.runtime]
 intercept_signals=false
 ```
+
 and then install your own handlers.
 
 Note that `signals.py` is a pretty simple module and you can call its methods from your own handler to plug into `dlt` signal handling machinery. We are working on making the `signals.py` pluggable to make it straightforward.

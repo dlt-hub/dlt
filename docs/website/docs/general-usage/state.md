@@ -3,7 +3,6 @@ title: State
 description: Explanation of what a dlt state is
 keywords: [state, metadata, dlt.current.resource_state, dlt.current.source_state]
 ---
-
 # State
 
 The pipeline state is a Python dictionary that lives alongside your data; you can store values in
@@ -61,7 +60,6 @@ pipeline does. With such a structure, you will still be able to run some of your
 parallel.
 :::
 
-
 ## Syncing state with destination
 
 What if you run your pipeline on, for example, Airflow, where every task gets a clean filesystem and
@@ -79,8 +77,10 @@ about the pipeline, the pipeline run (to which the state belongs), and the state
 `dlt` has a `dlt pipeline sync` command where you can
 [request the state back from that table](../reference/command-line-interface.md#dlt-pipeline-sync).
 
-> 💡 If you can keep the pipeline working directory across the runs, you can disable the state sync
-> by setting `restore_from_destination=false` in your `config.toml`.
+:::info
+If you can keep the pipeline working directory across the runs, you can disable the state sync
+by setting `restore_from_destination=false` in your `config.toml`.
+:::
 
 ## When to use pipeline state
 
@@ -109,6 +109,7 @@ could:
 ### Access data in the destination instead of pipeline state
 
 In the example below, we load recent comments made by a given `user_id`. We access the `user_comments` table to select the maximum comment id for a given user.
+
 ```py
 import dlt
 
@@ -136,6 +137,7 @@ def comments(user_id: str):
         if i > max_id
     ]
 ```
+
 When the pipeline is first run, the destination dataset and `user_comments` table do not yet exist. We skip the destination query by using the `first_run` property of the pipeline. We also handle a situation where there are no comments for a user_id by replacing None with 0 as `max_id`.
 
 ## Inspect the pipeline state
@@ -150,13 +152,13 @@ This will display the source and resource state slots for all known sources.
 
 ## Reset the pipeline state: full or partial
 
-**To fully reset the state:**
+### To fully reset the state
 
 - Drop the destination dataset to fully reset the pipeline.
 - [Set the `dev_mode` flag when creating the pipeline](pipeline.md#do-experiments-with-dev-mode).
 - Use the `dlt pipeline <pipeline_name> drop --drop-all` command to [drop the state and tables for a given schema name](../reference/command-line-interface.md#dlt-pipeline-drop).
 
-**To partially reset the state:**
+### To partially reset the state
 
 - Use the `dlt pipeline <pipeline_name> drop <resource_name>` command to [drop the state and tables for a given resource](../reference/command-line-interface.md#dlt-pipeline-drop).
 - Use the `dlt pipeline <pipeline_name> drop --state-paths` command to [reset the state at a given path without touching the tables and data](../reference/command-line-interface.md#dlt-pipeline-drop).

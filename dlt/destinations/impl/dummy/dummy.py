@@ -163,8 +163,11 @@ class DummyClient(JobClientBase, SupportsStagingDestination, WithStagingDataset)
         only_tables: Iterable[str] = None,
         expected_update: TSchemaTables = None,
         force: bool = False,
+        include_existing_tables: bool = False,
     ) -> Optional[TSchemaTables]:
-        applied_update = super().update_stored_schema(only_tables, expected_update, force)
+        applied_update = super().update_stored_schema(
+            only_tables, expected_update, force, include_existing_tables
+        )
         if self.config.fail_schema_update:
             # terminal to mimic a concurrent create/add-column collision, which retry_load skips
             # and retry_schema_update retries

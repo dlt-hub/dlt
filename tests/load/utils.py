@@ -564,7 +564,8 @@ def destinations_configs(
                 supports_merge=True,
                 supports_dbt=False,
                 destination_name="sqlalchemy_duckdb",
-                credentials="duckdb:///db.duckdb",
+                # naive literals are read in the session timezone, which defaults to the local one
+                credentials="duckdb:///db.duckdb?TimeZone=UTC",
             ),
             # TODO: enable in sql alchemy destination test, 99% of tests work
             # DestinationTestConfiguration(

@@ -3,7 +3,6 @@ title: Deploy with Google Cloud Functions
 description: How to deploy a pipeline with Google Cloud Functions
 keywords: [how to, deploy a pipeline, Cloud Function]
 ---
-
 # Deploy a pipeline with Google Cloud Functions
 
 This guide shows you how to deploy a pipeline using the gcloud shell and dlt CLI commands. To deploy a pipeline using this method, you must have a working knowledge of GCP and its associated services, such as Cloud Functions, IAM and permissions, and GCP service accounts.
@@ -15,16 +14,19 @@ To deploy a pipeline with GCP Cloud Functions, navigate to the directory on your
 1. In this guide, we'll be setting up the dlt
    [Notion verified source](../../dlt-ecosystem/verified-sources/notion). However, you can use any verified source or create a custom one to suit your needs.
 1. In the terminal:
-   - Run the following command to initialize the verified source with Notion and create a pipeline example with BigQuery as the target.
+
+  - Run the following command to initialize the verified source with Notion and create a pipeline example with BigQuery as the target.
 
      ```sh
      dlt init notion bigquery
      ```
 
-   - After the command executes, new files and folders with the necessary configurations are created in the main directory where the command was executed.
+  - After the command executes, new files and folders with the necessary configurations are created in the main directory where the command was executed.
 
-   - Detailed information about initializing a verified source and a pipeline example can be found in the dlthub [documentation](../../dlt-ecosystem/verified-sources/notion).
+  - Detailed information about initializing a verified source and a pipeline example can be found in the dlthub [documentation](../../dlt-ecosystem/verified-sources/notion).
+
 1. Create a new Python file called "main.py" in the main directory. The file can be configured as follows:
+
    ```py
    from notion_pipeline import load_databases
 
@@ -32,8 +34,9 @@ To deploy a pipeline with GCP Cloud Functions, navigate to the directory on your
      load_databases()
      return "Pipeline run successfully!"
    ```
+
    By default, Google Cloud Functions looks for the "main.py" file in the directory.
-   
+
 1. If you need any additional dependencies, add them to the "requirements.txt" that was created.
 
 ## 2. Deploying GCP Cloud Function
@@ -54,7 +57,7 @@ gcloud functions deploy pipeline_notion --runtime python310 \
 
 Environmental variables can be declared in the Cloud Function in two ways:
 
-#### 3a. Directly in the function:
+### 3a. Directly in the function
 
 - Go to the Google Cloud Function and select the deployed function. Click "EDIT".
 - Navigate to the "BUILD" tab and click "ADD VARIABLE" under "BUILD ENVIRONMENTAL VARIABLE".
@@ -64,7 +67,7 @@ Environmental variables can be declared in the Cloud Function in two ways:
 - Enter the value for the Notion API key.
 - Click Next and deploy the function.
 
-#### 3b. Use GCP Secret Manager:
+### 3b. Use GCP Secret Manager
 
 - Go to the Google Cloud function and select the function you deployed. Click "EDIT".
 - In the "Runtime, Build, Connections and Security Settings" section, select "Security and Images
@@ -141,7 +144,6 @@ You can set up a GCP cloud function webhook using `dlt` as follows:
 9. Click on "Deploy" to complete the setup.
 
 > You can now use this cloud function as a webhook for event ingestion on various platforms such as Slack, Discord, Stripe, PayPal, and any other as per your requirement. Just remember to use the "Trigger URL" created by the cloud function when setting up the webhook. The Trigger URL can be found in the Trigger tab.
-
 
 ### 2. Monitor (and manually trigger) the webhook
 

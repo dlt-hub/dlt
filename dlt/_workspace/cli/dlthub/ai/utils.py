@@ -36,6 +36,8 @@ from dlt._workspace.typing import TLocationInfo
 
 AI_WORKBENCH_BASE_DIR = "workbench"
 TOOLKITS_INDEX_FILE = ".toolkits"
+DLTHUB_AGENTS_DIR = "dlthub/agents"
+"""Folder of dlt agents in a toolkit and in a host folder, apart from the host's own `agents`."""
 
 _workbench_lock = threading.Lock()  # lock git clone operation
 
@@ -45,9 +47,9 @@ def compute_file_hash(file_path: Path) -> str:
     return hashlib.sha3_256(file_path.read_bytes()).hexdigest()
 
 
-def compute_content_hash(content: str) -> str:
-    """Return the SHA3-256 hex digest of a string encoded as UTF-8."""
-    return hashlib.sha3_256(content.encode("utf-8")).hexdigest()
+def compute_content_hash(content: bytes) -> str:
+    """Return the SHA3-256 hex digest of `content`."""
+    return hashlib.sha3_256(content).hexdigest()
 
 
 def home_dir() -> Optional[Path]:
@@ -158,15 +160,15 @@ def cap_skill_description(content: str, max_len: int) -> Optional[str]:
     return render_frontmatter(fm, body)
 
 
-def safe_write_text(dest: Path, content: str) -> None:
-    """Write content to dest atomically via write-then-move.
+def safe_write_bytes(dest: Path, data: bytes) -> None:
+    """Write data to dest atomically via write-then-move.
 
     Writes to a uniquely-named temp sibling first, then uses os.replace()
     for an atomic rename on the same filesystem.
     """
     tmp = dest.parent / (dest.name + "." + uniq_id(8) + ".tmp")
     try:
-        tmp.write_text(content, encoding="utf-8")
+        tmp.write_bytes(data)
         os.replace(tmp, dest)
     except BaseException:
         try:
@@ -377,21 +379,24 @@ def resolve_toolkit_dependencies(name: str, dep_map: Dict[str, List[str]]) -> Li
 
 
 def fetch_workbench_base(location: str, branch: Optional[str]) -> Path:
-    """Fetch AI workbench repo and return base Path.
+    """Fetch the dltHub AI Harness repo and return its base path.
 
     Thread-safe: git operations on the shared repo directory are serialized.
 
     Raises:
-        FileNotFoundError: When the workbench directory is missing from the repo.
+        FileNotFoundError: When the `workbench` directory is missing from the repo.
     """
     from dlt.common.libs import git
 
     branch = branch or DEFAULT_AI_WORKBENCH_BRANCH
     with _workbench_lock:
-        src_storage = git.get_fresh_repo_files(location, get_dlt_repos_dir(), branch=branch)
+        src_storage = git.get_fresh_repo_files(
+            location, get_dlt_repos_dir(), branch=branch, path=AI_WORKBENCH_BASE_DIR
+        )
     if not src_storage.has_folder(AI_WORKBENCH_BASE_DIR):
         raise FileNotFoundError(
-            "Workbench directory '%s' not found in repo %s" % (AI_WORKBENCH_BASE_DIR, location)
+            "dltHub AI Harness directory '%s' not found in repo %s"
+            % (AI_WORKBENCH_BASE_DIR, location)
         )
     return Path(src_storage.make_full_path(AI_WORKBENCH_BASE_DIR))
 
@@ -399,10 +404,10 @@ def fetch_workbench_base(location: str, branch: Optional[str]) -> Path:
 def fetch_workbench_toolkits(
     base: Path, listed_only: bool = False, strict: bool = False
 ) -> Tuple[Dict[str, TToolkitInfo], List[str]]:
-    """Scan workbench directory and return mapping of toolkit name -> TToolkitInfo.
+    """Scan dltHub AI Harness `workbench` directory and return mapping of toolkit name -> TToolkitInfo.
 
     Args:
-        base: Root directory of the workbench repo.
+        base: Root directory of the harness repo.
         listed_only: When True, skip toolkits with `listed: false` in metadata.
         strict: When True, raise on invalid toolkit metadata instead of warning.
 
@@ -468,15 +473,15 @@ def extract_toolkit_info(meta: Dict[str, Any], fallback_name: str) -> TToolkitIn
 def fetch_workbench_toolkit_info(
     name: str, location: str, branch: Optional[str] = None
 ) -> Optional[TWorkbenchToolkitInfo]:
-    """Return detailed toolkit info from the workbench repo.
+    """Return detailed toolkit info from the dltHub AI Harness repo.
 
     Args:
         name: Toolkit name to look up.
-        location: Workbench git repo URL or local path.
-        branch: Git branch to fetch. Uses default workbench branch when None.
+        location: Harness git repo URL or local path.
+        branch: Git branch to fetch. Uses default harness branch when None.
 
     Returns:
-        Toolkit info with skills, commands, and rules, or None if not found.
+        Toolkit info with skills, commands, rules, and agents, or None if not found.
     """
     base = fetch_workbench_base(location, branch)
     toolkit_dir = base / name
@@ -486,10 +491,15 @@ def fetch_workbench_toolkit_info(
 
     tk_meta = extract_toolkit_info(meta, name)
 
-    def _components(md_files: List[Path]) -> List[TWorkbenchComponentInfo]:
+    def _components(
+        md_files: List[Path], folder_named: bool = False
+    ) -> List[TWorkbenchComponentInfo]:
+        # a skill or an agent is its folder, so a missing `name` falls back to the folder name
         return [
             TWorkbenchComponentInfo(name=n, description=d)
-            for n, d in (read_md_name_desc(f) for f in md_files)
+            for n, d in (
+                read_md_name_desc(f, f.parent.name if folder_named else None) for f in md_files
+            )
         ]
 
     skills: List[TWorkbenchComponentInfo] = []
@@ -500,7 +510,8 @@ def fetch_workbench_toolkit_info(
                 p / "SKILL.md"
                 for p in sorted(skills_dir.iterdir())
                 if p.is_dir() and (p / "SKILL.md").exists()
-            ]
+            ],
+            folder_named=True,
         )
 
     commands: List[TWorkbenchComponentInfo] = []
@@ -513,6 +524,18 @@ def fetch_workbench_toolkit_info(
     if rules_dir.is_dir():
         rules = _components(sorted(rules_dir.glob("*.md")))
 
+    agents: List[TWorkbenchComponentInfo] = []
+    agents_dir = toolkit_dir / DLTHUB_AGENTS_DIR
+    if agents_dir.is_dir():
+        agents = _components(
+            [
+                p / "AGENT.md"
+                for p in sorted(agents_dir.iterdir())
+                if p.is_dir() and (p / "AGENT.md").exists()
+            ],
+            folder_named=True,
+        )
+
     servers = read_workbench_toolkit_mcp_servers(toolkit_dir)
 
     info = TWorkbenchToolkitInfo(
@@ -520,6 +543,7 @@ def fetch_workbench_toolkit_info(
         skills=skills,
         commands=commands,
         rules=rules,
+        agents=agents,
         has_ignore=(toolkit_dir / ".claudeignore").is_file(),
     )
     if servers:
@@ -590,7 +614,7 @@ _INIT_TOOLKIT = "init"
 
 
 def read_agents_md_template(workbench_base: Optional[Path]) -> str:
-    """Read AGENTS.md template from init toolkit in workbench.
+    """Read AGENTS.md template from init toolkit in the dltHub AI Harness.
 
     Raises `FileNotFoundError` when `workbench_base` is `None`
     or the template file is missing.

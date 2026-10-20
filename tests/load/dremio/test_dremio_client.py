@@ -5,6 +5,7 @@ from dlt.common.schema import TColumnSchema, Schema
 from dlt.destinations import dremio
 from dlt.destinations.impl.dremio.configuration import DremioClientConfiguration, DremioCredentials
 from dlt.destinations.impl.dremio.dremio import DremioClient
+from dlt.destinations.impl.dremio.pydremio import parameterize_query
 from tests.load.utils import empty_schema
 
 
@@ -91,3 +92,16 @@ def test_get_table_update_sql(dremio_client, new_columns, generate_alter, expect
         )
         == expected_sql
     )
+
+
+@pytest.mark.parametrize(
+    "value,expected",
+    [
+        ("plain", "'plain'"),
+        ("bucket = 'new'", "'bucket = ''new'''"),
+        ("'quoted'", "'''quoted'''"),
+    ],
+    ids=["plain", "embedded_quotes", "leading_and_trailing_quotes"],
+)
+def test_parameterize_query_escapes_quotes(value: str, expected: str) -> None:
+    assert parameterize_query("SELECT %s", (value,)) == f"SELECT {expected}"

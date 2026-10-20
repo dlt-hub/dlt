@@ -1,22 +1,21 @@
 ---
-title: REST API Source with dlthub AI Harness
+title: REST API Source with dltHub AI Harness
 description: Build any REST API source with dltHub AI Harness toolkits - workflows, skills, rules, and MCP tools
 keywords: [cursor, claude, codex, llm, restapi, ai, workbench, toolkit]
 ---
-
 # REST API Source with dltHub AI Harness
 
 :::info
-The dltHub AI Harness is a part of the dltHub platform. View the license [here](https://github.com/dlt-hub/dlthub-ai-workbench/blob/master/LICENSE).
+The [dltHub AI Harness](../ai-harness/introduction.md) is a part of the dltHub platform. View the license [here](https://github.com/dlt-hub/dlthub-ai-workbench/blob/master/LICENSE).
 :::
 
 ## Overview
 
-Build a custom REST API connector for any of the 8k+ available sources — often in a single session. Instead of generating ad-hoc code, the AI assistant follows a defined sequence of steps from start to finish to help you build production-grade pipelines following the dltHub best practices. 
+Build a custom REST API connector for any of the 11,000+ available sources — often in a single session. Instead of generating ad-hoc code, the AI assistant follows a defined sequence of steps from start to finish to help you build production-grade pipelines following the dltHub best practices.
 
-The **rest-api-pipeline** toolkit is part of the [dltHub AI Harness](../ai-harness/introduction.md) and gives your coding assistant a structured, guided workflow — skills, rules, and an MCP server — tied together by a **workflow** that tells the assistant which skill to run at each step. It is designed to support an iterative data pipeline development flow and helps you validate results step by step. 
+The **rest-api-pipeline** toolkit is part of the harness and gives your coding assistant a structured, guided workflow — skills, rules, and an MCP server — tied together by a **workflow** that tells the assistant which skill to run at each step. It is designed to support an iterative data pipeline development flow and helps you validate results step by step.
 
-The dltHub AI Harness works with **Claude Code**, **Cursor**, and **Codex**.
+The harness works with **Claude Code**, **Cursor**, and **Codex**.
 
 ## Setup
 
@@ -39,7 +38,6 @@ Wire up your specific coding assistant:
 dlthub ai init --agent claude
 ```
 
-
 </TabItem>
 <TabItem value="cursor">
 
@@ -51,9 +49,11 @@ dlthub ai init --agent cursor
 After running the command, manually enable the dlt-workspace-mcp server in **Cursor Settings > MCP**.
 
 Add the following to your `.cursor/rules/security.mdc` to improve safe credential handling:
+
 ```text
 CRITICAL: never ask for credentials in chat. Always let the user edit secrets directly and do not attempt to read them.
 ```
+
 :::
 
 </TabItem>
@@ -69,11 +69,13 @@ Codex does not support commands and rules, so the installer converts those into 
 Codex runs in a strict sandbox — enable web access to allow the assistant to research APIs:
 
 `.codex/config.toml`
+
 ```toml
 web_search = "live"
 ```
 
 Add the following to your `AGENTS.md` to improve safe credential handling:
+
 ```text
 CRITICAL: never ask for credentials in chat. Always let the user edit secrets directly and do not attempt to read them.
 ```
@@ -95,7 +97,7 @@ dlthub ai toolkit install rest-api-pipeline
 This installs the **rest-api-pipeline** toolkit: a workflow that orchestrates the assistant, an entry point skill, and step-by-step skills for each phase.
 
 :::info Claude Code marketplace plugin
-The workbench is also available as a **Claude Code marketplace plugin**. You don't need `uv`, Python, or `dlt` installed to get started — the `bootstrap` plugin handles everything from scratch.
+The dltHub AI Harness is also available as a **Claude Code marketplace plugin**. You don't need `uv`, Python, or `dlt` installed to get started — the `bootstrap` plugin handles everything from scratch.
 
 > The Claude Code plugin may not yet provide the best linking experience between different toolkits. We recommend using the `dlthub ai` CLI above for the best experience.
 
@@ -193,13 +195,13 @@ You can open [Workspace Dashboard](./dashboard.md) to apply your own judgement:
 dlthub local pipeline show github_pipeline
 ```
 
-| Question | What to check |
-|----------|---------------|
-| 1) Am I grabbing data correctly? | Row counts match expected volume (not just page 1) |
-| 2) Am I loading data correctly? | Incremental cursor advances between runs |
-| 3) Is my schema correct? | No unexpected child tables or missing columns |
-| 4) Do I have the right business data? | Required entities and attributes are present |
-| 5) Are my data types correct? | Numbers, dates, booleans are not stored as strings |
+| Question                              | What to check                                      |
+| ------------------------------------- | -------------------------------------------------- |
+| 1) Am I grabbing data correctly?      | Row counts match expected volume (not just page 1) |
+| 2) Am I loading data correctly?       | Incremental cursor advances between runs           |
+| 3) Is my schema correct?              | No unexpected child tables or missing columns      |
+| 4) Do I have the right business data? | Required entities and attributes are present       |
+| 5) Are my data types correct?         | Numbers, dates, booleans are not stored as strings |
 
 See the [full checklist](./dashboard.md#using-the-dashboard) for detailed steps.
 
@@ -256,12 +258,12 @@ stateDiagram-v2
 
 A toolkit contains skills, rules, and an MCP server — tied together by a workflow that tells the assistant which skill to run at each step and how to leverage the MCP.
 
-| Component | What it is | When it runs |
-|-----------|------------|--------------|
-| **Skill** | Step-by-step procedure the assistant follows | Triggered by user intent or explicitly with `/skill-name` |
-| **Rule** | Always-on context (conventions, constraints) | Every session, automatically |
-| **Workflow** | Ordered sequence of skills with a fixed entry point | Loaded as a rule — always active |
-| **MCP server** | Exposes pipelines, tables, and secrets as tools | During a session, via MCP protocol |
+| Component      | What it is                                          | When it runs                                              |
+| -------------- | --------------------------------------------------- | --------------------------------------------------------- |
+| **Skill**      | Step-by-step procedure the assistant follows        | Triggered by user intent or explicitly with `/skill-name` |
+| **Rule**       | Always-on context (conventions, constraints)        | Every session, automatically                              |
+| **Workflow**   | Ordered sequence of skills with a fixed entry point | Loaded as a rule — always active                          |
+| **MCP server** | Exposes pipelines, tables, and secrets as tools     | During a session, via MCP protocol                        |
 
 ### How the components interact
 
@@ -291,10 +293,12 @@ uv run dlthub ai toolkit install dlthub-platform
 ## Results
 
 By the end of this guide, you should have:
+
 - A workspace with coding assistant rules and MCP tools configured
 - A working REST API source with validated endpoints
 - A local dataset you have inspected and verified
 
 Next steps:
+
 - [Explore the dataset and build a data product](../../general-usage/dataset-access/dataset.md)
 - [Replace the local destination with your data warehouse](../../walkthroughs/share-a-dataset.md)

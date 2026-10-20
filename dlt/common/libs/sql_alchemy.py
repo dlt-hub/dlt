@@ -9,7 +9,11 @@ try:
     from sqlalchemy.sql.sqltypes import TypeEngine  # noqa: I251
     from sqlalchemy.exc import CompileError  # noqa: I251
     from sqlalchemy.dialects.oracle import NUMBER as ORACLE_NUMBER  # noqa: I251
+    from sqlalchemy.dialects.oracle import TIMESTAMP as ORACLE_TIMESTAMP  # noqa: I251
     from sqlalchemy.dialects.oracle.base import OracleDialect  # noqa: I251
+    from sqlalchemy.dialects.mssql import MONEY as MSSQL_MONEY  # noqa: I251
+    from sqlalchemy.dialects.mssql import SMALLMONEY as MSSQL_SMALLMONEY  # noqa: I251
+    from sqlalchemy.dialects.mssql.base import MSDialect  # noqa: I251
     import sqlalchemy as sa  # noqa: I251
 except ModuleNotFoundError:
     raise MissingDependencyException(
@@ -40,6 +44,10 @@ __all__ = [
     "TypeEngine",
     "CompileError",
     "ORACLE_NUMBER",
+    "ORACLE_TIMESTAMP",
     "OracleDialect",
+    "MSSQL_MONEY",
+    "MSSQL_SMALLMONEY",
+    "MSDialect",
     "sa",
 ]

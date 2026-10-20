@@ -1358,3 +1358,49 @@ def get_columns_and_row_all_types(destination_config: DestinationClientConfigura
             ["col4_precision"] if destination_config.destination_type in ["motherduck"] else None
         ),
     )
+
+
+@pytest.mark.parametrize(
+    "client",
+    destinations_configs(
+        default_sql_configs=True, default_vector_configs=True, exclude=["weaviate", "qdrant"]
+    ),
+    indirect=True,
+    ids=lambda x: x.name,
+)
+def test_schema_update_include_existing_tables(
+    client: SqlJobClientBaseWithDestinationTestConfiguration,
+) -> None:
+    schema = client.schema
+    item_normalizer = JsonLItemsNormalizer(None, None, None, schema, "load_id", None)
+    col_id = item_normalizer._infer_column("id", 1)
+    table_a, table_b, table_c = (f"table_{n}_{uniq_id()}" for n in "abc")
+    only_tables = {table_b, schema.version_table_name}
+
+    # a and b exist in the destination
+    schema.update_table(new_table(table_a, columns=[col_id]))
+    schema.update_table(new_table(table_b, columns=[col_id]))
+    schema._bump_version()
+    client.update_stored_schema()
+
+    # a gains x, c is added, only b is migrated: only means only but the hash is stored anyway
+    schema.update_table(new_table(table_a, columns=[item_normalizer._infer_column("x", 1)]))
+    schema.update_table(new_table(table_c, columns=[col_id]))
+    schema._bump_version()
+    client.update_stored_schema(only_tables=only_tables)
+    assert client.get_stored_schema_by_hash(schema.stored_version_hash) is not None
+    _, storage_cols = client.get_storage_table(table_a)
+    assert "x" not in normalize_storage_table_cols(table_a, storage_cols, schema)
+    assert client.get_storage_table(table_c)[0] is False
+
+    # a gains y: existing a gets x (skipped before) and y, c is still not created
+    schema.update_table(new_table(table_a, columns=[item_normalizer._infer_column("y", 1)]))
+    schema._bump_version()
+    applied_update = client.update_stored_schema(
+        only_tables=only_tables, include_existing_tables=True
+    )
+    assert set(applied_update.keys()) == {table_a}
+    assert set(applied_update[table_a]["columns"].keys()) == {"x", "y"}
+    _, storage_cols = client.get_storage_table(table_a)
+    assert {"x", "y"} <= normalize_storage_table_cols(table_a, storage_cols, schema).keys()
+    assert client.get_storage_table(table_c)[0] is False

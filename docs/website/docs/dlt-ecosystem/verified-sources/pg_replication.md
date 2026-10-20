@@ -3,9 +3,9 @@ title: Postgres replication
 description: dlt verified source for Postgres replication
 keywords: [postgres, postgres replication, database replication]
 ---
-import Header from './_source-info-header.md';
-
 # Postgres replication
+
+import Header from './_source-info-header.md';
 
 <Header/>
 
@@ -13,14 +13,13 @@ import Header from './_source-info-header.md';
 
 Resources that can be loaded using this verified source are:
 
-| Name                 | Description                                     |
-| -------------------- | ----------------------------------------------- |
-| replication_resource | Load published messages from a replication slot |
-| init_replication     | Initialize replication and optionally return snapshot resources for the initial data load  |
-
+| Name                 | Description                                                                               |
+| -------------------- | ----------------------------------------------------------------------------------------- |
+| replication_resource | Load published messages from a replication slot                                           |
+| init_replication     | Initialize replication and optionally return snapshot resources for the initial data load |
 
 :::info
-The Postgres replication source currently **does not** support the [scd2 merge strategy](../../general-usage/merge-loading.md#scd2-strategy). 
+The Postgres replication source currently **does not** support the [scd2 merge strategy](../../general-usage/merge-loading.md#scd2-strategy).
 :::
 
 ## Setup guide
@@ -30,19 +29,19 @@ The Postgres replication source currently **does not** support the [scd2 merge s
 To set up a Postgres user for replication, follow these steps:
 
 1. Create a user with the `LOGIN` and `REPLICATION` attributes:
-    
+
     ```sql
     CREATE ROLE replication_user WITH LOGIN REPLICATION;
     ```
 
 2. Grant the `CREATE` privilege on the database:
-    
+
     ```sql
     GRANT CREATE ON DATABASE dlt_data TO replication_user;
     ```
 
 3. Grant ownership of the tables you want to replicate:
-    
+
     ```sql
     ALTER TABLE your_table OWNER TO replication_user;  
     ```
@@ -51,48 +50,50 @@ To set up a Postgres user for replication, follow these steps:
 The minimum required privileges may differ depending on your replication configuration. For example, replicating entire schemas requires superuser privileges. Check the [Sources and resources](#sources-and-resources) section for more detailed information.
 :::
 
-
 ### Set up RDS
+
 To set up a Postgres user on RDS, follow these steps:
 
 1. Enable replication for your RDS Postgres instance via a [Parameter Group](https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/USER_PostgreSQL.Replication.ReadReplicas.html).
 
 2. `WITH LOGIN REPLICATION;` does not work on RDS; instead, do:
-    
+
     ```sql
     GRANT rds_replication TO replication_user;
     ```
-    
+
 3. Use the following connection parameters to enforce SSL:
-    
+
    ```toml
    sources.pg_replication.credentials="postgresql://loader:password@host.rds.amazonaws.com:5432/dlt_data?sslmode=require&connect_timeout=300"
    ```
+
 ### Initialize the verified source
 
 To get started with your data pipeline, follow these steps:
 
 1. Run the following command:
-    
+
    ```sh
    dlt init pg_replication duckdb
    ```
-    
+
    This command initializes [pipeline examples](https://github.com/dlt-hub/verified-sources/blob/master/sources/pg_replication_pipeline.py) with Postgres replication as the [source](../../general-usage/source) and [DuckDB](../../dlt-ecosystem/destinations/duckdb) as the [destination](../../dlt-ecosystem/destinations).
-    
+
 2. If you'd like to use a different destination, simply replace `duckdb` with the name of your preferred [destination](../../dlt-ecosystem/destinations). For example:
+
    ```sh
    dlt init pg_replication bigquery
    ```
-       
+
 3. After running the command, a new directory will be created with the necessary files and configuration settings to get started.
 
 ### Add credentials
 
 1. In the `.dlt` folder, there's a file called `secrets.toml`. It's where you store sensitive information securely, like access tokens. Keep this file safe.
-    
+
    Here's what the `secrets.toml` looks like:
-    
+
    ```toml
    [sources.pg_replication.credentials]
    drivername = "postgresql" # please set me up!
@@ -102,40 +103,42 @@ To get started with your data pipeline, follow these steps:
    host = "host" # please set me up!
    port = 0 # please set me up! 
    ```
-    
+
 2. Credentials can be set as shown above. Alternatively, you can provide credentials in the `secrets.toml` file as follows:
-    
+
    ```toml
    sources.pg_replication.credentials="postgresql://username@password.host:port/database"
    ```
 
 3. Finally, follow the instructions in the [Destinations section](../../dlt-ecosystem/destinations/) to add credentials for your chosen destination.
 
-
 For more information, read the [Configuration section.](../../general-usage/credentials)
 
 ## Run the pipeline
 
 1. Ensure that you have installed all the necessary dependencies by running:
+
    ```sh
    pip install -r requirements.txt
    ```
+
 2. After carrying out the necessary customization to your pipeline script, you can run the pipeline with the following command:
+
    ```sh
    python pg_replication_pipeline.py
    ```
+
 3. Once the pipeline has finished running, you can verify that everything loaded correctly with:
+
    ```sh
    dlt pipeline <pipeline_name> show
    ```
+
    For example, the `pipeline_name` for the above pipeline example is `pg_replication_pipeline`, you may also use any custom name instead.
 
-
    For more information, read the guide on [how to run a pipeline](../../walkthroughs/run-a-pipeline).
-    
 
 ## Sources and resources
-
 
 ### Snapshot resources from `init_replication`
 
@@ -162,13 +165,13 @@ def init_replication(
 
 Depending on how you configure `init_replication`, the minimum required privileges for the Postgres user may differ:
 
-| Configuration | Description | Minimum required privileges |
-|----------|---------------|----------------------------|
-| `table_names=None` | Replicates the entire schema. The publication includes all current and future tables in the schema. | Superuser |
-| `table_names=[...]`<br />`reset=False`<br />`persist_snapshots=False` | Replicates specific tables. Creates or updates an existing publication/slot without dropping. No snapshot tables are created. | REPLICATION attribute,<br />CREATE on the database if the publication does not yet exist,<br />Publication ownership if the publication already exists,<br />Table ownership (for each table) |
-| `table_names=[...]`<br />`reset=False`<br />`persist_snapshots=True` | Replicates specific tables. Creates or updates an existing publication/slot without dropping. Snapshot tables are created for the initial load. | REPLICATION attribute,<br />CREATE on the database if the publication does not yet exist,<br />Publication ownership if the publication already exists,<br />Table ownership (for each table),<br />CREATE privilege in the schema (for snapshot tables) |
-| `table_names=[...]`<br />`reset=True`<br />`persist_snapshots=False` | Replicates specific tables. Drops existing publication/slot before recreating. No snapshot tables are created. | REPLICATION attribute,<br />CREATE on the database,<br />Table ownership (for each table),<br />Slot/publication ownership if they already exist |
-| `table_names=[...]`<br />`reset=True`<br />`persist_snapshots=True` | Replicates specific tables. Drops existing publication/slot before recreating. Snapshot tables are created for the initial load. | REPLICATION attribute,<br />CREATE on the database,<br />Table ownership (for each table),<br />Slot/publication ownership if they already exist,<br />CREATE privilege in the schema (for snapshot tables) |
+| Configuration                                                         | Description                                                                                                                                     | Minimum required privileges                                                                                                                                                                                                                              |
+| --------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `table_names=None`                                                    | Replicates the entire schema. The publication includes all current and future tables in the schema.                                             | Superuser                                                                                                                                                                                                                                                |
+| `table_names=[...]`<br />`reset=False`<br />`persist_snapshots=False` | Replicates specific tables. Creates or updates an existing publication/slot without dropping. No snapshot tables are created.                   | REPLICATION attribute,<br />CREATE on the database if the publication does not yet exist,<br />Publication ownership if the publication already exists,<br />Table ownership (for each table)                                                            |
+| `table_names=[...]`<br />`reset=False`<br />`persist_snapshots=True`  | Replicates specific tables. Creates or updates an existing publication/slot without dropping. Snapshot tables are created for the initial load. | REPLICATION attribute,<br />CREATE on the database if the publication does not yet exist,<br />Publication ownership if the publication already exists,<br />Table ownership (for each table),<br />CREATE privilege in the schema (for snapshot tables) |
+| `table_names=[...]`<br />`reset=True`<br />`persist_snapshots=False`  | Replicates specific tables. Drops existing publication/slot before recreating. No snapshot tables are created.                                  | REPLICATION attribute,<br />CREATE on the database,<br />Table ownership (for each table),<br />Slot/publication ownership if they already exist                                                                                                         |
+| `table_names=[...]`<br />`reset=True`<br />`persist_snapshots=True`   | Replicates specific tables. Drops existing publication/slot before recreating. Snapshot tables are created for the initial load.                | REPLICATION attribute,<br />CREATE on the database,<br />Table ownership (for each table),<br />Slot/publication ownership if they already exist,<br />CREATE privilege in the schema (for snapshot tables)                                              |
 
 For detailed information about all arguments, see the [source code](https://github.com/dlt-hub/verified-sources/blob/master/sources/pg_replication/helpers.py).
 
@@ -220,6 +223,7 @@ The [pipeline examples](https://github.com/dlt-hub/verified-sources/blob/master/
        dev_mode=True,
    )
    ```
+
 This pipeline is configured in the `get_postgres_pipeline()` function.
 It’s meant for local testing, so you can freely modify it to simulate different replication scenarios.
 
@@ -230,7 +234,7 @@ In production, you don’t need a simulation pipeline. Replication runs against 
 The general workflow for setting up replication is:
 
 1. Define the replication pipeline that will load replicated data in your chosen destination:
-    
+
    ```py
    repl_pl = dlt.pipeline(
        pipeline_name="pg_replication_pipeline",
@@ -239,9 +243,9 @@ The general workflow for setting up replication is:
        dev_mode=True,
    )
    ```
-    
+
 2. Initialize replication (if needed) with `init_replication`, and capture a snapshot of the source:
-      
+
       ```py notype
       snapshot = init_replication(  
          slot_name="my_slot",
@@ -254,13 +258,13 @@ The general workflow for setting up replication is:
       ```
 
 3. Load the initial snapshot, so the destination contains all existing data before replication begins:
-    
+
    ```py notype
    repl_pl.run(snapshot)
    ```
-    
+
 4. Apply ongoing changes by creating a `replication_resource` to capture updates and keep the destination in sync:
-      
+
    ```py notype
    # Create a resource that generates items for each change in the source table
    changes = replication_resource("my_slot", "my_pub")

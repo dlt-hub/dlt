@@ -1,5 +1,8 @@
 import contextlib
-from typing import Dict, Iterable, List, Optional, Set
+import string
+from datetime import datetime, timezone
+from functools import partial
+from typing import Any, Callable, Dict, Iterable, List, Optional, Sequence, Set, Tuple, cast
 
 from dlt.common import logger
 from dlt.common.configuration.inject import with_config
@@ -16,6 +19,7 @@ from dlt.common.schema.exceptions import (
     TableNotFound,
 )
 from dlt.common.schema.typing import (
+    C_DLT_LOAD_ID,
     TColumnSchema,
     TColumnType,
     TLoaderMergeStrategy,
@@ -25,12 +29,198 @@ from dlt.common.schema.typing import (
 )
 from dlt.common.schema.utils import (
     fill_hints_from_parent_and_clone_table,
+    get_first_column_name_with_prop,
     get_merge_strategy,
     is_complete_column,
     find_incomplete_columns,
 )
 from dlt.common.storages import ParsedLoadJobFileName
-from dlt.common.typing import ConfigValue, DictStrStr, TLoaderFileFormat
+from dlt.common.storages.exceptions import CurrentLoadPackageStateNotAvailable
+from dlt.common.storages.load_package import load_package_state
+from dlt.common.time import (
+    DATETIME_PLACEHOLDERS,
+    datetime_to_placeholders,
+    datetime_to_timestamp,
+    datetime_to_timestamp_ms,
+    ensure_datetime,
+    ensure_datetime_in_tz,
+    normalize_timezone,
+    reduce_datetime_precision,
+)
+from dlt.common.typing import ConfigValue, DictStrStr, TAnyDateTime, TLoaderFileFormat
+
+MERGE_CONDITION_PLACEHOLDERS = ("table", "staging_table")
+"""Placeholders that expand to table identifiers."""
+MERGE_CONDITION_VALUE_PLACEHOLDERS = (
+    "load_id",
+    "table_name",
+    "load_package_timestamp",
+    "load_package_timestamp_ms",
+    "boundary_timestamp",
+    "curr_date",
+    *sorted(DATETIME_PLACEHOLDERS),
+)
+"""Placeholders that dlt fills from the load package. They expand to literals."""
+
+
+def _get_condition_placeholders(hint_name: str, filter_: str) -> Set[str]:
+    try:
+        return {name for _, name, _, _ in string.Formatter().parse(filter_) if name is not None}
+    except ValueError as format_ex:
+        raise ValueError(
+            f"dlt cannot parse `{hint_name}` `{filter_}`: {format_ex}. To write a literal brace,"
+            " use `{{` or `}}`."
+        ) from format_ex
+
+
+def validate_merge_condition(
+    hint_name: str, filter_: str, placeholders: Sequence[str] = MERGE_CONDITION_PLACEHOLDERS
+) -> None:
+    """Raises `ValueError` if the merge condition `filter_` is malformed or uses a placeholder
+    not in `placeholders`.
+    """
+    used = _get_condition_placeholders(hint_name, filter_)
+    if unknown := sorted(used.difference(placeholders)):
+        if placeholders:
+            available = ", ".join("`{" + name + "}`" for name in placeholders)
+            allowed = f"It accepts only these placeholders: {available}."
+        else:
+            allowed = "It accepts no placeholders."
+        raise ValueError(
+            f"`{hint_name}` `{filter_}` uses unknown placeholders"
+            f" {', '.join('`{' + name + '}`' for name in unknown)}. {allowed} To write a literal"
+            " brace, use `{{` or `}}`."
+        )
+
+
+def get_merge_placeholder_values(table_name: str) -> Dict[str, Any]:
+    """Returns the values of the value placeholders of `table_name` in the current load package.
+
+    Returns an empty dict outside of a load package.
+    """
+    try:
+        package = load_package_state()
+    except CurrentLoadPackageStateNotAvailable:
+        return {}
+    state = package["state"]
+    values = dict(state.get("placeholders", {}).get(table_name, {}))
+    values.update(load_id=package["load_id"], table_name=table_name)
+    if state.get("created_at"):
+        created_at = ensure_datetime_in_tz(state["created_at"], timezone.utc)
+        values.setdefault("boundary_timestamp", created_at)
+        values["load_package_timestamp"] = datetime_to_timestamp(created_at)
+        values["load_package_timestamp_ms"] = datetime_to_timestamp_ms(created_at)
+        values["curr_date"] = created_at.date()
+        for name, rendered in datetime_to_placeholders(created_at).items():
+            if name in DATETIME_PLACEHOLDERS:
+                # a SQL condition compares numbers to numbers, `{MM}` is 1, not '01'
+                values[name] = int(rendered) if rendered.isdigit() else rendered
+    return values
+
+
+def to_literal_datetime(
+    value: TAnyDateTime, supports_tz_aware_datetime: bool = True, precision: int = 6
+) -> datetime:
+    """Returns `value` as the destination stores a loaded timestamp: in the context timezone, as
+    the naive wall clock on a destination without tz support, at `precision`. A naive value is
+    read in the context timezone."""
+    value = normalize_timezone(ensure_datetime(value), supports_tz_aware_datetime)
+    return reduce_datetime_precision(value, precision)
+
+
+def get_scd2_timestamps(
+    root_table: TTableSchema, caps: DestinationCapabilitiesContext
+) -> Tuple[datetime, Optional[datetime]]:
+    """Returns the boundary and active record timestamps of an `scd2` table as literal values of
+    the destination, see `to_literal_datetime`. The boundary comes from the load package."""
+    # `x-boundary-timestamp` of older schemas is a stale value and is never read
+    boundary = get_merge_placeholder_values(root_table["name"])["boundary_timestamp"]
+    to_column = get_first_column_name_with_prop(root_table, "x-active-record-timestamp")
+    active_record = root_table["columns"][to_column]["x-active-record-timestamp"]  # type: ignore[typeddict-item]
+    # the literal is written to and compared with the validity columns, so it must not be finer
+    to_literal = partial(
+        to_literal_datetime,
+        supports_tz_aware_datetime=caps.supports_tz_aware_datetime,
+        precision=caps.timestamp_precision,
+    )
+    return to_literal(boundary), None if active_record is None else to_literal(active_record)
+
+
+def expand_merge_condition(
+    hint_name: str,
+    filter_: str,
+    identifiers: Dict[str, str],
+    values: Dict[str, Any],
+    escape_literal: Callable[[Any], Any],
+    supports_tz_aware_datetime: bool = True,
+    timestamp_precision: int = 6,
+) -> str:
+    """Expands identifier placeholders as they are and value placeholders as escaped literals.
+    A `datetime` value is converted with `to_literal_datetime`. A list or tuple value expands
+    to a list of literals for `IN`, an empty one to `(NULL)`.
+
+    Raises `ValueError` if `filter_` uses a placeholder that has no identifier or value.
+    """
+
+    def _to_literal(value: Any) -> Any:
+        if isinstance(value, datetime):
+            value = to_literal_datetime(value, supports_tz_aware_datetime, timestamp_precision)
+        return escape_literal(value)
+
+    validate_merge_condition(hint_name, filter_, [*identifiers, *values])
+    literals: Dict[str, Any] = {}
+    for name in _get_condition_placeholders(hint_name, filter_):
+        if name in identifiers:
+            continue
+        value = values[name]
+        if isinstance(value, (list, tuple)):
+            # `IN ()` is not valid SQL, `IN (NULL)` matches no rows
+            literals[name] = f"({', '.join(map(str, map(_to_literal, value))) or 'NULL'})"
+        else:
+            literals[name] = _to_literal(value)
+    return filter_.format(**identifiers, **literals)
+
+
+def get_merge_compare_columns(table: TTableSchema) -> List[str]:
+    """Returns names of columns whose values decide whether a merged row changed.
+
+    Returns only the row version column when the table has one. Otherwise excludes the key
+    columns, the `hard_delete` column and `_dlt_load_id`.
+    """
+    if row_version := get_first_column_name_with_prop(table, "x-row-version"):
+        return [row_version]
+    key_props = ("primary_key", "row_key", "parent_key", "root_key", "hard_delete")
+    # the load id changes on every load. The comparison ignores case, since a naming convention can
+    # case-fold it
+    return [
+        name
+        for name, column in table["columns"].items()
+        # TODO: pass the naming convention here to compare the names correctly
+        if name.lower() != C_DLT_LOAD_ID and not any(column.get(prop) for prop in key_props)
+    ]
+
+
+def get_merge_changed_cond(
+    table: TTableSchema,
+    source_alias: str,
+    target_alias: str,
+    escape_id: Callable[[str], str] = str,
+) -> Optional[str]:
+    """Returns a SQL condition that holds when a source row differs from its target row.
+
+    Returns `None` when the table has no columns to compare.
+    """
+    compare_columns = get_merge_compare_columns(table)
+    if not compare_columns:
+        return None
+    if get_first_column_name_with_prop(table, "x-row-version"):
+        # the row version is not nullable, so a direct comparison is exact
+        column = escape_id(compare_columns[0])
+        return f"{source_alias}.{column} <> {target_alias}.{column}"
+    return " OR ".join(
+        f"({source_alias}.{c} IS DISTINCT FROM {target_alias}.{c})"
+        for c in map(escape_id, compare_columns)
+    )
 
 
 def verify_schema_capabilities(

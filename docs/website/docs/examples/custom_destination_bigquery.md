@@ -3,8 +3,7 @@ title: Custom destination with BigQuery
 description: Learn how use the custom destination to load to bigquery and use credentials
 keywords: [destination, credentials, example, bigquery, custom destination]
 ---
-
-## About this Example
+# Custom destination with BigQuery
 
 In this example, you'll find a Python script that demonstrates how to load to BigQuery with the custom destination.
 
@@ -15,7 +14,7 @@ We'll learn how to:
 - Use pyarrow tables to create nested column types on BigQuery.
 - Use BigQuery `autodetect=True` for schema inference from parquet files.
 
-### Full source code
+## Full source code
 
 ```py noexecute
 import dlt

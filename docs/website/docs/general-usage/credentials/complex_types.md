@@ -4,6 +4,7 @@ description: Configure access to AWS, Azure, Google Cloud and other systems
 keywords: [credentials, secrets.toml, secrets, config, configuration, environment
       variables, specs]
 ---
+# Built-in credentials
 
 ## Overview
 
@@ -12,7 +13,6 @@ keywords: [credentials, secrets.toml, secrets, config, configuration, environmen
 :::tip
 Learn about the authentication methods supported by the `dlt` RestAPI Client in detail in the [RESTClient section](../../dlt-ecosystem/verified-sources/rest_api/advanced.md#authentication).
 :::
-
 
 ## Example with ConnectionStringCredentials
 
@@ -62,7 +62,7 @@ query("SELECT * FROM customers", "postgres://loader@localhost:5432/dlt_data") # 
 query("SELECT * FROM customers", {"database": "dlt_data", "username": "loader"}) # type: ignore[arg-type]
 ```
 
-## Built-in credentials
+## Credentials
 
 `dlt` offers some ready-made credentials you can reuse:
 
@@ -79,6 +79,7 @@ from dlt.sources.credentials import AzureCredentials
 The `ConnectionStringCredentials` class handles connection string credentials for SQL database connections. It includes attributes for the driver name, database name, username, password, host, port, and additional query parameters. This class provides methods for parsing and generating connection strings.
 
 #### Usage
+
 ```py
 from dlt.common.configuration.specs import ConnectionStringCredentials
 
@@ -102,6 +103,7 @@ credentials.parse_native_representation(native_value)
 # Get a URL representation of the connection
 url_representation = credentials.to_url()
 ```
+
 Above, you can find an example of how to use this spec with sources and TOML files.
 
 ### OAuth2Credentials
@@ -109,6 +111,7 @@ Above, you can find an example of how to use this spec with sources and TOML fil
 The `OAuth2Credentials` class handles OAuth 2.0 credentials, including client ID, client secret, refresh token, and access token. It also allows for the addition of scopes and provides methods for client authentication.
 
 Usage:
+
 ```py
 from dlt.common.configuration.specs import OAuth2Credentials
 
@@ -140,6 +143,7 @@ The **Credential handover** table in each section below shows what each library 
 ### GCP credentials
 
 #### Examples
+
 * [Google Analytics verified source](https://github.com/dlt-hub/verified-sources/blob/master/sources/google_analytics/__init__.py): an example of how to use GCP Credentials.
 * [Google Analytics example](https://github.com/dlt-hub/verified-sources/blob/master/sources/google_analytics/setup_script_gcp_oauth.py): how you can get the refresh token using `dlt.secrets.value`.
 
@@ -168,7 +172,9 @@ gcp_credentials = GcpServiceAccountCredentials()
 gcp_native_value = {"private_key": ".."} # or "path/to/services.json"
 gcp_credentials.parse_native_representation(gcp_native_value)
 ```
+
 or more preferred use:
+
 ```py
 import dlt
 from dlt.sources.credentials import GcpServiceAccountCredentials
@@ -188,7 +194,9 @@ def google_analytics(
     credentials_str = str(credentials)
     ...
 ```
+
 while `secrets.toml` looks as follows:
+
 ```toml
 [sources.google_analytics.credentials]
 client_id = "client_id" # please set me up!
@@ -196,7 +204,9 @@ client_secret = "client_secret" # please set me up!
 refresh_token = "refresh_token" # please set me up!
 project_id = "project_id" # please set me up!
 ```
+
 and `config.toml`:
+
 ```toml
 [sources.google_analytics]
 property_id = "213025502"
@@ -219,7 +229,9 @@ oauth_credentials = GcpOAuthCredentials()
 native_value_oauth = {"client_secret": ...}
 oauth_credentials.parse_native_representation(native_value_oauth)
 ```
+
 Or more preferred use:
+
 ```py notype
 import dlt
 from dlt.sources.credentials import GcpOAuthCredentials
@@ -241,7 +253,9 @@ def google_analytics(
     credentials_str = str(credentials)
     ...
 ```
+
 While `secrets.toml` looks as follows:
+
 ```toml
 [sources.google_analytics.credentials]
 client_id = "client_id" # please set me up!
@@ -249,7 +263,9 @@ client_secret = "client_secret" # please set me up!
 refresh_token = "refresh_token" # please set me up!
 project_id = "project_id" # please set me up!
 ```
+
 And `config.toml`:
+
 ```toml
 [sources.google_analytics]
 property_id = "213025502"
@@ -270,12 +286,12 @@ If configuration values are missing, `dlt` uses **Application Default Credential
 
 On default (ADC) credentials `dlt` hands over to the consumer so it resolves and refreshes via ADC itself; explicit service-account credentials are passed as-is.
 
-| consumer | default credentials (ADC) | explicit service account |
-| --- | --- | --- |
-| `fsspec` / gcsfs | gcsfs resolves & refreshes via Google ADC | service account credentials |
-| DuckDB | no native GCS credential chain — `dlt` reads via `fsspec`/gcsfs (which refreshes), or via HMAC keys on the S3-compatibility layer | HMAC keys (S3-compatibility layer) |
-| `object_store` (delta, lance) | handed over (empty options) → the crate resolves & refreshes via ADC. OAuth user credentials are not supported with `delta` | service-account JSON |
-| `pyarrow` / pyiceberg | `project-id` only → pyarrow `GcsFileSystem` resolves & refreshes via ADC | service-account JSON / OAuth token |
+| consumer                      | default credentials (ADC)                                                                                                         | explicit service account           |
+| ----------------------------- | --------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------- |
+| `fsspec` / gcsfs              | gcsfs resolves & refreshes via Google ADC                                                                                         | service account credentials        |
+| DuckDB                        | no native GCS credential chain — `dlt` reads via `fsspec`/gcsfs (which refreshes), or via HMAC keys on the S3-compatibility layer | HMAC keys (S3-compatibility layer) |
+| `object_store` (delta, lance) | handed over (empty options) → the crate resolves & refreshes via ADC. OAuth user credentials are not supported with `delta`       | service-account JSON               |
+| `pyarrow` / pyiceberg         | `project-id` only → pyarrow `GcsFileSystem` resolves & refreshes via ADC                                                          | service-account JSON / OAuth token |
 
 #### External sessions
 
@@ -296,6 +312,7 @@ gcp_credentials.parse_native_representation(native)
 The `AwsCredentials` class is responsible for handling AWS credentials, including access keys, session tokens, profile names, region names, and endpoint URLs. It inherits the ability to manage default credentials and extends it with methods for handling partial credentials and converting credentials to a botocore session.
 
 #### Usage
+
 ```py
 from dlt.common.configuration.specs import AwsCredentials
 
@@ -305,7 +322,9 @@ aws_credentials.aws_access_key_id = "ACCESS_KEY_ID"
 aws_credentials.aws_secret_access_key = "SECRET_ACCESS_KEY"
 aws_credentials.region_name = "us-east-1"
 ```
+
 or
+
 ```py
 # Imports an external botocore session and sets the credentials properties accordingly.
 import botocore.session
@@ -316,7 +335,9 @@ session = botocore.session.get_session()
 aws_credentials.parse_native_representation(session)
 print(aws_credentials.aws_access_key_id)
 ```
+
 or more preferred use:
+
 ```py notype
 @dlt.source
 def aws_readers(
@@ -333,14 +354,18 @@ def aws_readers(
     print(aws_credentials.access_key)
     ...
 ```
+
 while `secrets.toml` looks as follows:
+
 ```toml
 [sources.aws_readers.credentials]
 aws_access_key_id = "key_id"
 aws_secret_access_key = "access_key"
 region_name = "region"
 ```
+
 and `config.toml`:
+
 ```toml
 [sources.aws_readers]
 bucket_url = "bucket_url"
@@ -359,12 +384,12 @@ These default credentials are **refreshable**: temporary tokens (for example an 
 
 On default credentials `dlt` hands over so the consumer resolves and **refreshes** the credentials itself; static and external-session credentials are frozen.
 
-| consumer | default credentials | static / external session |
-| --- | --- | --- |
-| `fsspec` / s3fs | static key/secret/token omitted → s3fs resolves & refreshes via its own aiobotocore chain | frozen key/secret/token |
-| DuckDB | `PROVIDER credential_chain` + `REFRESH auto` (re-runs the full AWS chain on token expiry) | frozen `KEY_ID` / `SECRET` / `SESSION_TOKEN` |
-| `object_store` (delta, lance) | handed over **only** for self-refreshing creds (EC2 IMDS / ECS); deferred creds (IRSA / SSO / assume-role) are frozen because the crate cannot resolve them | frozen key/secret/token |
-| `pyarrow` / pyiceberg | static keys omitted → pyarrow `S3FileSystem` resolves & refreshes via the AWS chain (region/endpoint preserved) | frozen key/secret/token |
+| consumer                      | default credentials                                                                                                                                         | static / external session                    |
+| ----------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------- |
+| `fsspec` / s3fs               | static key/secret/token omitted → s3fs resolves & refreshes via its own aiobotocore chain                                                                   | frozen key/secret/token                      |
+| DuckDB                        | `PROVIDER credential_chain` + `REFRESH auto` (re-runs the full AWS chain on token expiry)                                                                   | frozen `KEY_ID` / `SECRET` / `SESSION_TOKEN` |
+| `object_store` (delta, lance) | handed over **only** for self-refreshing creds (EC2 IMDS / ECS); deferred creds (IRSA / SSO / assume-role) are frozen because the crate cannot resolve them | frozen key/secret/token                      |
+| `pyarrow` / pyiceberg         | static keys omitted → pyarrow `S3FileSystem` resolves & refreshes via the AWS chain (region/endpoint preserved)                                             | frozen key/secret/token                      |
 
 #### External sessions
 
@@ -385,13 +410,16 @@ This is the way to force a specific local or dev identity for consumers that wou
 The `AzureCredentials` class is responsible for handling Azure Blob Storage credentials, including account name, account key, Shared Access Signature (SAS) token, and SAS token permissions. It inherits the ability to manage default credentials and extends it with methods for handling partial credentials and converting credentials to a format suitable for interacting with Azure Blob Storage using the adlfs library.
 
 #### Usage
+
 ```py notype
 az_credentials = AzureCredentials()
 # Set the necessary attributes
 az_credentials.azure_storage_account_name = "ACCOUNT_NAME"
 az_credentials.azure_storage_account_key = "ACCOUNT_KEY"
 ```
+
 or more preferred use:
+
 ```py notype
 @dlt.source
 def azure_readers(
@@ -410,13 +438,17 @@ def azure_readers(
     # to_native_credentials() is not yet implemented
     ...
 ```
+
 while `secrets.toml` looks as follows:
+
 ```toml
 [sources.azure_readers.credentials]
 azure_storage_account_name = "account_name"
 azure_storage_account_key = "account_key"
 ```
+
 and `config.toml`:
+
 ```toml
 [sources.azure_readers]
 bucket_url = "bucket_url"
@@ -430,12 +462,12 @@ If configuration is not provided, `dlt` uses `DefaultAzureCredential`, which res
 
 On default credentials `dlt` hands over so the consumer resolves and **refreshes** the credentials itself; static credentials and external sessions are frozen.
 
-| consumer | default credentials | static (account key / SAS / service principal) | external session |
-| --- | --- | --- | --- |
-| `fsspec` / adlfs | `anon=False` → adlfs resolves & refreshes via its own `DefaultAzureCredential` | account key / SAS / service principal | the live credential object is passed to adlfs (refreshes in-process) |
-| DuckDB | `PROVIDER credential_chain` (env / workload / managed identity / `az` CLI, refreshes) | connection string / `PROVIDER service_principal` | frozen bearer token via `PROVIDER access_token` |
-| `object_store` (delta, lance) | handed over — the crate resolves & refreshes env service principal / workload identity / managed identity | account key / SAS / service principal | frozen bearer token |
-| `pyarrow` / pyiceberg | handed over → adlfs resolves & refreshes via its own `DefaultAzureCredential`, **but only when `AZURE_STORAGE_ANON=false`** is set (pyiceberg passes no `anon` flag, so adlfs is anonymous by default) | account key / SAS / service principal (service principal auto-refreshes) | **not supported — raises** |
+| consumer                      | default credentials                                                                                                                                                                                    | static (account key / SAS / service principal)                           | external session                                                     |
+| ----------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------ | -------------------------------------------------------------------- |
+| `fsspec` / adlfs              | `anon=False` → adlfs resolves & refreshes via its own `DefaultAzureCredential`                                                                                                                         | account key / SAS / service principal                                    | the live credential object is passed to adlfs (refreshes in-process) |
+| DuckDB                        | `PROVIDER credential_chain` (env / workload / managed identity / `az` CLI, refreshes)                                                                                                                  | connection string / `PROVIDER service_principal`                         | frozen bearer token via `PROVIDER access_token`                      |
+| `object_store` (delta, lance) | handed over — the crate resolves & refreshes env service principal / workload identity / managed identity                                                                                              | account key / SAS / service principal                                    | frozen bearer token                                                  |
+| `pyarrow` / pyiceberg         | handed over → adlfs resolves & refreshes via its own `DefaultAzureCredential`, **but only when `AZURE_STORAGE_ANON=false`** is set (pyiceberg passes no `anon` flag, so adlfs is anonymous by default) | account key / SAS / service principal (service principal auto-refreshes) | **not supported — raises**                                           |
 
 #### External sessions
 

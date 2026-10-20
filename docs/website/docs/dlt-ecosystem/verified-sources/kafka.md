@@ -3,9 +3,9 @@ title: Kafka
 description: dlt verified source for Confluent Kafka
 keywords: [kafka api, kafka verified source, kafka]
 ---
-import Header from './_source-info-header.md';
-
 # Kafka
+
+import Header from './_source-info-header.md';
 
 <Header/>
 
@@ -16,9 +16,9 @@ See a [pipeline example](https://github.com/dlt-hub/verified-sources/blob/master
 
 The resource that can be loaded:
 
-| Name              | Description                                |
-| ----------------- |--------------------------------------------|
-| kafka_consumer    | Extracts messages from Kafka topics        |
+| Name           | Description                         |
+| -------------- | ----------------------------------- |
+| kafka_consumer | Extracts messages from Kafka topics |
 
 ## Setup guide
 
@@ -142,11 +142,9 @@ be read. When passed, `dlt` asks the Kafka cluster for an offset,
 which is actual for the given timestamp, and starts to read messages from
 this offset.
 
-
 ## Customization
 
 ### Create your own pipeline
-
 
 1. Configure the pipeline by specifying the pipeline name, destination, and dataset as follows:
 

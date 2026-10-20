@@ -3,13 +3,11 @@ title: Freshdesk
 description: dlt verified source for Freshdesk API
 keywords: [freshdesk api, freshdesk verified source, freshdesk]
 ---
-import Header from './_source-info-header.md';
-
-
 # Freshdesk
 
-<Header/>
+import Header from './_source-info-header.md';
 
+<Header/>
 
 [Freshdesk](https://www.freshworks.com/freshdesk/) is a cloud-based customer service software
 that provides businesses with tools for managing customer support via multiple channels including
@@ -23,12 +21,12 @@ Resources that can be loaded using this verified source are:
 
 | S.No. | Name      | Description                                                                               |
 | ----- | --------- | ----------------------------------------------------------------------------------------- |
-| 1.    | agents    | Users responsible for managing and resolving customer inquiries and support tickets.       |
-| 2.    | companies | Customer organizations or groups that agents support.                                      |
-| 3.    | contacts  | Individuals or customers who reach out for support.                                        |
-| 4.    | groups    | Agents organized based on specific criteria.                                               |
-| 5.    | roles     | Predefined sets of permissions that determine what actions an agent can perform.           |
-| 6.    | tickets   | Customer inquiries or issues submitted via various channels like email, chat, phone, etc.  |
+| 1.    | agents    | Users responsible for managing and resolving customer inquiries and support tickets.      |
+| 2.    | companies | Customer organizations or groups that agents support.                                     |
+| 3.    | contacts  | Individuals or customers who reach out for support.                                       |
+| 4.    | groups    | Agents organized based on specific criteria.                                              |
+| 5.    | roles     | Predefined sets of permissions that determine what actions an agent can perform.          |
+| 6.    | tickets   | Customer inquiries or issues submitted via various channels like email, chat, phone, etc. |
 
 ## Setup guide
 
@@ -77,6 +75,7 @@ To get started with your data pipeline, follow these steps:
    domain = "please set me up!" # Enter the Freshdesk domain here
    api_secret_key = "please set me up!" # Enter the Freshdesk API key here
    ```
+
 1. In the `domain`, enter the domain of your Freshdesk account.
 
 1. In `api_secret_key`, enter the API key you [copied above.](#grab-credentials)
@@ -85,18 +84,24 @@ To get started with your data pipeline, follow these steps:
 
 1. Before running the pipeline, ensure that you have installed all the necessary dependencies by
    running the command:
+
    ```sh
    pip install -r requirements.txt
    ```
+
 2. You're now ready to run the pipeline! To get started, run the following command:
+
    ```sh
    python freshdesk_pipeline.py
    ```
+
 3. Once the pipeline has finished running, you can verify that everything loaded correctly by using
    the following command:
+
    ```sh
    dlt pipeline <pipeline_name> show
    ```
+
    For example, the `pipeline_name` for the above pipeline example is
    `freshdesk_pipeline`. You may also use any custom name instead.
 
@@ -124,6 +129,7 @@ def freshdesk_source(
 ) -> Iterable[DltResource]:
     ...
 ```
+
 > This source supports pagination and incremental data loading. It fetches data from a list of
 > specified endpoints, or defaults to predefined endpoints in
 > ["settings.py".](https://github.com/dlt-hub/verified-sources/blob/master/sources/freshdesk/settings.py)
@@ -168,7 +174,9 @@ def freshdesk_source(
 `primary_key`: Specifies "id" as the primary key of the resource.
 
 ## Customization
+
 ### Create your own pipeline
+
 If you wish to create your own pipelines, you can leverage source and resource methods from this
 verified source.
 
@@ -186,6 +194,7 @@ verified source.
    [documentation](../../general-usage/pipeline).
 
 2. To load data from all the endpoints, specified in ["settings.py".](https://github.com/dlt-hub/verified-sources/blob/master/sources/freshdesk/settings.py)
+
    ```py notype
    load_data = freshdesk_source()
    # Run the pipeline
@@ -195,6 +204,7 @@ verified source.
    ```
 
 3. To load the data from "agents", "contacts", and "tickets":
+
    ```py notype
    load_data = freshdesk_source().with_resources("agents", "contacts", "tickets")
    # Run the pipeline
@@ -202,4 +212,5 @@ verified source.
    # Print the pipeline run information
    print(load_info)
    ```
+
 <!--@@@DLT_TUBA github-->

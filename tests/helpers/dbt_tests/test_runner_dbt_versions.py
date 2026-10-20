@@ -1,18 +1,24 @@
 import os
 import shutil
 import tempfile
+from datetime import datetime, timezone
 from typing import Any, Iterator, List, Dict
 from functools import partial
 from typing import Tuple
 import pytest
-from dlt.common import json
 
+import dlt
+from dlt.common import json
 from dlt.common.configuration import resolve_configuration
+from dlt.common.configuration.container import Container
 from dlt.common.configuration.specs import GcpServiceAccountCredentials, CredentialsWithDefault
 from dlt.common.storages.file_storage import FileStorage
+from dlt.common.storages.load_package import create_load_id
 from dlt.common.runners import Venv
 from dlt.common.runners.synth_pickle import decode_obj, encode_obj
 from dlt.common.typing import AnyFun
+from dlt.common.utils import uniq_id
+from dlt.extract.incremental.context import TimeIntervalContext
 
 from dlt.destinations.impl.postgres.postgres import PostgresClient
 from dlt.destinations.impl.bigquery.configuration import BigQueryClientConfiguration
@@ -28,6 +34,7 @@ from dlt.helpers.dbt import (
 
 from tests.helpers.dbt_tests.utils import (
     JAFFLE_SHOP_REPO,
+    TEST_CASES_PATH,
     assert_jaffle_completed,
     clone_jaffle_repo,
     find_run_result,
@@ -43,13 +50,11 @@ def client() -> Iterator[PostgresClient]:
 
 
 PACKAGE_PARAMS = [
-    ("postgres", "1.8.6"),
-    ("postgres", "1.9.1"),
+    ("postgres", "1.9.3"),
     ("postgres", "1.10.19"),
     ("postgres", "1.11.6"),
     ("postgres", None),
-    ("snowflake", "1.8.6"),
-    ("snowflake", "1.9.1"),
+    ("snowflake", "1.9.3"),
     ("snowflake", "1.10.19"),
     ("snowflake", "1.11.6"),
     ("snowflake", None),
@@ -58,6 +63,9 @@ PACKAGE_IDS = [
     f"{destination}-venv-{version}" if version else f"{destination}-local"
     for destination, version in PACKAGE_PARAMS
 ]
+
+SNOWFLAKE_PKEY_DER_B64 = "MIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQ=="
+"""Stands in for a base64 DER key: the profile only passes it through, never parses it."""
 
 
 @pytest.fixture(scope="module", params=PACKAGE_PARAMS, ids=PACKAGE_IDS)
@@ -95,6 +103,65 @@ def test_default_profile_name() -> None:
     # force them to be present
     bigquery_config.credentials._set_default_credentials({})
     assert _default_profile_name(bigquery_config) == "bigquery_default"
+
+
+def _render_profile(profile_name: str) -> Dict[str, Any]:
+    """One profile of the shipped `profiles.yml`, as dbt renders it against the environment."""
+    import yaml
+    from jinja2 import Environment
+
+    import dlt.helpers.dbt as dbt_helper
+
+    def env_var(name: str, *default: Any) -> Any:
+        # dbt refuses an `env_var` without a default when the variable is unset
+        if default:
+            return os.environ.get(name, default[0])
+        return os.environ[name]
+
+    path = os.path.join(os.path.dirname(dbt_helper.__file__), "profiles.yml")
+    with open(path, "r", encoding="utf-8") as f:
+        # the jinja lives inside quoted scalars, so the file parses as YAML before rendering
+        outputs = yaml.safe_load(f)[profile_name]["outputs"]["analytics"]
+    env = Environment()
+    return {
+        key: (
+            env.from_string(value).render(
+                env_var=env_var, var=lambda name, *default: default[0] if default else name
+            )
+            if isinstance(value, str)
+            else value
+        )
+        for key, value in outputs.items()
+    }
+
+
+@pytest.mark.parametrize("with_password", [True, False], ids=["with-password", "key-only"])
+def test_snowflake_pkey_profile_renders(preserve_environ: Any, with_password: bool) -> None:
+    """The `snowflake_pkey` profile renders the private key, and a password only when one is set."""
+    from dlt.common.configuration.utils import add_config_to_env
+    from dlt.destinations.impl.snowflake.configuration import (
+        SnowflakeClientConfiguration,
+        SnowflakeCredentials,
+    )
+
+    credentials = SnowflakeCredentials()
+    credentials.host = "acct"
+    credentials.database = "db"
+    credentials.username = "loader"
+    credentials.private_key = SNOWFLAKE_PKEY_DER_B64
+    if with_password:
+        credentials.password = "pwd"
+    credentials.resolve()
+    config = SnowflakeClientConfiguration(credentials=credentials)._bind_dataset_name("ds")
+    assert _default_profile_name(config) == "snowflake_pkey"
+
+    os.environ["DLT__CREDENTIALS__PASSWORD"] = "stale"
+    add_config_to_env(credentials, ("dlt",))
+    assert ("DLT__CREDENTIALS__PASSWORD" in os.environ) is with_password
+
+    output = _render_profile("snowflake_pkey")
+    assert output["private_key"] == SNOWFLAKE_PKEY_DER_B64
+    assert output["password"] == ("pwd" if with_password else "")
 
 
 def test_dbt_configuration() -> None:
@@ -184,6 +251,17 @@ def test_runner_setup(client: PostgresClient, test_storage: FileStorage) -> None
         "schema_name": "ovr",
         "add": 1,
     }
+    assert r._get_package_vars(load_id="1712345678.123") == {
+        "source_dataset_name": client.config.dataset_name,
+        "destination_dataset_name": "destination",
+        "schema_name": "this_Schema",
+        "load_id": "1712345678.123",
+    }
+    # explicit vars override the load id
+    assert (
+        r._get_package_vars(additional_vars={"load_id": "ovr"}, load_id="1712345678.123")["load_id"]
+        == "ovr"
+    )
 
 
 def test_runner_dbt_destinations(
@@ -244,6 +322,8 @@ def test_run_jaffle_fail_prerequisites(
         assert customers.status == "error"
         assert len(proc_err.run_results) == 20
         assert all(r.status == "error" for r in proc_err.run_results)
+        # no load id was passed
+        assert all(r.load_id is None for r in proc_err.run_results)
 
 
 def test_run_jaffle_invalid_run_args(
@@ -277,6 +357,86 @@ def test_run_jaffle_failed_run(
         assert len(pr_exc.value.run_results) == 5
         customers = find_run_result(pr_exc.value.run_results, "customers")
         assert customers.status == "error"
+
+
+def test_run_microbatch_with_interval(
+    test_storage: FileStorage, dbt_package_f: Tuple[str, AnyFun]
+) -> None:
+    """Loads with an injected interval and transforms the same interval with a dbt microbatch model."""
+    destination_name, dbt_func = dbt_package_f
+    if destination_name != "postgres":
+        pytest.skip("microbatch flow is tested on postgres only")
+
+    @dlt.resource(primary_key="id", write_disposition="merge")
+    def events(
+        created_at: dlt.sources.incremental[datetime] = dlt.sources.incremental(
+            "created_at", allow_external_schedulers=True
+        )
+    ) -> Iterator[Dict[str, Any]]:
+        for day in range(1, 11):
+            yield {"id": day, "created_at": datetime(2024, 1, day, 12, tzinfo=timezone.utc)}
+
+    package_path = test_storage.make_full_path("microbatch_package")
+    shutil.copytree(os.path.join(TEST_CASES_PATH, "microbatch_package"), package_path)
+    pipeline = dlt.pipeline(
+        "dbt_microbatch_" + uniq_id(),
+        destination=destination_name,
+        dataset_name="test_dbt_microbatch_" + uniq_id(),
+    )
+
+    def _select_model() -> List[Tuple[Any, ...]]:
+        with pipeline.sql_client() as client:
+            table_name = client.make_qualified_table_name("events_microbatch")
+            rows = client.execute_sql(f"SELECT id, _dlt_load_id FROM {table_name} ORDER BY id")
+            return [tuple(row) for row in rows]
+
+    try:
+        # load all 10 days, then merge days 3-5 again in a new load package
+        with Container().injectable_context(
+            TimeIntervalContext(interval=(datetime(2024, 1, 1), datetime(2024, 1, 11)))
+        ):
+            pipeline.run(events())
+        with Container().injectable_context(
+            TimeIntervalContext(interval=(datetime(2024, 1, 3), datetime(2024, 1, 6)))
+        ):
+            source_load_id = pipeline.run(events()).loads_ids[0]
+            # models write the load id of the data they produce, not the one they process
+            load_id = create_load_id()
+            runner = dbt_func(pipeline.destination_client().config, None, package_path)
+            models = runner.run_all(interval=dlt.current.interval(), load_id=load_id)
+        assert load_id != source_load_id
+        assert [m.load_id for m in models] == [load_id, load_id]
+        # only batches within the interval were materialized
+        assert _select_model() == [(3, load_id), (4, load_id), (5, load_id)]
+        # postgres reports rows of a table model, dbt drops responses of microbatch batches
+        assert find_run_result(models, "events_table").rows_affected == 10
+        assert find_run_result(models, "events_microbatch").rows_affected is None
+        tests = runner.test()
+        assert find_run_result(tests, "events_before_jan_3").status == "pass"
+        assert find_run_result(tests, "events_before_jan_3").failures == 0
+
+        # without load id the package macro falls back to the dbt invocation start time
+        models = runner.run_all(interval=(datetime(2024, 1, 1), datetime(2024, 1, 3)))
+        assert all(m.load_id is None for m in models)
+        # dbt anonymous usage stats are disabled by default, no cookie in profiles dir
+        assert not runner.config.send_anonymous_usage_stats
+        assert not os.path.exists(os.path.join(runner.config.package_profiles_dir, ".user.yml"))
+        generated_load_id = _select_model()[0][1]
+        assert float(generated_load_id) > float(load_id)
+        assert _select_model() == [
+            (1, generated_load_id),
+            (2, generated_load_id),
+            (3, load_id),
+            (4, load_id),
+            (5, load_id),
+        ]
+        # warn test reports the rows from before 01-03 as failures
+        tests = runner.test()
+        assert find_run_result(tests, "events_before_jan_3").status == "warn"
+        assert find_run_result(tests, "events_before_jan_3").failures == 2
+    finally:
+        with pipeline.sql_client() as client:
+            client.drop_dataset()
 
 
 JAFFLE_MESSAGES_INCREMENTAL: Dict[str, Any] = {

@@ -17,7 +17,7 @@ from dlt.common.runtime.anon_tracker import disable_anon_tracker
 from dlt.common.typing import DictStrAny
 
 from dlt._workspace.mcp import PipelineMCP, WorkspaceMCP
-from dlt._workspace.mcp.server import resolve_features
+from dlt._workspace.cli.utils import resolve_features
 from dlt._workspace._plugins import (
     McpFeatures,
     plug_mcp_context,
@@ -381,3 +381,26 @@ def test_mcp_tool_telemetry_emits_event(
     # agent_info is None when called outside a real MCP session
     assert "agent_info" in props
     assert props["agent_info"] is None
+
+
+def test_no_default_features_serves_only_what_was_asked() -> None:
+    """A background agent gets its declared feature groups, not the interactive defaults."""
+    from dlt._workspace.cli.utils import make_mcp_run_flags, mcp_stdio_args
+
+    assert resolve_features(["telemetry"], set()) == {"telemetry"}
+    assert resolve_features(None, set()) == set()
+
+    args = mcp_stdio_args(["telemetry"], with_defaults=False)
+    assert args == [
+        "ai",
+        "mcp",
+        "run",
+        "--stdio",
+        "--no-default-features",
+        "--features",
+        "telemetry",
+    ]
+    # the server the loop spawns parses them back into the same set
+    parsed = make_mcp_run_flags().parse_args(args[3:])
+    assert parsed.no_default_features is True
+    assert resolve_features(parsed.features, set()) == {"telemetry"}

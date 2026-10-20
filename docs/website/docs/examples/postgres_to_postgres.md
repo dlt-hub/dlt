@@ -3,8 +3,7 @@ title: Load from Postgres to Postgres faster
 description: Load data fast from Postgres to Postgres with ConnectorX & Arrow export as Parquet, normalizing and exporting as DuckDB, and attaching it to Postgres for bigger Postgres tables (GBs)
 keywords: [connector x, pyarrow, zero copy, duckdb, postgres, initial load]
 ---
-
-## About this Example
+# Load from Postgres to Postgres faster
 
 :::info
 Huge shout out to [Simon Späti](https://github.com/sspaeti) for this example!
@@ -28,7 +27,6 @@ We'll learn:
 - How to use `argparse` to turn your pipeline script into a CLI.
 - How to work with `ConnectionStringCredentials` spec.
 
-
 Be aware that you need to define the database credentials in `.dlt/secrets.toml` or dlt ENVs and adjust the tables names ("customers" and "inventory").
 
 Install `dlt` with `duckdb` as extra, also `connectorx`, Postgres adapter and progress bar tool:
@@ -51,7 +49,7 @@ As well as with installing DuckDB extension (see [issue
 here](https://github.com/duckdb/duckdb/issues/8035#issuecomment-2020803032)), that's why I manually installed the `postgres_scanner.duckdb_extension` in my Dockerfile to load the data into Postgres.
 :::
 
-### Full source code
+## Full source code
 
 ```py noexecute notype
 import argparse

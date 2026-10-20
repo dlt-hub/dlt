@@ -95,14 +95,16 @@ class TLoadPackageDropTablesState(TypedDict):
 
 
 class TLoadPackageState(TVersionedState, TLoadPackageDropTablesState, total=False):
-    created_at: DateTime
-    """Timestamp when the load package was created"""
+    created_at: datetime.datetime
+    """Timestamp when the load package was created, in UTC"""
     pipeline_state: NotRequired[TPipelineStateDoc]
     """Pipeline state, added at the end of the extraction phase"""
 
     """A section of state that does not participate in change merging and version control"""
     destination_state: NotRequired[Dict[str, Any]]
     """private space for destinations to store state relevant only to the load package"""
+    placeholders: NotRequired[Dict[str, Dict[str, Any]]]
+    """Placeholder values resolved for this package, by table name"""
     load_metrics: NotRequired[Dict[str, Any]]
     """Per-job load metrics, persisted so they survive process restarts"""
     applied_dropped_tables: NotRequired[List[str]]
@@ -705,7 +707,9 @@ class PackageStorage:
                 created_at = float(load_id)
             except Exception:
                 created_at = precise_time()
-            state["created_at"] = pendulum.from_timestamp(created_at)
+            state["created_at"] = datetime.datetime.fromtimestamp(
+                created_at, tz=datetime.timezone.utc
+            )
         self.save_load_package_state(load_id, state)
         if schema:
             self.save_schema(load_id, schema)

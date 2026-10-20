@@ -3,8 +3,7 @@ title: Load PDFs to Weaviate
 description: Extract text from PDF and load it into a vector database
 keywords: [pdf, weaviate, vector store, vector database, ]
 ---
-
-## About this Example
+# Load PDFs to Weaviate
 
 We'll use PyPDF2 to extract text from PDFs. Make sure you have it installed:
 
@@ -22,7 +21,7 @@ we'll just update the vectors, and not duplicate.
 
 Look how we pipe data from `list_files` resource (note that resource is deselected so we do not load raw file items to destination) into `pdf_to_text` using **|** operator.
 
-### Full source code
+## Full source code
 
 ```py noexecute
 import os
@@ -72,7 +71,7 @@ if __name__ == "__main__":
 
     # use weaviate_adapter to tell destination to vectorize "text" column
     load_info = pipeline.run(weaviate_adapter(pdf_pipeline, vectorize="text"))
-    row_counts = pipeline.last_trace.last_normalize_info
+    row_counts = pipeline.last_trace.last_normalize_info.row_counts   # ty: ignore[unresolved-attribute]
     print(row_counts)
     print("------")
     print(load_info)

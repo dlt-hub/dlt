@@ -1,19 +1,19 @@
 import re
 import os
-from datetime import timezone
+from datetime import datetime, timezone
 from functools import lru_cache
 from typing import Any, Dict, List, Optional, Sequence, Set, Tuple
 
 from dlt.common import logger
 from dlt.common.normalizers.naming import NamingConvention
-from dlt.common.pendulum import pendulum
 from dlt.common.storages.load_package import ParsedLoadJobFileName
 from dlt.common.time import (
-    ensure_pendulum_datetime,
+    DATETIME_PLACEHOLDERS,
+    datetime_to_placeholders,
     datetime_to_timestamp,
     datetime_to_timestamp_ms,
+    ensure_datetime_in_tz,
 )
-from dlt.common.typing import TAnyDateTime
 from dlt.destinations.exceptions import (
     CantExtractTablePrefix,
     InvalidFilesystemLayout,
@@ -21,44 +21,6 @@ from dlt.destinations.exceptions import (
 )
 from dlt.destinations.impl.filesystem.typing import TCurrentDateTime
 
-
-# For formatting options please see
-# https://github.com/sdispater/pendulum/blob/master/docs/docs/string_formatting.md
-DATETIME_PLACEHOLDERS = {
-    # Years
-    "YYYY",  # 2024, 2025, 2026
-    "YY",  # 00, 01, 02 ... 12, 13
-    "Y",  # 2024, 2025, 2026
-    # Months
-    "MMMM",  # January, February, March
-    "MMM",  # Jan, Feb, Mar
-    "MM",  # 01-12
-    "M",  # 1-12
-    # Days
-    "DD",  # 01-31
-    "D",  # 1-31
-    # Hours
-    "HH",  # 00-23
-    "H",  # 0-23
-    # Minutes
-    "mm",  # 00-59
-    "m",  # 0-59
-    # Days of week
-    "dddd",  # Monday, Tuesday, Wednesday
-    "ddd",  # Mon, Tue, Wed
-    "dd",  # Mo, Tu, We
-    "d",  # 0-6
-    # Seconds
-    "ss",  # 01-59
-    "s",  # 0-59
-    # Fractional seconds
-    "SSSS",  # 000[0..] 001[0..] ... 998[0..] 999[0..]
-    "SSS",  # 000 001 ... 998 999
-    "SS",  # 00, 01, 02 ... 98, 99
-    "S",  # 0 1 ... 8 9
-    # Quarters of the year
-    "Q",  # 1, 2, 3, 4
-}
 
 STANDARD_PLACEHOLDERS = DATETIME_PLACEHOLDERS.union(
     {
@@ -104,34 +66,31 @@ def get_unused_placeholders(
 
 
 def prepare_datetime_params(
-    current_datetime: Optional[pendulum.DateTime] = None,
-    load_package_timestamp: Optional[TAnyDateTime] = None,
+    current_datetime: Optional[datetime] = None,
+    load_package_timestamp: Optional[datetime] = None,
 ) -> Dict[str, str]:
+    """Renders the date and time placeholders of the filesystem layout. `current_datetime`
+    defaults to the load package timestamp, then to now. A naive value is UTC."""
     params: Dict[str, str] = {}
-    current_timestamp: pendulum.DateTime = None
+    current_timestamp: datetime = None
     if load_package_timestamp:
         # UTC, never the context timezone: a shift would split one table across two prefixes
-        current_timestamp = ensure_pendulum_datetime(load_package_timestamp, timezone.utc)
+        current_timestamp = ensure_datetime_in_tz(load_package_timestamp, timezone.utc)
         params["load_package_timestamp"] = str(datetime_to_timestamp(current_timestamp))
         params["load_package_timestamp_ms"] = str(datetime_to_timestamp_ms(current_timestamp))
 
     if not current_datetime:
         if current_timestamp:
-            logger.info("current_datetime is not set, using timestamp from load package")
+            logger.info("`current_datetime` is not set. dlt uses the load package timestamp.")
             current_datetime = current_timestamp
         else:
-            logger.info("current_datetime is not set, using pendulum.now()")
-            current_datetime = pendulum.now()
+            logger.info("`current_datetime` is not set. dlt uses the current time.")
+            current_datetime = datetime.now().astimezone()
+    elif current_datetime.tzinfo is None:
+        # a naive value is UTC, like a naive `current_datetime` string in the config
+        current_datetime = current_datetime.replace(tzinfo=timezone.utc)
 
-    params["timestamp"] = str(datetime_to_timestamp(current_datetime))
-    params["timestamp_ms"] = str(datetime_to_timestamp_ms(current_datetime))
-    params["curr_date"] = str(current_datetime.date())
-
-    for format_string in DATETIME_PLACEHOLDERS:
-        # NOTE: pendulum stays here. `DATETIME_PLACEHOLDERS` are pendulum format tokens and only
-        # `pendulum.DateTime.format` reads them. Dropping pendulum means translating every token
-        # to `strftime`, which rewrites the strings that already became object storage paths
-        params[format_string] = current_datetime.format(format_string).lower()
+    params.update(datetime_to_placeholders(current_datetime))
 
     return params
 
@@ -287,15 +246,17 @@ def create_path(
     file_name: str,
     schema_name: str,
     load_id: str,
-    load_package_timestamp: Optional[pendulum.DateTime] = None,
+    load_package_timestamp: Optional[datetime] = None,
     current_datetime: Optional[TCurrentDateTime] = None,
     extra_placeholders: Optional[Dict[str, Any]] = None,
 ) -> str:
     """create a filepath from the layout and our default params"""
     if callable(current_datetime):
         current_datetime = current_datetime()
-        if not isinstance(current_datetime, pendulum.DateTime):
-            raise RuntimeError("`current_datetime` is not an instance of `pendulum.DateTime`")
+        if not isinstance(current_datetime, datetime):
+            raise RuntimeError(
+                "The `current_datetime` callback did not return a `datetime`. Return a `datetime`."
+            )
 
     job_info = ParsedLoadJobFileName.parse(file_name)
     params = prepare_params(

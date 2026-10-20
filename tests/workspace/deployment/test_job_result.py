@@ -1,0 +1,227 @@
+"""Tests for structured job results and their delivery to the dlthub beacon."""
+
+import json as pyjson
+from typing import Any, Dict, List, Tuple, cast
+
+import pytest
+
+from dlt._workspace.deployment._run_views import print_job_result
+from dlt._workspace.deployment.job_result import (
+    JobRun,
+    is_agent_result,
+    is_job_result,
+    job_result,
+    result_type,
+)
+from dlt._workspace.deployment.launchers import LAUNCHER_JOB
+from dlt._workspace.deployment.launchers.job import run as job_run, run_and_print_result
+from dlt._workspace.deployment.agent.typing import TAgentJobResult, TAgentTrace
+from dlt._workspace.deployment.typing import (
+    JOB_RESULT_ENGINE_VERSION,
+    JOB_RESULT_PAYLOAD_TYPE,
+    TJobRef,
+    TJobResult,
+    TJobResultCategory,
+    TRuntimeEntryPoint,
+)
+
+from tests.workspace.utils import beacon as beacon, drain_beacon, isolated_workspace
+
+WORKSPACE = "tests.workspace.cases.workspaces.agent_workspace"
+
+AGENT_RESULT: TAgentJobResult = {
+    "type": "job.background_agent.dlthub-platform:job-inspector",
+    "engine_version": 1,
+    "status": "succeeded",
+    "summary": "found the cause",
+    "object": [{"type": "job-runs", "id": "job-runs/r-9"}],
+    # the view reads a handful of trace fields, so a partial one exercises it
+    "trace": cast(
+        TAgentTrace,
+        {
+            "loop_type": "pydantic-ai",
+            "model": "claude-sonnet-5",
+            "turn_count": 3,
+            "total_tokens": 165,
+            "local_tools": {"Grep": "read", "Bash": "execute"},
+        },
+    ),
+    "result": {"classification": "code"},
+}
+
+PLAIN_RESULT: TJobResult = {
+    "type": "job.etl_summary",
+    "engine_version": 1,
+    "result": {"rows": 10},
+}
+
+
+def _entry(function: str) -> TRuntimeEntryPoint:
+    module = f"{WORKSPACE}.agent_batch_jobs"
+    return {
+        "module": module,
+        "function": function,
+        "job_type": "batch",
+        "launcher": LAUNCHER_JOB,
+        "job_ref": TJobRef(f"jobs.agent_batch_jobs.{function}"),
+    }
+
+
+def test_top_level_job_owns_the_run_result() -> None:
+    """`run.result` is a pass-through, recorded once for the job the launcher invoked."""
+    payload = {"from": "outer"}
+    # a job called outside of any run opens its own for the length of the call
+    with JobRun.running(TJobRef("jobs.x.outer")) as run:
+        assert job_result(payload, type="outer") is payload
+        # a job called as a plain function by another job does not overwrite the run result
+        with JobRun.running(TJobRef("jobs.x.inner")) as inner_run:
+            assert inner_run is run
+            assert job_result({"from": "inner"}, type="inner") == {"from": "inner"}
+            run.set_result({"type": "inner", "engine_version": 1})
+        declared = run.take_result(TJobRef("jobs.x.outer"), "job", "outer_job")
+        # a second take finds nothing, so one run delivers at most one result
+        assert run.take_result(TJobRef("jobs.x.outer"), "job", "outer_job") is None
+    # the job named the payload, taking it stamps the launcher's category and the job ref
+    assert declared == {
+        "type": "job.outer",
+        "engine_version": JOB_RESULT_ENGINE_VERSION,
+        "result": payload,
+        "job_ref": "jobs.x.outer",
+    }
+    # a result declared without a type is named after the job
+    with JobRun.running(TJobRef("jobs.x.outer")) as run:
+        assert job_result(payload) is payload
+        declared = run.take_result(TJobRef("jobs.x.outer"), "job", "outer_job")
+    assert declared and declared["type"] == "job.outer_job"
+    # outside a job the payload still comes back, it is simply not recorded
+    assert JobRun.current() is None
+    assert job_result(payload, type="outer") is payload
+    # a job started in a run pushes onto it instead of opening its own
+    with JobRun().activate() as run:
+        with JobRun.running(TJobRef("jobs.x.outer")) as job_run_:
+            assert job_run_ is run
+            job_result(payload)
+    assert run.job_stack == [] and run.result is not None
+    assert JobRun.current() is None
+
+
+@pytest.mark.parametrize(
+    "category,declared,normalized",
+    [
+        ("job", "etl_summary", "job.etl_summary"),
+        ("job", "job.etl_summary", "job.etl_summary"),
+        ("job", "pipeline.load_info", "job.pipeline.load_info"),
+        ("job", "job.pipeline.load_info", "job.pipeline.load_info"),
+        (
+            "background_agent",
+            "dlthub-platform:job-inspector",
+            "job.background_agent.dlthub-platform:job-inspector",
+        ),
+    ],
+    ids=["bare", "prefixed", "own-category", "own-category-prefixed", "agent"],
+)
+def test_result_type_starts_with_job_exactly_once(
+    category: TJobResultCategory, declared: str, normalized: str
+) -> None:
+    assert result_type(category, declared) == normalized
+    assert is_agent_result(normalized) is (category == "background_agent")
+
+
+def test_launcher_delivers_the_result_to_the_beacon(beacon: List[Tuple[str, str]]) -> None:
+    """The job names the payload, the launcher completes the job result and sends it."""
+    with isolated_workspace("agent_workspace") as ctx:
+        # without `dlthub_dsn` the result comes back and nothing is sent
+        result = job_run(_entry("daily_ingest"), run_id="r-1", trigger="manual:")
+        assert result["type"] == "job.etl_summary"
+        assert result["result"] == {"rows": 10}
+        assert "object" not in result
+        # a result declared without a type is named after the job
+        result = job_run(_entry("nightly"), run_id="r-4", trigger="manual:")
+        assert result["type"] == "job.nightly"
+        assert beacon == []
+
+        ctx.runtime_config.dlthub_dsn = "https://beacon.example/token"
+        # a job that declares no result returns what it returned, and sends nothing
+        assert job_run(_entry("transform"), run_id="r-2", trigger="manual:") == "transformed"
+        job_run(_entry("daily_ingest"), run_id="r-3", trigger="manual:")
+        drain_beacon()
+
+    assert len(beacon) == 1
+    url, data = beacon[0]
+    assert url.endswith(f"/{JOB_RESULT_PAYLOAD_TYPE}")
+    body: Dict[str, Any] = pyjson.loads(data)
+    # the beacon derives run identity from the DSN token, so the body must not carry it
+    assert "run_id" not in body
+    # job_ref is what the beacon dedups on
+    assert body["job_ref"] == "jobs.agent_batch_jobs.daily_ingest"
+    assert body["type"] == "job.etl_summary"
+    assert body["result"] == {"rows": 10}
+
+
+@pytest.mark.parametrize(
+    "result,shown,hidden",
+    [
+        (
+            AGENT_RESULT,
+            [
+                "job.background_agent.dlthub-platform:job-inspector",
+                "succeeded",
+                "found the cause",
+                "job-runs: job-runs/r-9",
+                "pydantic-ai on claude-sonnet-5, 3 turns, 165 tokens",
+                "local tools: Grep (read), Bash (execute)",
+                # the payload is pretty-printed rather than dumped as a repr
+                '"classification": "code"',
+            ],
+            [],
+        ),
+        # nothing agent-specific leaks into a plain job's result
+        (PLAIN_RESULT, ["job.etl_summary", '"rows": 10'], ["status", "loop:"]),
+    ],
+    ids=["agent", "plain"],
+)
+def test_print_job_result(
+    result: TJobResult, shown: List[str], hidden: List[str], capsys: pytest.CaptureFixture[str]
+) -> None:
+    """`dlthub local run` shows the payload; agent runs also show status, summary and loop."""
+    print_job_result(result)
+    out = capsys.readouterr().out
+    for text in shown:
+        assert text in out, text
+    for text in hidden:
+        assert text not in out, text
+
+
+@pytest.mark.parametrize(
+    "returned,is_result,printed",
+    [
+        (PLAIN_RESULT, True, "Result  [job.etl_summary]"),
+        # a plain job's own dict is printed as it is, whatever keys it has
+        ({"type": "csv", "object": "x"}, False, "{'type': 'csv', 'object': 'x'}"),
+        ({"type": 3}, False, "{'type': 3}"),
+        ("transformed", False, "transformed"),
+    ],
+    ids=["job-result", "dict-with-own-type", "dict-with-non-string-type", "string"],
+)
+def test_only_a_job_typed_value_prints_as_a_job_result(
+    returned: Any, is_result: bool, printed: str, capsys: pytest.CaptureFixture[str]
+) -> None:
+    assert is_job_result(returned) is is_result
+
+    run_and_print_result(lambda: returned)
+
+    assert printed in capsys.readouterr().out
+
+
+@pytest.mark.parametrize(
+    "emojis,header,status", [(True, "🎁 Result", "✅ succeeded"), (False, "Result", "succeeded")]
+)
+def test_print_job_result_marks_the_agent_outcome(
+    capsys: pytest.CaptureFixture[str], emojis: bool, header: str, status: str
+) -> None:
+    print_job_result(AGENT_RESULT, emojis=emojis)
+    lines = capsys.readouterr().out.splitlines()
+
+    assert lines[1].startswith(f"{header}  [")
+    assert lines[2] == f"  status:     {status}"
+    assert "\x1b[" not in "".join(lines)

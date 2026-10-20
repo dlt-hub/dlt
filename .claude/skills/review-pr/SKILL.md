@@ -131,6 +131,7 @@ Produce a checklist of required test scenarios before evaluating existing tests.
 - Look for repeated setup/assertion logic across tests that should be extracted into a helper or fixture.
 - If multiple tests differ only in a single variable (e.g., `True`/`False`, different type values), they must be parametrized into one test function.
 - Flag any copy-paste test code. Minimizing test code maintenance burden is a priority.
+- Flag local path assertions that are not Windows compatible.
 
 #### 7e. Bug Fixes Should Have Regression Tests
 If the PR fixes a bug:

@@ -3,9 +3,9 @@ title: Google Ads
 description: dlt verified source for Google Ads API
 keywords: [google ads api, google ads verified source, google ads]
 ---
-import Header from './_source-info-header.md';
+# Google Ads
 
-# Google ads
+import Header from './_source-info-header.md';
 
 [Google Ads](https://ads.google.com/home/) is a digital advertising service by Google that allows advertisers to display ads across Google's search results, websites, and other platforms.
 
@@ -18,7 +18,7 @@ This Google Ads `dlt` verified source and [pipeline example](https://github.com/
 Resources that can be loaded using this verified source are:
 
 | Name             | Description                                                             |
-|------------------|-------------------------------------------------------------------------|
+| ---------------- | ----------------------------------------------------------------------- |
 | customers        | Businesses or individuals who pay to advertise their products           |
 | campaigns        | Structured sets of ad groups and advertisements                         |
 | change_events    | Modifications made to an account's ads, campaigns, and related settings |
@@ -49,10 +49,10 @@ You need to create a GCP service account to get API credentials if you don't hav
 
 1. Generate credentials:
 
-   1. Navigate to IAM & Admin in the console's left panel, and then select Service Accounts.
-   1. Identify the service account you intend to use, and click on the three-dot menu under the "Actions" column next to it.
-   1. Create a new JSON key by selecting "Manage Keys" > "ADD KEY" > "CREATE".
-   1. You can download the ".json" file containing the necessary credentials for future use.
+  1. Navigate to IAM & Admin in the console's left panel, and then select Service Accounts.
+  1. Identify the service account you intend to use, and click on the three-dot menu under the "Actions" column next to it.
+  1. Create a new JSON key by selecting "Manage Keys" > "ADD KEY" > "CREATE".
+  1. You can download the ".json" file containing the necessary credentials for future use.
 
 ### Grab Google OAuth credentials
 
@@ -96,7 +96,7 @@ python google_ads/setup_script_gcp_oauth.py
 Once you have executed the script and completed the authentication, you will receive a "refresh
 token" that can be used to set up the "secrets.toml".
 
-### Share the Google Ads account with the API:
+### Share the Google Ads account with the API
 
 :::note
 For service account authentication, use the client_email. For OAuth authentication, use the
@@ -148,17 +148,19 @@ To get started with your data pipeline, follow these steps:
 1. In the `.dlt` folder, there's a file called `secrets.toml`. It's where you store sensitive
    information securely, like access tokens. Keep this file safe. In this file, set up the "developer
    token", "customer ID", and "impersonated_email" as follows:
+
    ```toml
    [sources.google_ads]
    dev_token = "please set me up!"
    customer_id = "please set me up!"
    impersonated_email = "please set me up"
    ```
-   - `dev_token` is the developer token that lets you connect to the Google Ads API.
-   - `customer_id` in Google Ads is a unique three-part number (formatted as XXX-XXX-XXXX) that identifies
+
+  - `dev_token` is the developer token that lets you connect to the Google Ads API.
+  - `customer_id` in Google Ads is a unique three-part number (formatted as XXX-XXX-XXXX) that identifies
    and helps manage individual Google Ads accounts. It is used for API access and account operations, and
    is visible in the top right corner of your Google Ads dashboard.
-   - `impersonated_email` enables secure access to Google Ads accounts through the API using a service account,
+  - `impersonated_email` enables secure access to Google Ads accounts through the API using a service account,
    while leveraging the permissions of a specific user within the Ads platform.
 
 1. Next, for service account authentication:
@@ -194,18 +196,24 @@ To get started with your data pipeline, follow these steps:
 
 1. Before running the pipeline, ensure that you have installed all the necessary dependencies by
    running the command:
+
    ```sh
    pip install -r requirements.txt
    ```
+
 1. You're now ready to run the pipeline! To get started, run the following command:
+
    ```sh
    python google_ads_pipeline.py
    ```
+
 1. Once the pipeline has finished running, you can verify that everything loaded correctly by using
    the following command:
+
    ```sh
    dlt pipeline <pipeline_name> show
    ```
+
    For example, the `pipeline_name` for the above pipeline example is
    `dlt_google_ads_pipeline`, you may also use any custom name instead.
 
@@ -269,6 +277,7 @@ Similarly, there are resource functions called `campaigns`, `change_events`, and
 respective dimensions.
 
 ## Customization
+
 ### Create your own pipeline
 
 If you wish to create your own pipelines, you can leverage source and resource methods from this

@@ -3,7 +3,6 @@ title: Deploy with Dagster
 description: How to deploy a pipeline with Dagster
 keywords: [how to, deploy a pipeline, Dagster]
 ---
-
 # Deploy with Dagster
 
 ## Introduction to Dagster
@@ -38,7 +37,7 @@ by signing up for the trial.
 
 ## Building data pipelines with `dlt`
 
-**How does `dlt` integrate with Dagster for pipeline orchestration?**
+### How does `dlt` integrate with Dagster for pipeline orchestration?
 
 `dlt` integrates with Dagster for pipeline orchestration, providing a streamlined process for
 building, enhancing, and managing data pipelines. This enables developers to leverage `dlt`'s
@@ -53,25 +52,29 @@ Here's a concise guide to orchestrating a `dlt` pipeline with Dagster, creating 
 
 You can find the full example code in [this repository](https://github.com/dlt-hub/dlthub-education/blob/main/workshops/workshop_august_2024/part2/deployment/deploy_dagster/README.md).
 
-**The steps are as follows:**
+### The steps are as follows
 
 1. Install Dagster and the embedded ELT package using pip:
+
     ```sh
     pip install dagster dagster-webserver dagster-dg-cli
     pip install dagster-dlt
     ```
 
 1. Set up a Dagster project:
+
       ```sh
       mkdir dagster_github_issues
       cd dagster_github_issues
       create-dagster project github-issues
       ```
+
       ![image](https://github.com/user-attachments/assets/f9002de1-bcdf-49f4-941b-abd59ea7968d)
 
 1. In your Dagster project, define the dlt pipeline in the `github_source` folder.
 
    **Note**: The dlt Dagster helper works only with dlt sources. Your resources should always be grouped in a source.
+
      ```py notype
      import dlt
      ...
@@ -93,6 +96,7 @@ You can find the full example code in [this repository](https://github.com/dlt-h
      def github_source():
          return get_issues()
      ```
+
  1. Create a `dlt_assets` definition.
 
     The `@dlt_assets` decorator takes a `dlt_source` and `dlt_pipeline` parameter.
@@ -145,13 +149,13 @@ You can find the full example code in [this repository](https://github.com/dlt-h
      ```
 
 1. Run the web server locally:
-    1. Run the project:
+  1. Run the project:
 
        ```sh
        dg dev
        ```
 
-    2. Navigate to localhost:3000 in your web browser to access the Dagster UI.
+  2. Navigate to localhost:3000 in your web browser to access the Dagster UI.
 
        ![image](https://github.com/user-attachments/assets/97b74b86-df94-47e5-8ae2-de7cc47f56d8)
 
@@ -169,21 +173,21 @@ You can find the full example code in [this repository](https://github.com/dlt-h
 
    Want to see real-world examples of dlt in production? Check out how dlt is used internally at Dagster in the [Dagster Open Platform](https://github.com/dagster-io/dagster-open-platform) project.
 
-
 :::info
 For a complete picture of Dagster's integration with dlt, please refer to their [documentation](https://docs.dagster.io/integrations/libraries/dlt). This documentation offers a detailed overview and steps for ingesting GitHub data and storing it in Snowflake. You can use a similar approach to build your pipelines.
 :::
 
 ### Frequently Asked Questions
-- **Can I remove the generated `.dlt` folder with `secrets.toml` and `config.toml` files?**
 
-  Yes. Since dlt is compatible with environment variables, you can use this for secrets required by both Dagster and dlt.
+#### Can I remove the generated `.dlt` folder with `secrets.toml` and `config.toml` files?
 
-- **I'm working with several sources – how can I best group these assets?**
+Yes. Since dlt is compatible with environment variables, you can use this for secrets required by both Dagster and dlt.
 
-  To effectively group assets in Dagster when working with multiple sources, use the `group_name` parameter in your `@dlt_assets` decorator. This helps organize and visualize assets related to a particular source or theme in the Dagster UI. Here’s a simplified example:
+#### I'm working with several sources – how can I best group these assets?
 
-  ```py
+To effectively group assets in Dagster when working with multiple sources, use the `group_name` parameter in your `@dlt_assets` decorator. This helps organize and visualize assets related to a particular source or theme in the Dagster UI. Here's a simplified example:
+
+```py
   import dlt
   from dagster_dlt import dlt_assets
   from dlt_sources.google_analytics import google_analytics
@@ -213,15 +217,13 @@ For a complete picture of Dagster's integration with dlt, please refer to their 
   )
   def google_analytics_assets_2(context, dlt):
       yield from dlt.run(context=context)
-  ```
+```
 
+#### How can I use `bigquery_adapter` with `@dlt_assets` in Dagster for partitioned tables?
 
+To use `bigquery_adapter` with `@dlt_assets` in Dagster for partitioned tables, modify your resource setup to include `bigquery_adapter` with the partition parameter. Here's a quick example:
 
-- **How can I use `bigquery_adapter` with `@dlt_assets` in Dagster for partitioned tables?**
-
-  To use `bigquery_adapter` with `@dlt_assets` in Dagster for partitioned tables, modify your resource setup to include `bigquery_adapter` with the partition parameter. Here's a quick example:
-
-  ```py notype
+```py notype
   import dlt
   from google.analytics import BetaAnalyticsDataClient
   from dlt.destinations.adapters import bigquery_adapter
@@ -269,7 +271,7 @@ For a complete picture of Dagster's integration with dlt, please refer to their 
           )
 
       return resource_list
-  ```
+```
 
 ### Additional resources
 
@@ -296,4 +298,3 @@ For a complete picture of Dagster's integration with dlt, please refer to their 
 :::note
 Some of these are external repositories and are subject to change.
 :::
-

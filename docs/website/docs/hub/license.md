@@ -3,11 +3,9 @@ title: License
 description: dltHub License governing the use of dltHub Software and toolkits
 keywords: [license, eula, dlthub license, terms]
 ---
-
 # dltHub License
 
 Copyright 2026 ScaleVector, GmbH. All rights reserved.
-
 
 ## Definitions
 
@@ -58,7 +56,6 @@ The following are examples of uses that are NOT permitted under this license:
 Use beyond the scope of this license requires a separate license agreement
 negotiated with dltHub on a case-by-case basis.
 
-
 ## Redistribution
 
 Redistribution of the Licensed Materials, with or without modification, is
@@ -82,7 +79,6 @@ This waiver extends to the Licensed Materials itself as incorporated into Deriva
 Works—you are free to use, modify, and distribute it within your Derivative Works
 without further restriction, subject only to the scope of use and redistribution
 terms above.
-
 
 ## Disclaimer and Limitation of Liability
 

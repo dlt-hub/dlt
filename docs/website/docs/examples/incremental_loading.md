@@ -3,8 +3,7 @@ title: Load Zendesk tickets incrementally
 description: Learn how do incremental loading in consecutive runs
 keywords: [incremental loading, example]
 ---
-
-## About this Example
+# Load Zendesk tickets incrementally
 
 In this example, you'll find a Python script that interacts with the Zendesk Support API to extract ticket events data.
 
@@ -17,7 +16,7 @@ We'll learn:
 - How to work with timestamps, specifically converting them to Unix timestamps for incremental data extraction.
 - How to use the `start_time` parameter in API requests to retrieve data starting from a specific timestamp.
 
-### Full source code
+## Full source code
 
 ```py noexecute notype
 # NOTE: this line is only for dlt CI purposes, you may delete it if you are using this example

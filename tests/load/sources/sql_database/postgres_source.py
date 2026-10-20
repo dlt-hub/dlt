@@ -1,7 +1,9 @@
 import random
 from copy import deepcopy
-from typing import Dict, List
+from typing import Any, Dict, List
 from uuid import uuid4
+
+from typing_extensions import NotRequired
 
 import mimesis
 
@@ -45,6 +47,8 @@ from dlt.common.pendulum import pendulum, timedelta
 from dlt.common.utils import chunks, uniq_id
 from dlt.sources.credentials import ConnectionStringCredentials
 from dlt.common.typing import TypedDict
+
+from tests.load.sources.sql_database.utils import cursor_datetime
 
 
 class PostgresSourceDB:
@@ -323,7 +327,7 @@ class PostgresSourceDB:
 
     def _fake_precision_data(self, table_name: str, n: int = 100, null_n: int = 0) -> None:
         table = self.metadata.tables[f"{self.schema}.{table_name}"]
-        self.table_infos.setdefault(table_name, dict(row_count=n + null_n, is_view=False))  # type: ignore[call-overload]
+        info = self.table_infos.setdefault(table_name, dict(row_count=n + null_n, is_view=False))  # type: ignore[call-overload]
         rows = [
             dict(
                 int_col=random.randrange(-2147483648, 2147483647),
@@ -333,8 +337,8 @@ class PostgresSourceDB:
                 numeric_default_col=random.randrange(-9999999999, 9999999999) / 100,
                 string_col=mimesis.Text().word()[:10],
                 string_default_col=mimesis.Text().word(),
-                datetime_tz_col=mimesis.Datetime().datetime(timezone="UTC"),
-                datetime_ntz_col=mimesis.Datetime().datetime(),  # no timezone
+                datetime_tz_col=cursor_datetime(i, zoned=True),
+                datetime_ntz_col=cursor_datetime(i, zoned=False),
                 date_col=mimesis.Datetime().date(),
                 time_col=mimesis.Datetime().time(),
                 float_col=random.random(),
@@ -344,7 +348,7 @@ class PostgresSourceDB:
                 uuid_col=str(uuid4()) if Uuid is str else uuid4(),
                 array_col=[1, 2, 3],
             )
-            for _ in range(n + null_n)
+            for i in range(n + null_n)
         ]
         for row in rows[n:]:
             # all fields to None
@@ -352,6 +356,7 @@ class PostgresSourceDB:
                 row[field] = None
         with self.engine.begin() as conn:
             conn.execute(table.insert().values(rows))
+        info["rows"] = rows
 
     def _fake_chat_data(self, n: int = 9402) -> None:
         self._fake_users()
@@ -443,3 +448,5 @@ class TableInfo(TypedDict):
     ids: List[int]
     created_at: IncrementingDate
     is_view: bool
+    rows: NotRequired[List[Dict[str, Any]]]
+    """Source rows in insert order, kept where tests compare loaded values with them."""

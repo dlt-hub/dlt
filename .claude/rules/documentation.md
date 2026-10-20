@@ -28,6 +28,14 @@ For example
 - Link to sections with `#` anchors (auto-generated from headings, lowercase hyphenated): `[merge strategies](merge-loading.md#merge-strategies)`
 - Go up directories as needed: `[adjust a schema](../walkthroughs/adjust-a-schema.md)`
 
+## Markdown formatting
+- `mdsmith` lints `website/docs` on CI (`md-check` hook), configured in `docs/.mdsmith.yml`. After editing a page, run from `docs/`:
+  ```sh
+  make md-fix    # pads and aligns tables, fixes whitespace
+  make md-check  # must report failures=0
+  ```
+- Tables: write them unaligned and let `make md-fix` pad the columns (MDS025). It cannot fix a cell over 35 words (MDS026): shorten the text or move the detail below the table.
+
 ## Markdown frontmatter
 - Every doc page needs YAML frontmatter with at least `title`, `description`, and `keywords`:
   ```yaml

@@ -124,6 +124,8 @@ SQLGLOT_TO_DLT_TYPE_MAP: dict[DataType.Type, TDataType] = {
     DataType.Type.BOOLEAN: "bool",
     # UNKNOWN
     DataType.Type.UNKNOWN: None,
+    # older sqlglot types a `NULL` literal as `NULL`, newer as `UNKNOWN`
+    DataType.Type.NULL: None,
 }
 
 # these types were introduced after our sqlglot minimum version of 23.6.3
@@ -209,7 +211,7 @@ def from_sqlglot_type(sqlglot_type: DATA_TYPE) -> TColumnType:
         sqlglot_type = sge.DataType.build(sqlglot_type)
     assert isinstance(sqlglot_type, sge.DataType)
 
-    # only the `DataType.UNKNOWN` will produce `dlt_type=None`
+    # only `DataType.UNKNOWN` and `DataType.NULL` produce `dlt_type=None`
     dlt_type = SQLGLOT_TO_DLT_TYPE_MAP.get(sqlglot_type.this, "text")
 
     if dlt_type == "bigint":
@@ -1257,3 +1259,147 @@ def migrate_order_and_limit(inner: sge.Query, outer: sge.Select, qualifier: str)
         if (value := inner.args.get(clause)) is not None:
             outer.set(clause, value)
             inner.set(clause, None)
+
+
+def _identifier_name(node: Any) -> Optional[str]:
+    """Return the string name of an sqlglot identifier-or-string node."""
+    if isinstance(node, sge.Identifier):
+        return node.name
+    if isinstance(node, str):
+        return node
+    return None
+
+
+def extract_table_qualifier(table_expr: sge.Expression) -> Optional[Tuple[str, str]]:
+    """Return the table name and the qualifier (alias or table name) of a table expression."""
+    if not isinstance(table_expr, sge.Table):
+        return None
+
+    table_name = _identifier_name(table_expr.args.get("this"))
+    if table_name is None:
+        return None
+
+    alias_expr = table_expr.args.get("alias")
+    if isinstance(alias_expr, sge.TableAlias):
+        alias_name = _identifier_name(alias_expr.this)
+        if alias_name is not None:
+            return table_name, alias_name
+
+    return table_name, table_name
+
+
+def get_from_source(query: sge.Query) -> Optional[sge.Expression]:
+    """Return the FROM source expression (table or subquery), or `None`."""
+    # sqlglot >= 28 renamed `from` to `from_` internally
+    from_expr = query.args.get("from_") or query.args.get("from")
+    if not isinstance(from_expr, sge.From):
+        return None
+    source: Optional[sge.Expression] = from_expr.this
+    return source
+
+
+def get_source_qualifier(source: Optional[sge.Expression]) -> Optional[str]:
+    """Return the SQL qualifier (alias or table name) of a FROM/JOIN source."""
+    if source is None:
+        return None
+    if table_qualifier := extract_table_qualifier(source):
+        return table_qualifier[1]
+    # derived tables, table functions, VALUES and stages are referenced by their alias only
+    return source.alias or None
+
+
+def get_left_source_qualifier(query: sge.Query) -> Optional[str]:
+    """Return the qualifier used to reference the FROM source (alias or table name)."""
+    return get_source_qualifier(get_from_source(query))
+
+
+def aliased_subquery(query: sge.Query, qualifier: str) -> sge.Subquery:
+    """Wrap `query` as a derived table exposed under `qualifier`."""
+    return sge.Subquery(
+        this=query,
+        alias=sge.TableAlias(this=sge.to_identifier(qualifier, quoted=False)),
+    )
+
+
+def wrap_as_derived_table(query: sge.Select, qualifier: str) -> sge.Select:
+    """Re-select all of `query`'s columns from it embedded as a derived table."""
+    return (
+        sge.Select()
+        .select(sge.Column(table=sge.to_identifier(qualifier), this=sge.Star()))
+        .from_(aliased_subquery(query, qualifier))
+    )
+
+
+def defines_rows(query: sge.Select) -> bool:
+    """True when grouping, DISTINCT, aggregates or windows produce the output rows."""
+    if any(query.args.get(key) for key in ("group", "having", "qualify", "distinct")):
+        return True
+    return any(sel.find(sge.AggFunc, sge.Window) for sel in query.selects)
+
+
+def _where_on_derived_table(query: sge.Select, predicate: sge.Expression) -> sge.Query:
+    """Filter the output of `query` embedded as a derived table."""
+    inner = query.copy()
+    qualifier = get_left_source_qualifier(inner) or DLT_SUBQUERY_NAME
+    outer = wrap_as_derived_table(inner, qualifier)
+    migrate_order_and_limit(inner, outer, qualifier)
+    if any(inner.args.get(key) for key in ("order", "limit", "offset")):
+        # ORDER BY on a column dropped by the projection can't move out of the derived table
+        return query.where(predicate)
+    return outer.where(predicate)
+
+
+def where_on_output(query: sge.Query, predicate: sge.Expression) -> sge.Query:
+    """Filter `query` by `predicate` whose unqualified columns refer to the output of `query`.
+
+    Columns that `query` does not output bind to its sources, as in a plain WHERE.
+    """
+    if not isinstance(query, sge.Select):
+        return query.where(predicate)
+    output_refs = [
+        col for col in predicate.find_all(sge.Column) if not col.table and col.parent_select is None
+    ]
+    if defines_rows(query):
+        # WHERE runs before grouping, aggregates and windows so it can't see their output
+        output_names = {sel.output_name for sel in query.selects}
+        has_star = any(sel.is_star for sel in query.selects)
+        if any(has_star or col.name in output_names for col in output_refs):
+            return _where_on_derived_table(query, predicate)
+        return query.where(predicate)
+
+    # WHERE reads the sources of the projection, so an alias is replaced by its expression
+    aliased = {
+        sel.output_name: sel.this
+        for sel in query.selects
+        if isinstance(sel, sge.Alias)
+        and not (isinstance(sel.this, sge.Column) and sel.this.name == sel.output_name)
+    }
+    for col in output_refs:
+        if col.name not in aliased:
+            continue
+        expression = aliased[col.name]
+        # an unknown function may be an aggregate
+        if expression.find(sge.Anonymous):
+            return _where_on_derived_table(query, predicate)
+        # dialects that resolve WHERE names to aliases first (ie. clickhouse) would capture
+        # a source column shadowed by an alias and expand it again
+        if any(
+            not source_col.table and source_col.name in aliased
+            for source_col in expression.find_all(sge.Column)
+        ):
+            return _where_on_derived_table(query, predicate)
+
+    def _expand_alias(node: sge.Expression) -> sge.Expression:
+        if (
+            isinstance(node, sge.Column)
+            and not node.table
+            and node.parent_select is None
+            and node.name in aliased
+        ):
+            expanded = aliased[node.name].copy()
+            if isinstance(expanded, (sge.Column, sge.Literal, sge.Func, sge.Paren)):
+                return expanded
+            return sge.paren(expanded, copy=False)
+        return node
+
+    return query.where(predicate.transform(_expand_alias))

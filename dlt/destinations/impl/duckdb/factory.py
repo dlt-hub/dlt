@@ -139,10 +139,9 @@ def duckdb_merge_strategies_selector(
 
         if Version(_duckdb.__version__) < Version("1.4.0"):
             legacy_strategies = list(supported_merge_strategies)
-            if "upsert" in legacy_strategies:
-                legacy_strategies.remove("upsert")
-            if "insert-only" in legacy_strategies:
-                legacy_strategies.remove("insert-only")
+            for merge_strategy in ("upsert", "insert-only", "cdc"):
+                if merge_strategy in legacy_strategies:
+                    legacy_strategies.remove(merge_strategy)
             supported_merge_strategies = legacy_strategies
     except ImportError:
         # return default if duckdb not installed
@@ -175,7 +174,7 @@ def _set_duckdb_raw_capabilities(
     caps.supports_ddl_transactions = True
     caps.alter_add_multi_column = False
     caps.supports_truncate_command = False
-    caps.supported_merge_strategies = ["delete-insert", "upsert", "scd2", "insert-only"]
+    caps.supported_merge_strategies = ["delete-insert", "upsert", "scd2", "insert-only", "cdc"]
     caps.supported_replace_strategies = ["truncate-and-insert", "insert-from-staging"]
     caps.merge_strategies_selector = duckdb_merge_strategies_selector
     caps.sqlglot_dialect = "duckdb"

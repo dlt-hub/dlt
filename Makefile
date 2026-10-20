@@ -32,7 +32,7 @@ has-uv:
 	uv --version
 
 dev: has-uv ## Prepares development environment
-	uv sync --all-extras --no-extra hub --group workspace-deps --group dev --group providers --group pipeline --group sources --group sentry-sdk --group ibis --group adbc --group dashboard-tests
+	uv sync --all-extras --no-extra hub --group workspace-deps --group dev --group providers --group pipeline --group sources --group sentry-sdk --group ibis --group adbc --group dashboard-tests --group agent --group agent-claude
 
 dev-airflow: has-uv ## Prepares development environment with airflow support
 	uv sync --all-extras --no-extra hub --group workspace-deps --group providers --group pipeline --group sources --group sentry-sdk --group ibis --group airflow
@@ -278,12 +278,15 @@ test-pipeline-arrow:
 # ----------------------------------------------------------------------
 
 install-workspace:
-	uv sync $(UV_SYNC_ARGS) --group workspace-deps --extra cli --group streamlit
+	uv sync $(UV_SYNC_ARGS) --group workspace-deps --extra cli --group streamlit --group agent --group agent-claude
 
-TEST_WORKSPACE_PATHS = tests/workspace
+TEST_WORKSPACE_PATHS = tests/workspace --ignore tests/workspace/deployment/test_agent_e2e.py
 
 test-workspace:
 	$(call RUN_XDIST_SAFE_SPLIT,$(TEST_WORKSPACE_PATHS))
+
+test-workspace-agents: ## Runs agents on real loops and models (needs jobs.agent.api_key in tests/.dlt/secrets.toml)
+	$(PYTEST_BASE) tests/workspace/deployment/test_agent_e2e.py
 
 # ----------------------------------------------------------------------
 # CI: hub minimal (no ibis)
@@ -327,8 +330,9 @@ TEST_FULL_PATHS = \
 test-pipeline-full:
 	$(call RUN_XDIST_SAFE_SPLIT,$(TEST_FULL_PATHS))
 
+# sqlalchemy 2.1 defaults postgresql:// to psycopg 3, which the postgres extra does not install
 install-sqlalchemy2:
-	uv run pip install --upgrade sqlalchemy
+	uv run pip install --upgrade "sqlalchemy>=2.0.18,<2.1"
 
 TEST_SQL_DATABASE_PATHS = tests/sources/sql_database tests/common/libs/
 

@@ -52,7 +52,7 @@ def _():
     from dlt.sources.helpers.rest_client.auth import BearerTokenAuth
     from dlt.sources.helpers.rest_client.paginators import HeaderLinkPaginator
 
-    dlt.secrets["SOURCES__SECRET_KEY"] = os.getenv("ACCESS_TOKEN")
+    os.environ["SOURCES__SECRET_KEY"] = os.getenv("ACCESS_TOKEN")
 
     @dlt.source
     def github_source(secret_key: str = dlt.secrets.value) -> Iterable[DltResource]:

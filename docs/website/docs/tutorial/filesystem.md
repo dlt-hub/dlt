@@ -3,6 +3,7 @@ title: Load data from a cloud storage or a file system
 description: Learn how to load data files like JSON, JSONL, CSV, and Parquet from a cloud storage (AWS S3, Google Cloud Storage, Google Drive, Azure Blob Storage) or a local file system using dlt.
 keywords: [dlt, tutorial, filesystem, cloud storage, file system, python, data pipeline, incremental loading, json, jsonl, csv, parquet, duckdb]
 ---
+# Load data from a cloud storage or a file system
 
 This tutorial is for you if you need to load data files like JSONL, CSV, and Parquet from either Cloud Storage (e.g., AWS S3, Google Cloud Storage, Google Drive, Azure Blob Storage), a remote (SFTP), or a local file system.
 
@@ -44,8 +45,8 @@ Here’s what each file does:
 - `filesystem_pipeline.py`: This is the main script where you'll define your data pipeline. It contains several different examples of loading data from the filesystem source.
 - `requirements.txt`: This file lists all the Python dependencies required for your project.
 - `.dlt/`: This directory contains the [configuration files](../general-usage/credentials/) for your project:
-    - `secrets.toml`: This file stores your API keys, tokens, and other sensitive information.
-    - `config.toml`: This file contains the configuration settings for your dlt project.
+  - `secrets.toml`: This file stores your API keys, tokens, and other sensitive information.
+  - `config.toml`: This file contains the configuration settings for your dlt project.
 
 :::note
 When deploying your pipeline in a production environment, managing all configurations with files might not be convenient. In this case, we recommend you use environment variables to store secrets and configs instead. Read more about [configuration providers](../general-usage/credentials/setup#choose-where-to-store-configuration) available in dlt.
@@ -88,10 +89,12 @@ A [transformer](../general-usage/resource#process-resources-with-dlttransformer)
 
 3. We create the dlt pipeline, configuring it with the name `hospital_data_pipeline` and DuckDB as the destination.
 4. We call `pipeline.run()`. This is where the underlying generators are iterated:
+
  - dlt retrieves remote data,
  - normalizes data,
  - creates or updates the table in the destination,
  - loads the extracted data into the destination.
+
 5. `print(info)` outputs the pipeline running stats we get from `pipeline.run()`.
 
 ## 3. Configuring the filesystem source
@@ -130,6 +133,7 @@ private_key = "-----BEGIN PRIVATE KEY-----\nMIIEvAIBADANBgkqhkiG9w0BAQEFAASCBKYw
 [sources.filesystem]
 bucket_url="gs://filesystem-tutorial"
 ```
+
   </TabItem>
 
 <TabItem value="env">
@@ -140,6 +144,7 @@ export SOURCES__FILESYSTEM__CREDENTIALS__PROJECT_ID="dlthub-sandbox"
 export SOURCES__FILESYSTEM__CREDENTIALS__PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\nMIIEvAIBADANBgkqhkiG9w0BAQEFAASCBKYwggSiAgEAAoIBAQDGWsVHJRjliojx\nTo+j1qu+x8PzC5ZHZrMx6e8OD6tO8uxMyl65ByW/4FZkVXkS4SF/UYPigGN+rel4\nFmySTbP9orva4t3Pk1B9YSvQMB7V5IktmTIW9Wmdmn5Al8Owb1RehgIidm1EX/Z9\nLr09oLpO6+jUu9RIP2Lf2mVQ6tvkgl7UOdpdGACSNGzRiZgVZDOaDIgH0Tl4UWmK\n6iPxhwZy9YC2B1beLB/NU+F6DUykrEpBzCFQTqFoTUcuDAEvuvpU9JrU2iBMiOGw\nuP3TYSiudhBjmauEUWaMiqWAgFeX5ft1vc7/QWLdI//SAjaiTAu6pTer29Q0b6/5\niGh0jRXpAgMBAAECggEAL8G9C9MXunRvYkH6/YR7F1T7jbH1fb1xWYwsXWNSaJC+\nagKzabMZ2KfHxSJ7IxuHOCNFMKyex+pRcvNbMqJ4upGKzzmeFBMw5u8VYGulkPQU\nPyFKWRK/Wg3PZffkSr+TPargKrH+vt6n9x3gvEzNbqEIDugmRTrVsHXhvOi/BrYc\nWhppHSVQidWZi5KVwDEPJjDQiHEcYI/vfIy1WhZ8VuPAaE5nMZ1m7gTdeaWWKIAj\n/p2ZkLgRdCY8vNkfaNDAxDbvH+CMuTtOw55GydzsYYiofANS6xZ8CedGkYaGi82f\nqGdLghX61Sg3UAb5SI36T/9XbuCpTf3B/SMV20ew8QKBgQDm2yUxL71UqI/xK9LS\nHWnqfHpKmHZ+U9yLvp3v79tM8XueSRKBTJJ4H+UvVQrXlypT7cUEE+sGpTrCcDGL\nm8irtdUmMvdi7AnRBgmWdYKig/kgajLOUrjXqFt/BcFgqMyTfzqPt3xdp6F3rSEK\nHE6PQ8I3pJ0BJOSJRa6Iw2VH1QKBgQDb9WbVFjYwTIKJOV4J2plTK581H8PI9FSt\nUASXcoMTixybegk8beGdwfm2TkyF/UMzCvHfuaUhf+S0GS5Zk31Wkmh1YbmFU4Q9\nm9K/3eoaqF7CohpigB0wJw4HfqNh6Qt+nICOMCv++gw7+/UwfV72dCqr0lpzfX5F\nAsez8igTxQKBgDsq/axOnQr+rO3WGpGJwmS8BKfrzarxGXyjnV0qr51X4yQdfGWx\nV3T8T8RC2qWI8+tQ7IbwB/PLE3VURg6PHe6MixXgSDGNZ7KwBnMOqS23/3kEXwMs\nhn2Xg+PZeMeqW8yN9ldxYqmqViMTN32c5bGoXzXdtfPeHcjlGCerVOEFAoGADVPi\nRjkRUX3hTvVF6Gzxa2OyQuLI1y1O0C2QCakrngyI0Dblxl6WFBwDyHMYGepNnxMj\nsr2p7sy0C+GWuGDCcHNwluQz/Ish8SW28F8+5xyamUp/NMa0fg1vwS6AMdeQFbzf\n4T2z/MAj66KJqcV+8on5Z+3YAzVwaDgR56pdmU0CgYBo2KWcNWAhZ1Qa6sNrITLV\nGlxg6tWP3OredZrmKb1kj5Tk0V+EwVN+HnKzMalv6yyyK7SWq1Z6rvCye37vy27q\nD7xfuz0c0H+48uWJpdLcsxpTioopsRPayiVDKlHSe/Qa+MEjAG3ded5TJiC+5iSw\nxWJ51y0wpme0LWgzzoLbRw==\n-----END PRIVATE KEY-----\n"
 export SOURCES__FILESYSTEM__BUCKET_URL="gs://filesystem-tutorial"
 ```
+
   </TabItem>
 
 <TabItem value="code">
@@ -161,6 +166,7 @@ files = filesystem(
     ),
     file_glob="encounters*.csv") | read_csv()
 ```
+
 </TabItem>
 </Tabs>
 
@@ -218,6 +224,7 @@ You can explore the loaded data, run queries, and see some pipeline execution de
 ## 6. Appending, replacing, and merging loaded data
 
 If you try running the pipeline again with `python filesystem_pipeline.py`, you will notice that all the tables have duplicated data. This happens because by default, dlt appends the data to the destination table. It is very useful, for example, when you have daily data updates and you want to ingest them. With dlt, you can control how the data is loaded into the destination table by setting the `write_disposition` parameter in the resource configuration. The possible values are:
+
 - `append`: Appends the data to the destination table. This is the default.
 - `replace`: Replaces the data in the destination table with the new data.
 - `merge`: Merges the new data with the existing data in the destination table based on the primary key.
@@ -238,6 +245,7 @@ pipeline = dlt.pipeline(pipeline_name="hospital_data_pipeline", dataset_name="ho
 info = pipeline.run(reader, write_disposition="merge")
 print(info)
 ```
+
 :::tip
 You may need to drop the previously loaded data if you loaded data several times with `append` write disposition to make sure the primary key column has unique values.
 :::
@@ -283,7 +291,6 @@ Note that we applied incremental loading both for `files` and for `reader`. Ther
 If you run `dlt pipeline hospital_data_pipeline show`, you can see the pipeline now has new information in the state about the incremental variable.
 
 To learn more about incremental loading, check out the [filesystem incremental loading section](../dlt-ecosystem/verified-sources/filesystem#5-incremental-loading).
-
 
 ## 8. Enrich records with the files metadata
 
@@ -363,6 +370,7 @@ Check out [other examples](../dlt-ecosystem/verified-sources/filesystem#create-y
 Congratulations on completing the tutorial! You've learned how to set up a filesystem source in dlt and run a data pipeline to load the data into DuckDB.
 
 With your pipeline code ready, we recommend the following next steps:
+
 - Inspect your pipeline and data in [workspace dashboard](../hub/ingestion/dashboard.md)
 - [Access your data](../general-usage/dataset-access/dataset.md) using `dataset` interface
 - [Explore your data and create reports](../general-usage/dataset-access/marimo) in Marimo notebooks.
@@ -370,5 +378,5 @@ With your pipeline code ready, we recommend the following next steps:
 Interested in learning more about dlt? Here are some suggestions:
 
 - Learn more about the filesystem source configuration in [filesystem source](../dlt-ecosystem/verified-sources/filesystem)
-- Learn more about different credential types in [Built-in credentials](../general-usage/credentials/complex_types#built-in-credentials)
+- Learn more about different credential types in [Built-in credentials](../general-usage/credentials/complex_types#credentials)
 - Learn how to [create a custom source](./load-data-from-an-api.md) in the advanced tutorial

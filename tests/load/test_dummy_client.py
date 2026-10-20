@@ -1415,6 +1415,7 @@ def test_init_client_truncate_tables() -> None:
             "_dlt_loads",
             "_dlt_version",
         }
+        assert update_stored_schema.call_args[1]["include_existing_tables"] is True
         # nothing to truncate: only the bare init call is made (no truncate init call)
         assert initialize_storage.call_count == 1
         assert initialize_storage.call_args_list[0].args == ()

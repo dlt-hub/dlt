@@ -3,13 +3,13 @@ title: REST API source
 description: Learn how to set up and configure
 keywords: [rest api, restful api]
 ---
+# REST API source
+
 import Header from '../_source-info-header.md';
 
 <Header/>
 
 This is a dlt source you can use to extract data from any REST API. It uses [declarative configuration](#source-configuration) to define the API endpoints, their [relationships](#define-resource-relationships), how to handle [pagination](#pagination), and [authentication](#authentication).
-
-### Quick example
 
 Here's an example of how to configure the REST API source to load posts and related comments from a hypothetical blog API:
 
@@ -76,12 +76,13 @@ dlt init rest_api duckdb
 [dlt init](../../../reference/command-line-interface) will initialize the pipeline examples for REST API as the [source](../../../general-usage/source) and [duckdb](../../destinations/duckdb.md) as the [destination](../../destinations).
 
 Running `dlt init` creates the following in the current folder:
+
 - `rest_api_pipeline.py` file with a sample pipelines definition:
-    - GitHub API example
-    - Pokemon API example
+  - GitHub API example
+  - Pokemon API example
 - `.dlt` folder with:
-     - `secrets.toml` file to store your access tokens and other sensitive information
-     - `config.toml` file to store the configuration settings
+  - `secrets.toml` file to store your access tokens and other sensitive information
+  - `config.toml` file to store the configuration settings
 - `requirements.txt` file with the required dependencies
 
 Change the REST API source to your needs by modifying the `rest_api_pipeline.py` file. See the detailed [source configuration](#source-configuration) section below.
@@ -126,8 +127,6 @@ github_token = "your_github_token"
    ```
 
 ## Source configuration
-
-### Quick example
 
 Let's take a look at the GitHub example in the `rest_api_pipeline.py` file:
 
@@ -197,9 +196,10 @@ The declarative resource configuration is defined in the `config` dictionary. It
 1. `client`: Defines the base URL and authentication method for the API. In this case, it uses token-based authentication. The token is stored in the `secrets.toml` file.
 
 2. `resource_defaults`: Contains default settings for all [resources](#resource-configuration). In this example, we define that all resources:
-    - Have `id` as the [primary key](../../../general-usage/resource#define-schema)
-    - Use the `merge` [write disposition](../../../general-usage/incremental-loading.md#choosing-a-write-disposition) to merge the data with the existing data in the destination.
-    - Send a `per_page=100` query parameter with each request to get more results per page.
+
+  - Have `id` as the [primary key](../../../general-usage/resource#define-schema)
+  - Use the `merge` [write disposition](../../../general-usage/incremental-loading.md#choosing-a-write-disposition) to merge the data with the existing data in the destination.
+  - Send a `per_page=100` query parameter with each request to get more results per page.
 
 3. `resources`: A list of [resources](#resource-configuration) to be loaded. Here, we have two resources: `issues` and `issue_comments`, which correspond to the GitHub API endpoints for [repository issues](https://docs.github.com/en/rest/issues/issues?apiVersion=2022-11-28#list-repository-issues) and [issue comments](https://docs.github.com/en/rest/issues/comments?apiVersion=2022-11-28#list-issue-comments). Note that we need an issue number to fetch comments for each issue. This number is taken from the `issues` resource. More on this in the [resource relationships](#define-resource-relationships) section.
 
@@ -213,6 +213,7 @@ Import the `RESTAPIConfig` type from the `rest_api` module to have convenient hi
 ```py
 from dlt.sources.rest_api import RESTAPIConfig
 ```
+
 :::
 
 The configuration object passed to the REST API Generic Source has three main elements:
@@ -285,29 +286,32 @@ Both `resource1` and `resource2` will have the `per_page` parameter set to 100.
 #### `resources`
 
 This is a list of resource configurations that define the API endpoints to be loaded. Each resource configuration can be:
+
 - a dictionary with the [resource configuration](#resource-configuration).
 - a string. In this case, the string is used as both the endpoint path and the resource name, and the resource configuration is taken from the `resource_defaults` configuration if it exists.
 
 ### Resource configuration
 
 A resource configuration is used to define a [dlt resource](../../../general-usage/resource.md) for the data to be loaded from an API endpoint. When defining the resource you may specify:
+
 - dlt resource parameters, for example:
-    - `name`: The name of the resource. This is also used as the table name in the destination unless overridden by the `table_name` parameter.
-    - `write_disposition`: The write disposition for the resource.
-    - `primary_key`: The primary key for the resource.
-    - `table_name`: Override the table name for this resource.
-    - `max_table_nesting`: Sets the maximum depth of nested table above which the remaining nodes are loaded as structs or JSON.
-    - `selected`: A flag to indicate if the resource is selected for loading. This could be useful when you want to load data only from child resources and not from the parent resource.
+  - `name`: The name of the resource. This is also used as the table name in the destination unless overridden by the `table_name` parameter.
+  - `write_disposition`: The write disposition for the resource.
+  - `primary_key`: The primary key for the resource.
+  - `table_name`: Override the table name for this resource.
+  - `max_table_nesting`: Sets the maximum depth of nested table above which the remaining nodes are loaded as structs or JSON.
+  - `selected`: A flag to indicate if the resource is selected for loading. This could be useful when you want to load data only from child resources and not from the parent resource.
 
     see [dlt resource API reference](../../../api_reference/dlt/extract/decorators#resource) for more details.
 
 - `rest_api` specific parameters, such as:
-    - `endpoint`: The endpoint configuration for the resource. It can be a string or a dict representing the endpoint settings. See the [endpoint configuration](#endpoint-configuration) section for more details.
-    - `include_from_parent`: A list of fields from the parent resource to be included in the resource output. See the [resource relationships](#include-fields-from-the-parent-resource) section for more details.
-    - `processing_steps`: A list of [processing steps](#processing-steps-filter-and-transform-data) to filter and transform your data.
-    - `auth`: An optional `AuthConfig` instance. If passed, is used over the one defined in the [client](#client) definition.
+  - `endpoint`: The endpoint configuration for the resource. It can be a string or a dict representing the endpoint settings. See the [endpoint configuration](#endpoint-configuration) section for more details.
+  - `include_from_parent`: A list of fields from the parent resource to be included in the resource output. See the [resource relationships](#include-fields-from-the-parent-resource) section for more details.
+  - `processing_steps`: A list of [processing steps](#processing-steps-filter-and-transform-data) to filter and transform your data.
+  - `auth`: An optional `AuthConfig` instance. If passed, is used over the one defined in the [client](#client) definition.
 
 Example:
+
 ```py notype
 from dlt.sources.helpers.rest_client.auth import HttpBasicAuth
 
@@ -334,6 +338,7 @@ config = {
     # ...
 }
 ```
+
 This would use `Bearer` auth as defined in the `client` for `resource-using-bearer-auth` and `Http Basic` auth for `my-resource-with-special-auth`.
 
 ### Endpoint configuration
@@ -449,16 +454,16 @@ Currently, pagination is supported only for GET requests for all paginators exce
 
 These are the available paginators:
 
-| `type` | Paginator class | Description |
-| ------------ | -------------- | ----------- |
-| `json_link` | [JSONLinkPaginator](./advanced.md#jsonlinkpaginator) | The link to the next page is in the body (JSON) of the response.<br/>*Parameters:*<ul><li>`next_url_path` (str) - the JSONPath to the next page URL</li></ul> |
-| `header_link` | [HeaderLinkPaginator](./advanced.md#headerlinkpaginator) | The links to the next page are in the response headers.<br/>*Parameters:*<ul><li>`links_next_key` (str) - the name of the header containing the links. Default is "next".</li></ul> |
-| `header_cursor` | [HeaderCursorPaginator](./advanced.md#headercursorpaginator) | The cursor for the next page is in the response headers.<br/>*Parameters:*<ul><li>`cursor_key` (str) - the name of the header containing the cursor. Defaults to "next"</li><li>`cursor_param` (str) - the query parameter name for the cursor. Defaults to "cursor"</li></ul> |
-| `offset` | [OffsetPaginator](./advanced.md#offsetpaginator) | The pagination is based on an offset parameter, with the total items count either in the response body or explicitly provided.<br/>*Parameters:*<ul><li>`limit` (int) - the maximum number of items to retrieve in each request</li><li>`offset` (int) - the initial offset for the first request. Defaults to `0`</li><li>`offset_param` (str) - the name of the query parameter used to specify the offset. Defaults to "offset"</li><li>`offset_body_path` (str) - a dot-separated path specifying where to place the offset in the request JSON body. Defaults to `None`</li><li>`limit_param` (str) - the name of the query parameter used to specify the limit. Defaults to "limit"</li><li>`limit_body_path` (str) - a dot-separated path specifying where to place the limit in the request JSON body. Defaults to `None`</li><li>`total_path` (str) - a JSONPath expression for the total number of items. If not provided, pagination is controlled by `maximum_offset` and `stop_after_empty_page`</li><li>`maximum_offset` (int) - optional maximum offset value. Limits pagination even without total count</li><li>`stop_after_empty_page` (bool) - Whether pagination should stop when a page contains no result items. Defaults to `True`</li><li>`has_more_path` (str) - a JSONPath expression for the boolean value indicating whether there are more items to fetch. Defaults to `None`.</li></ul> |
-| `page_number` | [PageNumberPaginator](./advanced.md#pagenumberpaginator) | The pagination is based on a page number parameter, with the total pages count either in the response body or explicitly provided.<br/>*Parameters:*<ul><li>`base_page` (int) - the starting page number. Defaults to `0`</li><li>`page_param` (str) - the query parameter name for the page number. Defaults to "page"</li><li>`total_path` (str) - a JSONPath expression for the total number of pages. If not provided, pagination is controlled by `maximum_page` and `stop_after_empty_page`</li><li>`maximum_page` (int) - optional maximum page number. Stops pagination once this page is reached</li><li>`stop_after_empty_page` (bool) - Whether pagination should stop when a page contains no result items. Defaults to `True`</li><li>`has_more_path` (str) - a JSONPath expression for the boolean value indicating whether there are more items to fetch. Defaults to `None`.</li></ul> |
-| `cursor` | [JSONResponseCursorPaginator](./advanced.md#jsonresponsecursorpaginator) | The pagination is based on a cursor parameter, with the value of the cursor in the response body (JSON).<br/>*Parameters:*<ul><li>`cursor_path` (str) - the JSONPath to the cursor value. Defaults to "cursors.next"</li><li>`cursor_param` (str) - the query parameter name for the cursor. Defaults to "cursor" if neither `cursor_param` nor `cursor_body_path` is provided.</li><li>`cursor_body_path` (str, optional) - the JSONPath to place the cursor in the request body.</li></ul>Note: You must provide either `cursor_param` or `cursor_body_path`, but not both. If neither is provided, `cursor_param` will default to "cursor". |
-| `single_page` | SinglePagePaginator | The response will be interpreted as a single-page response, ignoring possible pagination metadata. |
-| `auto` | `None` | Explicitly specify that the source should automatically detect the pagination method. |
+| `type`          | Paginator class                                                          | Description                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| --------------- | ------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `json_link`     | [JSONLinkPaginator](./advanced.md#jsonlinkpaginator)                     | The link to the next page is in the body (JSON) of the response.<br/>*Parameters:*<ul><li>`next_url_path` (str) - the JSONPath to the next page URL</li></ul>                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| `header_link`   | [HeaderLinkPaginator](./advanced.md#headerlinkpaginator)                 | The links to the next page are in the response headers.<br/>*Parameters:*<ul><li>`links_next_key` (str) - the name of the header containing the links. Default is "next".</li></ul>                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| `header_cursor` | [HeaderCursorPaginator](./advanced.md#headercursorpaginator)             | The cursor for the next page is in the response headers.<br/>*Parameters:*<ul><li>`cursor_key` (str) - the name of the header containing the cursor. Defaults to "next"</li><li>`cursor_param` (str) - the query parameter name for the cursor. Defaults to "cursor"</li></ul>                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| `offset`        | [OffsetPaginator](./advanced.md#offsetpaginator)                         | The pagination is based on an offset parameter, with the total items count either in the response body or explicitly provided.<br/>*Parameters:*<ul><li>`limit` (int) - the maximum number of items to retrieve in each request</li><li>`offset` (int) - the initial offset for the first request. Defaults to `0`</li><li>`offset_param` (str) - the name of the query parameter used to specify the offset. Defaults to "offset"</li><li>`offset_body_path` (str) - a dot-separated path specifying where to place the offset in the request JSON body. Defaults to `None`</li><li>`limit_param` (str) - the name of the query parameter used to specify the limit. Defaults to "limit"</li><li>`limit_body_path` (str) - a dot-separated path specifying where to place the limit in the request JSON body. Defaults to `None`</li><li>`total_path` (str) - a JSONPath expression for the total number of items. If not provided, pagination is controlled by `maximum_offset` and `stop_after_empty_page`</li><li>`maximum_offset` (int) - optional maximum offset value. Limits pagination even without total count</li><li>`stop_after_empty_page` (bool) - Whether pagination should stop when a page contains no result items. Defaults to `True`</li><li>`has_more_path` (str) - a JSONPath expression for the boolean value indicating whether there are more items to fetch. Defaults to `None`.</li></ul> |
+| `page_number`   | [PageNumberPaginator](./advanced.md#pagenumberpaginator)                 | The pagination is based on a page number parameter, with the total pages count either in the response body or explicitly provided.<br/>*Parameters:*<ul><li>`base_page` (int) - the starting page number. Defaults to `0`</li><li>`page_param` (str) - the query parameter name for the page number. Defaults to "page"</li><li>`total_path` (str) - a JSONPath expression for the total number of pages. If not provided, pagination is controlled by `maximum_page` and `stop_after_empty_page`</li><li>`maximum_page` (int) - optional maximum page number. Stops pagination once this page is reached</li><li>`stop_after_empty_page` (bool) - Whether pagination should stop when a page contains no result items. Defaults to `True`</li><li>`has_more_path` (str) - a JSONPath expression for the boolean value indicating whether there are more items to fetch. Defaults to `None`.</li></ul>                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| `cursor`        | [JSONResponseCursorPaginator](./advanced.md#jsonresponsecursorpaginator) | The pagination is based on a cursor parameter, with the value of the cursor in the response body (JSON).<br/>*Parameters:*<ul><li>`cursor_path` (str) - the JSONPath to the cursor value. Defaults to "cursors.next"</li><li>`cursor_param` (str) - the query parameter name for the cursor. Defaults to "cursor" if neither `cursor_param` nor `cursor_body_path` is provided.</li><li>`cursor_body_path` (str, optional) - the JSONPath to place the cursor in the request body.</li></ul>Note: You must provide either `cursor_param` or `cursor_body_path`, but not both. If neither is provided, `cursor_param` will default to "cursor".                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| `single_page`   | SinglePagePaginator                                                      | The response will be interpreted as a single-page response, ignoring possible pagination metadata.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| `auto`          | `None`                                                                   | Explicitly specify that the source should automatically detect the pagination method.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
 
 #### Pagination configuration hierarchy
 
@@ -493,6 +498,7 @@ To change this behavior for a specific endpoint, explicitly set the `paginator` 
     }
 }
 ```
+
 :::
 
 #### Custom paginators
@@ -632,13 +638,12 @@ Make sure to store your access tokens and other sensitive information in the `se
 
 Available authentication types:
 
-| `type` | Authentication class | Description |
-| ----------- | ------------------- | ----------- |
-| `bearer` | [BearerTokenAuth](./advanced.md#bearer-token-authentication) | Bearer token authentication.<br/>Parameters:<ul><li>`token` (str)</li></ul> |
-| `http_basic` | [HTTPBasicAuth](./advanced.md#http-basic-authentication) | Basic HTTP authentication.<br/>Parameters:<ul><li>`username` (str)</li><li>`password` (str)</li></ul> |
-| `api_key` | [APIKeyAuth](./advanced.md#api-key-authentication) | API key authentication with key defined in the query parameters or in the headers. <br/>Parameters:<ul><li>`name` (str) - the name of the query parameter or header</li><li>`api_key` (str) - the API key value</li><li>`location` (str, optional) - the location of the API key in the request. Can be `query` or `header`. Default is `header`</li></ul> |
+| `type`                      | Authentication class                                            | Description                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| --------------------------- | --------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `bearer`                    | [BearerTokenAuth](./advanced.md#bearer-token-authentication)    | Bearer token authentication.<br/>Parameters:<ul><li>`token` (str)</li></ul>                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| `http_basic`                | [HTTPBasicAuth](./advanced.md#http-basic-authentication)        | Basic HTTP authentication.<br/>Parameters:<ul><li>`username` (str)</li><li>`password` (str)</li></ul>                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| `api_key`                   | [APIKeyAuth](./advanced.md#api-key-authentication)              | API key authentication with key defined in the query parameters or in the headers. <br/>Parameters:<ul><li>`name` (str) - the name of the query parameter or header</li><li>`api_key` (str) - the API key value</li><li>`location` (str, optional) - the location of the API key in the request. Can be `query` or `header`. Default is `header`</li></ul>                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
 | `oauth2_client_credentials` | [OAuth2ClientCredentials](./advanced.md#oauth-20-authorization) | OAuth 2.0 Client Credentials authorization for server-to-server communication without user consent. <br/>Parameters:<ul><li>`access_token` (str, optional) - the temporary token. Usually not provided here because it is automatically obtained from the server by exchanging `client_id` and `client_secret`. Default is `None`</li><li>`access_token_url` (str) - the URL to request the `access_token` from</li><li>`client_id` (str) - identifier for your app. Usually issued via a developer portal</li><li>`client_secret` (str) - client credential to obtain authorization. Usually issued via a developer portal</li><li>`access_token_request_data` (dict, optional) - A dictionary with data required by the authorization server apart from the `client_id`, `client_secret`, and `"grant_type": "client_credentials"`. Defaults to `None`</li><li>`default_token_expiration` (int, optional) - The time in seconds after which the temporary access token expires. Defaults to 3600.</li><li>`session` (requests.Session, optional) - a custom session object. Mostly used for testing</li></ul> |
-
 
 For more complex authentication methods, you can implement a [custom authentication class](./advanced.md#implementing-custom-authentication) and use it in the configuration.
 
@@ -782,6 +787,7 @@ In the example below we reference the `posts` resource's `id` field in the JSON 
 When your API requires literal curly braces in parameters (e.g., for JSON filters or GraphQL queries), escape them by doubling: `{{` and `}}`.
 
 Example with GraphQL query:
+
 ```py
 {
     "json": {
@@ -859,7 +865,6 @@ The syntax for the `resolve` field in parameter configuration is:
 ```
 
 The `field` value can be specified as a [JSONPath](https://github.com/h2non/jsonpath-ng?tab=readme-ov-file#jsonpath-syntax) to select a nested field in the parent resource data. For example: `"field": "items[0].id"`.
-
 
 #### Resolving multiple path parameters from a parent resource
 
@@ -998,7 +1003,7 @@ The `processing_steps` field in the resource configuration allows you to apply t
 
 Each processing step is a dictionary specifying the type of operation (`filter`, `map` or `yield_map`) and the function to apply. Steps apply in the order they are listed.
 
-#### Quick example
+#### Filter and transform example
 
 ```py notype
 def lower_title(record):
@@ -1032,7 +1037,7 @@ In the example above:
 
 - First, the `filter` step uses a lambda function to include only records where `id` is less than 10.
 - Then, the `map` step applies the `lower_title` function to each remaining record.
-- Finally, the `yield_map` step applies the `flatten_reactions` function to each transformed record, 
+- Finally, the `yield_map` step applies the `flatten_reactions` function to each transformed record,
 yielding a set of records, one for each reaction for the given post.
 
 #### Using `filter`
@@ -1102,6 +1107,7 @@ config: RESTAPIConfig = {
     ],
 }
 ```
+
 #### Combining `filter` and `map`
 
 You can combine multiple processing steps to achieve complex transformations:
@@ -1119,7 +1125,9 @@ You can combine multiple processing steps to achieve complex transformations:
 ```
 
 :::tip
+
 #### Best practices
+
 1. Order matters: Processing steps are applied in the order they are listed. Be mindful of the sequence, especially when combining `map` and `filter`.
 2. Function definition: Define your filter and map functions separately for clarity and reuse.
 3. Use `filter` to exclude records early in the process to reduce the amount of data that needs to be processed.
@@ -1134,6 +1142,7 @@ This is called [incremental loading](../../../general-usage/incremental-loading.
 Let's continue with our imaginary blog API example to understand incremental loading with query parameters.
 
 Imagine we have the following endpoint `https://api.example.com/posts` and it:
+
 1. Accepts a `created_since` query parameter to fetch blog posts created after a certain date.
 2. Returns a list of posts with the `created_at` field for each post.
 
@@ -1184,17 +1193,20 @@ Let's take the example from the previous section and configure it using placehol
 ```
 
 When you first run this pipeline, dlt will:
+
 1. Replace `{incremental.start_value}` with `2024-01-25T00:00:00Z` (the initial value)
 2. Make a GET request to `https://api.example.com/posts?created_since=2024-01-25T00:00:00Z`
 3. Parse the response (e.g., posts with created_at values like "2024-01-26", "2024-01-27", "2024-01-28")
 4. Track the maximum value found in the "created_at" field (in this case, "2024-01-28")
 
 On the next pipeline run, dlt will:
+
 1. Replace `{incremental.start_value}` with "2024-01-28" (the last seen maximum value)
 2. Make a GET request to `https://api.example.com/posts?created_since=2024-01-28`
 3. The API will only return posts created on or after January 28th
 
 Let's break down the configuration:
+
 1. We explicitly set `data_selector` to `"results"` to select the list of posts from the response. This is optional; if not set, dlt will try to auto-detect the data location.
 2. We define the `created_since` parameter in `params` section and use the placeholder `{incremental.start_value}` to reference the incremental value.
 
@@ -1257,13 +1269,12 @@ For more details on headers configuration and dynamic placeholders, see the [hea
 
 You can also use different placeholder variants depending on your needs:
 
-| Placeholder | Description |
-| ----------- | ----------- |
-| `{incremental.start_value}` | The value to use as the starting point for this request (either the initial value or the last tracked maximum value) |
-| `{incremental.initial_value}` | Always uses the initial value specified in the configuration |
-| `{incremental.last_value}` | The last seen value (same as start_value in most cases, see the [incremental loading](../../../general-usage/incremental/cursor.md) guide for more details) |
-| `{incremental.end_value}` | The end value if specified in the configuration |
-
+| Placeholder                   | Description                                                                                                                                                 |
+| ----------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `{incremental.start_value}`   | The value to use as the starting point for this request (either the initial value or the last tracked maximum value)                                        |
+| `{incremental.initial_value}` | Always uses the initial value specified in the configuration                                                                                                |
+| `{incremental.last_value}`    | The last seen value (same as start_value in most cases, see the [incremental loading](../../../general-usage/incremental/cursor.md) guide for more details) |
+| `{incremental.end_value}`     | The end value if specified in the configuration                                                                                                             |
 
 ### Legacy method: Incremental loading in `params` (DEPRECATED)
 
@@ -1330,6 +1341,7 @@ Let's take the same example as above and configure it using the `incremental` fi
     },
 }
 ```
+
 The full available configuration for the `incremental` field is:
 
 ```py
@@ -1365,6 +1377,7 @@ If you need to transform the values in the cursor field before passing them to t
 In the following examples, `1704067200` is returned from the API in the field `updated_at`, but the API will be called with `?created_since=2024-01-01`.
 
 Incremental loading using the `params` field:
+
 ```py
 {
     "created_since": {
@@ -1377,6 +1390,7 @@ Incremental loading using the `params` field:
 ```
 
 Incremental loading using the `incremental` field:
+
 ```py
 {
     "path": "posts",
@@ -1389,7 +1403,6 @@ Incremental loading using the `incremental` field:
     },
 }
 ```
-
 
 ## Troubleshooting
 
@@ -1413,6 +1426,7 @@ http_show_error_body = true
 ```
 
 Or set via environment variables:
+
 ```sh
 export RUNTIME__HTTP_SHOW_ERROR_BODY=true
 ```
@@ -1473,6 +1487,7 @@ Import the `RESTAPIConfig` type from the `rest_api` module to have convenient hi
 ```py
 from dlt.sources.rest_api import RESTAPIConfig
 ```
+
 :::
 
 #### Getting wrong data or no data

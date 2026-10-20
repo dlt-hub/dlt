@@ -3,15 +3,16 @@ title: Pipedrive
 description: dlt verified source for Pipedrive API
 keywords: [pipedrive api, pipedrive verified source, pipedrive]
 ---
-import Header from './_source-info-header.md';
-
 # Pipedrive
+
+import Header from './_source-info-header.md';
 
 <Header/>
 
 [Pipedrive](https://developers.pipedrive.com/docs/api/v1) is a cloud-based sales Customer
 Relationship Management (CRM) tool designed to help businesses manage leads and deals, track
-communication, and automate sales processes.
+communication, and automate sales processes. For other CRMs, see the [Salesforce](./salesforce.md)
+and [HubSpot](./hubspot.md) sources.
 
 This Pipedrive `dlt` verified source and
 [pipeline example](https://github.com/dlt-hub/verified-sources/blob/master/sources/pipedrive_pipeline.py)
@@ -20,7 +21,7 @@ load data using the “Pipedrive API” to the destination of your choice.
 Sources and resources that can be loaded using this verified source are:
 
 | Name         | Description                                                                                |
-|--------------|--------------------------------------------------------------------------------------------|
+| ------------ | ------------------------------------------------------------------------------------------ |
 | activity     | Refers to scheduled events or tasks associated with deals, contacts, or organizations      |
 | organization | Company or entity with which you have potential or existing business dealings              |
 | person       | Individual contact or lead with whom sales deals can be associated                         |
@@ -88,18 +89,24 @@ For more information, read the [General Usage: Credentials.](../../general-usage
 
 1. Before running the pipeline, ensure that you have installed all the necessary dependencies by
    running the command:
+
    ```sh
    pip install -r requirements.txt
    ```
+
 2. You're now ready to run the pipeline! To get started, run the following command:
+
    ```sh
    python pipedrive_pipeline.py
    ```
+
 3. Once the pipeline has finished running, you can verify that everything loaded correctly by using
    the following command:
+
    ```sh
    dlt pipeline <pipeline_name> show
    ```
+
    For example, the `pipeline_name` for the above pipeline example is `pipedrive`, but you may also use
    any custom name instead.
 
