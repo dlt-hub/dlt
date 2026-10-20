@@ -334,7 +334,7 @@ dbt = [
     "dbt-redshift>=1.7.0; python_version < '3.14'",
     "dbt-bigquery>=1.7.0",
     "dbt-duckdb>=1.7.0",
-    "dbt-snowflake>=1.7.0",    
+    "dbt-snowflake>=1.7.0",
     "dbt-sqlserver>=1.7.0 ; python_version < '3.13'",
     "dbt-fabric>=1.7.0 ; python_version < '3.13'",
 ]
@@ -361,7 +361,12 @@ dlt = "dlt.__plugins__"
 [tool.uv]
 # cyclopts (via fastmcp) pulls in docstring-parser which conflicts with
 # docstring-parser-fork (same Python module). The fork is a superset used by pydoclint.
-override-dependencies = ["docstring-parser ; sys_platform == 'never'"]
+# dbt-snowflake caps certifi below release that removes compromised eMudhra intermediates (for now good apparent reason)
+# remove certifi when https://github.com/dbt-labs/dbt-adapters/issues/2230 is fixed
+override-dependencies = [
+    "docstring-parser ; sys_platform == 'never'",
+    "certifi>=2026.10.19",
+]
 
 [tool.uv.sources]
 flake8-encodings = { git = "https://github.com/dlt-hub/flake8-encodings.git", branch = "disable_jedi_support" }
