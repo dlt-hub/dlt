@@ -282,7 +282,6 @@ def test_reinitialization_keeps_single_dlt_handler(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     name = "dlt_test_reinitialization"
-    previous_handler = None
 
     for mode in ("stderr", "stderr", "stdout", "stdout", "propagate", "stderr"):
         test_logger = logger._create_logger(
@@ -300,15 +299,27 @@ def test_reinitialization_keeps_single_dlt_handler(
         ]
 
         assert len(owned) == (0 if mode == "propagate" else 1)
-        if owned and previous_handler is not None:
-            assert owned[0] is previous_handler
-
-        previous_handler = owned[0] if owned else None
 
     test_logger.info("REINIT_ONCE")
     captured = capsys.readouterr()
     assert captured.out == ""
     assert captured.err == "INFO|REINIT_ONCE\n"
+
+
+def test_reinitialization_with_closed_stream(mocker: MockerFixture) -> None:
+    name = "dlt_test_reinit_closed_stream"
+    # closed StringIO does not raise on flush, a file-backed stream does
+    closed_stream = io.TextIOWrapper(io.BytesIO())
+    mocker.patch.object(sys, "stderr", closed_stream)
+    logger._create_logger(name, "INFO", "{levelname}|{message}", "test", {})
+    closed_stream.close()
+
+    new_stream = io.StringIO()
+    mocker.patch.object(sys, "stderr", new_stream)
+    test_logger = logger._create_logger(name, "INFO", "{levelname}|{message}", "test", {})
+
+    test_logger.info("AFTER_CLOSE")
+    assert new_stream.getvalue() == "INFO|AFTER_CLOSE\n"
 
 
 @pytest.mark.forked

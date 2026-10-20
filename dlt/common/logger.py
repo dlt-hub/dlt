@@ -110,29 +110,29 @@ def _create_logger(
         logger = logging.getLogger(logger_name)
         logger.setLevel(level)
 
-        owned = [
-            handler
-            for handler in logger.handlers
-            if isinstance(handler, _DltStreamHandler)
-        ]
+        owned = [handler for handler in logger.handlers if isinstance(handler, _DltStreamHandler)]
 
+        dlt_handler = None
         if log_output == "propagate":
-            for handler in owned:
-                logger.removeHandler(handler)
-                handler.close()
-
             logger.propagate = True
-            return logger
-
-        logger.propagate = False
-        stream = sys.stdout if log_output == "stdout" else sys.stderr
-
-        if owned:
-            handler = owned[0]
-            handler.setStream(stream)
         else:
-            handler = _DltStreamHandler(stream)
-            logger.addHandler(handler)
+            stream = sys.stdout if log_output == "stdout" else sys.stderr
+            # re-attach stream handler in case log_output changed
+            dlt_handler = next((h for h in owned if h.stream is stream), None)
+            if dlt_handler is None:
+                dlt_handler = _DltStreamHandler(stream)
+                logger.addHandler(dlt_handler)
+            logger.propagate = False
+
+        # remove old handlers only after the new output is attached so no record is dropped
+        for old in owned:
+            if old is not dlt_handler:
+                logger.removeHandler(old)
+                old.close()
+
+        if dlt_handler is None:
+            return logger
+        handler = dlt_handler
 
     # set right formatter
     if is_json_logging(fmt):
