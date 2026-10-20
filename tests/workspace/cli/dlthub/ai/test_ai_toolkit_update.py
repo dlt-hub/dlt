@@ -128,7 +128,7 @@ def installed_file(source: Path, state: str) -> Path:
         path.write_text("user edit")
     elif state == "unknown":
         records = load_toolkits_index()
-        records["example"]["files"][str(path)] = {}
+        records["example"]["files"][path.as_posix()] = {}
         save_toolkits_index(records)
     elif state == "absent":
         path.unlink()
@@ -164,7 +164,7 @@ def test_update_desired_file(
         update(overwrite=overwrite)
         entry = load_toolkits_index()["example"]
         assert entry["version"] == "2" and entry["description"] == "New description"
-        assert entry["files"][str(installed_file)] == {
+        assert entry["files"][installed_file.as_posix()] == {
             "sha3_256": compute_file_hash(installed_file)
         }
     assert read_or_none(installed_file) == expected
@@ -191,7 +191,7 @@ def test_update_orphan(
     expected: Optional[str],
     refused: bool,
 ) -> None:
-    before = load_toolkits_index()["example"]["files"][str(installed_file)]
+    before = load_toolkits_index()["example"]["files"][installed_file.as_posix()]
     (source / "example/commands/a.md").unlink()
     new_version(source / "example")
     if refused:
@@ -200,7 +200,9 @@ def test_update_orphan(
         update(overwrite=overwrite)
         entry = load_toolkits_index()["example"]
         assert entry["version"] == "2" and entry["description"] == "New description"
-        assert entry["files"].get(str(installed_file)) == (None if expected is None else before)
+        assert entry["files"].get(installed_file.as_posix()) == (
+            None if expected is None else before
+        )
     assert read_or_none(installed_file) == expected
 
 
@@ -277,7 +279,9 @@ def test_update_preserves_untracked_skill_folder(source: Path, overwrite: bool) 
         assert_update_refused()
     assert (folder / "SKILL.md").read_text() == ("shipped skill" if overwrite else "my skill")
     assert (folder / "helper.py").exists() == overwrite
-    assert (str(folder / "helper.py") in load_toolkits_index()["example"]["files"]) == overwrite
+    assert (
+        (folder / "helper.py").as_posix() in load_toolkits_index()["example"]["files"]
+    ) == overwrite
 
 
 def test_update_adds_new_file_to_installed_skill(source: Path) -> None:
@@ -288,7 +292,7 @@ def test_update_adds_new_file_to_installed_skill(source: Path) -> None:
     update()
     added = Path(".claude/skills/s/extra.md")
     assert added.read_text() == "new"
-    assert str(added) in load_toolkits_index()["example"]["files"]
+    assert added.as_posix() in load_toolkits_index()["example"]["files"]
 
 
 def test_incomplete_inventory_suppresses_orphans(source: Path) -> None:
@@ -348,7 +352,7 @@ def test_shared_merges_preserve_user_content_and_advance_versions(
     records = load_toolkits_index()
     assert records["example"]["version"] == records["other"]["version"] == "2"
     for entry in records.values():
-        assert str(config.relative_to(Path.cwd())) not in entry["files"]
+        assert config.relative_to(Path.cwd()).as_posix() not in entry["files"]
         assert "AGENTS.md" not in entry["files"]
     if shared_agent.name == "codex":
         content = Path("AGENTS.md").read_text()
@@ -395,7 +399,7 @@ def test_other_claim_protects_replacement_and_releases_dropped_claim(
     path = Path(".claude/commands/shared.md")
     # older installations may have recorded more than one owner
     records = load_toolkits_index()
-    records["b"]["files"][str(path)] = records["a"]["files"][str(path)]
+    records["b"]["files"][path.as_posix()] = records["a"]["files"][path.as_posix()]
     save_toolkits_index(records)
     (b / "commands/shared.md").write_text("different")
     assert_update_refused("b", overwrite=overwrite)
@@ -403,11 +407,11 @@ def test_other_claim_protects_replacement_and_releases_dropped_claim(
     (a / "commands/shared.md").unlink()
     update("a", overwrite=overwrite)
     assert path.read_text() == "same"
-    assert str(path) not in load_toolkits_index()["a"]["files"]
+    assert path.as_posix() not in load_toolkits_index()["a"]["files"]
     (b / "commands/shared.md").unlink()
     update("b", overwrite=overwrite)
     assert not path.exists()
-    assert str(path) not in load_toolkits_index()["b"]["files"]
+    assert path.as_posix() not in load_toolkits_index()["b"]["files"]
 
 
 @pytest.mark.parametrize("failure", ["write", "hash"])
@@ -457,9 +461,9 @@ def test_hash_is_read_from_written_disk_bytes(source: Path) -> None:
         install()
     path = Path(".claude/commands/a.md")
     assert path.read_bytes() == b"original\n"
-    assert load_toolkits_index()["example"]["files"][str(path)]["sha3_256"] == compute_file_hash(
-        path
-    )
+    assert load_toolkits_index()["example"]["files"][path.as_posix()][
+        "sha3_256"
+    ] == compute_file_hash(path)
     update()
     assert path.read_bytes() == b"original"
 
@@ -664,9 +668,9 @@ def test_equal_content_requires_overwrite_to_recover_baseline(source: Path, base
         assert_update_refused()
         update(overwrite=True)
         write.assert_not_called()
-    assert load_toolkits_index()["example"]["files"][str(path)]["sha3_256"] == compute_file_hash(
-        path
-    )
+    assert load_toolkits_index()["example"]["files"][path.as_posix()][
+        "sha3_256"
+    ] == compute_file_hash(path)
 
 
 def test_noop_update_preserves_record_and_timestamp(source: Path) -> None:
@@ -793,6 +797,32 @@ def test_overwrite_can_replace_unreadable_old_file(source: Path) -> None:
     assert load_toolkits_index()["example"]["files"][".claude/commands/a.md"][
         "sha3_256"
     ] == compute_file_hash(dest)
+
+
+def test_windows_style_index_keys_are_normalized(source: Path) -> None:
+    toolkit = ship(source, files={"commands/a.md": "a", "commands/b.md": "b"})
+    install()
+    records = load_toolkits_index()
+    records["example"]["files"] = {
+        rel.replace("/", "\\"): record for rel, record in records["example"]["files"].items()
+    }
+    save_toolkits_index(records)
+    (toolkit / "commands/b.md").unlink()
+    update()
+    assert Path(".claude/commands/a.md").read_text() == "a"
+    assert not Path(".claude/commands/b.md").exists()
+    assert set(load_toolkits_index()["example"]["files"]) == {".claude/commands/a.md"}
+
+
+def test_mcp_config_with_other_line_endings_is_not_rewritten(source: Path) -> None:
+    toolkit = ship(source, files={})
+    servers = {"example-server": {"command": "example"}}
+    (toolkit / ".mcp.json").write_text(json.dumps({"mcpServers": servers}))
+    merged = AI_AGENTS["claude"]().merge_mcp_servers("", servers)
+    Path(".mcp.json").write_bytes(merged.replace("\n", "\r\n").encode())
+    with patch.object(commands, "safe_write_bytes", wraps=commands.safe_write_bytes) as write:
+        install(overwrite=True)
+        write.assert_not_called()
 
 
 def test_mcp_only_failed_install_does_not_record_presence(source: Path) -> None:

@@ -1,7 +1,7 @@
 import os
 from collections import Counter
 from datetime import datetime, timezone
-from pathlib import Path
+from pathlib import Path, PureWindowsPath
 from typing import Any, Dict, List, NamedTuple, Optional, Set, Tuple
 import tomlkit
 import tomlkit.exceptions
@@ -316,7 +316,7 @@ def _materialize_mcp(
     if not selected:
         return []
     merged = agent.merge_mcp_servers(existing, selected)
-    if merged == existing:
+    if agent.parse_mcp_servers(merged) == agent.parse_mcp_servers(existing):
         return []
     return [InstallAction("mcp", ", ".join(sorted(selected)), config_path, "save", merged)]
 
@@ -388,7 +388,7 @@ def _reconcile_toolkit_files(
     blocked: Dict[Path, str] = {}
     released: List[Path] = []
     recorded: Dict[str, Any] = {}
-    for rel, record in previous_files.items():
+    for rel, record in ((_index_key(k), v) for k, v in previous_files.items()):
         if Path(rel).is_absolute() or ".." in Path(rel).parts:
             blocked[project_root / rel] = "toolkit record points outside the project"
         else:
@@ -474,7 +474,12 @@ def _project_relpath(path: Path, project_root: Path) -> Optional[str]:
         rel = path.relative_to(project_root)
     except ValueError:
         return None
-    return None if ".." in rel.parts else str(rel)
+    return None if ".." in rel.parts else rel.as_posix()
+
+
+def _index_key(rel: str) -> str:
+    """Index keys use `/` so records stay valid across platforms."""
+    return PureWindowsPath(rel).as_posix()
 
 
 def _disk_refusal(
@@ -840,7 +845,7 @@ def _paths_claimed_by_others(
     for other_name, entry in installed_toolkits.items():
         if other_name != toolkit_name:
             for path in entry.get("files", {}):
-                claims.setdefault(path, set()).add(other_name)
+                claims.setdefault(_index_key(path), set()).add(other_name)
     return claims
 
 
@@ -887,19 +892,24 @@ def _next_index_entry(
     partial = changes.warnings or result.error
     entry: TToolkitIndexEntry = dict(installed_toolkit_info if installed_toolkit_info and partial else workbench_info)  # type: ignore[assignment]
     entry["agent"] = agent_name
-    files = dict(installed_toolkit_info.get("files", {}) if installed_toolkit_info else {})
+    files = {
+        _index_key(rel): record
+        for rel, record in (
+            installed_toolkit_info.get("files", {}) if installed_toolkit_info else {}
+        ).items()
+    }
     servers = set(installed_toolkit_info.get("mcp_servers", []) if installed_toolkit_info else [])
     if result.error is None:
         # already configured servers satisfy the toolkit even without a merge
         servers.update(changes.mcp_servers)
     for action, disk_hash in result.written + result.unchanged:
-        rel = str(action.dest_path.relative_to(project_root))
+        rel = action.dest_path.relative_to(project_root).as_posix()
         if disk_hash is not None:
             files[rel] = {"sha3_256": disk_hash}
         if action.dest_path == changes.mcp_path:
             servers.update(changes.mcp_servers)
     for path in result.removed + changes.released:
-        files.pop(str(path.relative_to(project_root)), None)
+        files.pop(path.relative_to(project_root).as_posix(), None)
     entry["files"] = files
     if servers:
         entry["mcp_servers"] = sorted(servers)
