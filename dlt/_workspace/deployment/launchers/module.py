@@ -4,6 +4,7 @@ import sys
 from typing import Any, Dict, Optional
 
 from dlt._workspace.deployment.launchers._launcher import (
+    activate_profile,
     apply_job_configuration,
     exec_process,
     parse_launcher_args,
@@ -19,6 +20,7 @@ def run(entry_point: TRuntimeEntryPoint) -> None:
     module_name = entry_point["module"]
     section = module_name.rsplit(".", 1)[-1]
     # exec'd process inherits the env
+    activate_profile(entry_point)
     apply_job_configuration(entry_point)
     prepare_run_env(entry_point)
     set_config_env_vars((ws_known_sections.JOBS, section), entry_point.get("config", {}))
