@@ -71,11 +71,13 @@ def select_airflow_release(specifier: SpecifierSet) -> tuple[Version, str]:
 
 
 def install_airflow(airflow_version: Version, constraints_url: str) -> None:
+    # --no-config: our [tool.uv] override-dependencies conflict with airflow constraints
     subprocess.check_call(
         [
             "uv",
             "pip",
             "install",
+            "--no-config",
             f"apache-airflow=={airflow_version}",
             "--constraint",
             constraints_url,
