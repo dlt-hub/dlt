@@ -361,7 +361,7 @@ dlt = "dlt.__plugins__"
 [tool.uv]
 # cyclopts (via fastmcp) pulls in docstring-parser which conflicts with
 # docstring-parser-fork (same Python module). The fork is a superset used by pydoclint.
-# dbt-snowflake caps certifi below release that removes compromised eMudhra intermediates (for now good apparent reason)
+# dbt-snowflake caps certifi below release that removes compromised eMudhra intermediates (for no good apparent reason)
 # remove certifi when https://github.com/dbt-labs/dbt-adapters/issues/2230 is fixed
 override-dependencies = [
     "docstring-parser ; sys_platform == 'never'",
