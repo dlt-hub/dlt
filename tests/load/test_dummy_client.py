@@ -149,13 +149,12 @@ def test_big_load_packages() -> None:
         load.run(pool)
     duration = float(monotonic() - start_time)
 
-    # sanity check
-    assert duration > 2
     # we want 1000 empty processed jobs to need less than 15 seconds total (locally it runs in 5)
     assert duration < 15
 
     # we should have 1000 jobs processed
     assert len(dummy_impl.JOBS) == 1000
+    assert all(job.state() == "completed" for job in dummy_impl.JOBS.values())
 
 
 def test_get_new_jobs_info() -> None:
