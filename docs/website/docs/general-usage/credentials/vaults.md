@@ -42,7 +42,7 @@ Fragments are TOML documents and are merged into the in-memory configuration in 
 
 ### Caching
 
-Every successful or failed lookup (including “not found”) is cached for the lifetime of the process. Changes in the vault will not be picked up until the process restarts.
+Retrieved values and completed lookups (including “not found”) are cached for the lifetime of the provider. Restart the process to pick up changes in the vault. Failed requests that raise an exception can be retried on a later lookup.
 
 ## Configure the vault provider
 
