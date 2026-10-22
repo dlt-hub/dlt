@@ -19,6 +19,7 @@ from dlt.common.typing import StrAny
 from dlt.common.data_types import TDataType
 from dlt.common.storages import NormalizeStorage, LoadStorage, ParsedLoadJobFileName, PackageStorage
 from dlt.common.destination import DestinationCapabilitiesContext
+from dlt.common.destination.exceptions import UnsupportedDataType
 from dlt.common.runtime.collector import DictCollector
 from dlt.common.configuration.container import Container
 
@@ -27,6 +28,7 @@ from dlt.normalize import Normalize
 from dlt.normalize.validate import validate_and_update_schema
 from dlt.normalize.worker import group_worker_files
 from dlt.normalize.exceptions import NormalizeJobFailed
+from dlt.destinations import bigquery
 
 from tests.cases import JSON_TYPED_DICT, JSON_TYPED_DICT_TYPES
 from tests.utils import (
@@ -727,6 +729,28 @@ def test_collect_empty_metrics_on_exception(raw_normalize: Normalize, pool_worke
     assert metrics["finished_at"] is None
     assert step_info.load_packages[0].state == "extracted"
     assert len(step_info.load_packages[0].jobs["new_jobs"]) == 1
+
+
+@pytest.mark.parametrize("caps", [bigquery().capabilities], indirect=True)
+def test_normalize_fails_on_unsupported_data_type(
+    caps: DestinationCapabilitiesContext, raw_normalize: Normalize
+) -> None:
+    pytest.importorskip("pyarrow")
+    # bigquery cannot load json columns from parquet, this must surface during normalize not load
+    schema = Schema("event")
+    table = new_table(
+        "data", write_disposition="append", columns=[{"name": "payload", "data_type": "json"}]
+    )
+    table["file_format"] = "parquet"
+    schema.update_table(table)
+
+    extract_items(raw_normalize.normalize_storage, [{"payload": {"a": 1}}], schema, "data")
+
+    with pytest.raises(UnsupportedDataType) as exc:
+        normalize_pending(raw_normalize, schema)
+    assert exc.value.column == "payload"
+    assert exc.value.data_type == "json"
+    assert exc.value.file_format == "parquet"
 
 
 @pytest.mark.parametrize("pool_workers", (1, 2))
