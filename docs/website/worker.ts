@@ -23,80 +23,52 @@ const NOINDEX_ROUTES = ["search"];
 
 const resolveRedirect = createRedirectResolver(REDIRECTS);
 
-const STATIC_ASSET = /\.(?:css|js|mjs|map|png|jpg|jpeg|gif|svg|ico|webp|woff2?|ttf|eot)(?:$|\?)/i;
-
 const handler = {
   async fetch(request, env, _ctx) {
-    const startedAt = Date.now();
-    const res = await serve(request, env);
     const url = new URL(request.url);
-    if (!STATIC_ASSET.test(url.pathname)) {
-      // one line per page request, exported to the traffic-logs Axiom dataset
-      const cf = request.cf ?? {};
-      console.log(
-        JSON.stringify({
-          event: "docs_request",
-          path: url.pathname,
-          method: request.method,
-          status_code: res.status,
-          duration_ms: Date.now() - startedAt,
-          user_agent: request.headers.get("user-agent") ?? "",
-          verified_bot_category: cf.verifiedBotCategory || undefined,
-          asn: cf.asn,
-          as_org: cf.asOrganization,
-          country: cf.country,
-          colo: cf.colo,
-        }),
-      );
+
+    const redirect = resolveRedirect(url.pathname);
+    if (redirect) {
+      url.pathname = redirect.pathname;
+      if (redirect.hash) url.hash = redirect.hash;
+      return Response.redirect(url.toString(), 301);
     }
-    return res;
+
+    // The 404 page is served in place, with a 404 status. It used to be a
+    // 301 to /docs/404, which answers 200, so every dead docs URL looked
+    // like a live page to crawlers (a soft 404) and inherited nothing.
+    if (isTopLevelDocsRoute(url.pathname, "404")) {
+      return notFound(request, env);
+    }
+
+    const res = await env.ASSETS.fetch(request);
+
+    // never hand out a temporary redirect for a docs page. Only for safe methods:
+    // a 307 preserves the method, a 301 does not.
+    const isSafeMethod = request.method === "GET" || request.method === "HEAD";
+    if (isSafeMethod && (res.status === 302 || res.status === 307)) {
+      const location = res.headers.get("Location");
+      if (location) {
+        const target = new URL(location, url);
+        // the assets binding drops the query string when it canonicalises a path
+        if (!target.search) target.search = url.search;
+        return Response.redirect(target.toString(), 301);
+      }
+    }
+
+    // serve the not-found page with a real 404 status instead of redirecting to it
+    if (res.status === 404) {
+      return notFound(request, env);
+    }
+
+    if (NOINDEX_ROUTES.some((route) => isTopLevelDocsRoute(url.pathname, route))) {
+      const noindex = new Response(res.body, res);
+      noindex.headers.set("X-Robots-Tag", "noindex, follow");
+      return noindex;
+    }
+    return res; // unchanged response (transparent externally)
   },
 };
-
-async function serve(request, env): Promise<Response> {
-  const url = new URL(request.url);
-
-  const redirect = resolveRedirect(url.pathname);
-  if (redirect) {
-    url.pathname = redirect.pathname;
-    if (redirect.hash) url.hash = redirect.hash;
-    return Response.redirect(url.toString(), 301);
-  }
-
-  // The 404 page is served in place, with a 404 status. It used to be a
-  // 301 to /docs/404, which answers 200, so every dead docs URL looked
-  // like a live page to crawlers (a soft 404) and inherited nothing.
-  if (isTopLevelDocsRoute(url.pathname, "404")) {
-    return notFound(request, env);
-  }
-
-  const res = await env.ASSETS.fetch(request);
-
-  // never hand out a temporary redirect for a docs page. Only for safe methods:
-  // a 307 preserves the method, a 301 does not.
-  const isSafeMethod = request.method === "GET" || request.method === "HEAD";
-  if (isSafeMethod && (res.status === 302 || res.status === 307)) {
-    const location = res.headers.get("Location");
-    if (location) {
-      const target = new URL(location, url);
-      // the assets binding drops the query string when it canonicalises a path
-      if (!target.search) target.search = url.search;
-      return Response.redirect(target.toString(), 301);
-    }
-  }
-
-  // serve the not-found page with a real 404 status instead of redirecting to it
-  if (res.status === 404) {
-    return notFound(request, env);
-  }
-
-  if (NOINDEX_ROUTES.some((route) => isTopLevelDocsRoute(url.pathname, route))) {
-    const noindex = new Response(res.body, res);
-    noindex.headers.set("X-Robots-Tag", "noindex, follow");
-    return noindex;
-  }
-  return res; // unchanged response (transparent externally)
-}
 
 // tracking post processor to remove static assets
 const postProcessor = (spans: ReadableSpan[]): ReadableSpan[] => {
@@ -104,7 +76,7 @@ const postProcessor = (spans: ReadableSpan[]): ReadableSpan[] => {
     const attrs = span.attributes ?? {};
     const url = attrs["url.full"] || ("" as string);
     // Keep non-static only
-    const keep = !STATIC_ASSET.test(url);
+    const keep = !/\.(?:css|js|mjs|map|png|jpg|jpeg|gif|svg|ico|webp|woff2?|ttf|eot)(?:$|\?)/i.test(url);
     return keep;
   });
 };
@@ -121,4 +93,26 @@ const config: ResolveConfigFn = (env) => ({
   postProcessor: postProcessor,
 });
 
-export default instrument(handler, config);
+// console.log lines are shipped to the traffic-logs Axiom dataset by Cloudflare's log export;
+// its request rows carry no duration, so page speed is logged here
+const timedHandler = {
+  async fetch(request, env, ctx) {
+    const startedAt = Date.now();
+    const res = await handler.fetch(request, env, ctx);
+    const path = new URL(request.url).pathname;
+    if (!/\.(?:css|js|mjs|map|png|jpg|jpeg|gif|svg|ico|webp|woff2?|ttf|eot)(?:$|\?)/i.test(path)) {
+      console.log(
+        JSON.stringify({
+          event: "docs_request",
+          path,
+          status_code: res.status,
+          duration_ms: Date.now() - startedAt,
+          user_agent: request.headers.get("user-agent") ?? "",
+        }),
+      );
+    }
+    return res;
+  },
+};
+
+export default instrument(timedHandler, config);
