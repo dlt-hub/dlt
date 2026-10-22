@@ -1,6 +1,7 @@
 """Fabric Warehouse job client implementation - based on Synapse with COPY INTO support"""
 
 import os
+import threading
 from typing import ClassVar, Sequence, List, Dict
 from copy import deepcopy
 from textwrap import dedent
@@ -10,7 +11,7 @@ from dlt.common.destination.typing import PreparedTableSchema
 from dlt.common.schema.typing import TColumnSchema
 from dlt.common.schema import Schema
 from dlt.common.destination import DestinationCapabilitiesContext
-from dlt.common.destination.client import LoadJob
+from dlt.common.destination.client import LoadJob, FollowupJobRequest
 from dlt.destinations.impl.synapse.synapse import (
     SynapseClient,
     HINT_TO_SYNAPSE_ATTR,
@@ -18,12 +19,44 @@ from dlt.destinations.impl.synapse.synapse import (
 )
 from dlt.destinations.impl.fabric.configuration import FabricClientConfiguration
 from dlt.destinations.impl.fabric.sql_client import FabricSqlClient
-from dlt.destinations.job_client_impl import SqlJobClientBase
+from dlt.destinations.impl.mssql.mssql import MsSqlStagingReplaceJob
+from dlt.destinations.job_client_impl import SqlJobClientBase, SqlLoadJob
 from dlt.common.configuration.exceptions import ConfigurationException
 from dlt.common.configuration.specs import (
     AzureCredentialsWithoutDefaults,
     AzureServicePrincipalCredentialsWithoutDefaults,
 )
+
+
+class FabricStagingReplaceLoadJob(SqlLoadJob):
+    """Runs the `staging-optimized` replace swap (`ALTER SCHEMA ... TRANSFER`) under a
+    per-dataset lock.
+
+    Each replace job swaps one table chain into the destination schema inside its own
+    transaction, so it is internally atomic. But Fabric Warehouse's distributed catalog
+    does not safely isolate *concurrent* `ALTER SCHEMA ... TRANSFER` transactions that
+    target the same destination schema: two replace jobs for different table chains,
+    swapped in at the same time, can silently lose one of the changes even though each
+    swap is individually atomic. SQL Server's usual primitive for this, `sp_getapplock`,
+    is not supported by Fabric Warehouse, so we serialize in Python instead. The loader's
+    worker pool is always thread-based for sql jobs (`LoaderConfiguration.on_resolved`
+    forces `pool_type = "thread"` unless there is a single worker), so an in-process lock
+    keyed by destination dataset is sufficient - it does not need to be cross-process.
+    """
+
+    _dataset_locks: ClassVar[dict[str, threading.Lock]] = {}
+    _registry_lock: ClassVar[threading.Lock] = threading.Lock()
+
+    def run(self) -> None:
+        with self._get_dataset_lock():
+            super().run()
+
+    def _get_dataset_lock(self) -> threading.Lock:
+        key = self._job_client.sql_client.fully_qualified_dataset_name()
+        with self._registry_lock:
+            if key not in self._dataset_locks:
+                self._dataset_locks[key] = threading.Lock()
+            return self._dataset_locks[key]
 
 
 class FabricCopyFileLoadJob(SynapseCopyFileLoadJob):
@@ -212,6 +245,22 @@ class FabricClient(SynapseClient):
     def should_truncate_table_before_load_on_staging_destination(self, table_name: str) -> bool:
         return self.config.truncate_tables_on_staging_destination_before_load
 
+    def _create_replace_followup_jobs(
+        self, table_chain: Sequence[PreparedTableSchema]
+    ) -> list[FollowupJobRequest]:
+        """Override to restore the `staging-optimized` replace job that `SynapseClient` bypasses.
+
+        `SynapseClient` always falls back to the generic `SqlJobClientBase` replace job
+        because Synapse dedicated SQL pools don't support DDL transactions. Fabric does
+        support DDL transactions and `ALTER SCHEMA ... TRANSFER`, so for the
+        `staging-optimized` strategy we use the same job as `mssql`, which transfers the
+        staging table into the destination schema instead of copying rows.
+        """
+        root_table = table_chain[0]
+        if root_table["x-replace-strategy"] == "staging-optimized":  # type: ignore[typeddict-item]
+            return [MsSqlStagingReplaceJob.from_table_chain(table_chain, self.sql_client)]
+        return SqlJobClientBase._create_replace_followup_jobs(self, table_chain)
+
     def create_load_job(
         self, table: PreparedTableSchema, file_path: str, load_id: str, restore: bool = False
     ) -> LoadJob:
@@ -234,6 +283,14 @@ class FabricClient(SynapseClient):
         # For non-reference jobs, only handle insert-values and sql files
         parsed_file = ParsedLoadJobFileName.parse(file_path)
         if parsed_file.file_format in ("insert_values", "sql", "model"):
+            # The staging-optimized replace swap must be serialized per dataset - see
+            # FabricStagingReplaceLoadJob for why.
+            if (
+                parsed_file.file_format == "sql"
+                and table.get("write_disposition") == "replace"
+                and table.get("x-replace-strategy") == "staging-optimized"
+            ):
+                return FabricStagingReplaceLoadJob(file_path)
             # Use parent's insert job handling
             return super(SynapseClient, self).create_load_job(table, file_path, load_id, restore)
 
