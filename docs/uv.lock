@@ -1062,6 +1062,7 @@ dev = [
     { name = "types-tqdm", specifier = ">=4.66.0.2,<5" },
 ]
 ibis = [
+    { name = "duckdb", specifier = "<2" },
     { name = "ibis-framework", extras = ["duckdb", "postgres", "bigquery", "snowflake", "clickhouse", "databricks"], marker = "python_full_version >= '3.13'", specifier = ">=12.0.0" },
     { name = "ibis-framework", extras = ["duckdb", "postgres", "bigquery", "snowflake", "mssql", "clickhouse", "databricks"], marker = "python_full_version < '3.13'", specifier = ">=12.0.0" },
 ]

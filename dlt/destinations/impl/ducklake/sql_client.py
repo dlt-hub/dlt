@@ -91,7 +91,7 @@ class DuckLakeSqlClient(DuckDbSqlClient):
             except Exception:
                 pass
             # make sure catalog is attached
-            current_db = self._conn.sql("SELECT current_database();").fetchone()[0]
+            current_db = self._conn.execute("SELECT current_database();").fetchone()[0]
             if current_db == self.credentials.ducklake_name:
                 # `memory` is a name of initial memory database opened
                 self._conn.execute(f"USE memory;DETACH {self.credentials.ducklake_name}")
