@@ -70,6 +70,7 @@ class SqlalchemyJobClient(SqlJobClientWithStagingDataset):
         self.capabilities = capabilities
         self.config: SqlalchemyClientConfiguration = config
         self.type_mapper = self.capabilities.get_type_mapper(self.sql_client.dialect)
+        self.allow_merge_to_append_fallback = False
 
     def _to_table_object(self, schema_table: PreparedTableSchema) -> sa.Table:
         existing = self.sql_client.get_existing_table(schema_table["name"])
