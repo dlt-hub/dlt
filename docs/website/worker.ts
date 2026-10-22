@@ -93,23 +93,16 @@ const config: ResolveConfigFn = (env) => ({
   postProcessor: postProcessor,
 });
 
-// console.log lines are shipped to the traffic-logs Axiom dataset by Cloudflare's log export;
-// its request rows carry no duration, so page speed is logged here
+// console.log lines are shipped to the traffic-logs Axiom dataset by Cloudflare's log export,
+// next to its own request row (same trace_id), which carries no duration
 const timedHandler = {
   async fetch(request, env, ctx) {
     const startedAt = Date.now();
     const res = await handler.fetch(request, env, ctx);
-    const path = new URL(request.url).pathname;
-    if (!/\.(?:css|js|mjs|map|png|jpg|jpeg|gif|svg|ico|webp|woff2?|ttf|eot)(?:$|\?)/i.test(path)) {
-      console.log(
-        JSON.stringify({
-          event: "docs_request",
-          path,
-          status_code: res.status,
-          duration_ms: Date.now() - startedAt,
-          user_agent: request.headers.get("user-agent") ?? "",
-        }),
-      );
+    if (
+      !/\.(?:css|js|mjs|map|png|jpg|jpeg|gif|svg|ico|webp|woff2?|ttf|eot)(?:$|\?)/i.test(new URL(request.url).pathname)
+    ) {
+      console.log(JSON.stringify({ event: "docs_request", duration_ms: Date.now() - startedAt }));
     }
     return res;
   },
