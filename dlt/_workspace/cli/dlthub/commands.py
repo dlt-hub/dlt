@@ -26,7 +26,7 @@ from dlt._workspace.cli.commands import (
 class AiCommand(SupportsCliCommand):
     command = "ai"
     help_string = "Use AI-powered development tools and utilities"
-    # docs_url =
+    docs_url: Optional[str] = None
     description = "Configure your LLM-enabled IDE and MCP server."
 
     def configure_parser(self, ai_cmd: argparse.ArgumentParser) -> None:
@@ -73,8 +73,8 @@ class AiCommand(SupportsCliCommand):
             default=False,
             action="store_true",
             help=(
-                "Overwrite existing files instead of skipping them and remove files the"
-                " installed version shipped but the new one does not."
+                "Replace shipped files and remove unmodified files dropped upstream."
+                " Co-owned files stay protected."
             ),
         )
 
@@ -123,7 +123,7 @@ class AiCommand(SupportsCliCommand):
         # toolkit command group — verb-first form: `ai toolkit <verb> <name>`
         toolkit_cmd = ai_subparsers.add_parser(
             "toolkit",
-            help="Manage AI toolkit plugins (list, info, install)",
+            help="Manage AI toolkit plugins (list, info, install, update)",
         )
         toolkit_sub = toolkit_cmd.add_subparsers(dest="toolkit_operation", required=False)
 
@@ -168,8 +168,8 @@ class AiCommand(SupportsCliCommand):
             default=False,
             action="store_true",
             help=(
-                "Overwrite existing files instead of skipping them and remove files the"
-                " installed version shipped but the new one does not."
+                "Replace shipped files and remove unmodified files dropped upstream."
+                " Co-owned files stay protected."
             ),
         )
         install_cmd.add_argument(
@@ -177,6 +177,23 @@ class AiCommand(SupportsCliCommand):
             default=False,
             action="store_true",
             help="Fail on validation warnings (invalid frontmatter, etc.).",
+        )
+
+        update_cmd = toolkit_sub.add_parser(
+            "update",
+            help="Update installed toolkits, preserving local edits",
+            parents=[toolkit_common],
+        )
+        update_cmd.add_argument("name", nargs="?", help="Installed toolkit name (default: all)")
+        update_cmd.add_argument(
+            "--overwrite",
+            action="store_true",
+            help="Replace locally modified or deleted files still shipped upstream.",
+        )
+        update_cmd.add_argument(
+            "--strict",
+            action="store_true",
+            help="Fail when a toolkit is skipped or has missing dependencies.",
         )
 
         # shared run flags — used by both `dlt ai mcp [flags]` and `dlt ai mcp run [flags]`
@@ -233,6 +250,7 @@ class AiCommand(SupportsCliCommand):
             ai_secrets_view_redacted_command,
             ai_secrets_update_fragment_command,
             ai_toolkit_install_command,
+            ai_toolkit_update_command,
             ai_toolkit_list_command,
             ai_toolkit_info_command,
         )
@@ -278,6 +296,14 @@ class AiCommand(SupportsCliCommand):
                 ai_toolkit_install_command(
                     name=args.name,
                     agent=args.agent,
+                    location=args.location,
+                    branch=args.branch,
+                    overwrite=args.overwrite,
+                    strict=args.strict,
+                )
+            elif tk_op == "update":
+                ai_toolkit_update_command(
+                    name=args.name,
                     location=args.location,
                     branch=args.branch,
                     overwrite=args.overwrite,

@@ -307,7 +307,18 @@ def test_user_session_e2e(
         for toolkit_name in installable:
             assert toolkit_name in result.stdout
 
-        # 6. verify index and installed files
+        # 6. Named and bulk updates keep existing owners of conflicting skills.
+        result = script_runner.run(["dlthub", "ai", "toolkit", "update", "init"] + location_args)
+        assert result.returncode == 0, result.stderr
+        before = load_toolkits_index()
+        result = script_runner.run(["dlthub", "ai", "toolkit", "update"] + location_args)
+        assert result.returncode == 0, result.stderr
+        for toolkit_name in ["init"] + installable:
+            assert "Updating toolkit %s" % toolkit_name in result.stdout
+        assert "owned by rest-api-pipeline; skipping this component" in result.stdout
+        assert load_toolkits_index() == before
+
+        # 7. verify index and installed files
         project_root = Path.cwd()
         assert_toolkit_install(project_root, "init", "claude")
         for toolkit_name in installable:

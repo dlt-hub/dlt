@@ -82,9 +82,18 @@ Install it:
 uv run dlthub ai toolkit install rest-api-pipeline
 ```
 
-By default `dlthub ai toolkit install` installs for the agent already wired up in the workspace. Pass `--agent claude|cursor|codex` to install for a different one, or `--overwrite` to update an installed toolkit. `--overwrite` replaces the files the toolkit ships and removes the ones the new version no longer ships, including any you edited. Files you added yourself are kept.
+By default `dlthub ai toolkit install` installs for the agent already wired up in the workspace. Pass `--agent claude|cursor|codex` to install for a different one, or use the update command below for an installed toolkit. A fresh install skips existing files and component folders. `install --overwrite` replaces shipped files and removes unmodified files dropped upstream, while protecting local deletions and files owned by another toolkit.
 
 A toolkit that ships agent definitions installs each one to `.claude/dlthub/agents/<toolkit>/<agent>/` (`.cursor/dlthub/agents/` for Cursor, `.agents/dlthub/agents/` for Codex), where `run.agent("<toolkit>:<agent>")` finds it. See [Background agents](../agents/index.md).
+
+## Updating toolkits
+
+Update one installed toolkit, or omit its name to update all installed toolkits:
+
+```sh
+uv run dlthub ai toolkit update rest-api-pipeline
+uv run dlthub ai toolkit update
+```
 
 ## Verify
 
