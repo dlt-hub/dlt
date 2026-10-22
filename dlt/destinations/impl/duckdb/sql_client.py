@@ -102,18 +102,17 @@ class DuckDBDBApiCursorImpl(DBApiCursorImpl):
             yield df
 
     def iter_arrow(self, chunk_size: int) -> Generator["ArrowTable", None, None]:
+        # duckdb 1.5 introduces `to_arrow_table` which become mandatory from 2.0 onward
+        new_api = Version(duckdb.__version__) >= Version("1.5.0")
         if not chunk_size:
-            yield self.native_cursor.fetch_arrow_table()
+            method = "to_arrow_table" if new_api else "fetch_arrow_table"
+            yield getattr(self.native_cursor, method)()
             return
         # resolve pa at runtime; `ArrowTable` is a TYPE_CHECKING-only alias above
         from dlt.common.libs.pyarrow import pyarrow as pa
 
         # iterate
-        method = (
-            "to_arrow_reader"
-            if Version(duckdb.__version__) >= Version("1.5.0")
-            else "fetch_record_batch"
-        )
+        method = "to_arrow_reader" if new_api else "fetch_record_batch"
         for item in getattr(self.native_cursor, method)(chunk_size):
             yield pa.Table.from_batches([item])
 

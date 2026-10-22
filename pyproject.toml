@@ -318,7 +318,9 @@ pipeline = [
 airflow = ["apache-airflow>=2.8.0,<3 ; python_version < '3.13'"]
 ibis = [
     "ibis-framework[duckdb, postgres, bigquery, snowflake, mssql, clickhouse, databricks]>=12.0.0 ; python_version < '3.13'",
-    "ibis-framework[duckdb, postgres, bigquery, snowflake, clickhouse, databricks]>=12.0.0 ; python_version >= '3.13'"
+    "ibis-framework[duckdb, postgres, bigquery, snowflake, clickhouse, databricks]>=12.0.0 ; python_version >= '3.13'",
+    # ibis duckdb backend calls fetch_arrow_table, removed in duckdb 2.0
+    "duckdb<2",
 ]
 ibis-bare = ["ibis-framework>=12.0.0"]
 dashboard-tests = [
