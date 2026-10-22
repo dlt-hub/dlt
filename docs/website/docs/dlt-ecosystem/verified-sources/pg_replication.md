@@ -272,6 +272,113 @@ The general workflow for setting up replication is:
    repl_pl.run(changes)
    ```
 
+## Initial snapshots and point-in-time backfilling
+
+You can't start replication from a point in time. There is no timestamp or LSN option: the only initial state you can load is the snapshot Postgres exports when the replication slot is created. Changes committed before the slot existed can't be replayed, and neither can changes the slot has already consumed, because Postgres discards that WAL.
+
+With `persist_snapshots=True`, `init_replication` copies each table as it was at the moment the slot was created and returns one resource per table. The snapshot and the replication stream meet exactly, so no change is missed or loaded twice.
+
+:::note
+Snapshots are copied into `_dlt_<table>_s_<snapshot_name>` tables in your source schema. They need the CREATE privilege and storage for the data they hold, and dlt doesn't drop them. Drop them yourself once the initial load has succeeded.
+:::
+
+### Take a new snapshot
+
+A snapshot is only taken by the call that creates the slot. If the slot already exists, `init_replication` raises:
+
+```text
+RuntimeError: Cannot create snapshots because slot my_slot is already created.
+```
+
+To take a new snapshot, recreate the slot with `reset=True` and load the new snapshot from scratch. Reset the pipeline state at the same time, for example with a fresh pipeline. Otherwise `replication_resource` tries to advance the new slot to the LSN stored from the old one, and Postgres refuses:
+
+```text
+ERROR:  cannot advance replication slot to 0/1574000, minimum is 0/15741C0
+```
+
+### Backfill history with the `sql_database` source
+
+To load rows that predate the slot, or to avoid copying a large table into a snapshot table, backfill with the [sql_database](./sql_database/index.md) source. Create the slot first, so that no change slips through between the backfill and the start of replication:
+
+1. Create the slot and publication without snapshots:
+
+   ```py notype
+   init_replication(
+       slot_name="my_slot",
+       pub_name="my_pub",
+       schema_name="my_schema",
+       table_names="my_source_table",
+       persist_snapshots=False,
+   )
+   ```
+
+2. Backfill the table, merging on the same primary key that the replicated table uses. [Backfilling in chunks](../../examples/backfill_in_chunks) shows how to split a long backfill into ranges:
+
+   ```py
+   import dlt
+   from dlt.sources.sql_database import sql_table
+
+   backfill = sql_table(
+       credentials="postgresql://username:password@host:5432/database",
+       table="my_source_table",
+       schema="my_schema",
+   )
+
+   repl_pl = dlt.pipeline(
+       pipeline_name="pg_replication_pipeline",
+       destination="duckdb",
+       dataset_name="replicate_single_table",
+   )
+   repl_pl.run(backfill, write_disposition="merge", primary_key="id")
+   ```
+
+3. Run `replication_resource`. Changes made during the backfill are still in the slot, and applying them again is harmless because they merge on the primary key.
+
+:::caution
+This only works with merge. If the publication publishes inserts only (`publish="insert"`), replicated rows are appended, and rows the backfill already loaded can arrive a second time.
+:::
+
+## Views and materialized views
+
+Postgres can only replicate tables: [views and materialized views can't be added to a publication](https://www.postgresql.org/docs/current/sql-createpublication.html), so this source can't replicate them. Passing a view in `table_names` fails when dlt adds it to the publication:
+
+```text
+ERROR:  cannot add relation "orders_v" to publication
+DETAIL:  This operation is not supported for views.
+```
+
+Postgres 14 and earlier report `"orders_v" is not a table` instead. Replicating a whole schema with `table_names=None` skips views and materialized views.
+
+### Load a view with the `sql_database` source
+
+Views and materialized views can be read like tables, so load them with the [sql_database](./sql_database/index.md) source, in the same pipeline as your replication resources:
+
+```py
+import dlt
+from dlt.sources.sql_database import sql_table
+
+orders_view = sql_table(
+    credentials="postgresql://username:password@host:5432/database",
+    table="orders_v",
+    schema="public",
+)
+
+repl_pl = dlt.pipeline(
+    pipeline_name="pg_replication_pipeline",
+    destination="duckdb",
+    dataset_name="replicate_single_table",
+)
+repl_pl.run(orders_view, write_disposition="replace")
+```
+
+`sql_table` appends by default, and a view has no primary key to merge on. Use `write_disposition="replace"` as above for a full refresh, or set `primary_key` together with `write_disposition="merge"`. To read only new rows, add an [incremental cursor](../../general-usage/incremental/cursor) on a column that only increases. A materialized view only changes when it's refreshed, so run the load after `REFRESH MATERIALIZED VIEW`.
+
+To load several views, use the `sql_database` source with `include_views=True`.
+
+### Rebuild the view in the destination
+
+To keep CDC for the data behind a view, replicate the tables the view is built on and recreate the view's logic in the destination, with [SQL transformations](../transformations/sql) or [dbt](../transformations/dbt/dbt.md).
+
 ## Alternative: Using `xmin` for Change Data Capture (CDC)
 
 If logical replication doesn't fit your needs, you can use the built-in `xmin` system column of Postgres for change tracking with dlt's `sql_database` source instead of the `pg_replication` source.
