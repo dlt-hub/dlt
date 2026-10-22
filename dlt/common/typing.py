@@ -529,7 +529,9 @@ def get_generic_type_argument_from_instance(
         # instance of class deriving from generic
         cls_ = bases_[0]
     if cls_:
-        orig_param_type = get_args(cls_)[0]
+        # a generic class used bare (`incremental`, not `incremental[datetime]`) has no
+        # argument to read, so keep the Any default and let sample_value be tried below
+        orig_param_type = (get_args(cls_) or (Any,))[0]
     if orig_param_type in (Any, CallableAny) and sample_value is not None:
         orig_param_type = type(sample_value)
     return orig_param_type
