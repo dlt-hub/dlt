@@ -265,13 +265,15 @@ In this example:
 In fact, `dlt` synthesizes a unique spec for each decorated function. For example, in the case of `google_sheets`, the following class is created:
 
 ```py notype
-from dlt.common.configuration import configspec, with_config, BaseConfiguration
+from dlt.common.configuration import configspec, with_config
+from dlt.common.configuration.specs import BaseConfiguration, GcpServiceAccountCredentials
+
 
 @configspec
 class GoogleSheetsConfiguration(BaseConfiguration):
-  tab_names: list[str] = None  # mandatory
-  credentials: GcpServiceAccountCredentials = None # mandatory secret
-  only_strings: bool | None = False
+    tab_names: list[str] = None  # mandatory
+    credentials: GcpServiceAccountCredentials = None  # mandatory secret
+    only_strings: bool | None = False
 ```
 
 ### All specs derive from [BaseConfiguration](https://github.com/dlt-hub/dlt/blob/devel/dlt/common/configuration/specs/base_configuration.py#L170)
