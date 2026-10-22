@@ -113,23 +113,24 @@ def fetch_arrow(file_data, chunk_size: int) -> Iterable[TDataItem]:  # type: ign
     Yields:
         Iterable[TDataItem]: Data items, read from the given CSV file.
     """
-    batcher = file_data.fetch_arrow_reader(batch_size=chunk_size)
-    yield from batcher
+    # duckdb 1.5 added to_arrow_reader, 2.0 deprecates fetch_arrow_reader
+    to_reader = getattr(file_data, "to_arrow_reader", None) or file_data.fetch_arrow_reader
+    yield from to_reader(batch_size=chunk_size)
 
 
-def fetch_json(file_data, chunk_size: int) -> List[Dict[str, Any]]:  # type: ignore
+def fetch_json(conn, file_data, chunk_size: int) -> List[Dict[str, Any]]:  # type: ignore
     """Fetches data from the given CSV file.
 
     Args:
+        conn (DuckDBPyConnection): The connection that created `file_data`.
         file_data (DuckDBPyRelation): The CSV file data.
         chunk_size (int): The number of rows to read at once.
 
     Yields:
         Iterable[TDataItem]: Data items, read from the given CSV file.
     """
-    while True:
-        batch = file_data.fetchmany(chunk_size)
-        if not batch:
-            break
-
+    # duckdb 2.0 relations have no fetchmany and rel.limit() reruns the query per page
+    file_data.to_view("_dlt_csv_file_data", replace=True)
+    cursor = conn.execute("SELECT * FROM _dlt_csv_file_data")
+    while batch := cursor.fetchmany(chunk_size):
         yield add_columns(file_data.columns, batch)
