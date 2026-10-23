@@ -1,5 +1,6 @@
 import argparse
 import sys
+import webbrowser
 from typing import Any, Dict, List, Optional
 
 from dlt.common import json
@@ -184,6 +185,30 @@ def execute_run(args: argparse.Namespace) -> None:
     _execute_one(args, forbidden_job_type="interactive", available_selectors=["batch"])
 
 
+# interactive launchers (streamlit, marimo, mcp, dashboard) bind this address
+_SERVE_BIND_HOST = "0.0.0.0"
+_WILDCARD_BIND_HOSTS = ("0.0.0.0", "::", "")
+
+
+def open_serve_browser(port: int, host: str = _SERVE_BIND_HOST) -> None:
+    """Open the local serve URL when the CLI session is interactive.
+
+    Args:
+        port (int): Listen port the server binds.
+        host (str): Bind host. `0.0.0.0`, `::`, and an empty host open on localhost.
+    """
+    if not fmt.is_interactive():
+        return
+    browse_host = "localhost" if host in _WILDCARD_BIND_HOSTS else host
+    url = "http://%s:%d" % (browse_host, port)
+    fmt.echo("Opening %s" % url)
+    try:
+        webbrowser.open(url)
+    except Exception:
+        # headless environments have no browser; the banner already printed the url
+        pass
+
+
 def execute_serve(args: argparse.Namespace) -> None:
     """Serve an interactive job locally — batch job-types are forbidden."""
     _execute_one(args, forbidden_job_type="batch", available_selectors=["interactive"])
@@ -269,6 +294,9 @@ def _execute_one(
         if port := info["entry_point"].get("run_args", {}).get("port"):
             banner["port"] = int(port)
     print_run_banner(banner)
+    # exec_process replaces this process, so the browser has to open first
+    if port := banner.get("port"):
+        open_serve_browser(port, _SERVE_BIND_HOST)
 
     exec_process(
         [
