@@ -22,7 +22,7 @@ from tests.pipeline.utils import (
     assert_only_table_columns,
     table_exists,
 )
-from tests.load.utils import destinations_configs, DestinationTestConfiguration
+from tests.load.utils import HF_BUCKET, destinations_configs, DestinationTestConfiguration
 
 
 # destinations that exercise the full truncate/drop table-chain logic (sql + filesystem + athena)
@@ -823,6 +823,7 @@ def test_refresh_truncates_or_drops_when_no_data(
         table_format_filesystem_configs=True,
         default_vector_configs=True,
         exclude=["weaviate", "qdrant"],
+        bucket_exclude=(HF_BUCKET,),
     ),
     ids=lambda x: x.name,
 )
