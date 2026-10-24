@@ -255,3 +255,54 @@ def test_merge_placeholder_values_of_load_date(monkeypatch: pytest.MonkeyPatch) 
     package["state"]["placeholders"] = {"items": {"boundary_timestamp": date(2024, 1, 1)}}
     values = destination_utils.get_merge_placeholder_values("items")
     assert values["boundary_timestamp"] == date(2024, 1, 1)
+
+
+def test_verify_schema_merge_disposition_nested_table_mismatch() -> None:
+    caps = Destination.from_reference("duckdb").capabilities()
+
+    # Case 1: nested table has merge, root has replace
+    schema = Schema("test")
+    schema.update_table({"name": "orders", "write_disposition": "replace", "columns": {}})
+    schema.update_table(
+        {
+            "name": "orders__items",
+            "parent": "orders",
+            "write_disposition": "merge",
+            "columns": {},
+        }
+    )
+    load_tables = [
+        prepare_load_table(schema.tables, schema.tables["orders"], caps),
+        prepare_load_table(schema.tables, schema.tables["orders__items"], caps),
+    ]
+    exceptions = verify_schema_merge_disposition(schema, load_tables, caps)
+    assert len(exceptions) == 1
+    assert "cannot use `merge` under a non-merge root table" in str(exceptions[0])
+
+    # Case 2: root has merge, nested has replace
+    schema2 = Schema("test2")
+    schema2.update_table(
+        {
+            "name": "orders",
+            "write_disposition": "merge",
+            "columns": {"id": {"name": "id", "data_type": "bigint", "primary_key": True}},
+        }
+    )
+    schema2.update_table(
+        {
+            "name": "orders__items",
+            "parent": "orders",
+            "write_disposition": "replace",
+            "columns": {},
+        }
+    )
+    load_tables2 = [
+        prepare_load_table(schema2.tables, schema2.tables["orders"], caps),
+        prepare_load_table(schema2.tables, schema2.tables["orders__items"], caps),
+    ]
+    exceptions2 = verify_schema_merge_disposition(schema2, load_tables2, caps)
+    assert len(exceptions2) == 1
+    assert (
+        "All nested tables in a merge chain must share the root's `merge` write disposition"
+        in str(exceptions2[0])
+    )

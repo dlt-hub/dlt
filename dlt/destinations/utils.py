@@ -232,6 +232,32 @@ def verify_schema_merge_disposition(
                         schema, table, capabilities, destination_scope_placeholders
                     )
                 )
+            root_table = get_root_table(schema.tables, table["name"])
+            root_disposition = root_table.get("write_disposition")
+            table_disposition = table.get("write_disposition")
+            if table_disposition == "merge" and root_disposition != "merge":
+                exception_log.append(
+                    SchemaCorruptedException(
+                        schema.name,
+                        f"Table `{table['name']}` is a nested table with `merge` write disposition,"
+                        f" but its root table `{root_table['name']}` has `{root_disposition}` write"
+                        " disposition. A nested table cannot use `merge` under a non-merge root"
+                        " table. To use `merge` on a nested table, define a primary_key on it to"
+                        " convert it into a top-level table, or set the root table's write"
+                        " disposition to `merge`.",
+                    )
+                )
+            elif root_disposition == "merge" and table_disposition and table_disposition != "merge":
+                exception_log.append(
+                    SchemaCorruptedException(
+                        schema.name,
+                        f"Table `{table['name']}` is a nested table with `{table_disposition}`"
+                        f" write disposition, but its root table `{root_table['name']}` has `merge`"
+                        " write disposition. All nested tables in a merge chain must share the"
+                        " root's `merge` write disposition. Define a primary_key on the nested"
+                        " table to decouple it into a top-level table.",
+                    )
+                )
             continue
 
         table_name = table["name"]
