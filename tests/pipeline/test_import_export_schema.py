@@ -334,7 +334,7 @@ def test_import_schema_preserves_max_nesting(table_nesting: int) -> None:
     # Add nested field
     @dlt.resource(max_table_nesting=table_nesting, table_name="my_table")
     def nested_data():
-        nested_example_data = EXAMPLE_DATA[0]
+        nested_example_data = dict(EXAMPLE_DATA[0])
         nested_example_data["children"] = [{"id": 2, "name": "Max"}, {"id": 3, "name": "Julia"}]
         yield nested_example_data
 
@@ -371,7 +371,7 @@ def test_empty_column_later_becoming_child_table_removed() -> None:
 
     @dlt.resource(table_name="my_table")
     def nested_data(with_grandchild: bool):
-        nested_example_data = EXAMPLE_DATA[0]
+        nested_example_data = dict(EXAMPLE_DATA[0])
         children_list: List[Dict[str, Any]] = [{"id": 2, "name": "Max"}]
         nested_example_data[col_a] = children_list
         if with_grandchild:
