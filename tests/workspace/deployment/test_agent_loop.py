@@ -60,6 +60,7 @@ from dlt._workspace.deployment.agent.loops.pydantic_ai import (
     OUTPUT_TOOL_NAME,
     UNBOUNDED_RETRIES,
     PydanticAILoop,
+    is_retry_part,
     make_local_tools,
 )
 from dlt._workspace.deployment.agent.loops.tools import (
@@ -918,7 +919,7 @@ def _scripted_loop(workspace: Any, retries: int, turns: List[Any]) -> PydanticAI
 def _tool_parts(messages: Any) -> Tuple[List[Any], List[Any]]:
     """The retry requests and the failed results the model got, in order."""
     parts = [part for message in messages for part in message.parts]
-    retries = [p for p in parts if isinstance(p, RetryPromptPart)]
+    retries = [p for p in parts if is_retry_part(p)]
     failed = [p for p in parts if isinstance(p, ToolReturnPart) and p.outcome == "failed"]
     return retries, failed
 
@@ -978,6 +979,15 @@ def test_a_tool_error_past_the_budget_fails_the_call(workspace: Any) -> None:
     """The model may retry a failing call once, then the failure is what it gets back."""
     missing = ("Read", json.dumps({"path": "missing.txt"}))
     loop = _scripted_loop(workspace, 1, [missing, missing])
+    events: List[Dict[str, Any]] = []
+    emit = loop.emit
+
+    def recording(kind: Any, **fields: Any) -> None:
+        events.append({"kind": kind, **fields})
+        emit(kind, **fields)
+
+    native: Any = loop
+    native.emit = recording
 
     with capture_run_messages() as messages:
         output = asyncio.run(loop.run(inputs={"failed_run_id": "r-1", "run_context": {}}))
@@ -987,6 +997,9 @@ def test_a_tool_error_past_the_budget_fails_the_call(workspace: Any) -> None:
     assert len(retried) == 1 and len(failed) == 1
     assert "Read failed after 1 retry" in failed[0].content
     assert "does not exist" in failed[0].content
+    # the retried and the failed call are both reported as errors
+    results = [e for e in events if e["kind"] == "tool_result"]
+    assert [e["error"] for e in results] == [True, True]
 
 
 @pytest.mark.parametrize(
