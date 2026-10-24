@@ -3,6 +3,7 @@ from typing import List, Any, Dict
 import dlt, os
 import pytest
 
+from dlt.common.schema.utils import has_table_seen_data
 from dlt.common.typing import TRefreshMode
 from dlt.common.utils import uniq_id
 
@@ -208,6 +209,37 @@ def test_refresh_recreates_tables_from_import_schema(
             p.dataset_name,
         )
     assert rows == [("prices", "rate", "DECIMAL(18,6)", "NO"), ("runs", "id", "VARCHAR", "YES")]
+
+
+def test_import_schema_seen_data_after_dataset_dropped() -> None:
+    """A changed import schema keeps that a table seen data. When the dataset is dropped, the
+    pipeline sync wipes the pipeline and the schema is imported again without that hint."""
+    name = "schema_test" + uniq_id()
+    p = dlt.pipeline(
+        pipeline_name=name,
+        destination="duckdb",
+        import_schema_path=IMPORT_SCHEMA_PATH,
+        export_schema_path=EXPORT_SCHEMA_PATH,
+    )
+    p.run(EXAMPLE_DATA, table_name="person")
+    import_schema = _get_import_schema(name)
+    import_schema.tables["person"]["description"] = "people"
+    with open(os.path.join(IMPORT_SCHEMA_PATH, name + ".schema.yaml"), "w", encoding="utf-8") as f:
+        f.write(import_schema.to_pretty_yaml())
+    person = p.default_schema.tables["person"]
+    assert person["description"] == "people"
+    assert has_table_seen_data(person)
+
+    with p.destination_client() as client:
+        client.drop_storage()
+    p.sync_destination()
+    assert p.default_schema_name is None
+    person = p.schemas[name].tables["person"]
+    assert person["description"] == "people"
+    assert not has_table_seen_data(person)
+
+    assert_load_info(p.run(EXAMPLE_DATA, table_name="person"))
+    assert has_table_seen_data(p.default_schema.tables["person"])
 
 
 def test_only_explicit_hints_in_import_schema() -> None:
