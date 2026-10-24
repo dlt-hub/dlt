@@ -16,6 +16,7 @@ from dlt.common.schema.typing import TSimpleRegex
 from dlt.common.schema.utils import get_nested_tables, is_nested_table
 from dlt.common.pipeline import pipeline_state as current_pipeline_state, TRefreshMode
 from dlt.common.storages.load_package import TLoadPackageDropTablesState
+from dlt.common.utils import clone_dict_nested
 from dlt.pipeline.exceptions import (
     PipelineNeverRan,
     PipelineStepFailed,
@@ -231,4 +232,4 @@ def add_import_tables(schema: Schema, import_schema: Schema, table_names: Sequen
             continue
         for chain_table in get_nested_tables(import_schema.tables, table["name"]):
             if chain_table["name"] in table_names:
-                schema.update_table(deepcopy(chain_table))
+                schema.update_table(clone_dict_nested(chain_table))  # type: ignore[type-var]
