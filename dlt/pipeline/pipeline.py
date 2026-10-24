@@ -1648,8 +1648,11 @@ class Pipeline(SupportsPipeline):
                     deepcopy(prepare_refresh_source(self, source, refresh))
                 )
                 if refresh == "drop_sources":
-                    # replace the whole source AFTER we got tables to drop
-                    source.schema = source_schema
+                    # replace the whole source AFTER we got tables to drop. like on the first run,
+                    # start from the import schema
+                    source.schema = (
+                        self._schema_storage.load_import_schema(source_schema.name) or source_schema
+                    )
             # NOTE: we do pass any programmatic changes from source schema to pipeline schema except settings below
             # TODO: enable when we have full identifier lineage and we are able to merge table identifiers
             if type(source.schema.naming) is not type(source_schema.naming):  # noqa

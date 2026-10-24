@@ -689,7 +689,9 @@ class LanceDBClient(JobClientBase, WithStateSync, WithSqlClient):
         # orphan removal replaces old versions of docs, skip for insert-only
         first_table_in_chain = table_chain[0]
         merge_strategy = resolve_merge_strategy(
-            {first_table_in_chain["name"]: first_table_in_chain}, first_table_in_chain
+            {first_table_in_chain["name"]: first_table_in_chain},
+            first_table_in_chain,
+            is_prepared=True,
         )
         if (
             first_table_in_chain.get("write_disposition") == "merge"

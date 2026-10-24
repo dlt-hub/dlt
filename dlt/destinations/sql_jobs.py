@@ -179,7 +179,7 @@ class SqlMergeFollowupJob(SqlFollowupJob):
         # resolve only root table
         root_table = table_chain[0]
         merge_strategy = resolve_merge_strategy(
-            {root_table["name"]: root_table}, root_table, sql_client.capabilities
+            {root_table["name"]: root_table}, root_table, sql_client.capabilities, is_prepared=True
         )
 
         merge_sql = None

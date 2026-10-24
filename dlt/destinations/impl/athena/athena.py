@@ -269,7 +269,7 @@ class AthenaClient(SqlJobClientWithStagingDataset, SupportsStagingDestination):
             load_table["table_format"] = "iceberg"
         if load_table["write_disposition"] == "merge":
             merge_strategy = resolve_merge_strategy(
-                self.schema.tables, load_table, self.capabilities
+                self.schema.tables, load_table, self.capabilities, is_prepared=True
             )
             if merge_strategy is None:
                 logger.warning(f"Falling back to `append` on `{table_name}`.")

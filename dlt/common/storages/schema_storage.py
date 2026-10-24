@@ -1,5 +1,5 @@
 import yaml
-from typing import Iterator, List, Mapping, Tuple, cast
+from typing import Iterator, List, Mapping, Optional, Tuple, cast
 
 from dlt.common import logger
 from dlt.common.json import json
@@ -14,6 +14,7 @@ from dlt.common.storages.configuration import (
 from dlt.common.storages.file_storage import FileStorage
 from dlt.common.schema import Schema, verify_schema_hash
 from dlt.common.typing import DictStrAny
+from dlt.common.utils import clone_dict_nested
 
 from dlt.common.storages.exceptions import (
     InStorageSchemaModified,
@@ -77,6 +78,17 @@ class SchemaStorage(Mapping[str, Schema]):
         path = self._save_and_export_schema(schema)
         return path
 
+    def load_import_schema(self, name: str) -> Optional[Schema]:
+        """Loads schema `name` from the import path, linked to itself. Returns None if not present."""
+        if not self.config.import_schema_path:
+            return None
+        try:
+            schema = Schema.from_dict(self._load_import_schema(name))
+        except FileNotFoundError:
+            return None
+        schema._imported_version_hash = schema.version_hash
+        return schema
+
     def save_import_schema_if_not_exists(self, schema: Schema) -> bool:
         """Saves import schema, if not exists. If schema was saved, link itself as imported from"""
         if self.config.import_schema_path:
@@ -136,33 +148,31 @@ class SchemaStorage(Mapping[str, Schema]):
                     f" with version {rv_schema.stored_version} and imported hash"
                     f" {rv_schema._imported_version_hash}"
                 )
+                self._warn_on_processing_hints(rv_schema)
                 # if schema was imported, overwrite storage schema
-                self._save_and_export_schema(rv_schema, check_processing_hints=True)
+                self._save_and_export_schema(rv_schema)
             else:
                 # import schema when imported schema was modified from the last import
                 rv_schema = Schema.from_dict(storage_schema, validate_schema=False)
                 i_s = Schema.from_dict(imported_schema)
-                if i_s.version_hash != rv_schema._imported_version_hash:
+                imported_version_hash = i_s.version_hash
+                if imported_version_hash != rv_schema._imported_version_hash:
                     logger.warning(
                         f"Schema {name} was present in schema storage at"
                         f" {self.storage.storage_path} but will be overwritten with imported schema"
-                        f" version {i_s.version} and imported hash {i_s.version_hash}"
+                        f" version {i_s.version} and imported hash {imported_version_hash}"
                     )
-                    tables_seen_data = rv_schema.data_tables(seen_data_only=True)
-                    if tables_seen_data:
-                        logger.warning(
-                            f"Schema {name} in schema storage contains tables"
-                            f" ({', '.join(t['name'] for t in tables_seen_data)}) that are present"
-                            " in the destination. If you changed schema of those tables in import"
-                            " schema, consider using one of the refresh options:"
-                            " https://dlthub.com/devel/general-usage/pipeline#refresh-pipeline-data-and-state"
-                        )
-
+                    self._warn_on_processing_hints(i_s)
+                    # tables already in storage keep their normalizer hints ie. that they seen data
+                    for table_name, table in i_s.tables.items():
+                        if x_normalizer := rv_schema.tables.get(table_name, {}).get("x-normalizer"):
+                            table["x-normalizer"] = clone_dict_nested(x_normalizer)
                     rv_schema.replace_schema_content(i_s, link_to_replaced_schema=True)
-                    rv_schema._imported_version_hash = i_s.version_hash
+                    # link to the import file content, the copied hints change the hash
+                    rv_schema._imported_version_hash = imported_version_hash
 
                     # if schema was imported, overwrite storage schema
-                    self._save_and_export_schema(rv_schema, check_processing_hints=True)
+                    self._save_and_export_schema(rv_schema)
         except FileNotFoundError:
             # no schema to import -> skip silently and return the original
             if storage_schema is None:
@@ -228,7 +238,7 @@ class SchemaStorage(Mapping[str, Schema]):
         schema._bump_version()
         return saved_path
 
-    def _save_and_export_schema(self, schema: Schema, check_processing_hints: bool = False) -> str:
+    def _save_and_export_schema(self, schema: Schema) -> str:
         """Saves schema to schema store and then exports it. If the export path is the same as import
         path, processing hints will be removed.
         """
@@ -239,20 +249,21 @@ class SchemaStorage(Mapping[str, Schema]):
                 self.config.export_schema_path,
                 self.config.export_schema_path == self.config.import_schema_path,
             )
-        # if any processing hints are found we should warn the user
-        if check_processing_hints:
-            table_hints, _ = get_processing_hints(schema.tables)
-            if table_hints:
-                msg = (
-                    f"Imported schema {schema.name} contains processing hints for some tables."
-                    " Processing hints are used by normalizer (x-normalizer) to mark tables that"
-                    " got materialized and that prevents destructive changes to the schema. In"
-                    " most cases import schema should not contain processing hints because it is"
-                    " mostly used to initialize tables in a new dataset. "
-                )
-                msg += "Affected tables are: " + ", ".join(table_hints.keys())
-                logger.warning(msg)
         return saved_path
+
+    @staticmethod
+    def _warn_on_processing_hints(import_schema: Schema) -> None:
+        table_hints, _ = get_processing_hints(import_schema.tables)
+        if table_hints:
+            msg = (
+                f"Imported schema {import_schema.name} contains processing hints for some tables."
+                " Processing hints are used by normalizer (x-normalizer) to mark tables that"
+                " got materialized and that prevents destructive changes to the schema. In"
+                " most cases import schema should not contain processing hints because it is"
+                " mostly used to initialize tables in a new dataset. "
+            )
+            msg += "Affected tables are: " + ", ".join(table_hints.keys())
+            logger.warning(msg)
 
     @staticmethod
     def load_schema_file(

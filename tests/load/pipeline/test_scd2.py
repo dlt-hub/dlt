@@ -856,6 +856,10 @@ def test_validity_columns_follow_data_timezone(
             datetime(2024, 8, 24, 8, 0),
         ),
     ]
+    if destination_config.destination_type == "clickhouse":
+        # clickhouse `DateTime64` cannot store dates after year 2299
+        value, instant, wall_clock = (d.replace(year=2299) for d in active_record)
+        active_record = (value, instant, wall_clock)
     active_value = active_record[0]
     # `ts` changes the row hash, so every key present in a load gets a new version
     load_keys = [[1, 2], [1, 3], [1, 3], [1, 2]]
