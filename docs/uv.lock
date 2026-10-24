@@ -899,11 +899,11 @@ requires-dist = [
     { name = "deltalake", marker = "extra == 'deltalake'", specifier = ">=0.25.1" },
     { name = "dlthub", marker = "extra == 'hub'", specifier = ">=0.31.0,<0.33" },
     { name = "dlthub-client", marker = "extra == 'hub'", specifier = ">=0.28.3" },
-    { name = "duckdb", marker = "extra == 'duckdb'", specifier = ">=0.9" },
-    { name = "duckdb", marker = "extra == 'ducklake'", specifier = ">=1.2.0" },
-    { name = "duckdb", marker = "extra == 'lance'", specifier = ">=1.4.3" },
-    { name = "duckdb", marker = "extra == 'lancedb'", specifier = ">=1.4.3" },
-    { name = "duckdb", marker = "extra == 'motherduck'", specifier = ">=0.9" },
+    { name = "duckdb", marker = "extra == 'duckdb'", specifier = ">=0.9,<2" },
+    { name = "duckdb", marker = "extra == 'ducklake'", specifier = ">=1.2.0,<2" },
+    { name = "duckdb", marker = "extra == 'lance'", specifier = ">=1.4.3,<2" },
+    { name = "duckdb", marker = "extra == 'lancedb'", specifier = ">=1.4.3,<2" },
+    { name = "duckdb", marker = "extra == 'motherduck'", specifier = ">=0.9,<2" },
     { name = "fsspec", specifier = ">=2022.4.0" },
     { name = "gcsfs", marker = "extra == 'bigquery'", specifier = ">=2022.4.0" },
     { name = "gcsfs", marker = "extra == 'clickhouse'", specifier = ">=2022.4.0" },
@@ -1094,7 +1094,7 @@ sources = [
 ]
 streamlit = [{ name = "streamlit", specifier = ">1.50" }]
 workspace-deps = [
-    { name = "duckdb", specifier = ">=0.9" },
+    { name = "duckdb", specifier = ">=0.9,<2" },
     { name = "fastmcp", specifier = ">=3.1.0" },
     { name = "ibis-framework", specifier = ">=12.0.0" },
     { name = "marimo", specifier = ">=0.14.5" },
