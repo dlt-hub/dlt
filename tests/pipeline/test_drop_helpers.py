@@ -31,20 +31,18 @@ def test_drop_helper_utils(seen_data: bool) -> None:
     drop_info = prepare_drop_resources(
         pipeline.default_schema.clone(), pipeline.state, drop_all=True
     )
-    # no tables to drop
-    tables_to_drop = (
+    tables_with_data = (
         {"_schedule", "_peacock", "_wide_peacock", "_peacock__peacock", "_wide_peacock__peacock"}
         if seen_data
         else set()
     )
-    tables_to_drop_schema = (
-        tables_to_drop if seen_data else {"_schedule", "_peacock", "_wide_peacock"}
-    )
+    tables_to_drop = tables_with_data if seen_data else {"_schedule", "_peacock", "_wide_peacock"}
+    # tables without data are dropped in the destination too
     assert {t["name"] for t in drop_info.modified_tables} == tables_to_drop
     # no state mods
     assert drop_info.state["sources"]["airtable_emojis"] == {"resources": {}}
-    assert set(drop_info.info["tables"]) == tables_to_drop_schema
-    assert set(drop_info.info["tables_with_data"]) == tables_to_drop
+    assert set(drop_info.info["tables"]) == tables_to_drop
+    assert set(drop_info.info["tables_with_data"]) == tables_with_data
     # all tables got dropped
     assert drop_info.schema.data_tables(include_incomplete=True) == []
     # dlt tables still there
@@ -63,14 +61,10 @@ def test_drop_helper_utils(seen_data: bool) -> None:
         assert state["sources"]["airtable_emojis"] == {"resources": {}}
         # restore old state for next tests
         state["sources"]["airtable_emojis"] = emoji_state
-    if seen_data:
-        assert {t["name"] for t in package_state["dropped_tables"]} == tables_to_drop
-    else:
-        assert package_state == {"refresh": "drop_sources"}
+    assert {t["name"] for t in package_state["dropped_tables"]} == tables_to_drop
     assert source_clone.schema.data_tables(include_incomplete=True) == []
 
     # drop only selected resources
-    tables_to_drop = {"_schedule"} if seen_data else set()
     # seen_data means full run so we generate child tables in that case
     left_in_schema = (
         {"_peacock", "_wide_peacock", "_peacock__peacock", "_wide_peacock__peacock"}
@@ -80,7 +74,7 @@ def test_drop_helper_utils(seen_data: bool) -> None:
     drop_info = prepare_drop_resources(
         pipeline.default_schema.clone(), pipeline.state, resources=["📆 Schedule"]
     )
-    assert set(t["name"] for t in drop_info.modified_tables) == tables_to_drop
+    assert set(t["name"] for t in drop_info.modified_tables) == {"_schedule"}
     # no changes in state
     assert drop_info.state == pipeline.state
     assert set(drop_info.info["tables"]) == {"_schedule"}
@@ -91,10 +85,7 @@ def test_drop_helper_utils(seen_data: bool) -> None:
         package_state = prepare_refresh_source(pipeline, source_clone, refresh="drop_resources")
         # state not modified
         assert state["sources"]["airtable_emojis"] == {"resources": {"🦚Peacock": {"🦚🦚🦚": "🦚"}}}
-    if seen_data:
-        assert {t["name"] for t in package_state["dropped_tables"]} == tables_to_drop
-    else:
-        assert package_state == {"refresh": "drop_resources"}
+    assert {t["name"] for t in package_state["dropped_tables"]} == {"_schedule"}
     assert set(source_clone.schema.data_table_names(include_incomplete=True)) == left_in_schema
 
     # truncate only
@@ -177,11 +168,11 @@ def test_modified_state_in_package() -> None:
     info = pipeline.extract(airtable_emojis().with_resources("🦚Peacock"), refresh="drop_resources")
     normalize_storage = pipeline._get_normalize_storage()
     package_state = normalize_storage.extracted_packages.get_load_package_state(info.loads_ids[0])
-    # nothing to drop but the refresh mode is recorded and exposed on the package info
-    assert "dropped_tables" not in package_state
+    # the table never got data but is dropped too, the refresh mode is exposed on the package info
+    assert [t["name"] for t in package_state["dropped_tables"]] == ["_peacock"]
     assert package_state["refresh"] == "drop_resources"
     assert info.load_packages[0].refresh == "drop_resources"
-    assert not info.load_packages[0].dropped_tables
+    assert info.load_packages[0].dropped_tables == ["_peacock"]
     pipeline_state = decompress_state(package_state["pipeline_state"]["state"])
     # the state was reset to the original
     assert pipeline_state["sources"]["airtable_emojis"] == {

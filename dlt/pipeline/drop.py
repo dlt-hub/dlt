@@ -46,6 +46,7 @@ class _DropDryRunResult:
     state: TPipelineState
     info: _DropInfo
     modified_tables: List[TTableSchema]
+    """Tables to drop in the destination or, with `state_only`, tables with data to truncate."""
 
 
 def _create_modified_state(
@@ -124,23 +125,23 @@ def prepare_drop_resources(
 
     if resource_pattern:
         # (1) Don't remove _dlt tables (2) Drop all selected tables from the schema
-        # (3) Mark tables that seen data to be dropped in destination
+        # (3) Drop them in the destination too, a table missing there is skipped
         data_tables = {t["name"]: t for t in schema.data_tables(include_incomplete=True)}
         resource_tables = group_tables_by_resource(data_tables, pattern=resource_pattern)
         resource_names = list(resource_tables.keys())
         tables_to_drop_from_schema = list(chain.from_iterable(resource_tables.values()))
         tables_to_drop_from_schema.reverse()
         tables_to_drop_from_schema_names = [t["name"] for t in tables_to_drop_from_schema]
-        tables_to_drop_from_dest = [t for t in tables_to_drop_from_schema if has_table_seen_data(t)]
+        tables_with_data = [t for t in tables_to_drop_from_schema if has_table_seen_data(t)]
     else:
         tables_to_drop_from_schema_names = []
-        tables_to_drop_from_dest = []
+        tables_with_data = []
         tables_to_drop_from_schema = []
         resource_names = []
 
     info: _DropInfo = dict(
         tables=tables_to_drop_from_schema_names if not state_only else [],
-        tables_with_data=[t["name"] for t in tables_to_drop_from_dest] if not state_only else [],
+        tables_with_data=[t["name"] for t in tables_with_data] if not state_only else [],
         resource_states=[],
         state_paths=[],
         resource_names=resource_names if not state_only else [],
@@ -162,7 +163,8 @@ def prepare_drop_resources(
             f" {list(group_tables_by_resource(data_tables).keys())}"
         )
 
-    if not state_only:
-        # drop only the selected tables
-        schema.drop_tables(tables_to_drop_from_schema_names)
-    return _DropDryRunResult(schema, new_state, info, tables_to_drop_from_dest)
+    if state_only:
+        # truncating a table that never got data would create it in the destination
+        return _DropDryRunResult(schema, new_state, info, tables_with_data)
+    schema.drop_tables(tables_to_drop_from_schema_names)
+    return _DropDryRunResult(schema, new_state, info, tables_to_drop_from_schema)
