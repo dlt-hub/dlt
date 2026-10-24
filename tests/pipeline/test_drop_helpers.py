@@ -5,7 +5,7 @@ import dlt
 from dlt.common.schema.typing import LOADS_TABLE_NAME, PIPELINE_STATE_TABLE_NAME, VERSION_TABLE_NAME
 from dlt.common.versioned_state import decompress_state
 from dlt.pipeline.drop import prepare_drop_resources
-from dlt.pipeline.helpers import pipeline_drop, prepare_refresh_source
+from dlt.pipeline.helpers import add_import_tables, pipeline_drop, prepare_refresh_source
 
 from tests.pipeline.utils import airtable_emojis, assert_load_info
 
@@ -123,6 +123,27 @@ def test_drop_helper_utils(seen_data: bool) -> None:
     else:
         assert package_state == {"refresh": "drop_data"}
     assert set(source_clone.schema.data_table_names(include_incomplete=True)) == all_in_schema
+
+
+def test_add_import_tables() -> None:
+    """Restores the dropped tables from the import schema, parents before nested tables."""
+    pipeline = dlt.pipeline("test_add_import_tables", destination="duckdb")
+    pipeline.extract(airtable_emojis().with_resources("📆 Schedule", "🦚Peacock"))
+    pipeline.normalize()
+    import_schema = pipeline.default_schema.clone()
+    import_schema.tables["_schedule"]["description"] = "import only"
+    import_schema.update_table({"name": "_import_only", "columns": {}})
+    schema = pipeline.default_schema.clone()
+    drop_info = prepare_drop_resources(schema, pipeline.state, resources=["🦚Peacock"])
+    assert set(drop_info.info["tables"]) == {"_peacock", "_peacock__peacock"}
+
+    add_import_tables(schema, import_schema, drop_info.info["tables"])
+    table_names = list(schema.tables)
+    assert table_names.index("_peacock") < table_names.index("_peacock__peacock")
+    assert schema.tables["_peacock__peacock"] == import_schema.tables["_peacock__peacock"]
+    # tables that were not dropped are not touched, even when missing from the schema
+    assert "description" not in schema.tables["_schedule"]
+    assert "_import_only" not in schema.tables
 
 
 def test_drop_unknown_resource() -> None:

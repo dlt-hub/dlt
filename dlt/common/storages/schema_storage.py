@@ -1,5 +1,5 @@
 import yaml
-from typing import Iterator, List, Mapping, Tuple, cast
+from typing import Iterator, List, Mapping, Optional, Tuple, cast
 
 from dlt.common import logger
 from dlt.common.json import json
@@ -76,6 +76,17 @@ class SchemaStorage(Mapping[str, Schema]):
                 pass
         path = self._save_and_export_schema(schema)
         return path
+
+    def load_import_schema(self, name: str) -> Optional[Schema]:
+        """Loads schema `name` from the import path, linked to itself. Returns None if not present."""
+        if not self.config.import_schema_path:
+            return None
+        try:
+            schema = Schema.from_dict(self._load_import_schema(name))
+        except FileNotFoundError:
+            return None
+        schema._imported_version_hash = schema.version_hash
+        return schema
 
     def save_import_schema_if_not_exists(self, schema: Schema) -> bool:
         """Saves import schema, if not exists. If schema was saved, link itself as imported from"""

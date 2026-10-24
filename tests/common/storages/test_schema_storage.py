@@ -116,6 +116,18 @@ def test_save_does_not_link_stale_schema_to_current_import(ie_storage: SchemaSto
     assert loaded_schema._imported_version_hash == imported_schema.stored_version_hash
 
 
+def test_load_import_schema(ie_storage: SchemaStorage, storage: SchemaStorage) -> None:
+    """Loads the import schema linked to itself, without saving it to the storage."""
+    assert storage.load_import_schema("ethereum") is None
+    assert ie_storage.load_import_schema("ethereum") is None
+
+    imported_schema = prepare_eth_import_folder(ie_storage)
+    schema = ie_storage.load_import_schema("ethereum")
+    assert schema.version_hash == imported_schema.version_hash
+    assert schema._imported_version_hash == schema.version_hash
+    assert not ie_storage.has_schema("ethereum")
+
+
 def test_skip_import_if_not_modified(synced_storage: SchemaStorage, storage: SchemaStorage) -> None:
     storage_schema = assert_schema_imported(synced_storage, storage)
     assert not storage_schema.is_modified
