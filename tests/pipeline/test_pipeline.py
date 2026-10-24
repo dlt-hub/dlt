@@ -5662,8 +5662,9 @@ def test_nested_hints_write_disposition_merge() -> None:
     with pytest.raises(PipelineStepFailed) as excinfo:
         p.run(nested_data())
     assert isinstance(excinfo.value.__cause__, SchemaCorruptedException)
-    assert "All nested tables in a merge chain must share the root's `merge` write disposition" in str(
-        excinfo.value.__cause__
+    assert (
+        "All nested tables in a merge chain must share the root's `merge` write disposition"
+        in str(excinfo.value.__cause__)
     )
 
 

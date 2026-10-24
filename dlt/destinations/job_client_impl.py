@@ -1017,7 +1017,7 @@ class SqlJobClientWithStagingDataset(SqlJobClientBase, WithStagingDataset):
         if chain_write_disposition == "merge":
             return True
         elif chain_write_disposition == "replace" and (
-            chain_replace_strategy in ["insert-from-staging", "staging-optimized"]  # type: ignore[typeddict-item]
+            chain_replace_strategy in ["insert-from-staging", "staging-optimized"]
         ):
             return True
         return False
