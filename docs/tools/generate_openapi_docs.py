@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import argparse
 import importlib.util
+import json
 import pathlib
 import re
 import textwrap
@@ -116,7 +117,7 @@ def property_table(schema: Schema) -> str:
     for name, prop in properties.items():
         description = cell(field_description(prop))
         if "default" in prop and prop["default"] is not None:
-            description = f"{description} Default: `{prop['default']}`.".strip()
+            description = f"{description} Default: `{json.dumps(prop['default'])}`.".strip()
         rows.append(
             f"| `{name}` | {cell(type_str(prop))} | {'yes' if name in required else 'no'} |"
             f" {description} |"
