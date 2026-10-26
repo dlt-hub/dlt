@@ -58,9 +58,10 @@ cli-check: ## Checks CLI reference docs are up to date (CI)
 	uv --quiet run --script tools/generate_cli_docs.py website/docs/reference/command-line-interface.md --compare
 
 # the CLI, SDK and REST API references describe the newest dlthub-client on PyPI, alphas
-# included; 0.28.8a2 is the first that bundles the API specs. A prerelease specifier enables
-# alphas for that package only, so dlthub stays on stable releases in the range of dlt's `hub` extra
-HUB_CLIENT_REQ ?= dlthub-client>=0.28.8a2
+# included; 0.28.8a3 is the first that bundles the reviewed API specs and SDK docs. A prerelease
+# specifier enables alphas for that package only, so dlthub stays on stable releases in the range
+# of dlt's `hub` extra
+HUB_CLIENT_REQ ?= dlthub-client>=0.28.8a3
 HUB_DLTHUB_REQ := dlthub>=0.30,<0.32
 HUB_RUN = uv --quiet run --isolated --no-project --prerelease explicit \
 	--refresh-package dlthub --refresh-package dlthub-client --with "$(HUB_CLIENT_REQ)"
