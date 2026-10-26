@@ -598,7 +598,8 @@ const sidebars = {
         "hub/reference/api/telemetry-api",
       ],
     },
-    "hub/reference/python-sdk",
+    // replaced by the generated category of all python sdk pages, see below
+    "hub/reference/python-sdk/index",
     "hub/license",
   ],
   cookbookSidebar: [
@@ -659,6 +660,16 @@ if (fs.existsSync("./docs_processed/api_reference/sidebar.json")) {
       item.items.splice(0, 0, require("./docs_processed/api_reference/sidebar.json"));
     }
   }
+}
+
+// inject the python sdk reference pages, generated with their sidebar into docs_processed by the
+// build and into docs by `make md-check`
+const sdkSidebar = ["docs_processed", "docs"]
+  .map((dir) => `./${dir}/hub/reference/python-sdk/sidebar.json`)
+  .find((file) => fs.existsSync(file));
+if (sdkSidebar) {
+  const index = sidebars.hubSidebar.indexOf("hub/reference/python-sdk/index");
+  sidebars.hubSidebar.splice(index, 1, require(sdkSidebar));
 }
 
 module.exports = sidebars;

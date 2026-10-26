@@ -135,15 +135,15 @@ api-generate-hub: ## Generates the runtime REST API reference into `website/docs
 		$(if $(RUNTIME_OPENAPI_DIR),--spec-dir $(RUNTIME_OPENAPI_DIR))
 
 # read with griffe, without importing the package
-SDK_DOCS ?= website/docs_processed/hub/reference/python-sdk.md
+SDK_DOCS_DIR ?= website/docs_processed/hub/reference/python-sdk
 sdk-generate-hub: ## Generates the Python SDK reference into `website/docs_processed`
-	$(HUB_RUN) --with "griffe>=1.5" python tools/generate_sdk_docs.py $(SDK_DOCS)
+	$(HUB_RUN) --with "griffe>=1.5" python tools/generate_sdk_docs.py $(SDK_DOCS_DIR)
 
 # links into the generated hub references resolve against fresh, git-ignored copies
 md-check:  ## Check markdown file formatting errors in website/docs
 	$(MAKE) cli-generate-hub HUB_CLI_DOCS=website/docs/hub/command-line-interface.md
 	$(MAKE) api-generate-hub API_DOCS_DIR=website/docs/hub/reference/api
-	$(MAKE) sdk-generate-hub SDK_DOCS=website/docs/hub/reference/python-sdk.md
+	$(MAKE) sdk-generate-hub SDK_DOCS_DIR=website/docs/hub/reference/python-sdk
 	uv run mdsmith check website/docs
 
 md-fix:  ## Fix markdown file formatting errors in website/docs

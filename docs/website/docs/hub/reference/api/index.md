@@ -6,7 +6,7 @@ keywords: [dlthub, runtime, rest api, openapi, api key, authentication]
 # REST API reference
 
 :::info
-The REST API and the [Python SDK](../python-sdk.md) are in public preview. Their interfaces will
+The REST API and the [Python SDK](../python-sdk/index.md) are in public preview. Their interfaces will
 remain stable from this point onward and will only be extended.
 :::
 
