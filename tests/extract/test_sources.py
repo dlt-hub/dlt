@@ -1034,6 +1034,30 @@ def test_limit_empty_batches() -> None:
     assert counter == 3
 
 
+def test_limit_skips_hints_only_items() -> None:
+    counter = 0
+
+    @dlt.resource
+    def pages():
+        nonlocal counter
+        # an empty list with hints is not a page
+        yield dlt.mark.with_hints(
+            [], dlt.mark.make_hints(columns=[{"name": "hinted", "data_type": "text"}])
+        )
+        for i in range(3):
+            counter += 1
+            yield [{"id": i}]
+
+    assert list(pages().add_limit(1)) == [{"id": 0}]
+    assert counter == 1
+    assert list(pages().add_limit(1, count_rows=True)) == [{"id": 0}]
+
+    # hints still reach the extractor
+    pipeline = dlt.pipeline(dev_mode=True)
+    pipeline.extract(pages().add_limit(1))
+    assert "hinted" in pipeline.default_schema.get_table_columns("pages")
+
+
 def test_limit_skip_filtered_batches() -> None:
     counter = 0
 

@@ -97,18 +97,6 @@ class TResourceHints(TResourceHintsBase, total=False):
     additional_table_hints: Optional[Dict[str, TTableHintTemplate[Any]]]
 
 
-class HintsMeta:
-    __slots__ = ("hints", "create_table_variant")
-
-    def __init__(
-        self,
-        hints: TResourceHints,
-        create_table_variant: bool,
-    ) -> None:
-        self.hints = hints
-        self.create_table_variant = create_table_variant
-
-
 NATURAL_CALLABLES = ["incremental", "validator", "original_columns"]
 
 

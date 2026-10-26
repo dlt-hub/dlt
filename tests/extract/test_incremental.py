@@ -5245,6 +5245,21 @@ def test_end_range_monotonic(
     assert items == expected_items
 
 
+@pytest.mark.parametrize("item_type", ALL_TEST_DATA_ITEM_FORMATS)
+def test_incremental_forwards_empty_lists(item_type: TestDataItemFormat) -> None:
+    """Empty lists pass so hints-only items and materialized tables reach the extractor. Items
+    with all rows filtered out are consumed."""
+    incr = bind_state(dlt.sources.incremental[int]("v", initial_value=10), 10)
+    empty: List[Any] = []
+    assert incr(empty) is empty
+    materialized = dlt.mark.materialize_table_schema()
+    assert incr(materialized) is materialized
+
+    # all rows are below the start value
+    filtered = data_to_item_format(item_type, [{"v": 1}, {"v": 2}])
+    assert incr(filtered if item_type == "object" else filtered[0]) is None
+
+
 @pytest.mark.parametrize("offset_by_last_value", [True, False])
 def test_incremental_and_limit(offset_by_last_value: bool):
     resource_called = 0

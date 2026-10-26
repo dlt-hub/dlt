@@ -25,9 +25,9 @@ from dlt.common.schema.typing import (
 from dlt.common.libs.sqlglot import filter_select_column_names
 from dlt.common.normalizers.json import helpers as normalize_helpers
 
-from dlt.extract.hints import HintsMeta, TResourceHints
+from dlt.extract.hints import TResourceHints
 from dlt.extract.resource import DltResource
-from dlt.extract.items import DataItemWithMeta, TableNameMeta
+from dlt.extract.items import DataItemWithMeta, HintsMeta, TableNameMeta
 from dlt.extract.storage import ExtractorItemStorage
 from dlt.extract.utils import get_arrow_fields
 from dlt.normalize.configuration import ItemsNormalizerConfiguration

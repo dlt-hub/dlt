@@ -23,7 +23,7 @@ from dlt.extract.utils import (
     wrap_iterator,
 )
 
-from dlt.extract.items import SupportsPipe
+from dlt.extract.items import HintsMeta, SupportsPipe
 
 
 ItemTransformFunctionWithMeta = Callable[[TDataItem, str], TAny]
@@ -213,6 +213,10 @@ class LimitItem(ItemTransform[TDataItem, Dict[str, Any]]):
         # do not return any late arriving items
         if self.exhausted:
             return None
+
+        # an empty list that carries hints is not a page
+        if isinstance(meta, HintsMeta) and isinstance(item, list) and not item:
+            return item
 
         if self.count_rows:
             self.count += count_rows_in_items(item)

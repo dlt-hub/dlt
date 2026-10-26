@@ -58,6 +58,7 @@ from dlt.extract.utils import (
 )
 from dlt.extract.items import (
     DataItemWithMeta,
+    HintsMeta,
     TableNameMeta,
 )
 from dlt.extract.items_transform import (
@@ -74,7 +75,7 @@ from dlt.extract.items_transform import (
 from dlt.extract.state import resource_state
 from dlt.extract.pipe_iterator import ManagedPipeIterator
 from dlt.extract.pipe import Pipe
-from dlt.extract.hints import DltResourceHints, HintsMeta, TResourceHints
+from dlt.extract.hints import DltResourceHints, TResourceHints
 from dlt.extract.incremental import Incremental, IncrementalResourceWrapper
 from dlt.extract.exceptions import (
     DataLocationKindRequired,
