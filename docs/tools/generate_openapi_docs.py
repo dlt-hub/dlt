@@ -27,12 +27,13 @@ from mdx_utils import escape_mdx
 DOCS_DIR = pathlib.Path(__file__).resolve().parents[1]
 DEFAULT_OUTPUT_DIR = DOCS_DIR / "website" / "docs_processed" / "hub" / "reference" / "api"
 
-#: spec file stem -> (page slug, sidebar label); also the page order
+#: spec file stem -> (page slug, sidebar label, base URL and token in curl examples); also the
+#: page order
 SERVICES = {
-    "api": ("runtime-api", "Runtime API"),
-    "dataplane_api": ("dataplane-api", "Dataplane API"),
-    "telemetry": ("telemetry-api", "Telemetry API"),
-    "logs": ("logs-api", "Logs API"),
+    "api": ("runtime-api", "Runtime API", "https://api.dlthub.com", "$DLTHUB_API_KEY"),
+    "dataplane_api": ("dataplane-api", "Dataplane API", "$DATAPLANE_URL", "$DATAPLANE_TOKEN"),
+    "telemetry": ("telemetry-api", "Telemetry API", "$DATAPLANE_URL", "$DATAPLANE_TOKEN"),
+    "logs": ("logs-api", "Logs API", "$DATAPLANE_URL", "$DATAPLANE_TOKEN"),
 }
 
 HTTP_METHODS = ("get", "post", "put", "patch", "delete")
@@ -191,7 +192,9 @@ def render_responses(responses: Dict[str, Schema]) -> str:
     return "**Responses**\n\n" + "\n".join(rows) + "\n\n"
 
 
-def render_operation(method: str, path: str, operation: Schema) -> str:
+def render_operation(
+    spec: Schema, method: str, path: str, operation: Schema, base_url: str, token: str
+) -> str:
     operation_id = operation["operationId"]
     md = f"### {operation_title(operation)} {{#{operation_id}}}\n\n"
     md += f"```text\n{method.upper()} {path}\n```\n\n"
@@ -202,15 +205,96 @@ def render_operation(method: str, path: str, operation: Schema) -> str:
         md += description + "\n\n"
     md += render_parameters(operation.get("parameters") or [])
     md += render_request_body(operation.get("requestBody"))
+    md += render_curl_example(spec, method, path, operation, base_url, token)
     md += render_responses(operation.get("responses") or {})
     return md
+
+
+def resolve(spec: Schema, schema: Schema) -> Schema:
+    while "$ref" in schema:
+        schema = spec["components"]["schemas"][ref_name(schema["$ref"])]
+    return schema
+
+
+def example_value(spec: Schema, name: str, schema: Schema, depth: int = 0) -> Any:
+    """Placeholder value for a field: its default or first enum value, else one of its type."""
+    schema = resolve(spec, schema)
+    if schema.get("default") is not None:
+        return schema["default"]
+    if schema.get("enum"):
+        return schema["enum"][0]
+    if "const" in schema:
+        return schema["const"]
+    for key in ("anyOf", "oneOf", "allOf"):
+        variants = [v for v in schema.get(key, []) if v.get("type") != "null"]
+        if variants:
+            return example_value(spec, name, variants[0], depth)
+    schema_type = schema.get("type")
+    if schema_type == "array":
+        item = example_value(spec, name, schema.get("items", {}), depth)
+        return [item] if item != {} else []
+    if schema_type == "object" or "properties" in schema:
+        return example_body(spec, schema, depth + 1)
+    if schema_type == "integer" or schema_type == "number":
+        return 0
+    if schema_type == "boolean":
+        return False
+    return f"<{name}>"
+
+
+def example_body(spec: Schema, schema: Schema, depth: int = 0) -> Dict[str, Any]:
+    """Required fields of an object schema with placeholder values, all fields if none is."""
+    schema = resolve(spec, schema)
+    if depth > 3:
+        return {}
+    properties = schema.get("properties") or {}
+    names = [name for name in schema.get("required") or [] if name in properties]
+    return {
+        name: example_value(spec, name, properties[name], depth) for name in names or properties
+    }
+
+
+def path_variable(match: "re.Match[str]") -> str:
+    return "$" + match.group(1).upper()
+
+
+def render_curl_example(
+    spec: Schema, method: str, path: str, operation: Schema, base_url: str, token: str
+) -> str:
+    url = base_url + re.sub(r"{(\w+)}", path_variable, path)
+    # uploads take the token returned by the matching `-issue-upload` operation
+    if path.endswith("/-upload"):
+        token = "$UPLOAD_TOKEN"
+    request = f'curl "{url}"' if method == "get" else f'curl -X {method.upper()} "{url}"'
+    lines = [request, f'-H "Authorization: Bearer {token}"']
+    content = (operation.get("requestBody") or {}).get("content") or {}
+    if "application/json" in content:
+        body = example_body(spec, content["application/json"].get("schema", {}))
+        lines.append('-H "Content-Type: application/json"')
+        data = json.dumps(body)
+        if len(data) > 60:
+            fields = ",\n".join(f"    {json.dumps(k)}: {json.dumps(v)}" for k, v in body.items())
+            data = "{\n" + fields + "\n  }"
+        lines.append(f"-d '{data}'")
+    elif "multipart/form-data" in content:
+        schema = resolve(spec, content["multipart/form-data"].get("schema", {}))
+        for name, prop in (schema.get("properties") or {}).items():
+            if prop.get("format") == "binary":
+                lines.append(f'-F "{name}=@<{name}>"')
+            else:
+                lines.append(f'-F "{name}={example_value(spec, name, prop)}"')
+    command = " \\\n  ".join(lines)
+    return (
+        "<details>\n<summary>Example request</summary>\n\n"
+        f"```sh\n{command}\n```\n\n</details>\n\n"
+    )
 
 
 def tag_label(tag: str) -> str:
     return tag.replace("-", " ").capitalize()
 
 
-def render_spec(spec: Schema, slug: str, label: str) -> str:
+def render_spec(spec: Schema, slug: str, label: str, base_url: str, token: str) -> str:
     info = spec.get("info", {})
     md = "---\n"
     md += f"title: {label}\n"
@@ -226,7 +310,9 @@ def render_spec(spec: Schema, slug: str, label: str) -> str:
             if method in item:
                 operation = item[method]
                 tag = (operation.get("tags") or ["endpoints"])[0]
-                by_tag.setdefault(tag, []).append(render_operation(method, path, operation))
+                by_tag.setdefault(tag, []).append(
+                    render_operation(spec, method, path, operation, base_url, token)
+                )
     for tag in sorted(by_tag):
         md += f"## {tag_label(tag)}\n\n" + "".join(by_tag[tag])
 
@@ -267,12 +353,12 @@ def main() -> None:
         print(f"Reading the OpenAPI specs of dlthub-client {version('dlthub-client')}")
 
     args.output_dir.mkdir(parents=True, exist_ok=True)
-    for stem, (slug, label) in SERVICES.items():
+    for stem, (slug, label, base_url, token) in SERVICES.items():
         spec_path = args.spec_dir / f"{stem}.openapi.yaml"
         with open(spec_path, encoding="utf-8") as f:
             spec = yaml.safe_load(f)
         (args.output_dir / f"{slug}.md").write_text(
-            render_spec(spec, slug, label), encoding="utf-8"
+            render_spec(spec, slug, label, base_url, token), encoding="utf-8"
         )
     print(f"Generated {len(SERVICES)} API reference pages in {args.output_dir}")
 
