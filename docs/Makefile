@@ -57,11 +57,21 @@ cli-generate: ## Regenerates CLI reference docs
 cli-check: ## Checks CLI reference docs are up to date (CI)
 	uv --quiet run --script tools/generate_cli_docs.py website/docs/reference/command-line-interface.md --compare
 
-# the CLI, SDK and REST API references describe the newest dlthub-client on PyPI, alphas
-# included; 0.28.8a3 is the first that bundles the reviewed API specs and SDK docs. A prerelease
-# specifier enables alphas for that package only, so dlthub stays on stable releases in the range
-# of dlt's `hub` extra
-HUB_CLIENT_REQ ?= dlthub-client>=0.28.8a3
+# the CLI, SDK and REST API references describe the newest stable dlthub-client on PyPI from
+# 0.28.8 on, the first stable release that bundles the API specs and SDK docs. Only a prerelease
+# specifier enables alphas, so the stable requirement and dlthub stay on stable releases
+HUB_CLIENT_STABLE_REQ := dlthub-client>=0.28.8
+# TODO: remove the alpha fallback below once dlthub-client 0.28.8 is released and set
+# `HUB_CLIENT_REQ ?= $(HUB_CLIENT_STABLE_REQ)`. It only lets the docs build from the 0.28.8
+# alphas until then, and switches to the stable release on its own when it is out
+HUB_CLIENT_ALPHA_REQ := dlthub-client>=0.28.8a3
+ifndef HUB_CLIENT_REQ
+HUB_CLIENT_REQ := $(shell echo "$(HUB_CLIENT_STABLE_REQ)" | uv pip compile --quiet --no-deps \
+	--refresh-package dlthub-client - >/dev/null 2>&1 \
+	&& echo "$(HUB_CLIENT_STABLE_REQ)" || echo "$(HUB_CLIENT_ALPHA_REQ)")
+endif
+# resolved once, the generate targets that `preprocess-docs` runs reuse it
+export HUB_CLIENT_REQ
 HUB_DLTHUB_REQ := dlthub>=0.30,<0.32
 HUB_RUN = uv --quiet run --isolated --no-project --prerelease explicit \
 	--refresh-package dlthub --refresh-package dlthub-client --with "$(HUB_CLIENT_REQ)"
