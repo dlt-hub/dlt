@@ -117,7 +117,7 @@ snippets-typecheck:
 snippets-test:
 	uv run pytest test_snippets.py::test_run_snippets
 
-# set to a folder of specs, e.g. a runtime checkout's clients/cli/tools/runtime_clients
+# set to a folder of specs, e.g. a runtime checkout's clients/cli/dlthub_sdk/_specs
 RUNTIME_OPENAPI_DIR ?=
 API_DOCS_DIR ?= website/docs_processed/hub/reference/api
 api-generate-hub: ## Generates the runtime REST API reference into `website/docs_processed`

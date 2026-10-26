@@ -5,6 +5,11 @@ keywords: [dlthub, runtime, rest api, openapi, api key, authentication]
 ---
 # REST API reference
 
+:::info
+The REST API and the [Python SDK](../python-sdk.md) are in public preview. Their endpoints and
+SDK interfaces will most likely remain stable from this point onward.
+:::
+
 The dltHub Runtime has a REST API for everything the `dlthub` [CLI](../../command-line-interface.md) and the
 [dltHub web app](https://app.dlthub.com) do: manage workspaces, deploy code, trigger and
 cancel jobs, read run logs and pipeline telemetry.
@@ -99,7 +104,8 @@ cannot.
 
 Uploading a deployment or configuration takes its own token: the `-issue-upload` operations of
 the [Runtime API](runtime-api.md) return an `upload_token` and the `upload_url` to send the
-files to, both valid for one upload and 10 minutes.
+files to. The token is valid for 10 minutes and only for the deployment or configuration it
+was issued for.
 
 ## Lists and pagination
 
@@ -128,10 +134,11 @@ A failed request answers with a 4xx or 5xx status and an error body:
 }
 ```
 
-`detail` is meant for people. Check `code` in programs: 4xx errors carry one, for example
+`detail` is meant for people. Check `code` in programs: most 4xx errors carry one, for example
 `token_expired` when a data plane token ran out or `permission_denied` when your role does
 not allow the call. New codes can be added at any time, so treat a code you do not know like
-any other error of its status. 5xx errors carry no code.
+any other error of its status. Errors without a code, such as a 404 for an unknown path or a
+path parameter that is not a valid ID, and all 5xx errors, are told apart by their status only.
 
 ## Versioning
 
