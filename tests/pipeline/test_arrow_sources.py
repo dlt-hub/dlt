@@ -857,6 +857,46 @@ def test_arrow_table_variant_hints() -> None:
     assert len(rows["table_b"]) == 2
 
 
+@pytest.mark.parametrize("item_type", ["pandas", "arrow-table", "arrow-batch"])
+@pytest.mark.parametrize("dispatch", ["function", "mark"])
+def test_arrow_dynamic_table_name(item_type: TPythonTableFormat, dispatch: str) -> None:
+    """Arrow items are dispatched with a table name function or `dlt.mark.with_table_name`.
+    The function receives pandas frames as arrow tables.
+    """
+
+    def table_name(t: Any) -> str:
+        return f"{t.column('kind')[0].as_py()}_events"
+
+    pages = [
+        pa.table({"kind": ["click"], "id": [1]}),
+        pa.table({"kind": ["view"], "id": [2]}),
+        # a new column on a later item evolves the dispatched table
+        pa.table({"kind": ["click"], "id": [3], "button": ["left"]}),
+    ]
+
+    @dlt.resource(name="events", table_name=table_name if dispatch == "function" else None)
+    def events():
+        for page in pages:
+            item = arrow_item_from_table(page, item_type)
+            yield dlt.mark.with_table_name(item, table_name(page)) if dispatch == "mark" else item
+
+    pipeline = dlt.pipeline("arrow_" + uniq_id(), destination="duckdb")
+    pipeline.run(events())
+
+    assert_only_table_columns(pipeline, "click_events", ["kind", "id", "button"])
+    assert_only_table_columns(pipeline, "view_events", ["kind", "id"])
+    rows = load_tables_to_dicts(
+        pipeline, "click_events", "view_events", exclude_system_cols=True, sortkey="id"
+    )
+    assert rows == {
+        "click_events": [
+            {"kind": "click", "id": 1, "button": None},
+            {"kind": "click", "id": 3, "button": "left"},
+        ],
+        "view_events": [{"kind": "view", "id": 2}],
+    }
+
+
 TZ_COLUMNS: Any = {
     "id": {"data_type": "bigint"},
     "ts_aware": {"data_type": "timestamp", "timezone": True},

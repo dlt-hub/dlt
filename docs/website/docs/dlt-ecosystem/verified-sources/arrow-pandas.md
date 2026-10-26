@@ -91,6 +91,25 @@ pipeline.run(orders)
 
 Note: The data in the table must be compatible with the destination database as no data conversion is performed. Refer to the documentation of the destination for information about supported data types.
 
+### Load to many tables
+
+To send each table or frame to a table that depends on its data, pass a function as `table_name`. The function receives the item as an Arrow table, also when you yield a Pandas or Polars frame:
+
+```py
+import dlt
+import pyarrow as pa
+
+@dlt.resource(table_name=lambda t: t.column("event_type")[0].as_py())
+def events():
+    yield pa.table({"event_type": ["click", "click"], "id": [1, 2]})
+    yield pa.table({"event_type": ["view"], "id": [3]})
+
+pipeline = dlt.pipeline("events_pipeline", destination="duckdb")
+pipeline.run(events)
+```
+
+All rows of an item go to one table. To split the rows of one item, yield one item per table.
+
 ## Destination support
 
 Destinations that support the Parquet format natively will have the data files uploaded directly as possible. Rewriting files can be avoided completely in many cases.

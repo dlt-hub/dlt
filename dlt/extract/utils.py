@@ -1,6 +1,8 @@
 import inspect
 from typing import (
+    TYPE_CHECKING,
     Callable,
+    Dict,
     Optional,
     Tuple,
     Union,
@@ -51,6 +53,9 @@ from dlt.extract.exceptions import (
 )
 from dlt.extract.items import TTableHintTemplate
 
+if TYPE_CHECKING:
+    from dlt.common.libs.pyarrow import pyarrow as pa
+
 
 def get_data_item_format(items: TDataItems) -> TDataItemFormat:
     """Detect the format of the data item from `items`.
@@ -79,6 +84,19 @@ def get_data_item_format(items: TDataItems) -> TDataItemFormat:
     except IndexError:
         pass
     return "object"
+
+
+def get_arrow_fields(items: TDataItems) -> Dict[str, "pa.Field"]:
+    """Returns arrow fields of `items` by name, later items override earlier ones."""
+    from dlt.common.libs.pyarrow import pyarrow
+
+    fields: Dict[str, "pa.Field"] = {}
+    for item in items if isinstance(items, list) else [items]:
+        for field in item.schema:
+            # null fields do not create columns
+            if not pyarrow.types.is_null(field.type):
+                fields[field.name] = field
+    return fields
 
 
 def resolve_column_value(
