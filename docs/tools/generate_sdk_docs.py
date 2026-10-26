@@ -45,9 +45,10 @@ SECTIONS = {
 }
 
 INTRO = """\
-:::caution Beta release
-The Python SDK is in beta. Its API is stable and will only be extended, but its packaging may
-change: it can move to another PyPI package and another top-level package name than
+:::info
+The Python SDK and the [REST API](api/index.md) are in public preview. Their interfaces will
+remain stable from this point onward and will only be extended. The packaging of the SDK may
+still change: it can move to another PyPI package and another top-level package name than
 `{package}`.
 :::
 

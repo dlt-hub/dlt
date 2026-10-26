@@ -6,8 +6,8 @@ keywords: [dlthub, runtime, rest api, openapi, api key, authentication]
 # REST API reference
 
 :::info
-The REST API and the [Python SDK](../python-sdk.md) are in public preview. Their endpoints and
-SDK interfaces will most likely remain stable from this point onward.
+The REST API and the [Python SDK](../python-sdk.md) are in public preview. Their interfaces will
+remain stable from this point onward and will only be extended.
 :::
 
 The dltHub Runtime has a REST API for everything the `dlthub` [CLI](../../command-line-interface.md) and the
