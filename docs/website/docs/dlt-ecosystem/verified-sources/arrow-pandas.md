@@ -208,7 +208,7 @@ If you want to skip the default `dlt` JSON normalizer, you can use any available
 import duckdb
 
 conn = duckdb.connect()
-table = conn.execute("SELECT * FROM read_json_auto('./json_file_path')").fetch_arrow_table()
+table = conn.sql("SELECT * FROM read_json_auto('./json_file_path')").to_arrow_table()
 ```
 
 Note that **duckdb** and **pyarrow** methods will generate [nested types](#loading-nested-types) for nested data, which are only partially supported by `dlt`.
