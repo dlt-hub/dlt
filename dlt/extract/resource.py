@@ -44,7 +44,6 @@ from dlt.common.pipeline import (
 from dlt.common.utils import (
     flatten_list_or_items,
     get_callable_name,
-    get_full_callable_name,
     uniq_id,
     without_none,
     simple_repr,
@@ -56,6 +55,7 @@ from dlt.extract.utils import (
     make_schema_with_default_name,
     wrap_parallel_iterator,
     dynstr,
+    get_code_ref,
 )
 from dlt.extract.items import (
     DataItemWithMeta,
@@ -181,11 +181,9 @@ class DltResource(Iterable[TDataItem], DltResourceHints):
             if inject_config:
                 r_._inject_config()
         else:
-            code_ref: str = None
+            code_ref = get_code_ref(data)
             if callable(data):
                 name = name or get_callable_name(data)
-                if inspect.isfunction(data):
-                    code_ref = get_full_callable_name(data)
 
             # if generator, take name from it
             if inspect.isgenerator(data):

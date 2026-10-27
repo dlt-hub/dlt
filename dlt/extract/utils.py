@@ -42,7 +42,12 @@ from dlt.common.typing import (
     TColumnNames,
     NoneType,
 )
-from dlt.common.utils import get_callable_name, digest128
+from dlt.common.utils import (
+    get_callable_name,
+    get_full_callable_name,
+    get_main_module_name,
+    digest128,
+)
 
 from dlt.extract.exceptions import (
     InvalidResourceDataTypeIsNone,
@@ -379,3 +384,29 @@ class dynstr(str):
 
     def __call__(self, param: Any) -> str:
         return self.dyn(param)
+
+
+def get_code_ref(data: Any) -> Optional[str]:
+    """Returns the fully qualified name of the function `data` is or was created from.
+
+    Returns `None` for data that is not a function or a generator, and for anonymous code like
+    lambdas or generator expressions, whose names are not unique within a module.
+    """
+    if inspect.isfunction(data):
+        ref = get_full_callable_name(data)
+    elif inspect.isgenerator(data) or inspect.isasyncgen(data):
+        # a generator keeps its function name but not its module, take it from the frame
+        frame = data.gi_frame if inspect.isgenerator(data) else data.ag_frame
+        if frame is None:
+            return None
+        module = frame.f_globals.get("__name__")
+        if not module:
+            return None
+        if module == "__main__":
+            module = get_main_module_name()
+        ref = module + "." + data.__qualname__
+    else:
+        return None
+    if any(part.startswith("<") and part != "<locals>" for part in ref.split(".")):
+        return None
+    return ref

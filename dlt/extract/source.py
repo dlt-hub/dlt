@@ -586,9 +586,12 @@ class DltSource(Iterable[TDataItem]):
         If `with_name` is provided, a schema is cloned with a changed name
         """
         # mind that resources and pipes are cloned when added to the DltResourcesDict in the source constructor
-        return DltSource(
+        source = DltSource(
             self.schema.clone(with_name=with_name), self.section, list(self._resources.values())
         )
+        if factory := getattr(self, "_factory", None):
+            source._factory = factory
+        return source
 
     def __iter__(self) -> Generator[TDataItem, None, None]:
         """Opens iterator that yields the data items from all the resources within the source in the same order as in Pipeline class.

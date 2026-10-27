@@ -10,7 +10,7 @@ from dlt.common.libs.pyarrow import pyarrow as pa
 from dlt.extract import utils as extract_utils
 from dlt.extract.utils import ensure_table_schema_columns_hint
 from dlt.extract.utils import ensure_table_schema_columns
-from dlt.extract.utils import digest_dedup_value, resolve_column_value
+from dlt.extract.utils import digest_dedup_value, resolve_column_value, get_code_ref
 from dlt.extract.decorators import resource
 
 from tests.cases import TABLE_UPDATE
@@ -164,3 +164,44 @@ def test_dedup_hash_pins_datetime_instant(json_impl: str, value: Any) -> None:
     utc = ALL_TYPES["ts_utc_stdlib"]
     expected = digest_dedup_value({"k": [utc, {"ts": utc}]})
     assert digest_dedup_value({"k": [value, {"ts": value}]}) == expected, json_impl
+
+
+def _gen():
+    yield 1
+
+
+async def _agen():
+    yield 1
+
+
+class _Api:
+    def items(self):
+        yield 1
+
+
+def test_get_code_ref() -> None:
+    module = "tests.extract.test_utils"
+    assert get_code_ref(_gen) == f"{module}._gen"
+    # generators and async generators are named after their function
+    assert get_code_ref(_gen()) == f"{module}._gen"
+    assert get_code_ref(_agen()) == f"{module}._agen"
+    assert get_code_ref(_Api().items()) == f"{module}._Api.items"
+
+    def inner():
+        yield 1
+
+    assert get_code_ref(inner) == f"{module}.test_get_code_ref.<locals>.inner"
+
+    # an exhausted generator has no frame to take the module from
+    exhausted = _gen()
+    list(exhausted)
+    assert get_code_ref(exhausted) is None
+
+    # anonymous code shares its name with other code in the module
+    assert get_code_ref(lambda: [1]) is None
+    assert get_code_ref(x for x in [1]) is None
+
+    # data does not come from code that can be named
+    assert get_code_ref([1]) is None
+    assert get_code_ref(iter([1])) is None
+    assert get_code_ref(_Api().items) is None

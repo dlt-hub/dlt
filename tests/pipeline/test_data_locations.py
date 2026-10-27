@@ -1,8 +1,13 @@
+import asyncio
+import json
 import os
-from typing import Any, Dict, List, cast
+from typing import Any, Callable, Dict, List, cast
+
+import pytest
 
 import dlt
 from dlt.common.metrics import TDatasetDataLocation, data_location_version
+from dlt.common.runners import Venv
 from dlt.common.utils import digest128, uniq_id
 
 from tests.pipeline.utils import assert_load_info
@@ -252,5 +257,110 @@ def test_code_input_location_joins_pipelines_of_the_same_source() -> None:
             "kind": "code",
             "location": "tests.pipeline.test_data_locations.orders_with_nested",
             "resource_name": "orders",
+        }
+    ]
+
+
+def _rows() -> Any:
+    yield [{"id": 1}]
+
+
+async def _async_rows() -> Any:
+    yield {"id": 1}
+
+
+def _passthrough(item: Any) -> Any:
+    yield item
+
+
+@dlt.resource
+def users() -> Any:
+    yield [{"id": 1}]
+
+
+@dlt.source
+def shop() -> Any:
+    return users, dlt.resource([{"id": 1}], name="static")
+
+
+@dlt.source
+async def async_shop() -> Any:
+    return users
+
+
+def _inner_resource() -> Any:
+    @dlt.resource
+    def inner() -> Any:
+        yield [{"id": 1}]
+
+    return inner()
+
+
+MODULE = "tests.pipeline.test_data_locations"
+
+
+@pytest.mark.parametrize(
+    "data,expected",
+    [
+        # plain data and anonymous code have no location, a transformer has its parent instead
+        (lambda: [{"id": 1}], {}),
+        (lambda: iter([{"id": 1}]), {}),
+        (lambda: dlt.resource(lambda: [{"id": 1}], name="t"), {}),
+        (lambda: (x for x in [{"id": 1}]), {}),
+        (
+            lambda: dlt.resource([{"id": 1}], name="t") | dlt.transformer(name="tr")(_passthrough),
+            {},
+        ),
+        # generators are named after their function
+        (lambda: _rows(), {"t": f"{MODULE}._rows"}),
+        (lambda: _async_rows(), {"t": f"{MODULE}._async_rows"}),
+        (lambda: _inner_resource(), {"inner": f"{MODULE}._inner_resource.<locals>.inner"}),
+        (lambda: users.with_name("renamed")(), {"renamed": f"{MODULE}.users"}),
+        # resources of a source point at the source, however the source was obtained
+        (lambda: shop(), {"users": f"{MODULE}.shop", "static": f"{MODULE}.shop"}),
+        (lambda: shop, {"users": f"{MODULE}.shop", "static": f"{MODULE}.shop"}),
+        (lambda: shop().with_resources("static"), {"static": f"{MODULE}.shop"}),
+        (
+            lambda: shop().clone(with_name="shop_2"),
+            {"users": f"{MODULE}.shop", "static": f"{MODULE}.shop"},
+        ),
+        (lambda: asyncio.run(async_shop()), {"users": f"{MODULE}.async_shop"}),  # type: ignore[arg-type]
+        # a resource taken out of its source is on its own
+        (lambda: shop().resources["users"], {"users": f"{MODULE}.users"}),
+    ],
+    ids=[
+        "list",
+        "iterator",
+        "lambda_resource",
+        "generator_expression",
+        "transformer_over_list",
+        "generator",
+        "async_generator",
+        "inner_resource",
+        "renamed_resource",
+        "source",
+        "source_factory",
+        "source_with_resources",
+        "source_clone",
+        "async_source",
+        "resource_of_source",
+    ],
+)
+def test_code_input_location_of_data(data: Callable[[], Any], expected: Dict[str, str]) -> None:
+    pipeline = dlt.pipeline(pipeline_name="code_" + uniq_id())
+    inputs = _inputs(pipeline.extract(data(), table_name="t"))
+    assert all(location["kind"] == "code" for location in inputs)
+    assert {location["resource_name"]: location["location"] for location in inputs} == expected
+
+
+def test_code_input_location_of_module_run_as_main() -> None:
+    """A source defined in a pipeline module run with `python -m` is named after that module"""
+    output = Venv.restore_current().run_module("tests.extract.cases.code_location_pipeline")
+    inputs = json.loads(output.strip().splitlines()[-1])
+    assert inputs == [
+        {
+            "kind": "code",
+            "location": "tests.extract.cases.code_location_pipeline.fruitshop",
+            "resource_name": "fruits",
         }
     ]
