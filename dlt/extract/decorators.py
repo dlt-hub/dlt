@@ -798,7 +798,7 @@ def resource(
 
         # associate source factory with the decorated function for the standalone=True resource
         # this provides access to standalone resources in the same way as to sources via SourceReference
-        r_._factory = factory  # type: ignore[attr-defined]
+        r_._factory = factory
 
         return r_
 

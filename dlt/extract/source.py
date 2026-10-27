@@ -3,6 +3,7 @@ from copy import copy
 from functools import partial
 import inspect
 from typing import (
+    TYPE_CHECKING,
     ClassVar,
     Dict,
     Iterable,
@@ -52,6 +53,10 @@ from dlt.extract.exceptions import (
     DeletingResourcesNotSupported,
     InvalidParallelResourceDataType,
 )
+
+
+if TYPE_CHECKING:
+    from dlt.extract.reference import SourceFactory
 
 
 class DltResourceDict(Dict[str, DltResource]):
@@ -367,6 +372,8 @@ class DltSource(Iterable[TDataItem]):
         """Tells if iterator associated with a source is exhausted"""
         self._schema = schema
         self._resources: DltResourceDict = DltResourceDict(self.name, self.section)
+        self._factory: Optional["SourceFactory[Any, Any]"] = None
+        """Factory that created this source, if any"""
 
         if resources:
             self.resources.add(*resources)
@@ -589,8 +596,7 @@ class DltSource(Iterable[TDataItem]):
         source = DltSource(
             self.schema.clone(with_name=with_name), self.section, list(self._resources.values())
         )
-        if factory := getattr(self, "_factory", None):
-            source._factory = factory
+        source._factory = self._factory
         return source
 
     def __iter__(self) -> Generator[TDataItem, None, None]:

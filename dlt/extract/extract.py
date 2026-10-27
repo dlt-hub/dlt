@@ -434,8 +434,7 @@ class Extract(WithStepInfo[ExtractMetrics, ExtractInfo]):
             clean_hints[resource.name] = _hints_for_trace(resource_hints)
 
         inputs: List[TDataLocation] = []
-        source_factory = getattr(source, "_factory", None)
-        source_ref = source_factory.ref.ref if source_factory and source_factory.ref else None
+        source_ref = source._factory.ref.ref if source._factory and source._factory.ref else None
         for resource in {r._pipe.instance_id: r for r in source.resources.extracted}.values():
             if resource.inputs:
                 inputs.extend(

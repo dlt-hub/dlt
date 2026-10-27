@@ -1,6 +1,7 @@
 from functools import update_wrapper
 import inspect
 from typing import (
+    TYPE_CHECKING,
     AsyncIterable,
     cast,
     ClassVar,
@@ -95,6 +96,10 @@ from dlt.extract.exceptions import (
 from dlt.extract.wrappers import wrap_additional_type
 
 
+if TYPE_CHECKING:
+    from dlt.extract.reference import SourceFactory
+
+
 def with_table_name(item: TDataItems, table_name: str) -> DataItemWithMeta:
     """Marks `item` to be dispatched to table `table_name` when yielded from resource function."""
     return DataItemWithMeta(TableNameMeta(table_name), item)
@@ -149,6 +154,8 @@ class DltResource(Iterable[TDataItem], DltResourceHints):
         self._inputs: List[TDataLocation] = []
         self._code_ref: str = None
         """Fully qualified name of the function the resource was created from"""
+        self._factory: Optional["SourceFactory[Any, Any]"] = None
+        """Single resource source factory of a standalone resource"""
         super().__init__(hints)
         self._update_wrapper()
 
