@@ -248,7 +248,7 @@ def test_sql_client_config() -> None:
 
 
 def _timezone(conn: Any) -> str:
-    return conn.sql("SELECT current_setting('TimeZone')").fetchone()[0]
+    return conn.execute("SELECT current_setting('TimeZone')").fetchone()[0]
 
 
 def test_session_timezone() -> None:
@@ -292,9 +292,11 @@ def test_session_config_on_external_connection(session_timezone: str) -> None:
 
     try:
         assert _timezone(ext_conn) == (session_timezone or "America/New_York")
-        assert ext_conn.sql("SELECT current_setting('search_path')").fetchone()[0] == "tz_external"
+        assert (
+            ext_conn.execute("SELECT current_setting('search_path')").fetchone()[0] == "tz_external"
+        )
         # the load ran in UTC so the instant is intact
-        assert ext_conn.sql("SELECT epoch(ts) FROM events").fetchone()[0] == 1704067200
+        assert ext_conn.execute("SELECT epoch(ts) FROM events").fetchone()[0] == 1704067200
     finally:
         ext_conn.close()
 
