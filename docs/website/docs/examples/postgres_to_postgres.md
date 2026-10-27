@@ -226,7 +226,7 @@ if __name__ == "__main__":
         conn.sql("INSTALL postgres;")
         conn.sql("LOAD postgres;")
         # select generated timestamp schema
-        timestamped_schema = conn.sql(
+        timestamped_schema = conn.execute(
             f"""select distinct table_schema from information_schema.tables
                      where table_schema like '{target_schema_name}%'
                      and table_schema NOT LIKE '%_staging'
@@ -263,7 +263,7 @@ if __name__ == "__main__":
         print("##################################### FINISHED ########")
 
         # check that stuff was loaded
-        rows = conn.sql(
+        rows = conn.execute(
             f"SELECT count(*) as count FROM pg_db.{timestamped_schema}.{table['table_name']};"
         ).fetchone()[0]
         assert int(rows) == 13 if table["table_name"] == "customers" else 3
