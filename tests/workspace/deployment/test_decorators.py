@@ -774,7 +774,8 @@ def test_deliver_targets() -> None:
         pass
 
     job_def = from_resource.to_job_definition()
-    factory_ref = _deliver_standalone_resource._factory.ref  # type: ignore[attr-defined]
+    assert _deliver_standalone_resource._factory is not None
+    factory_ref = _deliver_standalone_resource._factory.ref
     assert job_def["deliver"]["source_ref"] == f"sources.{factory_ref.section}.{factory_ref.name}"
 
     # inner resource (no _factory) raises on to_job_definition
