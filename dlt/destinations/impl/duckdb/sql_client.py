@@ -315,7 +315,7 @@ class DuckDbSqlClient(SqlClientBase[duckdb.DuckDBPyConnection], DBTransaction, W
     @raise_database_error
     def list_secrets(self) -> Sequence[str]:
         """List secrets that belong to this dataset"""
-        secrets = self._conn.sql(
+        secrets = self._conn.execute(
             f"SELECT name FROM duckdb_secrets() WHERE name LIKE '{self.dataset_name}%'"
         ).fetchall()
         return [s[0] for s in secrets]
@@ -328,7 +328,7 @@ class DuckDbSqlClient(SqlClientBase[duckdb.DuckDBPyConnection], DBTransaction, W
                 f" `{secret_name}`."
             )
 
-        self._conn.sql(f"DROP SECRET {secret_name}")
+        self._conn.execute(f"DROP SECRET {secret_name}")
 
     @raise_database_error
     def create_secret(
@@ -348,7 +348,7 @@ class DuckDbSqlClient(SqlClientBase[duckdb.DuckDBPyConnection], DBTransaction, W
             )
 
         secrets_path = Path(
-            self._conn.sql(
+            self._conn.execute(
                 "SELECT current_setting('secret_directory') AS secret_directory"
             ).fetchone()[0]
         )
@@ -388,7 +388,7 @@ class DuckDbSqlClient(SqlClientBase[duckdb.DuckDBPyConnection], DBTransaction, W
         if not sql:
             # could not create secret - the filesystem client falls back to fsspec
             return False
-        self._conn.sql(";\n".join(sql))
+        self._conn.execute(";\n".join(sql))
         self._secret_refresh_at = expires_at - self.SECRET_REFRESH_MARGIN if expires_at else None
         self._recreate_secret = recreate_secret
         return True
@@ -579,7 +579,7 @@ class DuckDbSqlClient(SqlClientBase[duckdb.DuckDBPyConnection], DBTransaction, W
     def use_dataset(self) -> None:
         """Makes duckdb schema corresponding to dataset_name the default"""
         fq_name = self.fully_qualified_dataset_name()
-        self._conn.sql(f"SET search_path = '{fq_name}'")
+        self._conn.execute(f"SET search_path = '{fq_name}'")
 
     def _register_filesystem(self, fs: AbstractFileSystem, scheme: str) -> None:
         protocols = [fs.protocol] if isinstance(fs.protocol, str) else fs.protocol
