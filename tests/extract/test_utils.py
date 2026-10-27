@@ -1,4 +1,7 @@
 import datetime  # noqa: I251
+import sys
+from importlib.machinery import ModuleSpec
+from types import FunctionType, ModuleType
 from typing import Dict, List, Any, Type
 import pytest
 import pytz
@@ -205,3 +208,19 @@ def test_get_code_ref() -> None:
     assert get_code_ref([1]) is None
     assert get_code_ref(iter([1])) is None
     assert get_code_ref(_Api().items) is None
+
+
+def test_get_code_ref_in_main_module(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Functions and generators of a module run with `python -m` are named after that module"""
+    main = ModuleType("__main__")
+    main.__spec__ = ModuleSpec("pipelines.shop", None)
+    monkeypatch.setitem(sys.modules, "__main__", main)
+
+    rows = FunctionType(_gen.__code__, {"__name__": "__main__"}, "rows")
+    assert get_code_ref(rows) == f"pipelines.shop.{rows.__qualname__}"
+    # a generator object takes its module from the frame globals, not from the function
+    assert get_code_ref(rows()) == f"pipelines.shop.{rows().__qualname__}"
+
+    # run as a script there is no module name to recover
+    main.__spec__ = None
+    assert get_code_ref(rows()) == f"__main__.{rows().__qualname__}"

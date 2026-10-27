@@ -2,6 +2,9 @@ from copy import deepcopy
 import itertools
 import inspect
 import binascii
+import sys
+from importlib.machinery import ModuleSpec
+from types import FunctionType, ModuleType
 import pytest
 from typing import Any, Callable, Dict, List, Tuple
 from dlt.common.exceptions import PipelineException, TerminalValueError
@@ -22,6 +25,7 @@ from dlt.common.utils import (
     obfuscate_pseudo_secret,
     get_module_name,
     get_full_callable_name,
+    get_main_module_name,
     concat_strings_with_limit,
     increase_row_count,
     merge_row_counts,
@@ -172,6 +176,39 @@ def test_get_full_callable_name() -> None:
     # run as a script: no spec to recover the module name from
     output = Venv.restore_current().run_script("tests/common/cases/modules/uniq_mod_121.py")
     assert output.strip().splitlines()[-2] == "__main__.find_my_module"
+
+
+def _gen_in_main() -> Any:
+    yield 1
+
+
+@pytest.mark.parametrize(
+    "spec,expected",
+    [
+        (ModuleSpec("pkg.mod", None), "pkg.mod"),
+        (ModuleSpec("pkg.__main__", None), "pkg.__main__"),
+        (None, "__main__"),
+        (ModuleSpec("__main__", None), "__main__"),
+    ],
+    ids=["python_m_module", "python_m_package", "script_or_notebook", "pool_runner_spec"],
+)
+def test_get_main_module_name(
+    monkeypatch: pytest.MonkeyPatch, spec: ModuleSpec, expected: str
+) -> None:
+    main = ModuleType("__main__")
+    main.__spec__ = spec
+    monkeypatch.setitem(sys.modules, "__main__", main)
+    assert get_main_module_name() == expected
+
+    # a function defined in __main__ is named after it
+    in_main = FunctionType(_gen_in_main.__code__, {"__name__": "__main__"}, "in_main")
+    assert in_main.__module__ == "__main__"
+    assert get_full_callable_name(in_main) == f"{expected}.{in_main.__qualname__}"
+
+
+def test_get_main_module_name_without_main(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delitem(sys.modules, "__main__")
+    assert get_main_module_name() == "__main__"
 
 
 def test_concat_strings_with_limit() -> None:
