@@ -373,7 +373,6 @@ class DltSource(Iterable[TDataItem]):
         self._schema = schema
         self._resources: DltResourceDict = DltResourceDict(self.name, self.section)
         self._factory: Optional["SourceFactory[Any, Any]"] = None
-        """Factory that created this source, if any"""
 
         if resources:
             self.resources.add(*resources)

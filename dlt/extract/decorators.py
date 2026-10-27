@@ -299,7 +299,6 @@ class DltSourceFactoryWrapper(SourceFactory[TSourceFunParams, TDltSourceImpl]):
             # parallelize resources
             if self.parallelized:
                 s.parallelize()
-            # store back-reference to the factory on the source instance
             s._factory = self
             return s
 

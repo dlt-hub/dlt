@@ -407,6 +407,7 @@ def get_code_ref(data: Any) -> Optional[str]:
         ref = module + "." + data.__qualname__
     else:
         return None
+    # every `<lambda>` or `<genexpr>` in a module has the same name and would join unrelated code
     if any(part.startswith("<") and part != "<locals>" for part in ref.split(".")):
         return None
     return ref
