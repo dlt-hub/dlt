@@ -2268,6 +2268,33 @@ def test_resource_inputs_are_recorded_as_added(extract_step: Extract) -> None:
     )
 
 
+def test_resource_inputs_survive_cloning(extract_step: Extract) -> None:
+    """Locations recorded on a resource are kept by its bound, renamed and sourced copies"""
+
+    @dlt.resource
+    def orders():
+        yield [{"id": 1}]
+
+    orders.add_input(
+        {"kind": "rest_api", "resource_name": "orders", "location": "https://a.example"}
+    )
+    bound = orders()
+    renamed = orders.with_name("orders_2")
+    assert bound.inputs == renamed.inputs == orders.inputs
+
+    # a copy is independent of the original
+    bound.add_input({"kind": "files", "resource_name": "orders", "location": "s3://bucket"})
+    assert len(orders.inputs) == 1
+
+    source = DltSource(dlt.Schema("cloned"), "module", [orders(), renamed])
+    load_id = extract_step.extract(source, 20, 1)
+    step_info = extract_step.get_step_info(MockPipeline("buba", first_run=False))  # type: ignore[abstract]
+    assert step_info.metrics[load_id][0]["inputs"] == [
+        {"kind": "rest_api", "location": "https://a.example", "resource_name": "orders"},
+        {"kind": "rest_api", "location": "https://a.example", "resource_name": "orders_2"},
+    ]
+
+
 def test_resource_inputs_replace_drops_all_previous() -> None:
     resource = dlt.resource([{"id": 1}], name="data")
     resource.add_input({"kind": "api", "resource_name": "data", "location": "https://a.example"})

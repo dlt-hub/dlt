@@ -807,6 +807,7 @@ class DltResource(Iterable[TDataItem], DltResourceHints):
         )
 
         cloned_r._code_ref = self._code_ref
+        cloned_r._inputs = list(self._inputs)
         # keep the parent
         cloned_r._parent = self._parent
         # also clone parent if requested
