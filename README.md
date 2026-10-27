@@ -29,6 +29,9 @@ Be it a Google Colab notebook, AWS Lambda function, an Airflow DAG, your local l
   </a>
 </div>
 
+> [!NOTE]
+> We launched **dltHub** in March 2026. You can now run your dlt pipelines on a managed, agent-native platform with transformations, data quality and observability built in. [Learn more](https://dlthub.com/docs/hub/getting-started/introduction) or [deploy your first pipeline](https://dlthub.com/docs/hub/getting-started/onboarding).
+
 ## Installation
 
 dlt supports Python 3.10 through Python 3.14. Note that some optional extras are not yet available for Python 3.14, so support for this version is considered experimental.
