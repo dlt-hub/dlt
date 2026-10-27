@@ -21,6 +21,7 @@ from dlt.common.utils import (
     reveal_pseudo_secret,
     obfuscate_pseudo_secret,
     get_module_name,
+    get_full_callable_name,
     concat_strings_with_limit,
     increase_row_count,
     merge_row_counts,
@@ -144,6 +145,33 @@ def test_get_module_name() -> None:
     mod_name = Venv.restore_current().run_script("tests/common/cases/modules/uniq_mod_121.py")
     # take last non-empty line: dep warnings may appear on stderr (merged into stdout)
     assert mod_name.strip().splitlines()[-1] == "uniq_mod_121"
+
+
+def test_get_full_callable_name() -> None:
+    from tests.common.cases.modules.uniq_mod_121 import find_my_module
+
+    assert (
+        get_full_callable_name(find_my_module)
+        == "tests.common.cases.modules.uniq_mod_121.find_my_module"
+    )
+    assert get_full_callable_name(len) == "len"
+
+    def inner() -> None:
+        pass
+
+    assert (
+        get_full_callable_name(inner)
+        == "tests.common.test_utils.test_get_full_callable_name.<locals>.inner"
+    )
+
+    # run with -m: named after the module it was run as
+    output = Venv.restore_current().run_module("tests.common.cases.modules.uniq_mod_121")
+    assert (
+        output.strip().splitlines()[-2] == "tests.common.cases.modules.uniq_mod_121.find_my_module"
+    )
+    # run as a script: no spec to recover the module name from
+    output = Venv.restore_current().run_script("tests/common/cases/modules/uniq_mod_121.py")
+    assert output.strip().splitlines()[-2] == "__main__.find_my_module"
 
 
 def test_concat_strings_with_limit() -> None:
