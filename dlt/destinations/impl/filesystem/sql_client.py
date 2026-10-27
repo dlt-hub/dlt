@@ -267,7 +267,7 @@ class FilesystemSqlClient(WithTableScanners):
                     # work with multiple csv files with evolving schemas. they disable
                     # autodetect and lock schema for all files
                     from_statement = (
-                        f"read_csv([{resolved_files_string}],{force_not_null} union_by_name=true,header=true,null_padding=true,types="
+                        f"read_csv([{resolved_files_string}],{force_not_null} union_by_name=true,header=true,types="
                         f" {{{column_types}}})"
                     )
 
