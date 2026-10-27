@@ -79,6 +79,15 @@ jobs:
               extras: "--extra s3 --extra parquet --extra duckdb --extra filesystem --extra deltalake --extra pyiceberg"
               post_install_commands: "uv run pip install sqlalchemy==2.0.18" # minimum version required by `pyiceberg`
 
+            # the ibis group pins duckdb<2, so this job runs without ibis
+            - display_name: filesystem_s3_local duckdb2
+              destinations: "[\"filesystem\"]"
+              filesystem_drivers: "[\"memory\", \"file\", \"r2\", \"s3\"]"
+              extras: "--extra s3 --extra parquet --extra duckdb --extra filesystem --extra deltalake --extra pyiceberg"
+              no_ibis: true
+              post_install_commands: "uv run pip install sqlalchemy==2.0.18 && uv pip install duckdb==2.0.0"
+              always_run_all_tests: true
+
             - display_name: filesystem_az
               destinations: "[\"filesystem\"]"
               # note that all buckets are enabled for testing
@@ -257,7 +266,7 @@ jobs:
         if: ${{ matrix.pre_install_commands }}
 
       - name: Install dependencies
-        run: uv sync --group pipeline --group ibis --group providers ${{ matrix.extras }}
+        run: uv sync --group pipeline ${{ !matrix.no_ibis && '--group ibis' || '' }} --group providers ${{ matrix.extras }}
 
       - name: Run post install commands
         run: ${{ matrix.post_install_commands }}
