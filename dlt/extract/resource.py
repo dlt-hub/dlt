@@ -464,7 +464,7 @@ class DltResource(Iterable[TDataItem], DltResourceHints):
         in batches.
 
          Notes:
-             1. Transformers won't be limited. They should process all the data they receive fully to avoid inconsistencies in generated datasets.
+             1. On a transformer, the limit is set on the resource at the top of the transformer chain. That resource and all its transformers receive the limited data. `count_rows` counts the rows of that resource. A transformer that is not bound to a resource cannot be limited.
              2. Each yielded item may contain several rows. By default `add_limit` only limits the "number of yields", not the total number of rows.
              3. Empty pages/yields are also counted. Use `count_rows` to skip empty pages.
 
@@ -477,16 +477,31 @@ class DltResource(Iterable[TDataItem], DltResourceHints):
              "DltResource": returns self
         """
 
+        limit = LimitItem(max_items=max_items, max_time=max_time, count_rows=count_rows)
+        pipe = self._pipe
         if self.is_transformer:
-            logger.warning(
-                f"Setting add_limit to a transformer {self.name} has no effect. Set the limit on"
-                " the top level resource."
+            if not self._pipe.is_data_bound:
+                logger.warning(
+                    f"dlt cannot limit transformer `{self.name}` because it is not bound to a"
+                    " resource. Bind it with `|` or `data_from` before you call `add_limit`."
+                )
+                return self
+            # only the generator at the head of the transformer chain can be closed
+            while pipe.parent is not None:
+                pipe = pipe.parent
+            existing = pipe.get_by_type(LimitItem)
+            if existing and existing != limit:
+                logger.warning(
+                    f"The limit of transformer `{self.name}` replaced a different limit on its"
+                    f" parent resource `{pipe.name}`."
+                )
+            logger.info(
+                f"The limit of transformer `{self.name}` is set on its parent resource"
+                f" `{pipe.name}`."
             )
-        else:
-            # remove existing limit if any
-            self._pipe.remove_by_type(LimitItem)
-            self.add_step(LimitItem(max_items=max_items, max_time=max_time, count_rows=count_rows))
-
+        # remove existing limit if any
+        pipe.remove_by_type(LimitItem)
+        pipe.append_step(limit)
         return self
 
     def parallelize(self) -> Self:

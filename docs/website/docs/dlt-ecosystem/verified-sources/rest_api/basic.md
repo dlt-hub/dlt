@@ -947,6 +947,32 @@ By default, dependent resources fetch child data for each parent item sequential
 
 See [Per-resource parallelization](./advanced.md#per-resource-parallelization-for-dependent-resources) for more details.
 
+#### Limit dependent resources
+
+Call `add_limit` on the source to fetch a few pages of each parent resource, for example during development. Dependent resources receive only the items from those pages. This also works when the parent resource has `"selected": False`:
+
+```py
+import dlt
+from dlt.sources.rest_api import rest_api_source
+
+source = rest_api_source({
+    "client": {"base_url": "https://api.github.com/repos/dlt-hub/dlt/"},
+    "resources": [
+        "issues",
+        {
+            "name": "issue_comments",
+            "endpoint": {"path": "issues/{resources.issues.number}/comments"},
+        },
+    ],
+})
+
+# fetch 10 pages of issues and the comments of those issues
+pipeline = dlt.pipeline(pipeline_name="github", destination="duckdb")
+pipeline.run(source.add_limit(10))
+```
+
+A limit on a dependent resource is set on its parent: `source.resources["issue_comments"].add_limit(10)` limits `issues` to 10 pages, so `issues` and all its dependent resources load from the same pages. The limit counts pages of the parent resource, not requests of the dependent resource. One page of issues can produce many comment requests.
+
 ### Define a resource which is not a REST endpoint
 
 Sometimes, we want to request endpoints with specific values that are not returned by another endpoint.
