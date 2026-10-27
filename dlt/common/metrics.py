@@ -110,7 +110,11 @@ class TDataLocation(TypedDict):
     """
 
     kind: str
-    """Location type: `dataset`, `sql_database`, `filesystem`, `rest_api`, or a custom value."""
+    """Location type: `dataset`, `sql_database`, `filesystem`, `rest_api`, or a custom value.
+
+    `code` is recorded for a resource that reported no location of its own: `location` is then the
+    fully qualified name of its source function, or of the resource function if it has no source.
+    """
     resource_name: str
     """Resource that read from or wrote to this location, authoritative when metrics are collected."""
     location: NotRequired[str]

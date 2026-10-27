@@ -44,6 +44,7 @@ from dlt.common.pipeline import (
 from dlt.common.utils import (
     flatten_list_or_items,
     get_callable_name,
+    get_full_callable_name,
     uniq_id,
     without_none,
     simple_repr,
@@ -146,6 +147,8 @@ class DltResource(Iterable[TDataItem], DltResourceHints):
         self._parent: DltResource = None
         self._custom_metrics: Dict[str, Any] = {}
         self._inputs: List[TDataLocation] = []
+        self._code_ref: str = None
+        """Fully qualified name of the function the resource was created from"""
         super().__init__(hints)
         self._update_wrapper()
 
@@ -178,8 +181,11 @@ class DltResource(Iterable[TDataItem], DltResourceHints):
             if inject_config:
                 r_._inject_config()
         else:
+            code_ref: str = None
             if callable(data):
                 name = name or get_callable_name(data)
+                if inspect.isfunction(data):
+                    code_ref = get_full_callable_name(data)
 
             # if generator, take name from it
             if inspect.isgenerator(data):
@@ -213,6 +219,7 @@ class DltResource(Iterable[TDataItem], DltResourceHints):
                     section=section,
                     args_bound=not callable(data),
                 )
+                r_._code_ref = code_ref
                 if inject_config:
                     r_._inject_config()
             else:
@@ -801,6 +808,7 @@ class DltResource(Iterable[TDataItem], DltResourceHints):
             args_bound=self._args_bound,
         )
 
+        cloned_r._code_ref = self._code_ref
         # keep the parent
         cloned_r._parent = self._parent
         # also clone parent if requested

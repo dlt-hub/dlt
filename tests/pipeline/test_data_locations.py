@@ -225,3 +225,32 @@ def test_input_and_output_locations_join_on_physical_dataset_name() -> None:
     assert read["physical_dataset_name"] == written["physical_dataset_name"]
     assert read["location"] == written["location"]
     assert read["resource_name"] == "orders_copy"
+
+
+def test_code_input_location_joins_pipelines_of_the_same_source() -> None:
+    """Pipelines running the same custom source report the same `code` location"""
+    locations = []
+    for _ in range(2):
+        pipeline = dlt.pipeline(pipeline_name="code_" + uniq_id(), destination="duckdb")
+        locations.extend(_inputs(pipeline.extract(sales_source())))
+    assert (
+        locations
+        == [
+            {
+                "kind": "code",
+                "location": "tests.pipeline.test_data_locations.sales_source",
+                "resource_name": "orders",
+            }
+        ]
+        * 2
+    )
+
+    # a standalone resource is its own location
+    pipeline = dlt.pipeline(pipeline_name="code_" + uniq_id(), destination="duckdb")
+    assert _inputs(pipeline.extract(orders_with_nested())) == [
+        {
+            "kind": "code",
+            "location": "tests.pipeline.test_data_locations.orders_with_nested",
+            "resource_name": "orders",
+        }
+    ]
