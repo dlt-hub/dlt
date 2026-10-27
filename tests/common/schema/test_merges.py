@@ -988,3 +988,27 @@ def test_merge_table_x_hints_preserved_when_not_in_partial() -> None:
 #         },
 #         **column,
 #     }
+
+
+def test_merge_table_keeps_processing_hints() -> None:
+    """A resource hint like `max_nesting` rides in `x-normalizer` beside the markers
+    normalize writes there. Merging the resource's table must not erase them."""
+    table: TTableSchema = {  # type: ignore[typeddict-unknown-key]
+        "name": "table",
+        "x-normalizer": {"max_nesting": 0, "seen-data": True},
+        "x-loader": {"created": True},
+        "columns": {},
+    }
+    partial: TPartialTableSchema = {  # type: ignore[typeddict-unknown-key]
+        "name": "table",
+        "x-normalizer": {"max_nesting": 1},
+        "columns": {},
+    }
+    utils.merge_table("schema", table, partial)
+    assert table["x-normalizer"] == {"max_nesting": 1, "seen-data": True}  # type: ignore[typeddict-item]
+    assert table["x-loader"] == {"created": True}  # type: ignore[typeddict-item]
+
+    # an identical hint leaves the table untouched, so no schema version is spent on it
+    before = deepcopy(table)
+    utils.merge_table("schema", table, {"name": "table", "x-normalizer": {"max_nesting": 1}, "columns": {}})  # type: ignore[typeddict-unknown-key]
+    assert table == before
