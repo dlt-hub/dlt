@@ -6,10 +6,21 @@ from typing import Any, Callable, Dict, List, cast
 import pytest
 
 import dlt
+from dlt.common import known_env
 from dlt.common.metrics import TDatasetDataLocation, data_location_version
 from dlt.common.runners import Venv
 from dlt.common.utils import digest128, uniq_id
+from dlt.extract.reference import SourceReference
 
+from tests.pipeline.cases.code_location_pipeline import (
+    async_rows,
+    async_shop,
+    inner_resource,
+    passthrough,
+    rows,
+    shop,
+    users,
+)
 from tests.pipeline.utils import assert_load_info
 from tests.utils import get_test_storage_root
 
@@ -24,8 +35,19 @@ def _by_resource(locations: List[TDatasetDataLocation]) -> Dict[str, TDatasetDat
 
 
 def _inputs(info: Any) -> List[Any]:
-    """All input locations of an extract info"""
-    return info.metrics[info.loads_ids[0]][0]["inputs"]
+    """All input locations of an extract info, across load packages and the sources in them"""
+    return [
+        location
+        for metrics in info.metrics.values()
+        for source_metrics in metrics
+        for location in source_metrics["inputs"]
+    ]
+
+
+def _code_locations(inputs: List[Any]) -> Dict[str, str]:
+    """`code` location of each resource, no other kind is expected among `inputs`"""
+    assert all(location["kind"] == "code" for location in inputs)
+    return {location["resource_name"]: location["location"] for location in inputs}
 
 
 @dlt.resource(primary_key="id", name="orders")
@@ -232,135 +254,91 @@ def test_input_and_output_locations_join_on_physical_dataset_name() -> None:
     assert read["resource_name"] == "orders_copy"
 
 
+CODE_MODULE = "tests.pipeline.cases.code_location_pipeline"
+SHOP_LOCATIONS = {"users": f"{CODE_MODULE}.shop", "static": f"{CODE_MODULE}.shop"}
+
+
 def test_code_input_location_joins_pipelines_of_the_same_source() -> None:
     """Pipelines running the same custom source report the same `code` location"""
-    locations = []
-    for _ in range(2):
-        pipeline = dlt.pipeline(pipeline_name="code_" + uniq_id(), destination="duckdb")
-        locations.extend(_inputs(pipeline.extract(sales_source())))
-    assert (
-        locations
-        == [
-            {
-                "kind": "code",
-                "location": "tests.pipeline.test_data_locations.sales_source",
-                "resource_name": "orders",
-            }
-        ]
-        * 2
-    )
-
-    # a standalone resource is its own location
-    pipeline = dlt.pipeline(pipeline_name="code_" + uniq_id(), destination="duckdb")
-    assert _inputs(pipeline.extract(orders_with_nested())) == [
-        {
-            "kind": "code",
-            "location": "tests.pipeline.test_data_locations.orders_with_nested",
-            "resource_name": "orders",
-        }
+    locations = [
+        _code_locations(_inputs(dlt.pipeline(pipeline_name="code_" + uniq_id()).extract(shop())))
+        for _ in range(2)
     ]
-
-
-def _rows() -> Any:
-    yield [{"id": 1}]
-
-
-async def _async_rows() -> Any:
-    yield {"id": 1}
-
-
-def _passthrough(item: Any) -> Any:
-    yield item
-
-
-@dlt.resource
-def users() -> Any:
-    yield [{"id": 1}]
-
-
-@dlt.source
-def shop() -> Any:
-    return users, dlt.resource([{"id": 1}], name="static")
-
-
-@dlt.source
-async def async_shop() -> Any:
-    return users
-
-
-def _inner_resource() -> Any:
-    @dlt.resource
-    def inner() -> Any:
-        yield [{"id": 1}]
-
-    return inner()
-
-
-MODULE = "tests.pipeline.test_data_locations"
+    assert locations == [SHOP_LOCATIONS] * 2
 
 
 @pytest.mark.parametrize(
     "data,expected",
     [
         # plain data and anonymous code have no location, a transformer has its parent instead
-        (lambda: [{"id": 1}], {}),
-        (lambda: iter([{"id": 1}]), {}),
-        (lambda: dlt.resource(lambda: [{"id": 1}], name="t"), {}),
-        (lambda: (x for x in [{"id": 1}]), {}),
-        (
-            lambda: dlt.resource([{"id": 1}], name="t") | dlt.transformer(name="tr")(_passthrough),
+        pytest.param(lambda: [{"id": 1}], {}, id="list"),
+        pytest.param(lambda: iter([{"id": 1}]), {}, id="iterator"),
+        pytest.param(lambda: dlt.resource(lambda: [{"id": 1}], name="t"), {}, id="lambda_resource"),
+        pytest.param(lambda: (x for x in [{"id": 1}]), {}, id="generator_expression"),
+        pytest.param(
+            lambda: dlt.resource([{"id": 1}], name="t") | dlt.transformer(name="tr")(passthrough),
             {},
+            id="transformer_over_list",
         ),
-        # generators are named after their function
-        (lambda: _rows(), {"t": f"{MODULE}._rows"}),
-        (lambda: _async_rows(), {"t": f"{MODULE}._async_rows"}),
-        (lambda: _inner_resource(), {"inner": f"{MODULE}._inner_resource.<locals>.inner"}),
-        (lambda: users.with_name("renamed")(), {"renamed": f"{MODULE}.users"}),
+        # resources and generators are named after their function
+        pytest.param(lambda: rows(), {"t": f"{CODE_MODULE}.rows"}, id="generator"),
+        pytest.param(
+            lambda: async_rows(), {"t": f"{CODE_MODULE}.async_rows"}, id="async_generator"
+        ),
+        pytest.param(lambda: users(), {"users": f"{CODE_MODULE}.users"}, id="resource"),
+        pytest.param(
+            lambda: users.with_name("renamed")(),
+            {"renamed": f"{CODE_MODULE}.users"},
+            id="renamed_resource",
+        ),
+        pytest.param(
+            lambda: inner_resource(),
+            {"inner": f"{CODE_MODULE}.inner_resource.<locals>.inner"},
+            id="inner_resource",
+        ),
+        pytest.param(
+            lambda: SourceReference.from_reference(f"{CODE_MODULE}.users"),
+            {"users": f"{CODE_MODULE}.users"},
+            id="resource_from_reference",
+        ),
         # resources of a source point at the source, however the source was obtained
-        (lambda: shop(), {"users": f"{MODULE}.shop", "static": f"{MODULE}.shop"}),
-        (lambda: shop, {"users": f"{MODULE}.shop", "static": f"{MODULE}.shop"}),
-        (lambda: shop().with_resources("static"), {"static": f"{MODULE}.shop"}),
-        (
-            lambda: shop().clone(with_name="shop_2"),
-            {"users": f"{MODULE}.shop", "static": f"{MODULE}.shop"},
+        pytest.param(lambda: shop(), SHOP_LOCATIONS, id="source"),
+        pytest.param(lambda: shop, SHOP_LOCATIONS, id="source_factory"),
+        pytest.param(
+            lambda: shop().with_resources("static"),
+            {"static": f"{CODE_MODULE}.shop"},
+            id="source_with_resources",
         ),
-        (lambda: asyncio.run(async_shop()), {"users": f"{MODULE}.async_shop"}),  # type: ignore[arg-type]
+        # the parent of a selected transformer is extracted and reported, the transformer is not
+        pytest.param(
+            lambda: shop().with_resources("enrich"),
+            {"users": f"{CODE_MODULE}.shop"},
+            id="source_transformer_selected",
+        ),
+        pytest.param(lambda: shop().clone(with_name="shop_2"), SHOP_LOCATIONS, id="source_clone"),
+        pytest.param(lambda: shop().decompose("scc"), SHOP_LOCATIONS, id="source_decomposed"),
+        pytest.param(
+            lambda: asyncio.run(async_shop()),  # type: ignore[arg-type]
+            {"users": f"{CODE_MODULE}.async_shop"},
+            id="async_source",
+        ),
         # a resource taken out of its source is on its own
-        (lambda: shop().resources["users"], {"users": f"{MODULE}.users"}),
-    ],
-    ids=[
-        "list",
-        "iterator",
-        "lambda_resource",
-        "generator_expression",
-        "transformer_over_list",
-        "generator",
-        "async_generator",
-        "inner_resource",
-        "renamed_resource",
-        "source",
-        "source_factory",
-        "source_with_resources",
-        "source_clone",
-        "async_source",
-        "resource_of_source",
+        pytest.param(
+            lambda: shop().resources["users"],
+            {"users": f"{CODE_MODULE}.users"},
+            id="resource_of_source",
+        ),
     ],
 )
 def test_code_input_location_of_data(data: Callable[[], Any], expected: Dict[str, str]) -> None:
     pipeline = dlt.pipeline(pipeline_name="code_" + uniq_id())
-    inputs = _inputs(pipeline.extract(data(), table_name="t"))
-    assert all(location["kind"] == "code" for location in inputs)
-    assert {location["resource_name"]: location["location"] for location in inputs} == expected
+    assert _code_locations(_inputs(pipeline.extract(data(), table_name="t"))) == expected
 
 
 def test_code_input_location_of_module_run_as_main() -> None:
-    """A source defined in a pipeline module run with `python -m` is named after that module"""
-    output = Venv.restore_current().run_module("tests.extract.cases.code_location_pipeline")
+    """A source in a pipeline module run with `python -m` is named after that module, not `__main__`"""
+    # the pipeline run by the subprocess must land in test storage, not in the user's home
+    os.environ[known_env.DLT_DATA_DIR] = get_test_storage_root()
+    output = Venv.restore_current().run_module(CODE_MODULE)
     inputs = json.loads(output.strip().splitlines()[-1])
-    assert inputs == [
-        {
-            "kind": "code",
-            "location": "tests.extract.cases.code_location_pipeline.fruitshop",
-            "resource_name": "fruits",
-        }
-    ]
+    assert _code_locations(inputs) == SHOP_LOCATIONS
