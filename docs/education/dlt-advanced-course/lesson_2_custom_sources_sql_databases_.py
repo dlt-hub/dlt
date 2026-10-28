@@ -1,7 +1,7 @@
 # /// script
 # dependencies = [
 #     "dlt",
-#     "duckdb",
+#     "duckdb<2",
 #     "numpy",
 #     "pandas",
 #     "pyarrow",
