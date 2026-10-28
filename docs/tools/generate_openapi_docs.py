@@ -60,6 +60,9 @@ FORMAT_EXAMPLES = {
     "email": "user@example.com",
 }
 
+#: marks required parameters and request fields at the start of their description
+REQUIRED = "**Required.**"
+
 Schema = Dict[str, Any]
 
 
@@ -176,29 +179,35 @@ def fields_table(spec: Schema, schema: Schema, with_required: bool) -> str:
     rows = field_rows(spec, schema, prefix)
     if not rows:
         return f"Type: {type_str(spec, schema)}\n\n"
-    header = ["Field", "Type", "Required", "Description"]
-    if not with_required:
-        header.remove("Required")
-        rows = [[path, type_, description] for path, type_, _, description in rows]
+    for row in rows:
+        path, type_, required, description = row
+        if with_required and required == "yes":
+            description = f"{REQUIRED} {description}"
+        row[:] = [path, type_, description]
+    header = ["Field", "Type", "Description"]
     lines = ["| " + " | ".join(header) + " |", "|" + " --- |" * len(header)]
     lines += ["| " + " | ".join(row) + " |" for row in rows]
     return "\n".join(lines) + "\n\n"
 
 
 def render_parameters(spec: Schema, parameters: List[Schema]) -> str:
-    if not parameters:
-        return ""
-    rows = ["| Name | In | Type | Required | Description |", "| --- | --- | --- | --- | --- |"]
+    """One table per location; path parameters are always required, others are marked."""
+    tables: Dict[str, List[str]] = {}
     for param in parameters:
         name = param["name"]
-        description = param.get("description")
+        description = cell(param.get("description"))
         if not description and param["in"] == "path" and name.endswith("_id"):
             description = "ID of the " + name[: -len("_id")].replace("_", " ")
-        rows.append(
-            f"| `{name}` | {param['in']} | {cell(type_str(spec, param.get('schema', {})))} |"
-            f" {'yes' if param.get('required') else 'no'} | {cell(description)} |"
+        if param.get("required") and param["in"] != "path":
+            description = f"{REQUIRED} {description}"
+        tables.setdefault(param["in"], []).append(
+            f"| `{name}` | {cell(type_str(spec, param.get('schema', {})))} | {description} |"
         )
-    return "**Parameters**\n\n" + "\n".join(rows) + "\n\n"
+    md = ""
+    for location, rows in tables.items():
+        md += f"**{location.capitalize()} parameters**\n\n| Name | Type | Description |\n"
+        md += "| --- | --- | --- |\n" + "\n".join(rows) + "\n\n"
+    return md
 
 
 def render_request_body(spec: Schema, request_body: Schema | None) -> str:
