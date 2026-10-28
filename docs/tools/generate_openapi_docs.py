@@ -3,6 +3,8 @@
 Reads the specs bundled in the installed `dlthub-client` package (`dlthub_sdk/_specs`), or
 from `--spec-dir`, and renders one Docusaurus page per service.
 
+Every operation has an example request for curl and for Python `requests`.
+
 Usage:
     uv run --no-project --with dlthub-client --with pyyaml python tools/generate_openapi_docs.py \
         [--spec-dir DIR] [--output-dir DIR]
@@ -205,7 +207,7 @@ def render_operation(
         md += description + "\n\n"
     md += render_parameters(operation.get("parameters") or [])
     md += render_request_body(operation.get("requestBody"))
-    md += render_curl_example(spec, method, path, operation, base_url, token)
+    md += render_examples(spec, method, path, operation, base_url, token)
     md += render_responses(operation.get("responses") or {})
     return md
 
@@ -258,13 +260,16 @@ def path_variable(match: "re.Match[str]") -> str:
     return "$" + match.group(1).upper()
 
 
-def render_curl_example(
+def request_token(path: str, token: str) -> str:
+    # uploads take the token returned by the matching `-issue-upload` operation
+    return "$UPLOAD_TOKEN" if path.endswith("/-upload") else token
+
+
+def curl_example(
     spec: Schema, method: str, path: str, operation: Schema, base_url: str, token: str
 ) -> str:
     url = base_url + re.sub(r"{(\w+)}", path_variable, path)
-    # uploads take the token returned by the matching `-issue-upload` operation
-    if path.endswith("/-upload"):
-        token = "$UPLOAD_TOKEN"
+    token = request_token(path, token)
     request = f'curl "{url}"' if method == "get" else f'curl -X {method.upper()} "{url}"'
     lines = [request, f'-H "Authorization: Bearer {token}"']
     content = (operation.get("requestBody") or {}).get("content") or {}
@@ -283,10 +288,89 @@ def render_curl_example(
                 lines.append(f'-F "{name}=@<{name}>"')
             else:
                 lines.append(f'-F "{name}={example_value(spec, name, prop)}"')
-    command = " \\\n  ".join(lines)
+    return " \\\n  ".join(lines)
+
+
+def py_literal(value: Any, indent: int = 0) -> str:
+    """Python source of a JSON value, split over lines when it is long."""
+    inline = repr(value) if not isinstance(value, str) else json.dumps(value)
+    if isinstance(value, dict):
+        items = [f"{json.dumps(k)}: {py_literal(v, indent + 4)}" for k, v in value.items()]
+        inline = "{" + ", ".join(items) + "}"
+        if len(inline) + indent > 80:
+            pad = " " * (indent + 4)
+            return "{\n" + "".join(f"{pad}{item},\n" for item in items) + " " * indent + "}"
+    elif isinstance(value, list):
+        inline = "[" + ", ".join(py_literal(v, indent) for v in value) + "]"
+    return inline
+
+
+def env_var(name: str) -> str:
+    """`$DLTHUB_API_KEY` -> `os.environ["DLTHUB_API_KEY"]`, other values as string literals."""
+    if name.startswith("$"):
+        return f'os.environ["{name[1:]}"]'
+    return json.dumps(name)
+
+
+def python_example(
+    spec: Schema, method: str, path: str, operation: Schema, base_url: str, token: str
+) -> str:
+    lines = []
+    for name in re.findall(r"{(\w+)}", path):
+        lines.append(f'{name} = os.environ["{name.upper()}"]')
+    if base_url.startswith("$"):
+        lines.append(f"base_url = {env_var(base_url)}")
+        url = "{base_url}" + path
+    else:
+        url = base_url + path
+    lines.append(f"token = {env_var(request_token(path, token))}")
+    args = [f'f"{url}"' if "{" in url else json.dumps(url)]
+    args.append('headers={"Authorization": f"Bearer {token}"}')
+    content = (operation.get("requestBody") or {}).get("content") or {}
+    if "application/json" in content:
+        body = example_body(spec, content["application/json"].get("schema", {}))
+        args.append(f"json={py_literal(body, 4)}")
+    elif "multipart/form-data" in content:
+        schema = resolve(spec, content["multipart/form-data"].get("schema", {}))
+        files, data = {}, {}
+        for name, prop in (schema.get("properties") or {}).items():
+            if prop.get("format") == "binary":
+                files[name] = f'open("<{name}>", "rb")'
+            else:
+                data[name] = json.dumps(example_value(spec, name, prop))
+        if files:
+            args.append("files={" + ", ".join(f'"{k}": {v}' for k, v in files.items()) + "}")
+        if data:
+            args.append("data={" + ", ".join(f'"{k}": {v}' for k, v in data.items()) + "}")
+    media_types = [
+        media_type
+        for status, response in (operation.get("responses") or {}).items()
+        if status.startswith("2")
+        for media_type in response.get("content") or {}
+    ]
+    streams = any(m in ("text/event-stream", "application/x-ndjson") for m in media_types)
+    if streams:
+        args.append("stream=True")
+    call = f"response = requests.{method}(\n" + "".join(f"    {a},\n" for a in args) + ")"
+    lines += [call, "response.raise_for_status()"]
+    if streams:
+        lines.append("for line in response.iter_lines():\n    print(line.decode())")
+    elif "application/json" in media_types:
+        lines.append("print(response.json())")
+    return "import os\n\nimport requests\n\n" + "\n".join(lines)
+
+
+def render_examples(
+    spec: Schema, method: str, path: str, operation: Schema, base_url: str, token: str
+) -> str:
+    curl = curl_example(spec, method, path, operation, base_url, token)
+    python = python_example(spec, method, path, operation, base_url, token)
     return (
         "<details>\n<summary>Example request</summary>\n\n"
-        f"```sh\n{command}\n```\n\n</details>\n\n"
+        '<Tabs groupId="api-example">\n'
+        f'  <TabItem value="curl" label="curl">\n\n```sh\n{curl}\n```\n\n  </TabItem>\n'
+        f'  <TabItem value="python" label="Python">\n\n```python\n{python}\n```\n\n'
+        "  </TabItem>\n</Tabs>\n\n</details>\n\n"
     )
 
 
