@@ -289,13 +289,21 @@ class Renderer:
         lines += ["| " + " | ".join(row) + " |" for row in rows]
         return "\n".join(lines) + "\n\n"
 
-    def docstring(self, obj: griffe.Object, title_args: str = "Arguments", lead: str = "") -> str:
+    def docstring(
+        self,
+        obj: griffe.Object,
+        title_args: str = "Arguments",
+        lead: str = "",
+        properties: Optional[List[List[str]]] = None,
+    ) -> str:
         """Renders the docstring sections of `obj`, typing parameters from its signature.
 
-        `lead` is placed after the description, before the first other section.
+        `lead` is placed after the description, before the first other section. `properties` rows
+        join the attributes table of a class, or form one when its docstring has none.
         """
+        properties = properties or []
         if not obj.docstring:
-            return ""
+            return self.attributes_table(properties)
         annotations: Dict[str, str] = {}
         if isinstance(obj, griffe.Function):
             annotations = {p.name: clean_type(p.annotation) for p in obj.parameters}
@@ -328,6 +336,8 @@ class Renderer:
                     ]
                     for p in section.value
                 ]
+                if title_args == "Attributes":
+                    rows, properties = rows + properties, []
                 md += f"**{title_args}**\n\n" + self.table(rows, ["Name", "Type", "Description"])
             elif section.kind is kind.attributes and values:
                 rows = [
@@ -344,7 +354,8 @@ class Renderer:
                     ]
                     for a in section.value
                 ]
-                md += "**Fields**\n\n" + self.table(rows, ["Name", "Type", "Description"])
+                md += self.attributes_table(rows + properties)
+                properties = []
             elif section.kind is kind.returns:
                 parts = [self.cell(r.description) for r in section.value if r.description]
                 if isinstance(obj, griffe.Function) and clean_type(obj.returns):
@@ -369,13 +380,22 @@ class Renderer:
                 md += f":::note[{admonition.annotation}]\n{self.prose(admonition.description)}\n:::\n\n"
         md += lead
         if isinstance(obj, griffe.Class) and not any(s.kind is kind.attributes for s in sections):
-            md += self.inline_attributes(obj, annotations, values)
-        return md
+            return md + self.inline_attributes(obj, annotations, values, properties)
+        return md + self.attributes_table(properties)
+
+    def attributes_table(self, rows: List[List[str]]) -> str:
+        if not rows:
+            return ""
+        return "**Attributes**\n\n" + self.table(rows, ["Name", "Type", "Description"])
 
     def inline_attributes(
-        self, cls: griffe.Class, annotations: Dict[str, str], values: Dict[str, str]
+        self,
+        cls: griffe.Class,
+        annotations: Dict[str, str],
+        values: Dict[str, str],
+        properties: List[List[str]],
     ) -> str:
-        """Renders fields or enum members documented by a docstring under each attribute."""
+        """Renders attributes or enum members documented by a docstring under each attribute."""
         documented = []
         for name, member in cls.members.items():
             member = target(member)
@@ -386,13 +406,12 @@ class Renderer:
                 and member.docstring
             ):
                 documented.append((name, member.docstring.value))
-        if not documented:
-            return ""
-        if values:
+        if values and documented:
             rows = [[f"`{n}`", f"`{values.get(n, '')}`", self.cell(d)] for n, d in documented]
-            return "**Members**\n\n" + self.table(rows, ["Member", "Value", "Description"])
+            md = "**Members**\n\n" + self.table(rows, ["Member", "Value", "Description"])
+            return md + self.attributes_table(properties)
         rows = [[f"`{n}`", self.type_cell(annotations.get(n)), self.cell(d)] for n, d in documented]
-        return "**Fields**\n\n" + self.table(rows, ["Name", "Type", "Description"])
+        return self.attributes_table(rows + properties)
 
     def type_cell(self, annotation: Optional[str]) -> str:
         """Renders a type as one code element whose exported names link to their anchors."""
@@ -467,9 +486,7 @@ class Renderer:
         if collections:
             header = ["Name", "Type", "Example", "Description"]
             lead = "**Collections**\n\n" + self.table(collections, header)
-        md += self.docstring(cls, title_args="Fields", lead=lead)
-        if properties:
-            md += "**Properties**\n\n" + self.table(properties, ["Name", "Type", "Description"])
+        md += self.docstring(cls, title_args="Attributes", lead=lead, properties=properties)
         for member_name, member in cls.members.items():
             member = target(member)
             if member_name.startswith("_") or not isinstance(member, griffe.Function):
