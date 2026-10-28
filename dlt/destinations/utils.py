@@ -98,6 +98,28 @@ def get_pipeline_state_query_columns() -> TTableSchema:
     return state_table
 
 
+def replace_strategy_not_available(
+    schema: Schema,
+    table_name: str,
+    required_strategy: TLoaderReplaceStrategy,
+    capabilities: DestinationCapabilitiesContext,
+) -> SchemaCorruptedException:
+    """Returns the exception for a replace strategy that `table_name` cannot use."""
+    format_info = ""
+    if capabilities.supported_table_formats:
+        format_info = (
+            " Note that setting table format may allow you to pick other replace"
+            " strategies. Available formats:"
+            f" {', '.join(capabilities.supported_table_formats)}"
+        )
+    # Pick one of: {', '.join(supported_replace_strategies)} .
+    return SchemaCorruptedException(
+        schema.name,
+        f"Requested replace strategy {required_strategy} not available for table {table_name}. "
+        + format_info,
+    )
+
+
 def verify_schema_replace_disposition(
     schema: Schema,
     load_tables: Sequence[PreparedTableSchema],
@@ -117,20 +139,9 @@ def verify_schema_replace_disposition(
         table_name = table["name"]
         if table["write_disposition"] == "replace":
             if not resolve_replace_strategy(table, required_strategy, capabilities):
-                format_info = ""
-                if capabilities.supported_table_formats:
-                    format_info = (
-                        " Note that setting table format may allow you to pick other replace"
-                        " strategies. Available formats:"
-                        f" {', '.join(capabilities.supported_table_formats)}"
-                    )
                 exception_log.append(
-                    # Pick one of: {', '.join(supported_replace_strategies)} .
-                    SchemaCorruptedException(
-                        schema.name,
-                        f"Requested replace strategy {required_strategy} not available for table"
-                        f" {table_name}. "
-                        + format_info,
+                    replace_strategy_not_available(
+                        schema, table_name, required_strategy, capabilities
                     )
                 )
     return exception_log

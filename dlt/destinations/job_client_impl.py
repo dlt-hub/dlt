@@ -83,6 +83,7 @@ from dlt.destinations.sql_client import SqlClientBase, TAttachInfo, WithAttach, 
 from dlt.destinations.utils import (
     get_pipeline_state_query_columns,
     info_schema_null_to_bool,
+    replace_strategy_not_available,
     verify_schema_merge_disposition,
     verify_schema_replace_disposition,
 )
@@ -377,7 +378,10 @@ class SqlJobClientBase(WithSqlClient, JobClientBase, WithStateSync):
             replace_strategy = resolve_replace_strategy(
                 load_table, self.config.replace_strategy, self.capabilities
             )
-            assert replace_strategy, f"Must be able to get replace strategy for {table_name}"
+            if not replace_strategy:
+                raise replace_strategy_not_available(
+                    self.schema, table_name, self.config.replace_strategy, self.capabilities
+                )
             load_table["x-replace-strategy"] = replace_strategy  # type: ignore[typeddict-unknown-key]
         return load_table
 
