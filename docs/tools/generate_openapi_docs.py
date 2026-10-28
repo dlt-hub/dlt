@@ -243,12 +243,15 @@ def render_responses(spec: Schema, responses: Dict[str, Schema]) -> str:
             lambda m: "[" + ", ".join(v.strip() for v in m.group(1).split(",\n")) + "]",
             example,
         )
-        md += "**Response body**"
+        summary = "Response body"
         if statuses != ["200"]:
-            md += " (" + ", ".join(f"`{status}`" for status in statuses) + ")"
-        md += f"\n\n```json\n{example}\n```\n\n"
-        md += "<details>\n<summary>Fields</summary>\n\n"
-        md += fields_table(spec, schema, with_required=False) + "</details>\n\n"
+            summary += " (" + ", ".join(f"<code>{status}</code>" for status in statuses) + ")"
+        md += f"<details>\n<summary>{summary}</summary>\n\n"
+        md += '<Tabs groupId="api-response">\n'
+        md += f'  <TabItem value="example" label="Example">\n\n```json\n{example}\n```\n\n'
+        md += '  </TabItem>\n  <TabItem value="fields" label="Fields">\n\n'
+        md += fields_table(spec, schema, with_required=False)
+        md += "  </TabItem>\n</Tabs>\n\n</details>\n\n"
     if errors:
         md += f"**Errors:** {', '.join(errors)}, each with the {ERROR_LINK}\n\n"
     return md
