@@ -253,7 +253,7 @@ def request_body_fields(spec: Schema, request_body: Schema) -> str:
 
 def fold(summary: str, group: str, tabs: List[Tuple[str, str, str]]) -> str:
     """A collapsed block of tabs, each `(value, label, markdown)`, without the admonition box."""
-    md = f'<div class="plain-details">\n<details>\n<summary>{summary}</summary>\n\n'
+    md = f'<div class="plain-details api-details">\n<details>\n<summary>{summary}</summary>\n\n'
     md += f'<Tabs groupId="{group}">\n'
     for value, label, content in tabs:
         md += f'  <TabItem value="{value}" label="{label}">\n\n{content.rstrip()}\n\n  </TabItem>\n'
