@@ -162,3 +162,25 @@ path parameter that is not a valid ID, and all 5xx errors, are told apart by the
 The API version is part of the path. Endpoints under `/v1` are stable: breaking changes ship
 only under a new version prefix. New endpoints, optional parameters and response fields can be
 added to `/v1` at any time, so ignore fields and enum values you do not know.
+
+## URL structure
+
+Paths name the resources they act on, so a URL tells you what a request does:
+
+| Path                        | Example                                      | Meaning                                     |
+| --------------------------- | -------------------------------------------- | ------------------------------------------- |
+| `/<collection>`             | `GET /api/v1/workspaces/{workspace_id}/jobs` | Lists the items. `POST` creates one.        |
+| `/<collection>/{id}`        | `GET …/jobs/{job_id}`                        | One item. `PATCH` changes it.               |
+| `/<collection>/latest`      | `GET …/deployments/latest`                   | The newest item.                            |
+| `/<collection>/{id}/<part>` | `GET …/deployments/{deployment_id}/files`    | Data that belongs to the item.              |
+| `/-/<part>`                 | `GET …/pipelines/-/stats`                    | `-` stands for all items of the collection. |
+| `/me`                       | `GET /api/v1/me`                             | The caller of the request.                  |
+
+A path segment that starts with `-` is a verb, such as `-pause`, `-trigger` or `-issue-upload`.
+Verbs are actions with a side effect: they start, stop, change or issue something. They are
+always called with `POST`, and they can never be mistaken for an ID or a name. A verb on an item
+acts on that item only, for example `POST …/jobs/{job_id}/-pause`. A verb on a collection can act
+on several items at once, for example `POST …/job-runs/-cancel`.
+
+Requests without a verb only read or change the resource their path names: `GET` reads, `POST` on
+a collection creates and `PATCH` updates.
