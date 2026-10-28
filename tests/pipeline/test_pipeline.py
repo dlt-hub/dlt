@@ -49,7 +49,7 @@ from dlt.common.normalizers.typing import TNormalizersConfig
 from dlt.common.pipeline import ExtractInfo, LoadInfo, PipelineContext, SupportsPipeline
 from dlt.common.runtime import signals
 from dlt.common.runtime.collector import DictCollector, LogCollector
-from dlt.common.schema.exceptions import TableIdentifiersFrozen
+from dlt.common.schema.exceptions import SchemaCorruptedException, TableIdentifiersFrozen
 from dlt.common.schema.typing import TColumnSchema
 from dlt.common.schema.utils import (
     get_first_column_name_with_prop,
@@ -5622,9 +5622,8 @@ def test_nested_hints_write_disposition_replace_replace() -> None:
 
 
 def test_nested_hints_write_disposition_nested_merge() -> None:
-    # checks what happens when nested tables has write_disposition "merge" and root table is
-    # replace / append. this combination will keep nested table in staging dataset and never copy
-    # it to final dataset.
+    # A nested table cannot use write_disposition "merge" under a root table that is not "merge",
+    # as this causes data loss (rows left in staging without followup merge jobs).
     @dlt.resource(
         nested_hints={"list": dlt.mark.make_nested_hints(write_disposition="merge")},
         write_disposition="replace",
@@ -5638,22 +5637,15 @@ def test_nested_hints_write_disposition_nested_merge() -> None:
         destination="duckdb",
         dataset_name="local",
     )
-    load_info = p.run(nested_data())
-    assert_load_info(load_info)
-    load_info = p.run(nested_data())
-    assert_load_info(load_info)
-    # nested_data__list not copied to main dataset
-    assert p.dataset().row_counts().fetchall() == [("nested_data", 1), ("nested_data__list", 0)]
-    # will be loading to staging and always overwritten but not merged
-    staging_dataset = dlt.dataset(p.destination, "local_staging", p.default_schema)
-    assert staging_dataset.row_counts(table_names=["nested_data__list"]).fetchall() == [
-        ("nested_data__list", 3)
-    ]
+    with pytest.raises(PipelineStepFailed) as excinfo:
+        p.run(nested_data())
+    assert isinstance(excinfo.value.__cause__, SchemaCorruptedException)
+    assert "cannot use `merge` under a non-merge root table" in str(excinfo.value.__cause__)
 
 
 def test_nested_hints_write_disposition_merge() -> None:
-    os.environ["RAISE_ON_FAILED_JOBS"] = "false"
-
+    # A nested table under a "merge" root cannot have non-merge write disposition
+    # without a primary key decoupling it into a top-level table.
     @dlt.resource(
         nested_hints={"list": dlt.mark.make_nested_hints(write_disposition="replace")},
         write_disposition="merge",
@@ -5667,9 +5659,13 @@ def test_nested_hints_write_disposition_merge() -> None:
         destination="duckdb",
         dataset_name="local",
     )
-    # generates package error (nested_data__list is not added to staging dataset and will not be merged, should we fix it?)
-    load_info = p.run(nested_data())
-    assert load_info.has_failed_jobs is True
+    with pytest.raises(PipelineStepFailed) as excinfo:
+        p.run(nested_data())
+    assert isinstance(excinfo.value.__cause__, SchemaCorruptedException)
+    assert (
+        "All nested tables in a merge chain must share the root's `merge` write disposition"
+        in str(excinfo.value.__cause__)
+    )
 
 
 def test_nested_hints_in_variants() -> None:
