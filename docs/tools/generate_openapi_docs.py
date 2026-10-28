@@ -313,7 +313,6 @@ def render_operation(
     description = prose(operation.get("description"))
     if description:
         md += description + "\n\n"
-    md += render_parameters(spec, operation.get("parameters") or [])
     md += render_request(spec, method, path, operation, base_url, token)
     md += render_responses(spec, operation.get("responses") or {})
     return md
@@ -477,6 +476,9 @@ def render_request(
     spec: Schema, method: str, path: str, operation: Schema, base_url: str, token: str
 ) -> str:
     tabs = []
+    parameters = render_parameters(spec, operation.get("parameters") or [])
+    if parameters:
+        tabs.append(("parameters", "Parameters", parameters))
     if operation.get("requestBody"):
         tabs.append(("body", "Body", request_body_fields(spec, operation["requestBody"])))
     curl = curl_example(spec, method, path, operation, base_url, token)
