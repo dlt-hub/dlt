@@ -33,7 +33,13 @@ from dlt.common.destination.client import (
     DestinationClientDwhConfiguration,
     JobClientBase,
 )
-from dlt.common.metrics import TDatasetDataLocation, TSchemaReference, data_location_version
+from dlt.common.metrics import (
+    TDatasetDataLocation,
+    TSchemaReference,
+    data_location_version,
+    redact_location,
+)
+from dlt.common.redaction import redact_secrets
 from dlt.common.runtime.run_context import get_plugin_modules
 from dlt.common.schema.schema import Schema
 from dlt.common.typing import is_subclass
@@ -174,7 +180,8 @@ class Destination(ABC, Generic[TDestinationConfig, TDestinationClient]):
         #   consider showing physical location (when implemented) and
         #   props of the client ie. if it supports state, datasets or open tables
         kwargs = {**self.spec(), **self.config_params}
-        return simple_repr(self.destination_type, **without_none(kwargs))
+        # factory kwargs hold credentials as passed, notebooks show reprs of datasets and relations
+        return simple_repr(self.destination_type, **redact_secrets(without_none(kwargs)))
 
     def configuration(
         self, initial_config: TDestinationConfig, accept_partial: bool = False
@@ -525,4 +532,4 @@ def describe_dataset_location(
             if physical_dataset_name is not None
             else config.normalize_dataset_name(schemas[0])
         )
-    return without_none(location)  # type: ignore[return-value]
+    return redact_location(without_none(location))  # type: ignore[return-value]

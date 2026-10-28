@@ -15,6 +15,7 @@ from dlt.common.runners.stdout import iter_stdout_with_result
 from dlt.common.time import ensure_datetime_in_tz
 from dlt.common.typing import StrAny, TSecretStrValue
 from dlt.common.logger import is_json_logging
+from dlt.common.redaction import redact_text, redact_url
 from dlt.common.storages import FileStorage
 from dlt.common.utils import with_custom_environ
 from dlt.extract.incremental.context import TAnyTimeInterval
@@ -149,9 +150,11 @@ class DBTPackageRunner:
                 )
             except GitError as err:
                 # cleanup package folder
-                logger.info(f"Package will be cloned due to {type(err).__name__}:{str(err)}")
                 logger.info(
-                    f"Will clone {self.config.package_location} head"
+                    f"Package will be cloned due to {type(err).__name__}:{redact_text(str(err))}"
+                )
+                logger.info(
+                    f"Will clone {redact_url(self.config.package_location)} head"
                     f" {self.config.package_repository_branch} into {self.package_path}"
                 )
                 force_clone_repo(

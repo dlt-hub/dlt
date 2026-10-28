@@ -7,6 +7,7 @@ from dlt.common.configuration import configspec, resolve_configuration
 from dlt.common.configuration.exceptions import ConfigFieldMissingException
 from dlt.common.configuration.specs import BaseConfiguration
 from dlt.common.configuration.utils import get_resolved_traces
+from dlt.common.utils import get_exception_trace_chain
 from dlt.common.configuration.specs import (
     ConnectionStringCredentials,
     GcpServiceAccountCredentialsWithoutDefaults,
@@ -85,6 +86,13 @@ def test_connection_string_credentials_native_representation(environment) -> Non
 
     with pytest.raises(InvalidConnectionString):
         ConnectionStringCredentials().parse_native_representation("loader@localhost:5432/dlt_data")
+
+    # the trace of a malformed connection string holds no password
+    with pytest.raises(InvalidConnectionString) as py_ex:
+        ConnectionStringCredentials().parse_native_representation(
+            "postgres:/loader:hunter2@localhost/dlt_data"
+        )
+    assert "hunter2" not in str(get_exception_trace_chain(py_ex.value))
 
     dsn = "postgres://loader:pass@localhost:5432/dlt_data?a=b&c=d"
     csc = ConnectionStringCredentials()

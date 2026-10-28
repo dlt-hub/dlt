@@ -12,6 +12,7 @@ from typing import (
     TypeVar,
 )  # noqa: 251
 from dlt.common.typing import NotRequired, TypedDict
+from dlt.common.redaction import redact_text, redact_url
 from dlt.common.utils import digest128
 
 TJobKey = TypeVar("TJobKey")
@@ -120,6 +121,27 @@ class TDataLocation(TypedDict):
     """
     version: NotRequired[str]
     """Version of the location's contents as a whole."""
+
+
+def redact_location(location: Mapping[str, Any]) -> Dict[str, Any]:
+    """Returns a copy of `location` with its `location` url passed through `redact_url` and every
+    other string, also inside lists and dicts, through `redact_text`. Recorded locations are
+    persisted and sent with the trace, whoever supplies them.
+    """
+
+    def _redact(value: Any) -> Any:
+        if isinstance(value, str):
+            return redact_text(value)
+        if isinstance(value, list):
+            return [_redact(item) for item in value]
+        if isinstance(value, dict):
+            return {key: _redact(item) for key, item in value.items()}
+        return value
+
+    redacted: Dict[str, Any] = _redact(location)
+    if isinstance(location.get("location"), str):
+        redacted["location"] = redact_url(location["location"])
+    return redacted
 
 
 class TSchemaReference(TypedDict):

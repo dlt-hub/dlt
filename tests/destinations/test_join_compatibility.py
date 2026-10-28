@@ -15,6 +15,7 @@ from dlt.common.configuration.specs import (
     GcpServiceAccountCredentials,
 )
 from dlt.common.destination.client import DestinationClientConfiguration
+from dlt.dataset.relation import _location_display
 from dlt.destinations.impl.destination.configuration import CustomDestinationClientConfiguration
 from dlt.destinations.impl.dummy.configuration import DummyClientConfiguration
 from dlt.common.runtime.run_context import active
@@ -981,6 +982,39 @@ def test_filesystem_attachable_only_for_protocols_with_duckdb_secrets(
     assert duck.can_read_from(fs) is attachable
     # a same-location join needs no attach, so it stays possible either way
     assert fs.can_read_from(FilesystemDestinationClientConfiguration(bucket_url=bucket_url))
+
+
+@pytest.mark.parametrize(
+    "bucket_url,location_display,displayed",
+    [
+        pytest.param(
+            "sftp://alice:hunter2@host:2222/data",
+            "sftp://alice@host:2222",
+            "sftp://alice@host:2222/data",
+            id="sftp_password",
+        ),
+        pytest.param(
+            "abfss://container@account.dfs.core.windows.net/path",
+            "abfss://container@account.dfs.core.windows.net",
+            "abfss://container@account.dfs.core.windows.net/path",
+            id="abfss_container",
+        ),
+        pytest.param(
+            "https://account.blob.core.windows.net/c?sp=r&sig=s3cr3t",
+            "https://account.blob.core.windows.net",
+            "https://account.blob.core.windows.net/c?sp=r&sig=***",
+            id="azure_sas",
+        ),
+    ],
+)
+def test_filesystem_location_display_holds_no_credentials(
+    bucket_url: str, location_display: str, displayed: str
+) -> None:
+    """Join errors name the location and the displayed config is shown in load info, both are
+    redacted while `data_location()` keeps the url as configured."""
+    config = FilesystemDestinationClientConfiguration(bucket_url=bucket_url)
+    assert _location_display(config) == location_display
+    assert str(config) == displayed
 
 
 def test_filesystem_can_never_write() -> None:

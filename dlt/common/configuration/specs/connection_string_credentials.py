@@ -38,13 +38,17 @@ class ConnectionStringCredentials(CredentialsConfiguration):
             from dlt.common.libs.sql_alchemy_compat import make_url
 
             url = make_url(native_value)
-            # update only values that are not None
-            self.update({k: v for k, v in url._asdict().items() if v is not None})
-            if self.query is not None:
-                # query may be immutable so make it mutable
-                self.query = dict(self.query)
         except Exception:
+            url = None
+        if url is None:
+            # raised outside of `except` so the parse error, which repeats the connection string
+            # with its password, is not chained into the trace
             raise InvalidConnectionString(self.__class__, native_value, self.drivername)
+        # update only values that are not None
+        self.update({k: v for k, v in url._asdict().items() if v is not None})
+        if self.query is not None:
+            # query may be immutable so make it mutable
+            self.query = dict(self.query)
 
     def data_location(self) -> str:
         """Returns a human readable location of the data, ie. `postgresql://example.com:5432`."""

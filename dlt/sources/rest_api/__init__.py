@@ -10,6 +10,7 @@ from dlt.common.validation import validate_dict
 from dlt.common import jsonpath
 from dlt.common.schema.schema import Schema
 from dlt.common.schema.typing import TSchemaContract
+from dlt.common.redaction import is_sensitive_param
 from dlt.common.utils import exclude_keys
 from dlt.common.exceptions import ValueErrorWithKnownValues
 
@@ -25,7 +26,6 @@ from dlt.sources.helpers.rest_client.auth import (
     OAuth2ClientCredentials,
 )
 from dlt.sources.helpers.rest_client.typing import HTTPMethodBasic
-from dlt.sources.helpers.rest_client.redaction import SENSITIVE_PARAMS
 from .typing import (
     AuthConfig,
     ClientConfig,
@@ -57,7 +57,9 @@ from .utils import check_connection  # noqa: F401
 
 PARAM_TYPES: List[ParamBindType] = ["incremental", "resolve"]
 MIN_SECRET_MASKING_LENGTH = 3
-SENSITIVE_KEYS: List[str] = list(SENSITIVE_PARAMS) + ["username", "client_id"]
+SENSITIVE_KEYS: List[str] = ["username", "client_id"]
+"""Keys of auth configurations masked in validation errors, besides those `is_sensitive_param`
+tells are secret."""
 
 
 @decorators.source
@@ -378,7 +380,7 @@ def _mask_secrets(auth_config: AuthConfig) -> AuthConfig:
     ):
         return auth_config
 
-    has_sensitive_key = any(key in auth_config for key in SENSITIVE_KEYS)
+    has_sensitive_key = any(_is_sensitive_key(key) for key in auth_config)
     if (
         isinstance(
             auth_config,
@@ -394,12 +396,15 @@ def _mask_secrets(auth_config: AuthConfig) -> AuthConfig:
 
 
 def _mask_secrets_dict(auth_config: AuthConfig) -> AuthConfig:
-    for sensitive_key in SENSITIVE_KEYS:
-        try:
-            auth_config[sensitive_key] = _mask_secret(auth_config[sensitive_key])  # type: ignore[literal-required, index]
-        except KeyError:
-            continue
+    for key in list(auth_config):
+        value = auth_config[key]  # type: ignore[literal-required, index]
+        if _is_sensitive_key(key) and (value is None or isinstance(value, str)):
+            auth_config[key] = _mask_secret(value)  # type: ignore[literal-required, index]
     return auth_config
+
+
+def _is_sensitive_key(key: str) -> bool:
+    return key in SENSITIVE_KEYS or is_sensitive_param(key)
 
 
 def _mask_secret(secret: Optional[str]) -> str:

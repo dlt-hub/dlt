@@ -11,7 +11,7 @@ from dlt.common.pendulum import pendulum
 from dlt.common.configuration import is_secret_hint
 from dlt.common.configuration.exceptions import ContextDefaultCannotBeCreated
 from dlt.common.configuration.specs.config_section_context import ConfigSectionContext
-from dlt.common.configuration.utils import get_resolved_traces
+from dlt.common.configuration.utils import ResolvedValueTrace, get_resolved_traces
 from dlt.common.configuration.container import Container
 from dlt.common.exceptions import ExceptionTrace, ResourceNameNotAvailable
 from dlt.common.logger import suppress_and_warn
@@ -25,6 +25,7 @@ from dlt.common.pipeline import (
     StepMetrics,
     SupportsPipeline,
 )
+from dlt.common.redaction import is_sensitive_param, redact_secrets, redact_text, redact_url
 from dlt.common.storages.file_storage import FileStorage
 from dlt.common.typing import DictStrAny, StrAny, SupportsHumanize
 from dlt.common.utils import uniq_id, get_exception_trace_chain
@@ -253,6 +254,28 @@ def start_trace_step(
     return trace_step
 
 
+def _serializable_resolved_value(v: ResolvedValueTrace) -> SerializableResolvedValueTrace:
+    # a secret is also recognized by its name, ie. `api_key: str = dlt.config.value`
+    is_secret = is_secret_hint(v.hint) or is_sensitive_param(v.key)
+    return SerializableResolvedValueTrace(
+        v.key,
+        None if is_secret else _redact_config_value(v.value),
+        None if is_secret else _redact_config_value(v.default_value),
+        is_secret,
+        v.sections,
+        v.provider_name,
+        str(type(v.config).__qualname__),
+        v.provider_location,
+    )
+
+
+def _redact_config_value(value: Any) -> Any:
+    # a string value is a single value, ie. a bucket url; dicts may hold secrets under any key
+    if isinstance(value, str):
+        return redact_url(value)
+    return redact_secrets(value)
+
+
 def end_trace_step(
     trace: PipelineTrace,
     step: PipelineStepTrace,
@@ -274,6 +297,8 @@ def end_trace_step(
     else:
         exception_traces = None
         step_exception = None
+    if step_exception:
+        step_exception = redact_text(step_exception)
 
     step = step._replace(
         finished_at=pendulum.now(),
@@ -283,19 +308,7 @@ def end_trace_step(
     )
 
     # this will collect traces from the last clear (happens at the end of trace)
-    resolved_values = map(
-        lambda v: SerializableResolvedValueTrace(
-            v.key,
-            None if is_secret_hint(v.hint) else v.value,
-            None if is_secret_hint(v.hint) else v.default_value,
-            is_secret_hint(v.hint),
-            v.sections,
-            v.provider_name,
-            str(type(v.config).__qualname__),
-            v.provider_location,
-        ),
-        get_resolved_traces().resolved_traces,
-    )
+    resolved_values = map(_serializable_resolved_value, get_resolved_traces().resolved_traces)
     trace.resolved_config_values[:] = list(resolved_values)
     trace.steps.append(step)
     for module in TRACKING_MODULES:

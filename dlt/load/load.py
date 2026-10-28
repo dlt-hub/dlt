@@ -7,6 +7,7 @@ from concurrent.futures import Executor
 from dlt.common import logger, pendulum
 from dlt.common.exceptions import TerminalException
 from dlt.common.metrics import LoadJobMetrics, TDatasetDataLocation
+from dlt.common.redaction import redact_text, redact_url
 from dlt.common.runtime.signals import sleep
 from dlt.common.configuration import with_config, known_sections
 from dlt.common.configuration.accessors import config
@@ -223,7 +224,7 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
                     schema=schema,
                     load_table=load_table,
                     on_completed=lambda state, msg: _packages.save_pending_transition(
-                        load_id, _file_name, state, msg
+                        load_id, _file_name, state, _redact_message(msg)
                     ),
                 )
                 # set closed job client: note that it will be replaced
@@ -527,7 +528,7 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
                     load_id, state, job, schema
                 )
                 # try to get exception message from job
-                failed_message = job.failed_message()
+                failed_message = _redact_message(job.failed_message())
                 logger.error(
                     f"Job for {job.job_id()} failed terminally in load {load_id} with message"
                     f" {failed_message}"
@@ -567,7 +568,7 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
                 finalized_jobs.append(job)
             elif state == "retry":
                 # try to get exception message from job
-                retry_message = job.failed_message()
+                retry_message = _redact_message(job.failed_message())
                 # move back to new folder to try again
                 self.load_storage.normalized_packages.retry_job(
                     load_id,
@@ -609,6 +610,8 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
 
             metrics = job.metrics()
             if metrics:
+                if metrics.remote_url:
+                    metrics = metrics._replace(remote_url=redact_url(metrics.remote_url))
                 if state in ("failed", "completed"):
                     # attach per-job and chain followup ids
                     all_fups = job_fups + chain_fups if job_fups or chain_fups else None
@@ -1057,3 +1060,8 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
             self._loaded_packages,
             pipeline.first_run,
         )
+
+
+def _redact_message(message: Optional[str]) -> Optional[str]:
+    # job messages are persisted in the package, logged and sent with the trace
+    return redact_text(message) if message else message

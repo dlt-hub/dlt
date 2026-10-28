@@ -642,6 +642,30 @@ def test_save_load_trace() -> None:
     assert pipeline.last_trace.last_normalize_info is None
 
 
+def test_failed_step_trace_redacts_credentials() -> None:
+    """Exception messages in the in-memory and the saved trace hold no credentials"""
+    url = "https://user:hunter2@api.example.com/items?api_key=s3cr3t"
+
+    @dlt.resource
+    def data():
+        raise ValueError(f"request to {url} failed")
+        yield
+
+    pipeline = dlt.pipeline(pipeline_name="trace_redacted_" + uniq_id(), destination="dummy")
+    with pytest.raises(PipelineStepFailed):
+        pipeline.run(data())
+
+    for trace in (pipeline.last_trace, load_trace(pipeline.working_dir)):
+        serialized = json.dumps(trace.asdict())
+        assert "hunter2" not in serialized and "s3cr3t" not in serialized
+        step = trace.steps[0]
+        assert "https://***@api.example.com/items?api_key=***" in step.step_exception
+        assert any(
+            "https://***@api.example.com/items?api_key=***" in t["message"]
+            for t in step.exception_traces
+        )
+
+
 def test_last_trace_none_when_no_run() -> None:
     """`last_trace` returns None (not raises) when the pipeline has never produced a trace."""
     pipeline = dlt.pipeline(pipeline_name="never_run_" + uniq_id(), destination="dummy")
@@ -1230,3 +1254,29 @@ def assert_trace_serializable(trace: PipelineTrace) -> None:
     trace_pipeline.run([trace], table_name="trace_data")
 
     # print(trace_pipeline.default_schema.to_pretty_yaml())
+
+
+def test_trace_hides_secret_config_values() -> None:
+    """Config values are hidden by secret name and redacted inside, whatever their type hint"""
+    os.environ["SOURCES__SECRET_SRC__API_KEY"] = "s3cr3t-key"
+    os.environ["SOURCES__SECRET_SRC__CLIENT"] = '{"auth": {"token": "t0k3n"}, "page_size": 10}'
+    os.environ["SOURCES__SECRET_SRC__BUCKET_URL"] = "sftp://u:hun ter2@h/data"
+
+    @dlt.source(name="secret_src")
+    def secret_src(
+        api_key: str = dlt.config.value,
+        client: dict = dlt.config.value,  # type: ignore[type-arg]
+        bucket_url: str = dlt.config.value,
+    ):
+        return dlt.resource([{"a": 1}], name="items")
+
+    pipeline = dlt.pipeline(pipeline_name="trace_secrets_" + uniq_id(), destination="dummy")
+    pipeline.extract(secret_src())
+
+    values = {v.key: v for v in pipeline.last_trace.resolved_config_values}
+    assert values["api_key"].value is None and values["api_key"].is_secret_hint
+    assert values["client"].value == '{"auth": {"token": "***"}, "page_size": 10}'
+    assert values["bucket_url"].value == "sftp://u@h/data"
+    serialized = json.dumps(pipeline.last_trace.asdict()) + str(load_trace(pipeline.working_dir))
+    for secret in ("s3cr3t-key", "t0k3n", "hun ter2"):
+        assert secret not in serialized

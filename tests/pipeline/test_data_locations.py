@@ -1,8 +1,13 @@
 import os
 from typing import Any, Dict, List, cast
 
+import fsspec
+import pytest
+
 import dlt
-from dlt.common.metrics import TDatasetDataLocation, data_location_version
+from dlt.sources.filesystem import filesystem, read_csv
+from dlt.common.storages.configuration import FilesystemConfiguration
+from dlt.common.metrics import TDataLocation, TDatasetDataLocation, data_location_version
 from dlt.common.utils import digest128, uniq_id
 
 from tests.pipeline.utils import assert_load_info
@@ -182,6 +187,77 @@ def test_input_locations_replaced_on_each_run() -> None:
     assert [location["location"] for location in _inputs(pipeline.extract(resource))] == [
         "file:///second"
     ]
+
+
+def test_filesystem_locations_hold_no_credentials() -> None:
+    """Credentials embedded in `bucket_url` reach neither the input nor the output location"""
+    # memory fs stands in for sftp/ftp/http, which accept credentials in the url
+    url = f"memory://alice:hunter2@bucket_{uniq_id()}/data"
+    fs = fsspec.filesystem("memory")
+    fs.pipe(fs._strip_protocol(url) + "/a.csv", b"id\n1\n")
+
+    pipeline = dlt.pipeline(
+        pipeline_name="fs_redacted_" + uniq_id(),
+        destination=dlt.destinations.filesystem(url),
+        dev_mode=True,
+    )
+    info = pipeline.run(
+        filesystem(bucket_url=url, credentials=fs, file_glob="*.csv") | read_csv(),
+        table_name="t",
+    )
+    assert_load_info(info)
+
+    [input_] = pipeline.last_trace.last_extract_info.asdict()["inputs"]
+    redacted_url = url.replace(":hunter2", "")
+    assert input_["location"] == redacted_url
+    # the destination location is the bucket
+    assert {output["location"] for output in _outputs(info)} == {redacted_url.rsplit("/", 1)[0]}
+    assert info.destination_displayable_credentials == redacted_url
+
+
+@pytest.mark.parametrize(
+    "bucket_url,displayed",
+    [
+        pytest.param("sftp://u:hunter2@h/data", "sftp://u@h/data", id="password"),
+        pytest.param("sftp://u:hun ter2@h/data", "sftp://u@h/data", id="password_with_space"),
+        pytest.param("sftp://u:hun@ter2@h/data", "sftp://u@h/data", id="password_with_at"),
+        pytest.param("sftp://u:hun#ter2@h:22/data", "sftp://u@h:22/data", id="password_with_hash"),
+        pytest.param(
+            "az://container/data?sv=2022&sig=s3cr3t",
+            "az://container/data?sv=2022&sig=***",
+            id="sas",
+        ),
+    ],
+)
+def test_displayed_bucket_url_holds_no_credentials(bucket_url: str, displayed: str) -> None:
+    assert str(FilesystemConfiguration(bucket_url=bucket_url)) == displayed
+
+
+def test_input_locations_redacted_whoever_records_them() -> None:
+    """Every string a resource records, `kind`-specific details included, is redacted"""
+
+    @dlt.resource(name="items")
+    def items() -> Any:
+        resource = dlt.current.resource()
+        resource.add_input(
+            cast(
+                TDataLocation,
+                {
+                    "kind": "custom_api",
+                    "resource_name": resource.name,
+                    "location": "https://alice:hunter2@api.example.com",
+                    "endpoints": ["/items?x-api-key=secret&page=2"],
+                },
+            )
+        )
+        yield [{"id": 1}]
+
+    pipeline = dlt.pipeline(
+        pipeline_name="inputs_redacted_" + uniq_id(), destination="duckdb", dev_mode=True
+    )
+    [input_] = _inputs(pipeline.extract(items()))
+    assert input_["location"] == "https://***@api.example.com"
+    assert input_["endpoints"] == ["/items?x-api-key=***&page=2"]
 
 
 def test_input_and_output_locations_join_on_physical_dataset_name() -> None:

@@ -10,10 +10,14 @@ from copy import deepcopy
 from dlt.common.configuration.specs.base_configuration import configspec
 from dlt.common.schema.schema import Schema
 from dlt.common.typing import TDataItems
+from dlt.common.utils import uniq_id
 from dlt.common.schema import TTableSchema
 from dlt.common.data_writers.writers import TLoaderFileFormat
 from dlt.common.destination import Destination, DestinationReference
-from dlt.common.destination.exceptions import DestinationTransientException
+from dlt.common.destination.exceptions import (
+    DestinationTerminalException,
+    DestinationTransientException,
+)
 from dlt.common.configuration.exceptions import ConfigFieldMissingException, ConfigurationValueError
 from dlt.common.configuration.specs import ConnectionStringCredentials
 from dlt.common.configuration.inject import get_fun_spec
@@ -799,3 +803,20 @@ def test_large_payload():
     pipeline.run(generate_large_data())
 
     assert items_count == num_records
+
+
+def test_failed_job_message_holds_no_credentials() -> None:
+    os.environ["LOAD__RAISE_ON_FAILED_JOBS"] = "false"
+
+    @dlt.destination(batch_size=0)
+    def failing_sink(items: TDataItems, table: TTableSchema) -> None:
+        raise DestinationTerminalException("upload to https://u:pw@h/x?sig=s3cr3t failed")
+
+    pipeline = dlt.pipeline(
+        pipeline_name="failed_message_" + uniq_id(), destination=failing_sink, dev_mode=True
+    )
+    info = pipeline.run([{"a": 1}], table_name="items")
+    [failed_job] = [job for package in info.load_packages for job in package.jobs["failed_jobs"]]
+    # persisted in the package, from where load info and the trace read it
+    assert "https://***@h/x?sig=*** failed" in failed_job.failed_message
+    assert "pw@" not in failed_job.failed_message and "s3cr3t" not in failed_job.failed_message

@@ -4,7 +4,7 @@ import inspect
 import binascii
 import pytest
 from typing import Any, Callable, Dict, List, Tuple
-from dlt.common.exceptions import PipelineException, TerminalValueError
+from dlt.common.exceptions import DltException, PipelineException, TerminalValueError
 
 from dlt.common.runners import Venv
 from dlt.common.utils import (
@@ -378,6 +378,32 @@ def test_exception_traces() -> None:
     except Exception as exc:
         trace = get_exception_trace(exc)
     assert trace["pipeline_name"] == "test_pipeline"
+
+
+def test_exception_trace_redacts_credentials() -> None:
+    class UrlException(DltException):
+        def __init__(self, url: str) -> None:
+            self.url = url
+            super().__init__(f"Request to {url} failed")
+
+    trace = get_exception_trace(UrlException("https://u:pw@h/x?api_key=s"))
+    assert trace["message"] == "Request to https://***@h/x?api_key=*** failed"
+    assert trace["exception_attrs"] == {"url": "https://***@h/x?api_key=***"}
+
+    class SecretAttrsException(DltException):
+        def __init__(self) -> None:
+            self.native_value = "postgres:/loader:hunter2@localhost/db"
+            self.client_secret = "s3cr3t"
+            self.config = {"token": "t0k3n", "host": "h"}
+            super().__init__("Invalid credentials")
+
+    trace = get_exception_trace(SecretAttrsException())
+    # by attr name, by key in nested values, whatever the value looks like
+    assert trace["exception_attrs"] == {
+        "native_value": "***",
+        "client_secret": "***",
+        "config": {"token": "***", "host": "h"},
+    }
 
 
 def test_exception_trace_chain() -> None:

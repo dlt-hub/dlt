@@ -29,6 +29,7 @@ from tenacity import (
 )
 
 from dlt.common import logger, time, json
+from dlt.common.redaction import redact_url
 from dlt.common.destination.utils import resolve_merge_strategy, resolve_replace_strategy
 from dlt.common.metrics import LoadJobMetrics
 from dlt.common.schema.exceptions import TableNotFound
@@ -236,8 +237,8 @@ class DeltaLoadFilesystemJob(TableFormatLoadFilesystemJob):
         )
 
         logger.info(
-            f"Will copy file(s) {self.file_paths} to delta table {self.make_remote_url()} [arrow"
-            f" buffer: {pa.total_allocated_bytes()}]"
+            f"Will copy file(s) {self.file_paths} to delta table"
+            f" {redact_url(self.make_remote_url())} [arrow buffer: {pa.total_allocated_bytes()}]"
         )
         storage_options = deltalake_storage_options(
             self._job_client.config.credentials,
@@ -272,8 +273,8 @@ class DeltaLoadFilesystemJob(TableFormatLoadFilesystemJob):
         # release memory ASAP by deleting objects explicitly
         del delta_table
         logger.info(
-            f"Copied {self.file_paths} to delta table {self.make_remote_url()} [arrow buffer:"
-            f" {pa.total_allocated_bytes()}]"
+            f"Copied {self.file_paths} to delta table {redact_url(self.make_remote_url())} [arrow"
+            f" buffer: {pa.total_allocated_bytes()}]"
         )
 
 

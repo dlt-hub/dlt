@@ -52,7 +52,6 @@ from dlt.sources.helpers.rest_client.auth import (
     OAuth2ClientCredentials,
 )
 from dlt.sources.helpers.rest_client.client import RESTClient, raise_for_status
-from dlt.sources.helpers.rest_client.redaction import sanitize_url
 
 from dlt.extract.resource import DltResource
 from dlt.sources.helpers.rest_client.typing import HTTPMethodBasic
@@ -1035,7 +1034,7 @@ def record_endpoint_input(resource: DltResource, client: RESTClient, path: str) 
             TRestApiDataLocation(
                 kind="rest_api",
                 resource_name=resource.name,
-                location=sanitize_url(client.base_url),
+                location=client.base_url,
                 # `path` is the endpoint template, not a resolved request url
                 endpoints=[path],
             ),

@@ -45,6 +45,7 @@ from dlt.common.exceptions import (
     DependencyVersionException,
     ValueErrorWithKnownValues,
 )
+from dlt.common.redaction import REDACTED, is_sensitive_param, redact_secrets, redact_text
 from dlt.common.typing import AnyFun, StrAny, DictStrAny, StrStr, TAny, TFun, Generic
 from dlt.common.warnings import Dlt100DeprecationWarning, deprecated
 
@@ -739,7 +740,11 @@ def exclude_keys(mapping: Mapping[str, Any], keys: Iterable[str]) -> Dict[str, A
 
 def get_exception_trace(exc: BaseException) -> ExceptionTrace:
     """Get exception trace and additional information for DltException(s)"""
-    trace: ExceptionTrace = {"message": str(exc), "exception_type": get_full_obj_class_name(exc)}
+    # traces are persisted and sent out, messages often hold the url that failed
+    trace: ExceptionTrace = {
+        "message": redact_text(str(exc)),
+        "exception_type": get_full_obj_class_name(exc),
+    }
     if exc.__traceback__:
         tb_extract = traceback.extract_tb(exc.__traceback__)
         trace["stack_trace"] = traceback.format_list(tb_extract)
@@ -760,8 +765,14 @@ def get_exception_trace(exc: BaseException) -> ExceptionTrace:
                 # must be json serializable, other attrs are skipped
                 # TODO: be more picky re. what is serialized. exceptions contain data items and
                 #  other value that should not be serialized
-                if not isinstance(v, str):
+                if k == "native_value" or is_sensitive_param(k):
+                    # ie. a connection string that failed to parse, it does not look like a url
+                    v = REDACTED
+                elif isinstance(v, str):
+                    v = redact_text(v)
+                else:
                     json.dumps(v)
+                    v = redact_secrets(v)
                 str_attrs[k] = v
             except Exception:
                 continue
