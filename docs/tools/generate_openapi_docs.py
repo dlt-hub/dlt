@@ -18,6 +18,7 @@ import json
 import pathlib
 import re
 import textwrap
+from http import HTTPStatus
 from importlib.metadata import version
 from typing import Any, Dict, List, Tuple
 
@@ -260,6 +261,13 @@ def fold(summary: str, group: str, tabs: List[Tuple[str, str, str]]) -> str:
     return md + "</Tabs>\n\n</details>\n</div>\n\n"
 
 
+def status_phrase(status: str) -> str:
+    try:
+        return HTTPStatus(int(status)).phrase
+    except ValueError:
+        return status
+
+
 def render_responses(spec: Schema, responses: Dict[str, Schema]) -> str:
     """One collapsed block: the success body as an example and its fields, then the errors."""
     #: statuses of each distinct success body, keyed by its schema
@@ -269,7 +277,7 @@ def render_responses(spec: Schema, responses: Dict[str, Schema]) -> str:
     errors = []
     for status, response in responses.items():
         if not status.startswith("2"):
-            errors.append(f"`{status}`")
+            errors.append(f"- `{status}` {status_phrase(status)}")
             continue
         statuses.append(status)
         content = response.get("content") or {}
@@ -295,11 +303,12 @@ def render_responses(spec: Schema, responses: Dict[str, Schema]) -> str:
         tabs.append(("example", f"Example{suffix}", f"```json\n{example}\n```"))
         tabs.append(("fields", f"Fields{suffix}", fields_table(spec, schema, with_required=False)))
     if errors:
-        tabs.append(("errors", "Errors", f"{', '.join(errors)}, each with the {ERROR_LINK}."))
+        content = "\n".join(errors) + f"\n\nEach error returns the {ERROR_LINK}."
+        tabs.append(("errors", "Errors", content))
     if not tabs:
         return ""
     summary = "Response"
-    if statuses and statuses != ["200"]:
+    if statuses:
         summary += " (" + ", ".join(f"<code>{status}</code>" for status in statuses) + ")"
     return fold(summary, "api-response", tabs)
 
