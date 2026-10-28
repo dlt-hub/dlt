@@ -43,6 +43,10 @@ HTTP_METHODS = ("get", "post", "put", "patch", "delete")
 #: framework default for timezone-aware datetimes, says nothing the type does not
 DATETIME_BOILERPLATE = "datetime with the constraint that the value must have timezone info"
 
+#: the error body every service shares, documented once on the API index page
+ERROR_SCHEMA = "ErrorResponse"
+ERROR_LINK = "[error body](index.md#errors)"
+
 Schema = Dict[str, Any]
 
 
@@ -181,6 +185,8 @@ def render_responses(responses: Dict[str, Schema]) -> str:
     errors: Dict[str, List[str]] = {}
     for status, response in responses.items():
         body = cell(render_content(response.get("content") or {})) or "none"
+        if body == type_str({"$ref": ERROR_SCHEMA}):
+            body = ERROR_LINK
         if status.isdigit() and int(status) >= 400:
             errors.setdefault(body, []).append(f"`{status}`")
             continue
@@ -401,6 +407,7 @@ def render_spec(spec: Schema, slug: str, label: str, base_url: str, token: str) 
         md += f"## {tag_label(tag)}\n\n" + "".join(by_tag[tag])
 
     schemas = spec.get("components", {}).get("schemas", {})
+    schemas = {name: schema for name, schema in schemas.items() if name != ERROR_SCHEMA}
     if schemas:
         md += "## Schemas\n\n"
         for name in sorted(schemas):

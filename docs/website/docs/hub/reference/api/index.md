@@ -134,6 +134,13 @@ A failed request answers with a 4xx or 5xx status and an error body:
 }
 ```
 
+| Field         | Description                                                  |
+| ------------- | ------------------------------------------------------------ |
+| `status_code` | The HTTP status code                                         |
+| `code`        | Machine-readable error code, when the error has one          |
+| `detail`      | Human-readable description of the error                      |
+| `extra`       | Additional error details, free-form; omitted for most errors |
+
 `detail` is meant for people. Check `code` in programs: most 4xx errors carry one, for example
 `token_expired` when a data plane token ran out or `permission_denied` when your role does
 not allow the call. New codes can be added at any time, so treat a code you do not know like
