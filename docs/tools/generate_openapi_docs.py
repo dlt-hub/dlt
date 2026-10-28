@@ -423,27 +423,19 @@ def py_literal(value: Any, indent: int = 0) -> str:
     return inline
 
 
-def env_var(name: str) -> str:
-    """`$DLTHUB_API_KEY` -> `os.environ["DLTHUB_API_KEY"]`, other values as string literals."""
-    if name.startswith("$"):
-        return f'os.environ["{name[1:]}"]'
-    return json.dumps(name)
+def placeholder(value: str) -> str:
+    """`$DATAPLANE_URL` -> `<dataplane_url>`, other values as they are."""
+    return f"<{value[1:].lower()}>" if value.startswith("$") else value
 
 
 def python_example(
     spec: Schema, method: str, path: str, operation: Schema, base_url: str, token: str
 ) -> str:
+    # ids and the data plane URL are placeholders to fill in, the token is read from the env
+    url = placeholder(base_url) + re.sub(r"{(\w+)}", r"<\1>", path)
+    env = request_token(path, token).lstrip("$")
+    args = [json.dumps(url), f'headers={{"Authorization": f"Bearer {{os.environ[\'{env}\']}}"}}']
     lines = []
-    for name in re.findall(r"{(\w+)}", path):
-        lines.append(f'{name} = os.environ["{name.upper()}"]')
-    if base_url.startswith("$"):
-        lines.append(f"base_url = {env_var(base_url)}")
-        url = "{base_url}" + path
-    else:
-        url = base_url + path
-    lines.append(f"token = {env_var(request_token(path, token))}")
-    args = [f'f"{url}"' if "{" in url else json.dumps(url)]
-    args.append('headers={"Authorization": f"Bearer {token}"}')
     content = (operation.get("requestBody") or {}).get("content") or {}
     if "application/json" in content:
         body = example_body(spec, content["application/json"].get("schema", {}))
