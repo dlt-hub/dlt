@@ -169,7 +169,7 @@ def employees(
     updated_at: dlt.sources.incremental[
         pendulum.DateTime
     ] = dlt.sources.incremental(
-        "last_modified_at", initial_value=None, allow_external_schedulers=True
+        "last_modified_at", initial_value=None
     ),
     items_per_page: int = 100,
 ) -> Iterable[TDataItem]:
@@ -181,7 +181,9 @@ def employees(
 
 `items_per_page`: Maximum number of items per page, defaults to 200.
 
-`allow_external_schedulers`: A boolean that, if true, permits [external schedulers](../../general-usage/incremental/cursor.md#using-airflow-schedule-for-backfill-and-incremental-loading) to manage incremental loading.
+This source does not set `allow_external_schedulers`. Set it on the incrementals only to load the
+data interval of each Airflow run, see
+[Using Airflow schedule for backfill and incremental loading](../../general-usage/incremental/cursor.md#using-airflow-schedule-for-backfill-and-incremental-loading).
 
 Like the `employees` resource discussed above, other resources `absences` and `attendances` load
 data incrementally from the Personio API to your preferred destination.

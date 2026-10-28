@@ -345,6 +345,10 @@ verified source.
    > from the last load time in the dlt state or from 1st Jan 2000 if no prior load. This approach
    > ensures data retrieval since the specified date, while still updating the last load time.
 
+   This source does not set `allow_external_schedulers`. Set it on the incrementals only to load the
+   data interval of each Airflow run, see
+   [Using Airflow schedule for backfill and incremental loading](../../general-usage/incremental/cursor.md#using-airflow-schedule-for-backfill-and-incremental-loading).
+
 1. To load historical data in weekly ranges from Jan 1st, 2023, then switch to incremental loading
    for new tickets.
 
