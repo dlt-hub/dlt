@@ -146,9 +146,12 @@ def test_get_module_name() -> None:
     assert get_module_name(m) == "uniq_mod_121"
 
     # use exec to get __main__ exception
-    mod_name = Venv.restore_current().run_script("tests/common/cases/modules/uniq_mod_121.py")
-    # take last non-empty line: dep warnings may appear on stderr (merged into stdout)
-    assert mod_name.strip().splitlines()[-1] == "uniq_mod_121"
+    output = Venv.restore_current().run_script("tests/common/cases/modules/uniq_mod_121.py")
+    # take last non-empty lines: dep warnings may appear on stderr (merged into stdout)
+    lines = output.strip().splitlines()
+    assert lines[-1] == "uniq_mod_121"
+    # a script has no module spec to recover the module name from
+    assert lines[-2] == "__main__.find_my_module"
 
 
 def test_get_full_callable_name() -> None:
@@ -173,9 +176,6 @@ def test_get_full_callable_name() -> None:
     assert (
         output.strip().splitlines()[-2] == "tests.common.cases.modules.uniq_mod_121.find_my_module"
     )
-    # run as a script: no spec to recover the module name from
-    output = Venv.restore_current().run_script("tests/common/cases/modules/uniq_mod_121.py")
-    assert output.strip().splitlines()[-2] == "__main__.find_my_module"
 
 
 def _gen_in_main() -> Any:
