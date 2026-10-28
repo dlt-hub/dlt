@@ -1,6 +1,7 @@
 from abc import ABC, abstractmethod
 import dataclasses
 import contextlib
+import os
 import sqlglot
 import sqlglot.expressions as sge
 import traceback
@@ -432,6 +433,10 @@ class LoadJob(ABC):
         self._parsed_file_name = ParsedLoadJobFileName.parse(self._file_name)
         self._started_at: datetime.datetime = None
         self._finished_at: datetime.datetime = None
+        # the job file moves to another folder when the job completes
+        self._file_size: Optional[int] = None
+        with contextlib.suppress(OSError):
+            self._file_size = os.path.getsize(file_path)
 
     def job_id(self) -> str:
         """The job id that is derived from the file name and does not changes during job lifecycle"""
@@ -475,6 +480,7 @@ class LoadJob(ABC):
             self.state(),
             None,
             self._parsed_file_name.retry_count,
+            file_size=self._file_size,
         )
 
 

@@ -23,6 +23,9 @@ class DataWriterMetrics(NamedTuple):
     file_size: int
     created: float
     last_modified: float
+    files_count: int = 1
+    """Number of files the metrics sum up. Metrics restored from traces of older dlt versions
+    count 1 file per table or resource."""
 
     def __add__(self, other: Tuple[object, ...], /) -> "DataWriterMetrics":
         if isinstance(other, DataWriterMetrics):
@@ -33,11 +36,12 @@ class DataWriterMetrics(NamedTuple):
                 self.file_size + other.file_size,
                 min(self.created, other.created),
                 max(self.last_modified, other.last_modified),
+                self.files_count + other.files_count,
             )
         return NotImplemented
 
 
-EMPTY_DATA_WRITER_METRICS = DataWriterMetrics("", 0, 0, 2**32, 0.0)
+EMPTY_DATA_WRITER_METRICS = DataWriterMetrics("", 0, 0, 2**32, 0.0, 0)
 
 
 def aggregate_job_metrics(
@@ -62,10 +66,11 @@ class DataWriterAndCustomMetrics(DataWriterMetrics):
         file_size: int,
         created: float,
         last_modified: float,
+        files_count: int = 1,
         custom_metrics: Dict[str, Any] = None,
     ) -> "DataWriterAndCustomMetrics":
         self = super(DataWriterAndCustomMetrics, cls).__new__(
-            cls, file_path, items_count, file_size, created, last_modified
+            cls, file_path, items_count, file_size, created, last_modified, files_count
         )
         self.custom_metrics = custom_metrics or {}
         return self
@@ -186,6 +191,8 @@ class LoadJobMetrics(NamedTuple):
     remote_url: Optional[str]
     retry_count: int = 0
     followup_jobs: Optional[Sequence[str]] = ()
+    file_size: Optional[int] = None
+    """Bytes of the job file on disk. `None` in traces of older dlt versions."""
 
 
 class LoadMetrics(StepMetrics):

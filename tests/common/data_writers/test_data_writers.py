@@ -110,16 +110,19 @@ def test_unicode_insert_writer(insert_writer: _StringIOWriter) -> None:
 def test_data_writer_metrics_add() -> None:
     now = time.time()
     metrics = DataWriterMetrics("file", 10, 100, now, now + 10)
+    # a single file counts 1, the empty metrics count no files
+    assert metrics.files_count == 1
+    assert EMPTY_DATA_WRITER_METRICS.files_count == 0
     add_m: DataWriterMetrics = metrics + EMPTY_DATA_WRITER_METRICS
-    assert add_m == DataWriterMetrics("", 10, 100, now, now + 10)
+    assert add_m == DataWriterMetrics("", 10, 100, now, now + 10, 1)
     # will keep "file" because it is in both
-    assert metrics + metrics == DataWriterMetrics("file", 20, 200, now, now + 10)
+    assert metrics + metrics == DataWriterMetrics("file", 20, 200, now, now + 10, 2)
     assert sum((metrics, metrics, metrics), EMPTY_DATA_WRITER_METRICS) == DataWriterMetrics(
-        "", 30, 300, now, now + 10
+        "", 30, 300, now, now + 10, 3
     )
     # time range extends when added
     add_m = metrics + DataWriterMetrics("fileX", 99, 120, now - 10, now + 20)
-    assert add_m == DataWriterMetrics("", 109, 220, now - 10, now + 20)
+    assert add_m == DataWriterMetrics("", 109, 220, now - 10, now + 20, 2)
 
 
 def test_is_native_writer() -> None:

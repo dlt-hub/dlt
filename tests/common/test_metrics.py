@@ -1,11 +1,14 @@
+import pickle
 from typing import List
 
 from dlt.common.metrics import (
+    DataWriterAndCustomMetrics,
     DataWriterMetrics,
     TSchemaReference,
     aggregate_job_metrics,
     data_location_version,
 )
+from dlt.common.storages.job_metrics import merge_metrics, metrics_by_job, metrics_by_table
 from dlt.common.storages.load_package import ParsedLoadJobFileName
 
 
@@ -66,6 +69,39 @@ def test_aggregate_job_metrics_sums_interleaved_resources() -> None:
     )
     assert resource_metrics["res_a"].items_count == 8
     assert resource_metrics["res_b"].items_count == 4
+    assert resource_metrics["res_a"].files_count == 2
+
+
+def test_job_metrics_by_job_and_table() -> None:
+    # job files are parsed from their names only, they do not exist
+    job_metrics = metrics_by_job(
+        [
+            _job("parent", "aa", 10, 100)[1],
+            _job("parent", "bb", 5, 50)[1],
+            _job("child", "cc", 3)[1],
+        ]
+    )
+    assert sorted(job.table_name for job in job_metrics) == ["child", "parent", "parent"]
+    table_metrics = metrics_by_table(job_metrics)
+    assert table_metrics["parent"].files_count == 2
+    assert table_metrics["parent"].items_count == 15
+    assert table_metrics["child"].files_count == 1
+
+    # tables of two packages are merged, a table seen once keeps its metrics
+    merged = merge_metrics([table_metrics, {"parent": table_metrics["parent"]}])
+    assert merged["parent"].files_count == 4
+    assert merged["parent"].file_size == 300
+    assert merged["child"] == table_metrics["child"]
+
+
+def test_metrics_of_older_traces_count_one_file() -> None:
+    # unpickling passes the stored fields to __new__, older traces did not store the files count
+    restored = DataWriterMetrics.__new__(DataWriterMetrics, "", 10, 100, 1.0, 2.0)
+    assert restored.files_count == 1
+    custom = DataWriterAndCustomMetrics("", 1, 2, 1.0, 2.0, custom_metrics={"a": 1})
+    restored_custom = pickle.loads(pickle.dumps(custom))
+    assert restored_custom.files_count == 1
+    assert restored_custom.custom_metrics == {"a": 1}
 
 
 def test_data_location_version_is_order_independent() -> None:
