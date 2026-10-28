@@ -60,6 +60,10 @@ FORMAT_EXAMPLES = {
     "email": "user@example.com",
 }
 
+#: query parameters every list operation takes, described once on the API overview page
+PAGINATION_PARAMS = ("limit", "offset", "cursor", "order")
+PAGINATION_LINK = "[Lists and pagination](overview.md#lists-and-pagination)"
+
 #: marks required parameters and request fields at the start of their description
 REQUIRED = "**Required.**"
 
@@ -214,8 +218,12 @@ def fields_table(spec: Schema, schema: Schema, with_required: bool) -> str:
 def render_parameters(spec: Schema, parameters: List[Schema]) -> str:
     """One table per location; path parameters are always required, others are marked."""
     tables: Dict[str, List[str]] = {}
+    pagination = []
     for param in parameters:
         name = param["name"]
+        if param["in"] == "query" and name in PAGINATION_PARAMS:
+            pagination.append(f"`{name}`")
+            continue
         description = cell(param.get("description"))
         if not description and param["in"] == "path" and name.endswith("_id"):
             description = "ID of the " + name[: -len("_id")].replace("_", " ")
@@ -229,6 +237,8 @@ def render_parameters(spec: Schema, parameters: List[Schema]) -> str:
     for location, rows in tables.items():
         md += f"**{location.capitalize()} parameters**\n\n| Name | Type | Description |\n"
         md += "| --- | --- | --- |\n" + "\n".join(rows) + "\n\n"
+    if pagination:
+        md += f"**Pagination:** {', '.join(pagination)}, see {PAGINATION_LINK}\n\n"
     return md
 
 

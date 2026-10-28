@@ -109,7 +109,17 @@ was issued for.
 
 ## Lists and pagination
 
-List endpoints return a page of results:
+List endpoints take the same query parameters to page through their results:
+
+| Parameter | Meaning                                                                                                                               |
+| --------- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| `limit`   | Maximum number of items to return, at most 1000                                                                                       |
+| `offset`  | Number of items to skip, at most 10000; narrow with filters instead of paging deeper                                                  |
+| `cursor`  | The `next_cursor` of the previous page; returns the rows after it under the same `sort` and `order`. Cannot be combined with `offset` |
+| `order`   | Sort directions, `asc` or `desc`, one per `sort` key and in the same order. Required whenever `sort` is given                         |
+
+The keys `sort` accepts differ per endpoint and are listed with it. List endpoints return a page
+of results:
 
 | Field         | Meaning                                                                        |
 | ------------- | ------------------------------------------------------------------------------ |
