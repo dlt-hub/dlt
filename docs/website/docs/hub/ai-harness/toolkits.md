@@ -5,7 +5,7 @@ keywords: [ai harness, toolkits, catalog, development cycle, rest-api-pipeline, 
 ---
 # Toolkits
 
-An [AI Harness](https://dlthub.com/features/ai-harness) toolkit is a versioned bundle of skills, rules, an MCP server, and in some toolkits agent definitions for [background agents](../agents/index.md), tied together by a workflow that tells the agent which skill to run at each step and how to leverage the MCP. Each toolkit covers one job: build a REST API pipeline, add data-quality checks, deploy a workspace, and so on. Toolkits also act as guardrails, keeping the agent from diverging from proven dlt patterns and data-engineering best practices. Head to [Installation](installation.md#adding-feature-toolkits) to install them.
+An [AI Harness](https://dlthub.com/features/ai-harness) toolkit is a versioned bundle of skills, rules, an MCP server, and in some toolkits agent definitions for [background agents](../agents/index.md). A workflow ties them together and tells the agent which skill to run at each step and how to leverage the MCP. Each toolkit covers one job: build a REST API pipeline, add data-quality checks, deploy a workspace, and so on. Toolkits also act as guardrails, keeping the agent from diverging from proven dlt patterns and data-engineering best practices. Head to [Installation](installation.md#adding-feature-toolkits) to install them.
 
 ## The development cycle
 
