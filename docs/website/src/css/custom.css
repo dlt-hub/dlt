@@ -917,6 +917,36 @@ and (max-height : 850px) {
   border-color: transparent transparent transparent var(--ifm-color-primary) !important;
 }
 
+/* the request and response blocks of the REST API reference: outlined instead of the blue admonition */
+.api-details details,
+.api-details [class*="details_"] {
+  background: transparent !important;
+  border: 1px solid var(--ifm-color-emphasis-300) !important;
+  box-shadow: none !important;
+  color: var(--ifm-font-color-base) !important;
+  margin: 0.5rem 0 !important;
+}
+
+.api-details summary::before {
+  border-color: transparent transparent transparent var(--ifm-color-emphasis-600) !important;
+}
+
+.api-details [class*="collapsibleContent_"] {
+  border-top: 1px solid var(--ifm-color-emphasis-300) !important;
+}
+
+.api-details code.api-error {
+  background-color: #ffedd5;
+  border-color: #fed7aa;
+  color: #9a3412;
+}
+
+html[data-theme="dark"] .api-details code.api-error {
+  background-color: rgba(251, 146, 60, 0.2);
+  border-color: rgba(251, 146, 60, 0.4);
+  color: #fed7aa;
+}
+
 .harness-loop {
   margin: 1.5rem 0 2rem;
   text-align: center;
