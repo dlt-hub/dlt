@@ -16,8 +16,9 @@ from dlt.common.storages.load_package import ParsedLoadJobFileName
 from dlt.common.utils import custom_environ, uniq_id
 from dlt.extract import DltSource
 from dlt.pipeline.exceptions import PipelineStepFailed
+from dlt.pipeline.trace import load_trace
 
-from dlt._workspace.cli import echo, _init_command, _pipeline_command
+from dlt._workspace.cli import echo, _init_command, _pipeline_command, utils
 
 from tests.workspace.cli.utils import (
     WORKSPACE_CLI_CASES_DIR,
@@ -717,6 +718,102 @@ def test_pipeline_command_load_package_row_counts() -> None:
         )
         _out = buf.getvalue()
     assert "nested tables could also be modified" in _out
+
+
+def test_pipeline_command_trace_metrics() -> None:
+    pipeline_name = "pipe_" + uniq_id()
+    os.environ["SOURCES__DATA_WRITER__FILE_MAX_ITEMS"] = "30"
+
+    @dlt.resource
+    def orders():
+        for i in range(100):
+            yield {"id": i, "lines": [{"sku": "a"}, {"sku": "b"}]}
+
+    p = dlt.pipeline(pipeline_name=pipeline_name, destination="duckdb")
+    p.run([orders(), dlt.resource([{"id": 1}], name="customers")])
+
+    steps = utils.fetch_trace_metrics(p.last_trace)
+    assert [step["step"] for step in steps] == ["extract", "normalize", "load"]
+    extract, normalize, load = steps
+    tables = {table["table_name"]: table for table in extract["tables"]}
+    # extract rotates every 30 rows
+    assert tables["orders"]["files_count"] == 4
+    assert tables["orders"]["items_count"] == 100
+    assert sum(f["items_count"] for f in extract["files"] if f["table_name"] == "orders") == 100
+    resources = {resource["resource_name"]: resource for resource in extract["resources"]}
+    assert resources["orders"]["files_count"] == 4
+    assert resources["customers"]["items_count"] == 1
+    # nested tables appear in normalize
+    tables = {table["table_name"]: table for table in normalize["tables"]}
+    assert tables["orders__lines"]["items_count"] == 200
+    assert "resources" not in normalize
+    # load runs the normalized files, it knows sizes and states but not rows
+    assert "files" not in load and "tables" not in load
+    assert sorted(job["job_id"] for job in load["jobs"]) == sorted(
+        f["job_id"] for f in normalize["files"]
+    )
+    assert all(job["state"] == "completed" and job["file_size"] > 0 for job in load["jobs"])
+    assert all("items_count" not in job for job in load["jobs"])
+    assert [step["step"] for step in utils.fetch_trace_metrics(p.last_trace, ["load"])] == ["load"]
+
+    with io.StringIO() as buf, contextlib.redirect_stdout(buf):
+        _pipeline_command.pipeline_command("trace", pipeline_name, None, 0, action="metrics")
+        _out = buf.getvalue()
+    for step_name in ("extract", "normalize", "load"):
+        assert f"{step_name} finished in" in _out
+    assert "resources:" in _out
+    assert "orders: 100 rows, 4 files" in _out
+    assert "orders__lines: 200 rows" in _out
+    print(_out)
+
+    # verbose output lists files instead of tables
+    with io.StringIO() as buf, contextlib.redirect_stdout(buf):
+        _pipeline_command.pipeline_command(
+            "trace", pipeline_name, None, 1, action="metrics", steps=["load"]
+        )
+        _out = buf.getvalue()
+    assert "extract finished in" not in _out
+    assert "files:" in _out
+    assert "tables:" not in _out
+    assert "table orders__lines" in _out
+    assert "completed" in _out
+    print(_out)
+
+    # traces of older dlt versions have no load job sizes, their size is unknown and not 0
+    load_steps = utils.fetch_trace_metrics(p.last_trace, ["load"])
+    for job in load_steps[0]["jobs"]:
+        job["file_size"] = None
+    with io.StringIO() as buf, contextlib.redirect_stdout(buf):
+        _pipeline_command.print_trace_metrics(load_steps, 0)
+        _out = buf.getvalue()
+    assert "size unknown" in _out
+    assert "0 Bytes" not in _out
+
+
+STORED_TRACES_DIR = os.path.join(
+    os.path.dirname(os.path.abspath(__file__)), "..", "..", "pipeline", "cases", "traces"
+)
+
+
+@pytest.mark.parametrize(
+    "trace_folder",
+    [folder for folder in sorted(os.listdir(STORED_TRACES_DIR)) if "botched" not in folder],
+)
+def test_trace_metrics_of_stored_traces(trace_folder: str) -> None:
+    trace = load_trace(os.path.join(STORED_TRACES_DIR, trace_folder), ignore_errors=False)
+    steps = utils.fetch_trace_metrics(trace)
+    assert {step["step"] for step in steps} == {"extract", "normalize", "load"}
+    for step in steps:
+        if step["step"] == "load":
+            assert all(job["state"] for job in step["jobs"])
+        else:
+            # file counts of the tables add up to the listed files
+            assert sum(table["files_count"] for table in step["tables"]) == len(step["files"])
+
+    with io.StringIO() as buf, contextlib.redirect_stdout(buf):
+        _pipeline_command.print_trace_metrics(steps, 1)
+        _out = buf.getvalue()
+    assert "files:" in _out
 
 
 def test_invoke_list_pipelines(legacy_workspace_context, script_runner: ScriptRunner) -> None:
