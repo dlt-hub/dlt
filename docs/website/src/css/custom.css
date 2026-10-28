@@ -917,10 +917,10 @@ and (max-height : 850px) {
   border-color: transparent transparent transparent var(--ifm-color-primary) !important;
 }
 
-/* the request and response blocks of the REST API reference: outlined and grey instead of the blue admonition */
+/* the request and response blocks of the REST API reference: outlined instead of the blue admonition */
 .api-details details,
 .api-details [class*="details_"] {
-  background: var(--ifm-color-emphasis-100) !important;
+  background: transparent !important;
   border: 1px solid var(--ifm-color-emphasis-300) !important;
   box-shadow: none !important;
   color: var(--ifm-font-color-base) !important;
