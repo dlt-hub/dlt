@@ -369,7 +369,8 @@ def tickets(
 We opt-in to the Airflow scheduler by setting `allow_external_schedulers` to `True`:
 
 1. When running on Airflow, the start and end values are controlled by Airflow and the dlt [state](../state.md) is not used.
-2. In all other environments, the `incremental` behaves as usual, maintaining the dlt state.
+2. In all other environments, `dlt` raises `ExternalSchedulerNotAvailable`, unless you
+   [provide an interval](#injecting-and-reading-the-current-interval) in another way.
 
 Let's generate a deployment with `dlt deploy zendesk_pipeline.py airflow-composer` and customize the DAG:
 
@@ -397,6 +398,10 @@ def zendesk_backfill_bigquery():
     )
     # select only incremental endpoints in support api
     data = zendesk_support().with_resources("tickets", "ticket_events", "ticket_metric_events")
+    # verified sources do not set `allow_external_schedulers`, opt their incrementals in
+    for resource in data.selected_resources.values():
+        if resource.incremental:
+            resource.incremental.allow_external_schedulers = True
     # create the source, the "serialize" decompose option will convert dlt resources into Airflow tasks. use "none" to disable it
     tasks.add_run(pipeline, data, decompose="serialize", trigger_rule="all_done", retries=0, provide_context=True)
 
@@ -408,7 +413,7 @@ What got customized:
 
 1. We use a weekly schedule and want to get the data from February 2023 (`start_date`) until the end of July (`end_date`).
 2. We make Airflow generate all weekly runs (`catchup` is True).
-3. We create `zendesk_support` resources where we select only the incremental resources we want to backfill.
+3. We create `zendesk_support` resources where we select only the incremental resources we want to backfill, and opt them in to the Airflow schedule.
 
 When you enable the DAG in Airflow, it will generate several runs and start executing them, starting in February and ending in August. Your resource will receive subsequent weekly intervals starting with `2023-02-12, 00:00:00 UTC` to `2023-02-19, 00:00:00 UTC`.
 
@@ -433,7 +438,12 @@ def zendesk_new_bigquery():
         dataset_name="zendesk_support_data",
         destination='bigquery',
     )
-    tasks.add_run(pipeline, zendesk_support(), decompose="serialize", trigger_rule="all_done", retries=0, provide_context=True)
+    data = zendesk_support()
+    # verified sources do not set `allow_external_schedulers`, opt their incrementals in
+    for resource in data.selected_resources.values():
+        if resource.incremental:
+            resource.incremental.allow_external_schedulers = True
+    tasks.add_run(pipeline, data, decompose="serialize", trigger_rule="all_done", retries=0, provide_context=True)
 ```
 
 Above, we switch to a daily schedule and disable catchup and end date. We also load all the support resources to the same dataset as backfill (`zendesk_support_data`).
