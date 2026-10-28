@@ -261,26 +261,27 @@ def fold(summary: str, group: str, tabs: List[Tuple[str, str, str]]) -> str:
 
 
 def render_responses(spec: Schema, responses: Dict[str, Schema]) -> str:
-    """Success bodies with an example and their fields, then the error statuses in one line."""
+    """One collapsed block: the success body as an example and its fields, then the errors."""
     #: statuses of each distinct success body, keyed by its schema
     bodies: Dict[str, List[str]] = {}
-    md = ""
+    statuses: List[str] = []
+    tabs: List[Tuple[str, str, str]] = []
     errors = []
     for status, response in responses.items():
         if not status.startswith("2"):
             errors.append(f"`{status}`")
             continue
+        statuses.append(status)
         content = response.get("content") or {}
         schema = content.get("application/json", {}).get("schema", {})
         if schema:
             bodies.setdefault(json.dumps(schema, sort_keys=True), []).append(status)
         elif content:
             media_types = ", ".join(f"`{m}`" for m in content)
-            label = "" if status == "200" else f" (`{status}`)"
-            md += f"**Response{label}:** {media_types}\n\n"
+            tabs.append(("body", "Body", f"`{status}` returns {media_types}."))
         else:
-            md += f"**Response:** `{status}` with no body\n\n"
-    for key, statuses in bodies.items():
+            tabs.append(("body", "Body", f"`{status}` returns no body."))
+    for key, body_statuses in bodies.items():
         schema = json.loads(key)
         example = json.dumps(example_value(spec, "body", schema, complete=True), indent=2)
         # arrays of plain values fit on one line
@@ -289,17 +290,18 @@ def render_responses(spec: Schema, responses: Dict[str, Schema]) -> str:
             lambda m: "[" + ", ".join(v.strip() for v in m.group(1).split(",\n")) + "]",
             example,
         )
-        summary = "Response"
-        if statuses != ["200"]:
-            summary += " (" + ", ".join(f"<code>{status}</code>" for status in statuses) + ")"
-        tabs = [
-            ("example", "Example", f"```json\n{example}\n```"),
-            ("fields", "Fields", fields_table(spec, schema, with_required=False)),
-        ]
-        md += fold(summary, "api-response", tabs)
+        # an operation with distinct bodies names the statuses of each
+        suffix = f" {', '.join(body_statuses)}" if len(bodies) > 1 else ""
+        tabs.append(("example", f"Example{suffix}", f"```json\n{example}\n```"))
+        tabs.append(("fields", f"Fields{suffix}", fields_table(spec, schema, with_required=False)))
     if errors:
-        md += f"**Errors:** {', '.join(errors)}, each with the {ERROR_LINK}\n\n"
-    return md
+        tabs.append(("errors", "Errors", f"{', '.join(errors)}, each with the {ERROR_LINK}."))
+    if not tabs:
+        return ""
+    summary = "Response"
+    if statuses and statuses != ["200"]:
+        summary += " (" + ", ".join(f"<code>{status}</code>" for status in statuses) + ")"
+    return fold(summary, "api-response", tabs)
 
 
 def render_operation(
