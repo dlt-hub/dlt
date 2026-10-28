@@ -19,6 +19,7 @@ from typing import (
 )
 from textwrap import indent
 from contextlib import contextmanager
+from dlt.common.redaction import redact_url
 from dlt.common.utils import simple_repr, without_none
 
 from sqlglot import maybe_parse
@@ -108,12 +109,12 @@ TJoinType = Literal["left", "right", "inner", "full"]
 
 
 def _location_display(config: DestinationClientConfiguration) -> str:
-    """Identifies the data location of `config`. Uses the display text of `config` instead, when
-    the location is empty or cannot be computed."""
+    """Identifies the data location of `config`, without credentials. Uses the display text of
+    `config` instead, when the location is empty or cannot be computed."""
     try:
-        return config.data_location() or str(config)
+        return redact_url(config.data_location() or str(config))
     except ValueError:
-        return str(config)
+        return redact_url(str(config))
 
 
 class _ForeignDataset(NamedTuple):

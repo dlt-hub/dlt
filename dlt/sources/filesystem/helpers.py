@@ -11,6 +11,7 @@ from dlt.common.metrics import TDataLocation
 from dlt.common.storages.fsspec_filesystem import fsspec_from_config
 from dlt.common.storages import FilesystemConfigurationWithLocalFiles
 from dlt.common.typing import NotRequired, TDataItem
+from dlt.common.redaction import redact_url
 
 from dlt.sources import DltResource
 from dlt.sources.config import configspec, with_config
@@ -62,7 +63,7 @@ def record_bucket_input(bucket_url: str, file_glob: str) -> None:
             replace=True,
         )
     except Exception as ex:
-        logger.debug(f"Could not record input location for bucket `{bucket_url}`: {ex}")
+        logger.debug(f"Could not record input location for bucket `{redact_url(bucket_url)}`: {ex}")
 
 
 def fsspec_from_resource(filesystem_instance: DltResource) -> AbstractFileSystem:

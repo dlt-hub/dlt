@@ -11,6 +11,7 @@ from dlt.common.configuration.resolve import resolve_configuration
 from dlt.common.configuration.specs.base_configuration import BaseConfiguration, configspec
 from dlt.common.storages.configuration import FilesystemConfiguration
 from dlt.common.storages.fsspec_filesystem import FileItemDict, fsspec_from_config, glob_files
+from dlt.common.redaction import redact_url
 from dlt.common.versioned_state import json_encode_state
 
 from dlt.pipeline.trace import PipelineTrace, PipelineStepTrace, TPipelineStep, SupportsPipeline
@@ -90,7 +91,7 @@ def _write_to_bucket(
 ) -> None:
     # write to bucket using the config, same object may be written to multiple paths
 
-    logger.info(f"Will send run artifact to {bucket_url}: {paths}")
+    logger.info(f"Will send run artifact to {redact_url(bucket_url)}: {paths}")
     for path in paths:
         with fs.open(f"{bucket_url}/{pipeline_name}/{path}", mode="wb") as f:
             # encode text data as utf-8
@@ -175,7 +176,7 @@ def on_end_trace(trace: PipelineTrace, pipeline: SupportsPipeline, send_state: b
     if fs:
         logger.info(
             f"Sending run artifacts from pipeline `{pipeline.pipeline_name}` to"
-            f" `{config.bucket_url}`"
+            f" `{redact_url(config.bucket_url)}`"
         )
         try:
             _send_trace_to_bucket(fs, config.bucket_url, trace, pipeline)
@@ -184,7 +185,7 @@ def on_end_trace(trace: PipelineTrace, pipeline: SupportsPipeline, send_state: b
         except Exception:
             logger.exception(
                 f"Sending run artifacts from pipeline `{pipeline.pipeline_name}` to"
-                f" `{config.bucket_url}`"
+                f" `{redact_url(config.bucket_url)}`"
             )
             raise
         else:

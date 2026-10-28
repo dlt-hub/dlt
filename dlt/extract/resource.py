@@ -18,7 +18,7 @@ from typing import (
 
 from dlt.common import logger
 from dlt.common.exceptions import TypeErrorWithKnownTypes
-from dlt.common.metrics import TDataLocation
+from dlt.common.metrics import TDataLocation, redact_location
 from dlt.common.configuration.inject import get_fun_spec, with_config
 from dlt.common.configuration.resolve import inject_section
 from dlt.common.configuration.specs import BaseConfiguration, known_sections
@@ -261,7 +261,7 @@ class DltResource(Iterable[TDataItem], DltResourceHints):
         if not isinstance(location, dict):
             raise TypeErrorWithKnownTypes("location", location, ["TDataLocation"])
         # a fact that could not be established is absent from the row, not null
-        described: DictStrAny = dict(without_none(location))
+        described: DictStrAny = redact_location(dict(without_none(location)))
         if not described.get("kind"):
             if not self.source_name:
                 raise DataLocationKindRequired(self.name)

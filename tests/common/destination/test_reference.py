@@ -1,17 +1,21 @@
 from collections.abc import MutableMapping
+import dataclasses
 from pathlib import Path
 import pickle
-from typing import Dict
+from typing import Any, Dict, Final
 
 import pytest
 
+from dlt.common.configuration import configspec
 from dlt.common.configuration.specs.connection_string_credentials import ConnectionStringCredentials
 from dlt.common.destination import Destination, DestinationReference
 from dlt.common.destination.client import DestinationClientDwhConfiguration, WithStagingDataset
 from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.destination.exceptions import UnknownDestinationModule
+from dlt.common.destination.reference import describe_dataset_location
 from dlt.common.schema import Schema
 from dlt.common.typing import is_subclass
+from dlt.common.utils import digest128
 from dlt.common.normalizers.naming import sql_ci_v1, sql_cs_v1
 
 from tests.common.configuration.utils import environment
@@ -618,3 +622,44 @@ def test_create_ibis_backend_dispatch() -> None:
             implemented.append(dest_type)
     # the dispatch discriminates: some destinations provide an ibis backend, some do not
     assert implemented and not_implemented
+
+
+def test_describe_dataset_location_redacts_credentials() -> None:
+    @configspec
+    class LeakyConfiguration(DestinationClientDwhConfiguration):
+        destination_type: Final[str] = dataclasses.field(  # type: ignore[misc]
+            default="postgres", init=False, repr=False, compare=False
+        )
+
+        def data_location(self) -> str:
+            return raw_location
+
+        def fingerprint(self) -> str:
+            return digest128(self.data_location())
+
+    raw_location = "postgresql://loader:hunter2@host:5432/db?sslkey=k&token=s3cr3t"
+
+    config = LeakyConfiguration()._bind_dataset_name(dataset_name="ds")
+    location = describe_dataset_location(
+        config,
+        DestinationCapabilitiesContext.generic_capabilities(),
+        [Schema("schema")],
+        "resource",
+        ["items"],
+    )
+    assert location["location"] == "postgresql://loader@host:5432/db?sslkey=k&token=***"
+    assert "hunter2" not in str(location) and "s3cr3t" not in str(location)
+    # the fingerprint is computed from the unredacted location
+    assert location["destination_fingerprint"] == digest128(raw_location)
+
+
+@pytest.mark.parametrize(
+    "credentials",
+    [
+        pytest.param("postgresql://loader:hunter2@localhost:5432/dlt_data", id="connection_string"),
+        pytest.param({"username": "loader", "password": "hunter2", "host": "localhost"}, id="dict"),
+    ],
+)
+def test_destination_repr_holds_no_credentials(credentials: Any) -> None:
+    # notebooks show the repr of a destination, also inside datasets and relations
+    assert "hunter2" not in repr(Destination.from_reference("postgres", credentials=credentials))

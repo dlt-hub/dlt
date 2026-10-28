@@ -5,6 +5,7 @@ from dlt.common.metrics import (
     TSchemaReference,
     aggregate_job_metrics,
     data_location_version,
+    redact_location,
 )
 from dlt.common.storages.load_package import ParsedLoadJobFileName
 
@@ -79,3 +80,25 @@ def test_data_location_version_is_order_independent() -> None:
         [schemas[0], {"name": "b", "version_hash": "hash_b2"}]
     )
     assert data_location_version([]) == data_location_version([])
+
+
+def test_redact_location_redacts_every_string() -> None:
+    location = {
+        "kind": "rest_api",
+        "resource_name": "items",
+        "location": "https://alice:hunter2@api.example.com",
+        "endpoints": ["/items?api_key=secret&page=2", "/users"],
+        "details": {"mirror": "sftp://bob:pw@host/path"},
+        "version": 3,
+    }
+    redacted = redact_location(location)
+    assert redacted == {
+        "kind": "rest_api",
+        "resource_name": "items",
+        "location": "https://***@api.example.com",
+        "endpoints": ["/items?api_key=***&page=2", "/users"],
+        "details": {"mirror": "sftp://bob@host/path"},
+        "version": 3,
+    }
+    # the recorded location is not modified in place
+    assert location["location"] == "https://alice:hunter2@api.example.com"

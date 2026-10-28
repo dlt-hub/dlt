@@ -19,12 +19,12 @@ from requests.auth import AuthBase
 from dlt.common import jsonpath, logger
 from dlt.common.configuration import resolve_configuration
 from dlt.common.configuration.specs.runtime_configuration import RuntimeConfiguration
+from dlt.common.redaction import redact_secrets, redact_url
 
 from .typing import HTTPMethodBasic, HTTPMethod, Hooks
 from .paginators import BasePaginator
 from .detector import PaginatorFactory, find_response_page_data
 from .exceptions import IgnoreResponseException, PaginatorNotFound
-from .redaction import sanitize_url
 from .utils import join_url
 
 
@@ -157,12 +157,13 @@ class RESTClient:
     def _log_request(self, request: Request, prepared_url: str) -> None:
         if logger.isEnabledFor(logging.DEBUG):
             logger.debug(
-                f"Making {request.method.upper()} request to {request.url}"
-                f" with params={request.params}, json={request.json},"
-                f" data={request.data}, headers={request.headers}"
+                f"Making {request.method.upper()} request to {redact_url(request.url)}"
+                f" with params={redact_secrets(request.params)},"
+                f" json={redact_secrets(request.json)}, data={redact_secrets(request.data)},"
+                f" headers={redact_secrets(request.headers)}"
             )
         else:
-            sanitized_url = sanitize_url(prepared_url)
+            sanitized_url = redact_url(prepared_url)
             logger.info(f"Making {request.method.upper()} request to {sanitized_url}")
 
     def request(self, path: str = "", method: HTTPMethod = "GET", **kwargs: Any) -> Response:
@@ -356,7 +357,7 @@ class RESTClient:
         paginator, score = self.pagination_factory.create_paginator(response)
         if paginator is None:
             raise PaginatorNotFound(
-                f"No suitable `paginator` found for the response at `{response.url}`"
+                f"No suitable `paginator` found for the response at `{redact_url(response.url)}`"
             )
         if score == 1.0:
             logger.info(f"Detected `paginator`: `{paginator}`")
@@ -391,7 +392,7 @@ def _dlt_raise_for_status(
         HTTPError: If the response status code indicates an error
     """
     if response.status_code >= 400:
-        safe_url = sanitize_url(response.url)
+        safe_url = redact_url(response.url)
 
         body_text = ""
 

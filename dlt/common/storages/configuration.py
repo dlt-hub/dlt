@@ -20,6 +20,7 @@ from dlt.common.configuration.specs import (
 from dlt.common.configuration.specs.base_configuration import NotResolved
 from dlt.common.exceptions import TerminalValueError
 from dlt.common.typing import Annotated, DictStrAny, DictStrOptionalStr, get_args
+from dlt.common.redaction import redact_url
 from dlt.common.utils import digest128
 
 
@@ -292,14 +293,7 @@ class FilesystemConfiguration(BaseConfiguration):
 
     def __str__(self) -> str:
         """Return displayable destination location"""
-        url = urlparse(self.bucket_url)
-        # do not show passwords
-        if url.password:
-            new_netloc = f"{url.username}:****@{url.hostname}"
-            if url.port:
-                new_netloc += f":{url.port}"
-            return url._replace(netloc=new_netloc).geturl()
-        return self.bucket_url
+        return redact_url(self.bucket_url)
 
     @staticmethod
     def is_local_path(url: str) -> bool:

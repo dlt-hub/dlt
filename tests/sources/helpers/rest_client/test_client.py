@@ -22,7 +22,7 @@ from dlt.sources.helpers.rest_client.auth import (
     OAuthJWTAuth,
 )
 from dlt.sources.helpers.rest_client.client import Hooks
-from dlt.sources.helpers.rest_client.exceptions import IgnoreResponseException
+from dlt.sources.helpers.rest_client.exceptions import IgnoreResponseException, PaginatorNotFound
 from dlt.sources.helpers.rest_client.paginators import (
     JSONLinkPaginator,
     BaseReferencePaginator,
@@ -611,55 +611,34 @@ class TestRESTClient:
 
 
 class TestSecretRedaction:
-    def test_sanitize_url_basic(self):
-        from dlt.sources.helpers.rest_client.redaction import sanitize_url
-
-        # Test basic API key redaction
-        url = "https://api.example.com/endpoint?api_key=secret123&other=value"
-        sanitized = sanitize_url(url)
-        assert sanitized == "https://api.example.com/endpoint?api_key=***&other=value"
-
-    def test_sanitize_url_multiple_secrets(self):
-        from dlt.sources.helpers.rest_client.redaction import sanitize_url
-
-        # Test multiple sensitive parameters
-        url = "https://api.example.com/endpoint?token=abc123&api_key=xyz789&data=public"
-        sanitized = sanitize_url(url)
-        assert sanitized == "https://api.example.com/endpoint?token=***&api_key=***&data=public"
-
-    def test_sanitize_url_case_insensitive(self):
-        from dlt.sources.helpers.rest_client.redaction import sanitize_url
-
-        # Test case insensitive matching
-        url = "https://api.example.com/endpoint?API_KEY=secret&Token=xyz&ACCESS_TOKEN=abc"
-        sanitized = sanitize_url(url)
-        assert (
-            sanitized == "https://api.example.com/endpoint?API_KEY=***&Token=***&ACCESS_TOKEN=***"
+    def test_debug_request_log_redacts_secrets(self, mocker):
+        logger = mocker.patch("dlt.sources.helpers.rest_client.client.logger")
+        logger.isEnabledFor.return_value = True
+        client = RESTClient(base_url="https://api.example.com")
+        request = Request(
+            method="POST",
+            url="https://api.example.com/items?api_key=k&page=1",
+            params={"token": "t", "limit": 10},
+            json={"client_secret": "s", "name": "n"},
+            headers={"Authorization": "Bearer b", "Accept": "application/json"},
         )
+        client._log_request(request, request.url)
 
-    def test_sanitize_url_no_secrets(self):
-        from dlt.sources.helpers.rest_client.redaction import sanitize_url
+        message = logger.debug.call_args[0][0]
+        for secret in ("api_key=k", "'t'", "'s'", "Bearer b"):
+            assert secret not in message
+        assert "api_key=***" in message and "page=1" in message
+        assert "'limit': 10" in message and "'name': 'n'" in message
 
-        # Test URL without sensitive parameters
-        url = "https://api.example.com/endpoint?page=1&limit=10&sort=asc"
-        sanitized = sanitize_url(url)
-        assert sanitized == url
-
-    def test_sanitize_url_empty_values(self):
-        from dlt.sources.helpers.rest_client.redaction import sanitize_url
-
-        # Test with empty values
-        url = "https://api.example.com/endpoint?api_key=&token=&other=value"
-        sanitized = sanitize_url(url)
-        assert sanitized == "https://api.example.com/endpoint?api_key=***&token=***&other=value"
-
-    def test_sanitize_url_fragment_and_path(self):
-        from dlt.sources.helpers.rest_client.redaction import sanitize_url
-
-        # Test URL with fragment and complex path
-        url = "https://api.example.com/v2/resource/123?api_key=secret#section"
-        sanitized = sanitize_url(url)
-        assert sanitized == "https://api.example.com/v2/resource/123?api_key=***#section"
+    def test_paginator_not_found_redacts_url(self, mocker):
+        response = Response()
+        response.url = "https://api.example.com/items?api_key=secret123"
+        client = RESTClient(base_url="https://api.example.com")
+        mocker.patch.object(client.pagination_factory, "create_paginator", return_value=(None, 0.0))
+        with pytest.raises(PaginatorNotFound) as exc_info:
+            client.detect_paginator(response, "$")
+        assert "api_key=***" in str(exc_info.value)
+        assert "secret123" not in str(exc_info.value)
 
     def test_dlt_raise_for_status_with_sanitized_url(self):
         from dlt.sources.helpers.rest_client.client import _dlt_raise_for_status

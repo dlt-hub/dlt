@@ -286,6 +286,13 @@ def test_secret_masking_auth_config(secret_keys, config, masked_secrets):
         assert masked[key] == mask  # type: ignore[literal-required]
 
 
+def test_secret_masking_dict_by_param_name() -> None:
+    masked = _mask_secrets(
+        {"type": "custom", "refresh_token": "sensitive-secret", "x-api-key": "sensitive-secret"}  # type: ignore[arg-type]
+    )
+    assert masked == {"type": "custom", "refresh_token": "s*****t", "x-api-key": "s*****t"}
+
+
 def test_secret_masking_oauth() -> None:
     config = OAuth2ClientCredentials(
         access_token_url="",

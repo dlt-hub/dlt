@@ -23,6 +23,7 @@ from dlt.common.configuration.specs.base_configuration import configspec, NotRes
 from dlt.common.configuration.specs import CredentialsConfiguration
 from dlt.common.configuration.specs.exceptions import NativeValueError
 from dlt.common.pendulum import pendulum
+from dlt.common.redaction import redact_url
 from dlt.common.typing import TSecretStrValue
 
 if TYPE_CHECKING:
@@ -258,7 +259,7 @@ class OAuthJWTAuth(BearerTokenAuth):
             "assertion": jwt.encode(payload, self.load_private_key(), algorithm="RS256"),  # type: ignore[arg-type,unused-ignore]
         }
 
-        logger.debug(f"Obtaining token from {self.auth_endpoint}")
+        logger.debug(f"Obtaining token from {redact_url(self.auth_endpoint)}")
 
         response = self.session.post(self.auth_endpoint, headers=self.headers, data=data)
         response.raise_for_status()
