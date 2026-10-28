@@ -211,6 +211,8 @@ class Renderer:
                     if not member.startswith("_") and isinstance(target(value), griffe.Function)
                 )
         self.page = "index"
+        #: heading level of the objects on the page, one less when the page has no section headings
+        self.level = 3
 
     def href(self, anchor_: str) -> str:
         """Markdown link target of an anchor, on this page or another one."""
@@ -426,8 +428,8 @@ class Renderer:
                 parts.append(html.escape(token).replace("|", "&#124;"))
         return "<code>" + "".join(parts) + "</code>"
 
-    def function(self, func: griffe.Function, name: str, heading: str) -> str:
-        md = f"{heading} `{name}()` {{#{anchor(name)}}}\n\n"
+    def function(self, func: griffe.Function, name: str, level: int) -> str:
+        md = f"{'#' * level} `{name}()` {{#{anchor(name)}}}\n\n"
         md += f"```python\n{self.signature(func, name.split('.')[-1])}\n```\n\n"
         return md + self.docstring(func)
 
@@ -455,7 +457,7 @@ class Renderer:
         return f"{methods[0]}()" if methods else ""
 
     def klass(self, cls: griffe.Class, name: str) -> str:
-        md = f"### `{name}` {{#{anchor(name)}}}\n\n"
+        md = f"{'#' * self.level} `{name}` {{#{anchor(name)}}}\n\n"
         bases = [str(b) for b in cls.bases if str(b).split("[")[0] in self.exports]
         if bases:
             links = [f"[`{b}`]({self.href(anchor(b.split('[')[0]))})" for b in bases]
@@ -491,18 +493,18 @@ class Renderer:
             member = target(member)
             if member_name.startswith("_") or not isinstance(member, griffe.Function):
                 continue
-            md += self.function(member, f"{name}.{member_name}", "####")
+            md += self.function(member, f"{name}.{member_name}", self.level + 1)
         return md
 
     def attribute(self, attr: griffe.Attribute, name: str) -> str:
-        md = f"### `{name}` {{#{anchor(name)}}}\n\n"
+        md = f"{'#' * self.level} `{name}` {{#{anchor(name)}}}\n\n"
         if attr.value is not None:
             md += f"```python\n{name} = {attr.value}\n```\n\n"
         return md + (self.prose(attr.docstring.value) + "\n\n" if attr.docstring else "")
 
     def render(self, obj: griffe.Object, name: str) -> str:
         if isinstance(obj, griffe.Function):
-            return self.function(obj, name, "###")
+            return self.function(obj, name, self.level)
         if isinstance(obj, griffe.Class):
             return self.klass(obj, name)
         if isinstance(obj, griffe.Attribute):
@@ -607,8 +609,11 @@ def main() -> None:
         if slug == "index":
             md += INTRO.format(package=PACKAGE, distribution=DISTRIBUTION) + "\n\n"
             md += f"This reference is generated from `{DISTRIBUTION}` {client_version}.\n\n"
+        # a single section named like the page would repeat its title
+        renderer.level = 2 if labels == [title] else 3
         for label in labels:
-            md += f"## {label}\n\n"
+            if renderer.level == 3:
+                md += f"## {label}\n\n"
             if label in SECTION_INTROS:
                 md += SECTION_INTROS[label] + "\n\n"
             for name in sections[label]:
