@@ -6,7 +6,7 @@ keywords: [ai harness, install, dlthub-init, dlthub-start, dlthub ai init, toolk
 ---
 # Installation
 
-You need Python 3.10 or later, [uv](https://docs.astral.sh/uv/) on your PATH, and one of the supported coding agents (Claude Code, Cursor, or Codex) already installed.
+To install the [AI Harness](https://dlthub.com/features/ai-harness), you need Python 3.10 or later, [uv](https://docs.astral.sh/uv/) on your PATH, and one of the supported coding agents (Claude Code, Cursor, or Codex) already installed.
 
 ## Add the AI Harness to a project
 

@@ -11,7 +11,7 @@ The [dltHub AI Harness](../ai-harness/introduction.md) is a part of the dltHub p
 
 ## Overview
 
-Build a custom REST API connector for any of the 11,000+ available sources — often in a single session. Instead of generating ad-hoc code, the AI assistant follows a defined sequence of steps from start to finish to help you build production-grade pipelines following the dltHub best practices.
+Build a custom REST API connector with the [dltHub AI Harness](https://dlthub.com/features/ai-harness) for any of the 11,000+ sources in dltHub Context — often in a single session. Instead of generating ad-hoc code, the AI assistant follows a defined sequence of steps from start to finish to help you build production-grade pipelines following the dltHub best practices.
 
 The **rest-api-pipeline** toolkit is part of the harness and gives your coding assistant a structured, guided workflow — skills, rules, and an MCP server — tied together by a **workflow** that tells the assistant which skill to run at each step. It is designed to support an iterative data pipeline development flow and helps you validate results step by step.
 

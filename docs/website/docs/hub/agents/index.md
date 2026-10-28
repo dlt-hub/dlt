@@ -9,7 +9,7 @@ keywords: [dlthub platform, agents, background agents, agent job, AGENT.md, run.
 This feature is in public preview
 :::
 
-An agent job is a dltHub job that runs an AI agent loop. It runs unattended on a schedule, after another job fails, or when you start it from the CLI or the Web UI. It can read the workspace. It can query runs and logs through the dltHub Model Context Protocol (MCP) server. It returns a job result, which shows on the page of each entity that the agent run acted on.
+An agent job is a dltHub job that runs an AI agent loop, the building block of [background agents](https://dlthub.com/products/background-agents). It runs unattended on a schedule, after another job fails, or when you start it from the CLI or the Web UI. It can read the workspace. It can query runs and logs through the dltHub Model Context Protocol (MCP) server. It returns a job result, which shows on the page of each entity that the agent run acted on.
 
 Agent jobs are declared, run, and deployed like every other job: in `__deployment__.py`, with `dlthub local run` locally and `dlthub deploy` on the platform. [Deployments](../pipeline-operations/deployments.md), [Triggers and scheduling](../pipeline-operations/triggers.md), and [Job configuration](../pipeline-operations/job-configuration.md) apply to agent jobs too.
 

@@ -9,7 +9,7 @@ keywords: [dlthub platform, agents, job inspector, failed job run, diagnosis, dl
 This feature is in public preview
 :::
 
-`job-inspector` is an agent definition that the [`dlthub-platform`](../ai-harness/toolkits.md#dlthub-platform) toolkit ships. An agent job made from it diagnoses failed job runs. The agent reads the run record, the logs, and the job definition. It follows the traceback into the workspace source. It follows a missing input back to the job that produces it. It reports a classification of the failure, the evidence, and a fix that names the target and the change. The agent inspects any batch job, and it doesn't change code or data.
+`job-inspector` is an agent definition for [background agents](https://dlthub.com/products/background-agents) that the [`dlthub-platform`](../ai-harness/toolkits.md#dlthub-platform) toolkit ships. An agent job made from it diagnoses failed job runs. The agent reads the run record, the logs, and the job definition. It follows the traceback into the workspace source. It follows a missing input back to the job that produces it. It reports a classification of the failure, the evidence, and a fix that names the target and the change. The agent inspects any batch job, and it doesn't change code or data.
 
 Set the trigger of the agent job to the jobs that it must watch. A `job.fail:` trigger selects one job, the jobs in a section, the jobs that have a tag, the pipeline jobs, or all jobs. One agent job inspects every failed job run that its trigger selects. Without `trigger=`, the agent job runs only when you start it. See [Triggers for agents](index.md#triggers-for-agents).
 
