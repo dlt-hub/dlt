@@ -165,22 +165,27 @@ added to `/v1` at any time, so ignore fields and enum values you do not know.
 
 ## URL structure
 
-Paths name the resources they act on, so a URL tells you what a request does:
+Paths are built from a few kinds of segments, so a URL tells you what a request does:
 
-| Path                        | Example                                      | Meaning                                     |
-| --------------------------- | -------------------------------------------- | ------------------------------------------- |
-| `/<collection>`             | `GET /api/v1/workspaces/{workspace_id}/jobs` | Lists the items. `POST` creates one.        |
-| `/<collection>/{id}`        | `GET …/jobs/{job_id}`                        | One item. `PATCH` changes it.               |
-| `/<collection>/latest`      | `GET …/deployments/latest`                   | The newest item.                            |
-| `/<collection>/{id}/<part>` | `GET …/deployments/{deployment_id}/files`    | Data that belongs to the item.              |
-| `/-/<part>`                 | `GET …/pipelines/-/stats`                    | `-` stands for all items of the collection. |
-| `/me`                       | `GET /api/v1/me`                             | The caller of the request.                  |
+| Kind       | Example                                     | Meaning                                                                |
+| ---------- | ------------------------------------------- | ---------------------------------------------------------------------- |
+| Collection | `GET …/workspaces/{workspace_id}/jobs`      | A set of resources. `GET` lists them, `POST` creates one.              |
+| Item       | `GET …/jobs/{job_id}`                       | One resource of a collection, addressed by its ID. `PATCH` changes it. |
+| Singleton  | `GET …/workspaces/{workspace_id}/variables` | Exactly one resource at a fixed name, such as `me` or `variables`.     |
+| Alias      | `GET …/deployments/latest`                  | A reserved name in place of an ID: `latest` is the newest item.        |
+| Report     | `GET …/pipelines/-/stats`                   | An aggregate over the collection, behind the `-` separator.            |
+| Verb       | `POST …/jobs/{job_id}/-pause`               | An action, spelled with a leading `-`.                                 |
 
-A path segment that starts with `-` is a verb, such as `-pause`, `-trigger` or `-issue-upload`.
-Verbs are actions with a side effect: they start, stop, change or issue something. They are
-always called with `POST`, and they can never be mistaken for an ID or a name. A verb on an item
-acts on that item only, for example `POST …/jobs/{job_id}/-pause`. A verb on a collection can act
-on several items at once, for example `POST …/job-runs/-cancel`.
+A segment that starts with `-` followed by a name is a verb, such as `-pause`, `-trigger` or
+`-issue-upload`. A bare `-` only separates a report from its collection. Verbs are always called
+with `POST`. They are used only where a call does more than store a field: it starts work
+(`-trigger`, `-cancel`), runs asynchronously, or is a state change with side effects (`-pause`,
+`-resume`). Changing a plain field is a `PATCH` on the item instead. A reversible state change is
+a pair of verbs, such as `-archive` and `-unarchive`.
 
-Requests without a verb only read or change the resource their path names: `GET` reads, `POST` on
-a collection creates and `PATCH` updates.
+A verb on an item acts on that item. The same verb on the collection acts in bulk on the items
+whose IDs the request body lists, for example `POST …/job-runs/-cancel`. A few verbs act on the
+collection itself: `POST …/deployments/-issue-upload` issues a grant to upload a new deployment.
+
+IDs in paths are UUIDs. To find an item by another key, filter its collection, for example
+`GET …/jobs?ref=my-job`.
