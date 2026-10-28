@@ -175,7 +175,7 @@ def render_argparse_markdown(
             description = None
 
         # MDX parses `<word>` as a JSX tag; escape angle brackets in prose.
-        # Usage (inside ```sh) and backtick-wrapped tokens are left untouched.
+        # Usage (inside ```cli) and backtick-wrapped tokens are left untouched.
         help_string = _escape_mdx(help_string) if help_string else help_string
         description = _escape_mdx(description) if description else description
 
@@ -260,7 +260,8 @@ def render_argparse_markdown(
         if help_string:
             markdown += f"{help_string}\n\n"
         markdown += "**Usage**\n"
-        markdown += "```sh\n"
+        # `cli` is highlighted by the grammar in website/src/theme/prism-include-languages.js
+        markdown += "```cli\n"
         markdown += f"{usage}\n"
         markdown += "```\n\n"
 
