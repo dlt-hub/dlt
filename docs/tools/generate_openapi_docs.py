@@ -109,7 +109,8 @@ def type_str(spec: Schema, schema: Schema) -> str:
     if "allOf" in schema and len(schema["allOf"]) == 1:
         return type_str(spec, schema["allOf"][0])
     if "enum" in schema:
-        return "one of " + ", ".join(f"`{v}`" for v in schema["enum"])
+        # the values go into the description, see `with_values`
+        return str(schema.get("type") or "string")
     if "const" in schema:
         return f"`{schema['const']}`"
     schema_type = schema.get("type")
@@ -127,6 +128,26 @@ def type_str(spec: Schema, schema: Schema) -> str:
     if "format" in schema:
         return f"{schema_type} ({schema['format']})"
     return str(schema_type)
+
+
+def enum_values(spec: Schema, schema: Schema) -> List[Any]:
+    """Allowed values of an enum, also inside arrays and optional values."""
+    schema = resolve(spec, schema)
+    if "enum" in schema:
+        return list(schema["enum"])
+    values: List[Any] = []
+    for variant in schema.get("anyOf", []) + schema.get("oneOf", []) + schema.get("allOf", []):
+        values += [v for v in enum_values(spec, variant) if v not in values]
+    if schema.get("type") == "array":
+        values += enum_values(spec, schema.get("items", {}))
+    return values
+
+
+def with_values(spec: Schema, schema: Schema, description: str) -> str:
+    values = enum_values(spec, schema)
+    if not values:
+        return description
+    return f"{description} One of: {', '.join(f'`{v}`' for v in values)}.".strip()
 
 
 def is_opaque(schema: Schema) -> bool:
@@ -154,7 +175,7 @@ def field_rows(
     required = set(schema.get("required") or [])
     rows = []
     for name, prop in (schema.get("properties") or {}).items():
-        description = cell(field_description(prop))
+        description = with_values(spec, prop, cell(field_description(prop)))
         if "default" in prop and prop["default"] is not None:
             description = f"{description} Default: `{json.dumps(prop['default'])}`.".strip()
         path = f"{prefix}{name}"
@@ -198,6 +219,7 @@ def render_parameters(spec: Schema, parameters: List[Schema]) -> str:
         description = cell(param.get("description"))
         if not description and param["in"] == "path" and name.endswith("_id"):
             description = "ID of the " + name[: -len("_id")].replace("_", " ")
+        description = with_values(spec, param.get("schema", {}), description)
         if param.get("required") and param["in"] != "path":
             description = f"{REQUIRED} {description}"
         tables.setdefault(param["in"], []).append(
