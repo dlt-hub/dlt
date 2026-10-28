@@ -2,7 +2,8 @@
 
 The package is read statically with griffe, never imported. Every name in `dlthub_sdk.__all__`
 is rendered in a section for the module that defines it, and the sections are grouped into pages.
-The pages and a `sidebar.json` listing them are written to OUTPUT_DIR.
+The pages, led by a getting started page, and a `sidebar.json` listing them are written to
+OUTPUT_DIR.
 
 Usage:
     uv run --no-project --with dlthub-client --with griffe \
@@ -50,7 +51,8 @@ SECTIONS = {
 #: page slug -> (title, section labels); also the page order. A section of a new module gets a
 #: page of its own
 PAGES = {
-    "index": ("Python SDK reference", ["Connecting", "Runtime", "Credentials", "Conventions"]),
+    "getting-started": ("Getting started", []),
+    "client": ("Client", ["Connecting", "Runtime", "Credentials", "Conventions"]),
     "organizations-and-workspaces": (
         "Organizations and workspaces",
         ["Organizations", "Workspaces", "Caller", "Data planes"],
@@ -76,6 +78,7 @@ ROLES = {"Namespace": 0, "Collection": 1, "Entity": 2, "TypedDict": 4, "Protocol
 
 #: doc id of the folder the pages are served from
 DOC_ID = "hub/reference/python-sdk"
+TITLE = "Python SDK reference"
 
 INTRO = """\
 :::info
@@ -91,8 +94,6 @@ installs:
 ```sh
 pip install "dlt[hub]"
 ```
-
-## Getting started
 
 Connect with an API key. The client closes when the `with` block ends:
 
@@ -137,7 +138,7 @@ with dlthub_sdk.connect(token="dlt_u_...") as runtime:
         print(pipeline.pipeline_name, pipeline.latest_status, pipeline.total_rows_loaded)
 ```
 
-[`connect_async()`](#connect_async) gives the same objects for `asyncio`. Methods that call the
+[`connect_async()`](client.md#connect_async) gives the same objects for `asyncio`. Methods that call the
 platform return awaitables and lists are async iterables:
 
 ```python
@@ -210,7 +211,7 @@ class Renderer:
                     for member, value in obj.members.items()
                     if not member.startswith("_") and isinstance(target(value), griffe.Function)
                 )
-        self.page = "index"
+        self.page = ""
         #: heading level of the objects on the page, one less when the page has no section headings
         self.level = 3
 
@@ -222,15 +223,7 @@ class Renderer:
     def url(self, anchor_: str) -> str:
         """URL of an anchor relative to this page, for HTML links Docusaurus does not resolve."""
         page = self.anchors[anchor_]
-        folder = DOC_ID.rsplit("/", 1)[-1]
-        if page == self.page:
-            return f"#{anchor_}"
-        # the index is served at the folder URL, one level above its sibling pages
-        if self.page == "index":
-            return f"{folder}/{page}#{anchor_}"
-        if page == "index":
-            return f"../{folder}#{anchor_}"
-        return f"{page}#{anchor_}"
+        return f"#{anchor_}" if page == self.page else f"{page}#{anchor_}"
 
     def link(self, match: re.Match[str]) -> str:
         role, ref = match.group(1), match.group(2).lstrip("~")
@@ -588,7 +581,7 @@ def main() -> None:
     sections = {label: order_section(label, names, exports) for label, names in sections.items()}
     order = [label for _, labels in PAGES.values() for label in labels]
     ordered = sorted(sections, key=lambda s: (order.index(s) if s in order else len(order), s))
-    pages: Dict[str, List[str]] = {}
+    pages: Dict[str, List[str]] = {"getting-started": []}
     for label in ordered:
         pages.setdefault(page_slug(label), []).append(label)
     renderer = Renderer(
@@ -597,16 +590,17 @@ def main() -> None:
 
     client_version = version(DISTRIBUTION)
     args.output_dir.mkdir(parents=True, exist_ok=True)
+    # pages of an earlier client version would otherwise stay behind
+    for stale in args.output_dir.glob("*.md"):
+        stale.unlink()
     for slug, labels in pages.items():
         renderer.page = slug
         title = PAGES[slug][0] if slug in PAGES else labels[0]
-        if slug == "index":
-            md = frontmatter(title, f"Reference of the dltHub Runtime Python SDK ({PACKAGE})")
-        else:
-            md = frontmatter(title, f"{title} in the dltHub Runtime Python SDK ({PACKAGE})")
+        preposition = "with" if slug == "getting-started" else "in"
+        md = frontmatter(title, f"{title} {preposition} the dltHub Runtime Python SDK ({PACKAGE})")
         md += f"# {title}\n\n"
         md += f"<!-- generated from {DISTRIBUTION} {client_version}, do not edit -->\n\n"
-        if slug == "index":
+        if slug == "getting-started":
             md += INTRO.format(package=PACKAGE, distribution=DISTRIBUTION) + "\n\n"
             md += f"This reference is generated from `{DISTRIBUTION}` {client_version}.\n\n"
         # a single section named like the page would repeat its title
@@ -622,9 +616,14 @@ def main() -> None:
 
     sidebar = {
         "type": "category",
-        "label": PAGES["index"][0],
-        "link": {"type": "doc", "id": f"{DOC_ID}/index"},
-        "items": [f"{DOC_ID}/{slug}" for slug in pages if slug != "index"],
+        "label": TITLE,
+        "link": {
+            "type": "generated-index",
+            "title": TITLE,
+            "description": f"Reference of the dltHub Runtime Python SDK ({PACKAGE})",
+            "slug": f"/{DOC_ID}",
+        },
+        "items": [f"{DOC_ID}/{slug}" for slug in pages],
     }
     (args.output_dir / "sidebar.json").write_text(json.dumps(sidebar, indent=2) + "\n")
     print(

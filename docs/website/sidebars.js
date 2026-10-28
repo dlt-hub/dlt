@@ -599,7 +599,7 @@ const sidebars = {
       ],
     },
     // replaced by the generated category of all python sdk pages, see below
-    "hub/reference/python-sdk/index",
+    "hub/reference/python-sdk/getting-started",
     "hub/license",
   ],
   cookbookSidebar: [
@@ -668,7 +668,10 @@ const sdkSidebar = ["docs_processed", "docs"]
   .map((dir) => `./${dir}/hub/reference/python-sdk/sidebar.json`)
   .find((file) => fs.existsSync(file));
 if (sdkSidebar) {
-  const index = sidebars.hubSidebar.indexOf("hub/reference/python-sdk/index");
+  const index = sidebars.hubSidebar.indexOf("hub/reference/python-sdk/getting-started");
+  if (index < 0) {
+    throw new Error("the python sdk placeholder is missing from hubSidebar");
+  }
   sidebars.hubSidebar.splice(index, 1, require(sdkSidebar));
 }
 
