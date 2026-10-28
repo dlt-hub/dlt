@@ -18,7 +18,6 @@ import json
 import pathlib
 import re
 import textwrap
-from http import HTTPStatus
 from importlib.metadata import version
 from typing import Any, Dict, List, Tuple
 
@@ -44,7 +43,6 @@ HTTP_METHODS = ("get", "post", "put", "patch", "delete")
 DATETIME_BOILERPLATE = "datetime with the constraint that the value must have timezone info"
 
 #: the error body every service shares, documented once on the API overview page
-ERROR_SCHEMA = "ErrorResponse"
 ERROR_LINK = "[error body](overview.md#errors)"
 
 #: nesting depth to which bodies are expanded, deeper objects show as `object`
@@ -216,39 +214,26 @@ def render_request_body(spec: Schema, request_body: Schema | None) -> str:
     return md
 
 
-def status_phrase(status: str) -> str:
-    try:
-        return HTTPStatus(int(status)).phrase
-    except ValueError:
-        return status
-
-
 def render_responses(spec: Schema, responses: Dict[str, Schema]) -> str:
-    rows = ["| Status | Description | Body |", "| --- | --- | --- |"]
-    # errors sharing a body collapse into one row, they all differ only by status
-    errors: Dict[str, List[str]] = {}
+    """Success bodies with an example and their fields, then the error statuses in one line."""
     #: statuses of each distinct success body, keyed by its schema
     bodies: Dict[str, List[str]] = {}
+    md = ""
+    errors = []
     for status, response in responses.items():
-        content = response.get("content") or {}
-        media_types = [f"`{m}`" for m in content if m != "application/json"]
-        body = ", ".join((["JSON"] if "application/json" in content else []) + media_types)
-        schema = content.get("application/json", {}).get("schema", {})
-        if schema.get("$ref", "").endswith("/" + ERROR_SCHEMA):
-            body = ERROR_LINK
-        elif schema and status.startswith("2"):
-            bodies.setdefault(json.dumps(schema, sort_keys=True), []).append(f"`{status}`")
-        if status.isdigit() and int(status) >= 400:
-            errors.setdefault(body or "none", []).append(f"`{status}`")
+        if not status.startswith("2"):
+            errors.append(f"`{status}`")
             continue
-        description = response.get("description") or ""
-        # the framework fills in the reason phrase of the status line, which reads oddly
-        if description.endswith(" follows"):
-            description = status_phrase(status)
-        rows.append(f"| `{status}` | {cell(description)} | {body or 'none'} |")
-    for body, statuses in errors.items():
-        rows.append(f"| {', '.join(statuses)} | Error | {body} |")
-    md = "**Responses**\n\n" + "\n".join(rows) + "\n\n"
+        content = response.get("content") or {}
+        schema = content.get("application/json", {}).get("schema", {})
+        if schema:
+            bodies.setdefault(json.dumps(schema, sort_keys=True), []).append(status)
+        elif content:
+            media_types = ", ".join(f"`{m}`" for m in content)
+            label = "" if status == "200" else f" (`{status}`)"
+            md += f"**Response body**{label}: {media_types}\n\n"
+        else:
+            md += f"**Response:** `{status}` with no body\n\n"
     for key, statuses in bodies.items():
         schema = json.loads(key)
         example = json.dumps(example_value(spec, "body", schema, complete=True), indent=2)
@@ -258,10 +243,14 @@ def render_responses(spec: Schema, responses: Dict[str, Schema]) -> str:
             lambda m: "[" + ", ".join(v.strip() for v in m.group(1).split(",\n")) + "]",
             example,
         )
-        md += "**Response body**" + (f" ({', '.join(statuses)})" if len(bodies) > 1 else "") + "\n\n"
-        md += f"```json\n{example}\n```\n\n"
+        md += "**Response body**"
+        if statuses != ["200"]:
+            md += " (" + ", ".join(f"`{status}`" for status in statuses) + ")"
+        md += f"\n\n```json\n{example}\n```\n\n"
         md += "<details>\n<summary>Fields</summary>\n\n"
         md += fields_table(spec, schema, with_required=False) + "</details>\n\n"
+    if errors:
+        md += f"**Errors:** {', '.join(errors)}, each with the {ERROR_LINK}\n\n"
     return md
 
 
