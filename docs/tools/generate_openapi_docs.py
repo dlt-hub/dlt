@@ -303,7 +303,7 @@ def render_operation(
 ) -> str:
     operation_id = operation["operationId"]
     md = f"### {operation_title(operation)} {{#{operation_id}}}\n\n"
-    md += f"```text\n{method.upper()} {path}\n```\n\n"
+    md += f"**{method.upper()}** `{path}`\n\n"
     if operation.get("deprecated"):
         md += ":::warning\nThis endpoint is deprecated.\n:::\n\n"
     description = prose(operation.get("description"))
