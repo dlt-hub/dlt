@@ -840,6 +840,11 @@ bigquery = [
     { name = "grpcio" },
     { name = "pyarrow" },
 ]
+cli = [
+    { name = "cron-descriptor" },
+    { name = "pip" },
+    { name = "pipdeptree" },
+]
 databricks = [
     { name = "databricks-sdk" },
     { name = "databricks-sql-connector" },
@@ -1114,10 +1119,13 @@ dependencies = [
     { name = "connectorx" },
     { name = "dbt-core" },
     { name = "dbt-duckdb" },
-    { name = "dlt", extra = ["bigquery", "databricks", "duckdb", "hub", "lancedb", "mssql", "postgres", "qdrant", "sql-database", "weaviate"] },
+    { name = "dlt", extra = ["bigquery", "cli", "databricks", "duckdb", "hub", "lancedb", "mssql", "postgres", "qdrant", "sql-database", "weaviate"] },
+    { name = "dlthub-client" },
     { name = "flake8" },
     { name = "google-api-python-client" },
     { name = "google-auth-oauthlib" },
+    { name = "griffe", version = "2.3.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
+    { name = "griffe", version = "2.4.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11'" },
     { name = "lancedb" },
     { name = "logfire" },
     { name = "marimo" },
@@ -1160,10 +1168,12 @@ requires-dist = [
     { name = "connectorx", marker = "python_full_version >= '3.10'", specifier = ">=0.4.2" },
     { name = "dbt-core", specifier = ">=1.5.0" },
     { name = "dbt-duckdb", specifier = ">=1.5.0" },
-    { name = "dlt", extras = ["duckdb", "postgres", "bigquery", "mssql", "databricks", "qdrant", "sql-database", "weaviate", "hub", "lancedb"], editable = "../" },
+    { name = "dlt", extras = ["cli", "duckdb", "postgres", "bigquery", "mssql", "databricks", "qdrant", "sql-database", "weaviate", "hub", "lancedb"], editable = "../" },
+    { name = "dlthub-client", specifier = ">=0.28.8a3" },
     { name = "flake8", specifier = ">=7.0.0,<8" },
     { name = "google-api-python-client", specifier = ">=1.7.11" },
     { name = "google-auth-oauthlib", specifier = ">=1.0.0,<2" },
+    { name = "griffe", specifier = ">=1.5" },
     { name = "lancedb", marker = "python_full_version < '3.13'", specifier = ">=0.8.2" },
     { name = "logfire", specifier = ">=4.32.1" },
     { name = "marimo", specifier = ">=0.17.4" },
@@ -1201,31 +1211,32 @@ hub = [{ name = "dlt", extras = ["hub"], editable = "../" }]
 
 [[package]]
 name = "dlthub"
-version = "0.30.0"
+version = "0.31.0"
 source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/11/16/7ba6ca3b3be3212cd13225f614fba9b654719a858a40e6dd6824a346e072/dlthub-0.30.0.tar.gz", hash = "sha256:6b13c732ad81fc2e96d629a0e7f45f9d1cb4b8a5f230256cb1ef6d5b6b2bec1a", size = 173007, upload-time = "2026-08-11T12:20:33.682Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/93/22/90c16d459f3ab3809a0093595539e3fab6316bf1185a4724e94992db068b/dlthub-0.31.0.tar.gz", hash = "sha256:89618eaf0dbc452aba4849e11e24f84ebe1d0c8bbf8e8b5c9c9edf185423d7f2", size = 175239, upload-time = "2026-10-09T10:09:53.851Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/c7/b2/ac1c1cea00bc7808d1a05649207d126d5e4694595327c2e685fda26ae110/dlthub-0.30.0-py3-none-any.whl", hash = "sha256:205d52ef8b10e8b613b90df9c6c73911a2eff3cb5f5f07747d7f140db83747e0", size = 230487, upload-time = "2026-08-11T12:20:34.948Z" },
+    { url = "https://files.pythonhosted.org/packages/4d/b9/a75954bfb5ed36ce277b27dd32983fcb06f4cd3d816449be9c0976da1b80/dlthub-0.31.0-py3-none-any.whl", hash = "sha256:16b0219f55fb15a60af25b3d0a9d68d98417ed36d99aedf6a973e91cfe13292c", size = 233063, upload-time = "2026-10-09T10:09:51.826Z" },
 ]
 
 [[package]]
 name = "dlthub-client"
-version = "0.28.4"
+version = "0.28.8a3"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "attrs" },
     { name = "cron-descriptor" },
     { name = "croniter" },
     { name = "httpx" },
+    { name = "packaging" },
     { name = "pathspec" },
     { name = "pyjwt" },
     { name = "regex" },
     { name = "tabulate" },
     { name = "typing-extensions" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/e3/ce/e8822974df965645a159fce5a4abca37164ef9ca6d5cc2fbd697978b1bc0/dlthub_client-0.28.4.tar.gz", hash = "sha256:f0a38268cc8690bb97d733ee5e1981c60521d14bc737472287e01d2c18b1666a", size = 303781, upload-time = "2026-09-10T12:19:38.372Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/9b/ca/ea98abe31b46162addfad2d0f86174f0651664734027de70176e706c8e49/dlthub_client-0.28.8a3.tar.gz", hash = "sha256:145a53305dbff761e45ab2928a4c3473f2969a9112e596b6568ab7a9aff28b8d", size = 315705, upload-time = "2026-10-26T11:23:10.999Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/80/05/409b5539a5e46cd3e32e2f3d037ae7457f5c60a1f294ff68fae9553dec70/dlthub_client-0.28.4-py3-none-any.whl", hash = "sha256:2bab5cb34d9ff692f0789be639aa2d5f21ffd80139109440db2a04f17ce9bb31", size = 678866, upload-time = "2026-09-10T12:19:36.98Z" },
+    { url = "https://files.pythonhosted.org/packages/ae/10/8e90b2f5ebac75b912b004dcddc6383504fd66e9793fa00865fd378068a9/dlthub_client-0.28.8a3-py3-none-any.whl", hash = "sha256:79fa4df9c8657cb694a2bbb9151cdd787a50e1469b6ffa9b464068795d5774b7", size = 534512, upload-time = "2026-10-26T11:23:12.202Z" },
 ]
 
 [[package]]
@@ -1703,6 +1714,97 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/27/45/80935968b53cfd3f33cf99ea5f08227f2646e044568c9b1555b58ffd61c2/greenlet-3.2.4-cp312-cp312-musllinux_1_2_aarch64.whl", hash = "sha256:ee7a6ec486883397d70eec05059353b8e83eca9168b9f3f9a361971e77e0bcd0", size = 1564846, upload-time = "2025-11-04T12:42:15.191Z" },
     { url = "https://files.pythonhosted.org/packages/69/02/b7c30e5e04752cb4db6202a3858b149c0710e5453b71a3b2aec5d78a1aab/greenlet-3.2.4-cp312-cp312-musllinux_1_2_x86_64.whl", hash = "sha256:326d234cbf337c9c3def0676412eb7040a35a768efc92504b947b3e9cfc7543d", size = 1633814, upload-time = "2025-11-04T12:42:17.175Z" },
     { url = "https://files.pythonhosted.org/packages/e9/08/b0814846b79399e585f974bbeebf5580fbe59e258ea7be64d9dfb253c84f/greenlet-3.2.4-cp312-cp312-win_amd64.whl", hash = "sha256:a7d4e128405eea3814a12cc2605e0e6aedb4035bf32697f72deca74de4105e02", size = 299899, upload-time = "2025-08-07T13:38:53.448Z" },
+]
+
+[[package]]
+name = "griffe"
+version = "2.3.0"
+source = { registry = "https://pypi.org/simple" }
+resolution-markers = [
+    "python_full_version < '3.11'",
+]
+dependencies = [
+    { name = "griffecli", version = "2.3.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
+    { name = "griffelib", version = "2.3.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/d5/03/75ca4d08a7eff164292d42cf72c7c510423b3414e66205f0ba5b35ad3034/griffe-2.3.0.tar.gz", hash = "sha256:aa5634c0d7802583ecd29a7fe335c02d462ffdf5ce8f51426a3d326f374e6d93", size = 247493, upload-time = "2026-09-04T15:08:15.364Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/61/f9/8bfacdb992aed404a3a53694689759841635bce93b86ddb621c1d7f2558c/griffe-2.3.0-py3-none-any.whl", hash = "sha256:92a41ff72eb1eb316cdcb7248a608f1313f9fbc6e35d5cffa5cf7c813b7db70b", size = 5072, upload-time = "2026-09-04T15:08:14.074Z" },
+]
+
+[[package]]
+name = "griffe"
+version = "2.4.1"
+source = { registry = "https://pypi.org/simple" }
+resolution-markers = [
+    "python_full_version >= '3.12'",
+    "python_full_version == '3.11.*'",
+]
+dependencies = [
+    { name = "griffecli", version = "2.4.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11'" },
+    { name = "griffelib", version = "2.4.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11'" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/33/a4/be055b9ced02e39ac0ab85960e0ed3d8c6017c03e90965e77ff276684418/griffe-2.4.1.tar.gz", hash = "sha256:766123e26ec35b2ead63202e9e43ec309d876085d571b7df288256cd6fe4a3ef", size = 450805, upload-time = "2026-10-22T11:20:02.532Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/29/93/67a1814b4b13e9a5cc02510dbfa1d3937603140192a701c96d861b272611/griffe-2.4.1-py3-none-any.whl", hash = "sha256:ca58ccdb1d8590ad062fad837a875dd704f94acf7a0104795a098a991ceaf728", size = 5100, upload-time = "2026-10-22T11:19:58.365Z" },
+]
+
+[[package]]
+name = "griffecli"
+version = "2.3.0"
+source = { registry = "https://pypi.org/simple" }
+resolution-markers = [
+    "python_full_version < '3.11'",
+]
+dependencies = [
+    { name = "colorama", marker = "python_full_version < '3.11'" },
+    { name = "griffelib", version = "2.3.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/5c/15/f70539f7efb44f27d209b43e386b1a5397bd476879ff19a206b75454f58e/griffecli-2.3.0.tar.gz", hash = "sha256:916fdc851cf51d38e9b5ab82550305df45e5981d5dfe65d346544464abedb3ec", size = 59676, upload-time = "2026-09-04T15:08:16.426Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/06/8c/8ffa4272d6bf85a0abe8898ef74ef41d505317bb4103e14a11d45d799dce/griffecli-2.3.0-py3-none-any.whl", hash = "sha256:f94653edcb52ebcac21eaeb3b7121b065a636174eddf2bd558b5935e72a553e8", size = 11593, upload-time = "2026-09-04T15:08:11.739Z" },
+]
+
+[[package]]
+name = "griffecli"
+version = "2.4.1"
+source = { registry = "https://pypi.org/simple" }
+resolution-markers = [
+    "python_full_version >= '3.12'",
+    "python_full_version == '3.11.*'",
+]
+dependencies = [
+    { name = "colorama", marker = "python_full_version >= '3.11'" },
+    { name = "griffelib", version = "2.4.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11'" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/c9/8e/d3130e17ae27c900f8f76c96ceb2f02edfe0c7db0366b49e033f81ff81d7/griffecli-2.4.1.tar.gz", hash = "sha256:6db9acad984990b08c833ab5ec73d5a604e317b2290074d04c91ca9e52d35a7b", size = 61762, upload-time = "2026-10-22T11:20:01.054Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/3f/dc/5cdbbbfd1a9e8c0e9b6b8b6e6d839e67f82cb138b77cf74856e5b80527de/griffecli-2.4.1-py3-none-any.whl", hash = "sha256:1678938e7b75a0aa34d3e408d550707a192f5297c3005aa0f92660648c30bc0a", size = 11774, upload-time = "2026-10-22T11:19:57.134Z" },
+]
+
+[[package]]
+name = "griffelib"
+version = "2.3.0"
+source = { registry = "https://pypi.org/simple" }
+resolution-markers = [
+    "python_full_version < '3.11'",
+]
+sdist = { url = "https://files.pythonhosted.org/packages/27/af/018c10bc9edd42b6ef6db2e96b09542050d5253f9b195e74bc910b2d13ab/griffelib-2.3.0.tar.gz", hash = "sha256:7b0952caf5bca6afa4bb5ee8c6a2d183fe3f21b62efc5f6c7243cb2b26d2d115", size = 234534, upload-time = "2026-09-04T15:08:17.472Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/41/63/e876e789525063c840ccfa8857febdabd6523bcef9ce7eb979b9305ea895/griffelib-2.3.0-py3-none-any.whl", hash = "sha256:1b8f9cd525681c26b1d6d574faa1371651e8459ca51d209684f50b8096ae06e0", size = 169423, upload-time = "2026-09-04T15:08:12.956Z" },
+]
+
+[[package]]
+name = "griffelib"
+version = "2.4.1"
+source = { registry = "https://pypi.org/simple" }
+resolution-markers = [
+    "python_full_version >= '3.12'",
+    "python_full_version == '3.11.*'",
+]
+sdist = { url = "https://files.pythonhosted.org/packages/36/e2/0f5d8ed08766bc6dcd3eebf5a6623d83cbca33a6e4c90aef57156ce745ad/griffelib-2.4.1.tar.gz", hash = "sha256:40c028dd2e623f464423f0e11e3c553158f1cf4f1368239a370534d73e1407ff", size = 245153, upload-time = "2026-10-22T11:20:03.705Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/de/02/1156d5f5307f573b901b14373848b84e69ca6cab09169b8cc97d16a181f9/griffelib-2.4.1-py3-none-any.whl", hash = "sha256:76bc562f936ad1ce198d2cf6d0731bd5c92a7d934b69ef828ef22ee0ffdb62ce", size = 172983, upload-time = "2026-10-22T11:19:59.843Z" },
 ]
 
 [[package]]
@@ -3173,6 +3275,24 @@ wheels = [
 ]
 
 [[package]]
+name = "pip"
+version = "26.2.2"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/fa/e8/0842d757e483e895e670f655084cfe8b8c72580c6769a76b30b2789a0608/pip-26.2.2.tar.gz", hash = "sha256:3a8e5c800492787f33a4114ef54444546c340df428974ebba17e0fd47e11af2f", size = 1863336, upload-time = "2026-10-20T16:36:29.008Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/3f/06/3e4420302363fbb71be3c7f35ce042f54bfca330e3e66b3a2e3c4cca579f/pip-26.2.2-py3-none-any.whl", hash = "sha256:fd7f4dfa8190e014013b9f08f3e973f4e4c26ffd179a204895533a7254813a70", size = 1819850, upload-time = "2026-10-20T16:36:27.046Z" },
+]
+
+[[package]]
+name = "pipdeptree"
+version = "2.9.6"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/0a/b2/2508e11f44e0e7b136555175f21c121f20642d43ab2a09797b178e968834/pipdeptree-2.9.6.tar.gz", hash = "sha256:f815caf165e89c576ce659b866c7a82ae4590420c2d020a92d32e45097f8bc73", size = 30858, upload-time = "2023-07-14T22:34:19.07Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/41/2c/63ad89d8e01d471b91c0ad4d69ed45f5221f70f3ece6c097beecb7c67f7a/pipdeptree-2.9.6-py3-none-any.whl", hash = "sha256:de93f990d21224297c9f03e057da5a3dc65ff732a0147945dd9421671f13626b", size = 19768, upload-time = "2023-07-14T22:34:17.109Z" },
+]
+
+[[package]]
 name = "platformdirs"
 version = "4.5.0"
 source = { registry = "https://pypi.org/simple" }
@@ -3622,14 +3742,14 @@ wheels = [
 
 [[package]]
 name = "pyjwt"
-version = "2.13.0"
+version = "2.15.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "typing-extensions", marker = "python_full_version < '3.11'" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/3b/81/58d0ac84e1ef3a3843791d6954d94c0b33d526c75eeb1efbce9d0a4c4077/pyjwt-2.13.0.tar.gz", hash = "sha256:41571c89ca91598c79e8ef18a2d07367d4810fbbd6f637794879baf1b7703423", size = 107515, upload-time = "2026-05-21T19:54:36.618Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/43/ea/5194e52748b0da83d71e082d75496eaec6e58f419f5e184786ded517e6a9/pyjwt-2.15.1.tar.gz", hash = "sha256:4f259e80cdfb6b3fc18a7de51fd1ef9ec79652f25019bae68975ca2468a34df8", size = 121252, upload-time = "2026-09-28T18:40:42.598Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/a3/5e/ecf12fdb62546d64385c158514e9b2b671f7832108ef2ecd2020ce0af2d1/pyjwt-2.13.0-py3-none-any.whl", hash = "sha256:66adcc2aff09b3f1bbd95fc1e1577df8ac8723c978552fd43304c8a290ac5728", size = 31274, upload-time = "2026-05-21T19:54:35.362Z" },
+    { url = "https://files.pythonhosted.org/packages/50/ca/44de4e75f8aadc457f0634be3b542815078ded46dca30efb960edeecad6e/pyjwt-2.15.1-py3-none-any.whl", hash = "sha256:42d59d631f7768a1028a64c7ff581a9bf7519804daf91fc5b6c56e30eec5e193", size = 33860, upload-time = "2026-09-28T18:40:41.429Z" },
 ]
 
 [[package]]

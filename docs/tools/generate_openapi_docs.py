@@ -6,8 +6,7 @@ from `--spec-dir`, and renders one Docusaurus page per service.
 Every operation has an example request for curl and for Python `requests`.
 
 Usage:
-    uv run --no-project --with dlthub-client --with pyyaml python tools/generate_openapi_docs.py \
-        [--spec-dir DIR] [--output-dir DIR]
+    uv run python tools/generate_openapi_docs.py [--spec-dir DIR] [--output-dir DIR]
 """
 
 from __future__ import annotations
@@ -20,28 +19,42 @@ import re
 import textwrap
 from http import HTTPStatus
 from importlib.metadata import version
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, List, NamedTuple, Optional, Tuple
 
 import yaml
 
-from mdx_utils import escape_mdx
+from mdx_utils import escape_mdx, frontmatter, one_line, table
 
 DOCS_DIR = pathlib.Path(__file__).resolve().parents[1]
-DEFAULT_OUTPUT_DIR = DOCS_DIR / "website" / "docs_processed" / "hub" / "reference" / "api"
+DEFAULT_OUTPUT_DIR = (
+    DOCS_DIR / "website" / "docs_processed" / "hub" / "reference" / "api"
+)
 
 #: spec file stem -> (page slug, sidebar label, base URL and token in curl examples); also the
 #: page order
 SERVICES = {
     "api": ("runtime-api", "Runtime API", "https://api.dlthub.com", "$DLTHUB_API_KEY"),
-    "dataplane_api": ("dataplane-api", "Dataplane API", "$DATAPLANE_URL", "$DATAPLANE_TOKEN"),
-    "telemetry": ("telemetry-api", "Telemetry API", "$DATAPLANE_URL", "$DATAPLANE_TOKEN"),
+    "dataplane_api": (
+        "dataplane-api",
+        "Dataplane API",
+        "$DATAPLANE_URL",
+        "$DATAPLANE_TOKEN",
+    ),
+    "telemetry": (
+        "telemetry-api",
+        "Telemetry API",
+        "$DATAPLANE_URL",
+        "$DATAPLANE_TOKEN",
+    ),
     "logs": ("logs-api", "Logs API", "$DATAPLANE_URL", "$DATAPLANE_TOKEN"),
 }
 
 HTTP_METHODS = ("get", "post", "put", "patch", "delete")
 
 #: framework default for timezone-aware datetimes, says nothing the type does not
-DATETIME_BOILERPLATE = "datetime with the constraint that the value must have timezone info"
+DATETIME_BOILERPLATE = (
+    "datetime with the constraint that the value must have timezone info"
+)
 
 #: the error body every service shares, documented once on the API overview page
 ERROR_LINK = "[error body](overview.md#errors)"
@@ -76,15 +89,18 @@ def prose(text: str | None) -> str:
 
 
 def cell(text: str | None) -> str:
-    """Single-line table cell content."""
-    return " ".join(prose(text).split()).replace("|", "\\|")
+    return one_line(prose(text))
 
 
 def operation_title(operation: Schema) -> str:
-    """`TriggerJobs` -> `Trigger jobs`; falls back to the operation id for sentence summaries."""
+    """`TriggerJobs` -> `Trigger jobs`, `GetAPIKey` -> `Get API key`; falls back to the operation
+    id for sentence summaries.
+    """
     summary = operation.get("summary") or ""
     if summary and " " not in summary:
-        return re.sub(r"(?<!^)(?=[A-Z])", " ", summary).capitalize()
+        words = re.findall(r"[A-Z]+(?![a-z])|[A-Z]?[a-z0-9]+", summary)
+        title = " ".join(w if len(w) > 1 and w.isupper() else w.lower() for w in words)
+        return title[:1].upper() + title[1:]
     return str(operation["operationId"]).replace("_", " ").capitalize()
 
 
@@ -141,7 +157,9 @@ def enum_values(spec: Schema, schema: Schema) -> List[Any]:
     if "enum" in schema:
         return list(schema["enum"])
     values: List[Any] = []
-    for variant in schema.get("anyOf", []) + schema.get("oneOf", []) + schema.get("allOf", []):
+    for variant in (
+        schema.get("anyOf", []) + schema.get("oneOf", []) + schema.get("allOf", [])
+    ):
         values += [v for v in enum_values(spec, variant) if v not in values]
     if schema.get("type") == "array":
         values += enum_values(spec, schema.get("items", {}))
@@ -173,19 +191,27 @@ def unwrap(spec: Schema, schema: Schema) -> Schema:
 
 
 def field_rows(
-    spec: Schema, schema: Schema, prefix: str = "", depth: int = 0, seen: Tuple[int, ...] = ()
+    spec: Schema,
+    schema: Schema,
+    prefix: str = "",
+    depth: int = 0,
+    seen: Tuple[int, ...] = (),
 ) -> List[List[str]]:
     """One row per field, nested fields named by their path, e.g. `items[].id`."""
     schema = unwrap(spec, schema)
     required = set(schema.get("required") or [])
     rows = []
     for name, prop in (schema.get("properties") or {}).items():
-        description = with_values(spec, prop, cell(field_description(prop)))
+        description = with_values(spec, prop, field_description(prop) or "")
         if "default" in prop and prop["default"] is not None:
-            description = f"{description} Default: `{json.dumps(prop['default'])}`.".strip()
+            description = (
+                f"{description} Default: `{json.dumps(prop['default'])}`.".strip()
+            )
         path = f"{prefix}{name}"
         required_ = "yes" if name in required else "no"
-        rows.append([f"`{path}`", cell(type_str(spec, prop)), required_, description])
+        rows.append(
+            [f"`{path}`", cell(type_str(spec, prop)), required_, cell(description)]
+        )
         if is_opaque(prop):
             continue
         value = unwrap(spec, prop)
@@ -210,34 +236,31 @@ def fields_table(spec: Schema, schema: Schema, with_required: bool) -> str:
         if with_required and required == "yes":
             description = f"{REQUIRED} {description}"
         row[:] = [path, type_, description]
-    header = ["Field", "Type", "Description"]
-    lines = ["| " + " | ".join(header) + " |", "|" + " --- |" * len(header)]
-    lines += ["| " + " | ".join(row) + " |" for row in rows]
-    return "\n".join(lines) + "\n\n"
+    return table(rows, ["Field", "Type", "Description"])
 
 
 def render_parameters(spec: Schema, parameters: List[Schema]) -> str:
     """One table per location; path parameters are always required, others are marked."""
-    tables: Dict[str, List[str]] = {}
+    tables: Dict[str, List[List[str]]] = {}
     pagination = []
     for param in parameters:
         name = param["name"]
         if param["in"] == "query" and name in PAGINATION_PARAMS:
             pagination.append(f"`{name}`")
             continue
-        description = cell(param.get("description"))
+        description = param.get("description") or ""
         if not description and param["in"] == "path" and name.endswith("_id"):
             description = "ID of the " + name[: -len("_id")].replace("_", " ")
-        description = with_values(spec, param.get("schema", {}), description)
+        description = cell(with_values(spec, param.get("schema", {}), description))
         if param.get("required") and param["in"] != "path":
             description = f"{REQUIRED} {description}"
         tables.setdefault(param["in"], []).append(
-            f"| `{name}` | {cell(type_str(spec, param.get('schema', {})))} | {description} |"
+            [f"`{name}`", cell(type_str(spec, param.get("schema", {}))), description]
         )
     md = ""
     for location, rows in tables.items():
-        md += f"**{location.capitalize()} parameters**\n\n| Name | Type | Description |\n"
-        md += "| --- | --- | --- |\n" + "\n".join(rows) + "\n\n"
+        md += f"**{location.capitalize()} parameters**\n\n"
+        md += table(rows, ["Name", "Type", "Description"])
     if pagination:
         md += f"**Pagination:** {', '.join(pagination)}, see {PAGINATION_LINK}\n\n"
     return md
@@ -267,10 +290,13 @@ def error_code(status: str) -> str:
 
 
 def status_phrase(status: str) -> str:
+    """Reason phrase of a status, also of the `default` response and of ranges such as `4XX`."""
+    if status == "default":
+        return "Any other status"
     try:
         return HTTPStatus(int(status)).phrase
     except ValueError:
-        return status
+        return f"Any {status} status"
 
 
 def render_responses(spec: Schema, responses: Dict[str, Schema]) -> str:
@@ -279,6 +305,7 @@ def render_responses(spec: Schema, responses: Dict[str, Schema]) -> str:
     bodies: Dict[str, List[str]] = {}
     statuses: List[str] = []
     tabs: List[Tuple[str, str, str]] = []
+    other_bodies = []
     errors = []
     for status, response in responses.items():
         if not status.startswith("2"):
@@ -291,31 +318,49 @@ def render_responses(spec: Schema, responses: Dict[str, Schema]) -> str:
             bodies.setdefault(json.dumps(schema, sort_keys=True), []).append(status)
         elif content:
             media_types = ", ".join(f"`{m}`" for m in content)
-            tabs.append(("body", "Body", f"`{status}` returns {media_types}."))
+            other_bodies.append(f"`{status}` returns {media_types}.")
         else:
-            tabs.append(("body", "Body", f"`{status}` returns no body."))
+            other_bodies.append(f"`{status}` returns no body.")
+    if other_bodies:
+        tabs.append(("body", "Body", "\n\n".join(other_bodies)))
     for key, body_statuses in bodies.items():
         schema = json.loads(key)
-        example = json.dumps(example_value(spec, "body", schema, complete=True), indent=2)
+        example = json.dumps(
+            example_value(spec, "body", schema, complete=True), indent=2
+        )
         # arrays of plain values fit on one line
         example = re.sub(
             r"\[\s+([^\[\]{}]*?)\s+\]",
             lambda m: "[" + ", ".join(v.strip() for v in m.group(1).split(",\n")) + "]",
             example,
         )
-        # an operation with distinct bodies names the statuses of each
-        suffix = f" {', '.join(body_statuses)}" if len(bodies) > 1 else ""
-        tabs.append(("example", f"Example{suffix}", f"```json\n{example}\n```"))
-        tabs.append(("fields", f"Fields{suffix}", fields_table(spec, schema, with_required=False)))
+        # an operation with distinct bodies names the statuses of each, tab values must be unique
+        label, value = "", ""
+        if len(bodies) > 1:
+            label, value = f" {', '.join(body_statuses)}", f"-{'-'.join(body_statuses)}"
+        tabs.append((f"example{value}", f"Example{label}", f"```json\n{example}\n```"))
+        tabs.append(
+            (
+                f"fields{value}",
+                f"Fields{label}",
+                fields_table(spec, schema, with_required=False),
+            )
+        )
     if errors:
-        content = "".join(f"- {error_code(status)} {status_phrase(status)}\n" for status in errors)
-        tabs.append(("errors", "Errors", content + f"\nEach error returns the {ERROR_LINK}."))
+        content = "".join(
+            f"- {error_code(status)} {status_phrase(status)}\n" for status in errors
+        )
+        tabs.append(
+            ("errors", "Errors", content + f"\nEach error returns the {ERROR_LINK}.")
+        )
     if not tabs:
         return ""
     summary = "Response"
     # error classes present, e.g. `4xx`, `5xx`
     classes = sorted({f"{status[0]}xx" for status in errors if status[:1] in "45"})
-    codes = [f"<code>{status}</code>" for status in statuses] + [error_code(c) for c in classes]
+    codes = [f"<code>{status}</code>" for status in statuses] + [
+        error_code(c) for c in classes
+    ]
     if codes:
         summary += " (" + ", ".join(codes) + ")"
     return fold(summary, "api-response", tabs)
@@ -404,29 +449,60 @@ def request_token(path: str, token: str) -> str:
     return "$UPLOAD_TOKEN" if path.endswith("/-upload") else token
 
 
-def curl_example(
-    spec: Schema, method: str, path: str, operation: Schema, base_url: str, token: str
-) -> str:
-    url = base_url + re.sub(r"{(\w+)}", path_variable, path)
-    token = request_token(path, token)
-    request = f'curl "{url}"' if method == "get" else f'curl -X {method.upper()} "{url}"'
-    lines = [request, f'-H "Authorization: Bearer {token}"']
+class RequestExample(NamedTuple):
+    query: Dict[str, Any]
+    headers: Dict[str, Any]
+    #: JSON body, None when the operation takes none
+    body: Optional[Dict[str, Any]]
+    #: multipart form fields in spec order, None for a file
+    form: List[Tuple[str, Any]]
+
+
+def request_example(spec: Schema, operation: Schema) -> RequestExample:
+    """Required query and header parameters and the body of an example request."""
+    params: Dict[str, Dict[str, Any]] = {"query": {}, "header": {}}
+    for param in operation.get("parameters") or []:
+        if param.get("required") and param["in"] in params:
+            value = example_value(spec, param["name"], param.get("schema", {}))
+            params[param["in"]][param["name"]] = value
+    body, form = None, []
     content = (operation.get("requestBody") or {}).get("content") or {}
     if "application/json" in content:
         body = example_body(spec, content["application/json"].get("schema", {}))
-        lines.append('-H "Content-Type: application/json"')
-        data = json.dumps(body)
-        if len(data) > 60:
-            fields = ",\n".join(f"    {json.dumps(k)}: {json.dumps(v)}" for k, v in body.items())
-            data = "{\n" + fields + "\n  }"
-        lines.append(f"-d '{data}'")
     elif "multipart/form-data" in content:
         schema = resolve(spec, content["multipart/form-data"].get("schema", {}))
         for name, prop in (schema.get("properties") or {}).items():
-            if prop.get("format") == "binary":
-                lines.append(f'-F "{name}=@<{name}>"')
-            else:
-                lines.append(f'-F "{name}={example_value(spec, name, prop)}"')
+            binary = prop.get("format") == "binary"
+            form.append((name, None if binary else example_value(spec, name, prop)))
+    return RequestExample(params["query"], params["header"], body, form)
+
+
+def curl_example(
+    spec: Schema, method: str, path: str, operation: Schema, base_url: str, token: str
+) -> str:
+    example = request_example(spec, operation)
+    url = base_url + re.sub(r"{(\w+)}", path_variable, path)
+    if example.query:
+        url += "?" + "&".join(f"{k}={v}" for k, v in example.query.items())
+    token = request_token(path, token)
+    request = (
+        f'curl "{url}"' if method == "get" else f'curl -X {method.upper()} "{url}"'
+    )
+    lines = [request, f'-H "Authorization: Bearer {token}"']
+    lines += [f'-H "{k}: {v}"' for k, v in example.headers.items()]
+    if example.body is not None:
+        lines.append('-H "Content-Type: application/json"')
+        data = json.dumps(example.body)
+        if len(data) > 60:
+            fields = ",\n".join(
+                f"    {json.dumps(k)}: {json.dumps(v)}" for k, v in example.body.items()
+            )
+            data = "{\n" + fields + "\n  }"
+        lines.append(f"-d '{data}'")
+    for name, value in example.form:
+        lines.append(
+            f'-F "{name}=@<{name}>"' if value is None else f'-F "{name}={value}"'
+        )
     return " \\\n  ".join(lines)
 
 
@@ -434,11 +510,18 @@ def py_literal(value: Any, indent: int = 0) -> str:
     """Python source of a JSON value, split over lines when it is long."""
     inline = repr(value) if not isinstance(value, str) else json.dumps(value)
     if isinstance(value, dict):
-        items = [f"{json.dumps(k)}: {py_literal(v, indent + 4)}" for k, v in value.items()]
+        items = [
+            f"{json.dumps(k)}: {py_literal(v, indent + 4)}" for k, v in value.items()
+        ]
         inline = "{" + ", ".join(items) + "}"
         if len(inline) + indent > 80:
             pad = " " * (indent + 4)
-            return "{\n" + "".join(f"{pad}{item},\n" for item in items) + " " * indent + "}"
+            return (
+                "{\n"
+                + "".join(f"{pad}{item},\n" for item in items)
+                + " " * indent
+                + "}"
+            )
     elif isinstance(value, list):
         inline = "[" + ", ".join(py_literal(v, indent) for v in value) + "]"
     return inline
@@ -453,36 +536,37 @@ def python_example(
     spec: Schema, method: str, path: str, operation: Schema, base_url: str, token: str
 ) -> str:
     # ids and the data plane URL are placeholders to fill in, the token is read from the env
+    example = request_example(spec, operation)
     url = placeholder(base_url) + re.sub(r"{(\w+)}", r"<\1>", path)
     env = request_token(path, token).lstrip("$")
-    args = [json.dumps(url), f'headers={{"Authorization": f"Bearer {{os.environ[\'{env}\']}}"}}']
+    headers = [f'"Authorization": f"Bearer {{os.environ[\'{env}\']}}"']
+    headers += [f"{json.dumps(k)}: {json.dumps(v)}" for k, v in example.headers.items()]
+    args = [json.dumps(url), "headers={" + ", ".join(headers) + "}"]
+    if example.query:
+        args.append(f"params={py_literal(example.query, 4)}")
     lines = []
-    content = (operation.get("requestBody") or {}).get("content") or {}
-    if "application/json" in content:
-        body = example_body(spec, content["application/json"].get("schema", {}))
-        args.append(f"json={py_literal(body, 4)}")
-    elif "multipart/form-data" in content:
-        schema = resolve(spec, content["multipart/form-data"].get("schema", {}))
-        files, data = {}, {}
-        for name, prop in (schema.get("properties") or {}).items():
-            if prop.get("format") == "binary":
-                files[name] = f'open("<{name}>", "rb")'
-            else:
-                data[name] = json.dumps(example_value(spec, name, prop))
-        if files:
-            args.append("files={" + ", ".join(f'"{k}": {v}' for k, v in files.items()) + "}")
-        if data:
-            args.append("data={" + ", ".join(f'"{k}": {v}' for k, v in data.items()) + "}")
+    if example.body is not None:
+        args.append(f"json={py_literal(example.body, 4)}")
+    files = [f'"{k}": open("<{k}>", "rb")' for k, v in example.form if v is None]
+    data = [f'"{k}": {json.dumps(v)}' for k, v in example.form if v is not None]
+    if files:
+        args.append("files={" + ", ".join(files) + "}")
+    if data:
+        args.append("data={" + ", ".join(data) + "}")
     media_types = [
         media_type
         for status, response in (operation.get("responses") or {}).items()
         if status.startswith("2")
         for media_type in response.get("content") or {}
     ]
-    streams = any(m in ("text/event-stream", "application/x-ndjson") for m in media_types)
+    streams = any(
+        m in ("text/event-stream", "application/x-ndjson") for m in media_types
+    )
     if streams:
         args.append("stream=True")
-    call = f"response = requests.{method}(\n" + "".join(f"    {a},\n" for a in args) + ")"
+    call = (
+        f"response = requests.{method}(\n" + "".join(f"    {a},\n" for a in args) + ")"
+    )
     lines += [call, "response.raise_for_status()"]
     if streams:
         lines.append("for line in response.iter_lines():\n    print(line.decode())")
@@ -499,7 +583,9 @@ def render_request(
     if parameters:
         tabs.append(("parameters", "Parameters", parameters))
     if operation.get("requestBody"):
-        tabs.append(("body", "Body", request_body_fields(spec, operation["requestBody"])))
+        tabs.append(
+            ("body", "Body", request_body_fields(spec, operation["requestBody"]))
+        )
     curl = curl_example(spec, method, path, operation, base_url, token)
     python = python_example(spec, method, path, operation, base_url, token)
     tabs.append(("curl", "curl", f"```sh\n{curl}\n```"))
@@ -513,12 +599,11 @@ def tag_label(tag: str) -> str:
 
 def render_spec(spec: Schema, slug: str, label: str, base_url: str, token: str) -> str:
     info = spec.get("info", {})
-    md = "---\n"
-    md += f"title: {label}\n"
-    md += f"description: {label} reference of the dltHub Runtime\n"
-    md += f"keywords: [dlthub, runtime, rest api, openapi, {slug}]\n"
-    md += "---\n\n"
-    md += f"<!-- generated from the {info.get('title')} OpenAPI spec, do not edit -->\n\n"
+    keywords = ["dlthub", "runtime", "rest api", "openapi", slug]
+    md = frontmatter(label, f"{label} reference of the dltHub Runtime", keywords) + "\n"
+    md += (
+        f"<!-- generated from the {info.get('title')} OpenAPI spec, do not edit -->\n\n"
+    )
     md += prose(info.get("description")) + "\n\n"
 
     by_tag: Dict[str, List[str]] = {}
@@ -545,7 +630,7 @@ def bundled_spec_dir() -> pathlib.Path:
     if not spec_dir.is_dir():
         raise SystemExit(
             f"dlthub-client {version('dlthub-client')} bundles no OpenAPI specs; "
-            "0.28.8a2 is the first version that does"
+            "install the version required in docs/pyproject.toml or pass --spec-dir"
         )
     return spec_dir
 

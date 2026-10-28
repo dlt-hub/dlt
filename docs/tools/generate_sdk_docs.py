@@ -6,8 +6,7 @@ The pages, led by a getting started page, and a `sidebar.json` listing them are 
 OUTPUT_DIR.
 
 Usage:
-    uv run --no-project --with dlthub-client --with griffe \
-        python tools/generate_sdk_docs.py OUTPUT_DIR
+    uv run python tools/generate_sdk_docs.py OUTPUT_DIR
 """
 
 from __future__ import annotations
@@ -23,7 +22,7 @@ from typing import Dict, List, Optional, Union
 
 import griffe
 
-from mdx_utils import escape_mdx
+from mdx_utils import escape_mdx, frontmatter, one_line, table
 
 PACKAGE = "dlthub_sdk"
 DISTRIBUTION = "dlthub-client"
@@ -57,7 +56,10 @@ PAGES = {
         "Organizations and workspaces",
         ["Organizations", "Workspaces", "Caller", "Data planes"],
     ),
-    "deployments": ("Deployments and configurations", ["Deployments", "Configurations", "Files"]),
+    "deployments": (
+        "Deployments and configurations",
+        ["Deployments", "Configurations", "Files"],
+    ),
     "jobs": ("Jobs", ["Jobs"]),
     "job-runs": ("Job runs and logs", ["Job runs", "Logs"]),
     "variables": ("Variables", ["Variables"]),
@@ -74,11 +76,19 @@ SECTION_INTROS = {
 
 #: base class -> rank of its subclasses within a section: how you reach an object, the object,
 #: what it returns and takes, then enums
-ROLES = {"Namespace": 0, "Collection": 1, "Entity": 2, "TypedDict": 4, "Protocol": 4, "StrEnum": 5}
+ROLES = {
+    "Namespace": 0,
+    "Collection": 1,
+    "Entity": 2,
+    "TypedDict": 4,
+    "Protocol": 4,
+    "StrEnum": 5,
+}
 
 #: doc id of the folder the pages are served from
 DOC_ID = "hub/reference/python-sdk"
 TITLE = "Python SDK reference"
+KEYWORDS = ["dlthub", "runtime", "python sdk", "dlthub_sdk", "api"]
 
 INTRO = """\
 :::info
@@ -178,31 +188,27 @@ def anchor(name: str) -> str:
     return (name if name.isupper() else name.lower()).replace(".", "-")
 
 
-def strip_bracketed(text: str, prefix: str) -> str:
-    """Removes every `prefix[...]` including its balanced brackets."""
-    while (start := text.find(prefix + "[")) != -1:
-        depth, i = 0, start + len(prefix)
-        while i < len(text):
-            depth += {"[": 1, "]": -1}.get(text[i], 0)
-            i += 1
-            if depth == 0:
-                break
-        text = text[:start] + text[i:]
-    return text
+def bracket_end(text: str, start: int) -> int:
+    """Index after the bracket that closes the one at `start`."""
+    depth = 0
+    for i in range(start, len(text)):
+        depth += {"[": 1, "]": -1}.get(text[i], 0)
+        if depth == 0:
+            return i + 1
+    return len(text)
 
 
 def clean_type(annotation: object) -> str:
     """Shows the type a blocking client sees, without mode generics."""
     if annotation is None:
         return ""
-    text = strip_bracketed(str(annotation), " | Awaitable")
+    text = str(annotation)
+    while (start := text.find(" | Awaitable[")) != -1:
+        text = text[:start] + text[bracket_end(text, start + len(" | Awaitable")) :]
     while (start := text.find("ReadOnly[")) != -1:
-        depth, end = 0, start + len("ReadOnly")
-        for end in range(end, len(text)):
-            depth += {"[": 1, "]": -1}.get(text[end], 0)
-            if depth == 0:
-                break
-        text = text[:start] + text[start + len("ReadOnly[") : end] + text[end + 1 :]
+        opening = start + len("ReadOnly")
+        end = bracket_end(text, opening)
+        text = text[:start] + text[opening + 1 : end - 1] + text[end:]
     text = re.sub(r"^Awaitable\[(.*)\]$", r"\1", text)
     previous = None
     while previous != text:
@@ -212,7 +218,9 @@ def clean_type(annotation: object) -> str:
 
 
 class Renderer:
-    def __init__(self, exports: Dict[str, griffe.Object], pages: Dict[str, str]) -> None:
+    def __init__(
+        self, exports: Dict[str, griffe.Object], pages: Dict[str, str]
+    ) -> None:
         self.exports = exports
         #: anchor -> slug of the page it is on
         self.anchors = {anchor(name): pages[name] for name in exports}
@@ -221,21 +229,19 @@ class Renderer:
                 self.anchors.update(
                     (anchor(f"{name}.{member}"), pages[name])
                     for member, value in obj.members.items()
-                    if not member.startswith("_") and isinstance(target(value), griffe.Function)
+                    if not member.startswith("_")
+                    and isinstance(target(value), griffe.Function)
                 )
         self.page = ""
         #: heading level of the objects on the page, one less when the page has no section headings
         self.level = 3
 
-    def href(self, anchor_: str) -> str:
-        """Markdown link target of an anchor, on this page or another one."""
+    def href(self, anchor_: str, extension: str = ".md") -> str:
+        """Link target of an anchor, on this page or another one. HTML links take no extension
+        because Docusaurus does not resolve them.
+        """
         page = self.anchors[anchor_]
-        return f"#{anchor_}" if page == self.page else f"{page}.md#{anchor_}"
-
-    def url(self, anchor_: str) -> str:
-        """URL of an anchor relative to this page, for HTML links Docusaurus does not resolve."""
-        page = self.anchors[anchor_]
-        return f"#{anchor_}" if page == self.page else f"{page}#{anchor_}"
+        return f"#{anchor_}" if page == self.page else f"{page}{extension}#{anchor_}"
 
     def link(self, match: re.Match[str]) -> str:
         role, ref = match.group(1), match.group(2).lstrip("~")
@@ -253,7 +259,7 @@ class Renderer:
         return escape_mdx(text)
 
     def cell(self, text: Optional[str]) -> str:
-        return " ".join(self.prose(text).split()).replace("|", "\\|")
+        return one_line(self.prose(text))
 
     def signature(self, func: griffe.Function, name: str) -> str:
         params: List[str] = []
@@ -265,7 +271,9 @@ class Renderer:
             if param.kind is kinds.keyword_only and not seen_keyword_only:
                 params.append("*")
                 seen_keyword_only = True
-            prefix = {kinds.var_positional: "*", kinds.var_keyword: "**"}.get(param.kind, "")
+            prefix = {kinds.var_positional: "*", kinds.var_keyword: "**"}.get(
+                param.kind, ""
+            )
             text = prefix + param.name
             if param.annotation is not None:
                 text += f": {clean_type(param.annotation)}"
@@ -289,12 +297,11 @@ class Renderer:
 
     def exception(self, name: object) -> str:
         text = str(name)
-        return f"[`{text}`]({self.href(anchor(text))})" if text in self.exports else f"`{text}`"
-
-    def table(self, rows: List[List[str]], header: List[str]) -> str:
-        lines = ["| " + " | ".join(header) + " |", "|" + " --- |" * len(header)]
-        lines += ["| " + " | ".join(row) + " |" for row in rows]
-        return "\n".join(lines) + "\n\n"
+        return (
+            f"[`{text}`]({self.href(anchor(text))})"
+            if text in self.exports
+            else f"`{text}`"
+        )
 
     def docstring(
         self,
@@ -315,7 +322,9 @@ class Renderer:
         if isinstance(obj, griffe.Function):
             annotations = {p.name: clean_type(p.annotation) for p in obj.parameters}
         elif isinstance(obj, griffe.Class):
-            init = target(obj.members["__init__"]) if "__init__" in obj.members else None
+            init = (
+                target(obj.members["__init__"]) if "__init__" in obj.members else None
+            )
             if isinstance(init, griffe.Function):
                 for p in init.parameters:
                     if p.annotation is not None:
@@ -345,13 +354,21 @@ class Renderer:
                 ]
                 if title_args == "Attributes":
                     rows, properties = rows + properties, []
-                md += f"**{title_args}**\n\n" + self.table(rows, ["Name", "Type", "Description"])
+                md += f"**{title_args}**\n\n" + table(
+                    rows, ["Name", "Type", "Description"]
+                )
             elif section.kind is kind.attributes and values:
                 rows = [
-                    [f"`{a.name}`", f"`{values.get(a.name, '')}`", self.cell(a.description)]
+                    [
+                        f"`{a.name}`",
+                        f"`{values.get(a.name, '')}`",
+                        self.cell(a.description),
+                    ]
                     for a in section.value
                 ]
-                md += "**Members**\n\n" + self.table(rows, ["Member", "Value", "Description"])
+                md += "**Members**\n\n" + table(
+                    rows, ["Member", "Value", "Description"]
+                )
             elif section.kind is kind.attributes:
                 rows = [
                     [
@@ -364,18 +381,23 @@ class Renderer:
                 md += self.attributes_table(rows + properties)
                 properties = []
             elif section.kind is kind.returns:
-                parts = [self.cell(r.description) for r in section.value if r.description]
+                parts = [
+                    self.cell(r.description) for r in section.value if r.description
+                ]
                 if isinstance(obj, griffe.Function) and clean_type(obj.returns):
                     parts.insert(0, self.type_cell(clean_type(obj.returns)) + " —")
                 md += "**Returns:** " + " ".join(parts) + "\n\n"
             elif section.kind is kind.yields:
-                parts = [self.cell(r.description) for r in section.value if r.description]
+                parts = [
+                    self.cell(r.description) for r in section.value if r.description
+                ]
                 md += "**Yields:** " + " ".join(parts) + "\n\n"
             elif section.kind is kind.raises:
                 rows = [
-                    [self.exception(r.annotation), self.cell(r.description)] for r in section.value
+                    [self.exception(r.annotation), self.cell(r.description)]
+                    for r in section.value
                 ]
-                md += "**Raises**\n\n" + self.table(rows, ["Exception", "When"])
+                md += "**Raises**\n\n" + table(rows, ["Exception", "When"])
             elif section.kind is kind.examples:
                 for sub_kind, value in section.value:
                     if sub_kind is kind.examples:
@@ -386,14 +408,16 @@ class Renderer:
                 admonition = section.value
                 md += f":::note[{admonition.annotation}]\n{self.prose(admonition.description)}\n:::\n\n"
         md += lead
-        if isinstance(obj, griffe.Class) and not any(s.kind is kind.attributes for s in sections):
+        if isinstance(obj, griffe.Class) and not any(
+            s.kind is kind.attributes for s in sections
+        ):
             return md + self.inline_attributes(obj, annotations, values, properties)
         return md + self.attributes_table(properties)
 
     def attributes_table(self, rows: List[List[str]]) -> str:
         if not rows:
             return ""
-        return "**Attributes**\n\n" + self.table(rows, ["Name", "Type", "Description"])
+        return "**Attributes**\n\n" + table(rows, ["Name", "Type", "Description"])
 
     def inline_attributes(
         self,
@@ -414,10 +438,16 @@ class Renderer:
             ):
                 documented.append((name, member.docstring.value))
         if values and documented:
-            rows = [[f"`{n}`", f"`{values.get(n, '')}`", self.cell(d)] for n, d in documented]
-            md = "**Members**\n\n" + self.table(rows, ["Member", "Value", "Description"])
+            rows = [
+                [f"`{n}`", f"`{values.get(n, '')}`", self.cell(d)]
+                for n, d in documented
+            ]
+            md = "**Members**\n\n" + table(rows, ["Member", "Value", "Description"])
             return md + self.attributes_table(properties)
-        rows = [[f"`{n}`", self.type_cell(annotations.get(n)), self.cell(d)] for n, d in documented]
+        rows = [
+            [f"`{n}`", self.type_cell(annotations.get(n)), self.cell(d)]
+            for n, d in documented
+        ]
         return self.attributes_table(rows + properties)
 
     def type_cell(self, annotation: Optional[str]) -> str:
@@ -427,10 +457,13 @@ class Renderer:
         parts = []
         for token in re.split(r"([A-Za-z_]\w*)", annotation):
             if anchor(token) in self.anchors:
-                parts.append(f'<a href="{self.url(anchor(token))}">{token}</a>')
+                parts.append(
+                    f'<a href="{self.href(anchor(token), extension="")}">{token}</a>'
+                )
             else:
-                # the pipe would end the table cell
-                parts.append(html.escape(token).replace("|", "&#124;"))
+                # the pipe would end the table cell, braces would start a JSX expression
+                escaped = html.escape(token).replace("|", "&#124;")
+                parts.append(escaped.replace("{", "&#123;").replace("}", "&#125;"))
         return "<code>" + "".join(parts) + "</code>"
 
     def function(self, func: griffe.Function, name: str, level: int) -> str:
@@ -454,7 +487,8 @@ class Renderer:
         if not isinstance(obj, griffe.Class) or role(obj) > ROLES["Collection"]:
             return ""
         methods = [
-            n for n, m in obj.members.items()
+            n
+            for n, m in obj.members.items()
             if not n.startswith("_") and isinstance(target(m), griffe.Function)
         ]
         if "list" in methods:
@@ -474,7 +508,9 @@ class Renderer:
             if member_name.startswith("_"):
                 continue
             if isinstance(member, griffe.Attribute) and "property" in member.labels:
-                summary = member.docstring.value.splitlines()[0] if member.docstring else ""
+                summary = (
+                    member.docstring.value.splitlines()[0] if member.docstring else ""
+                )
                 returns = clean_type(member.annotation)
                 collection = self.collection(returns)
                 if collection:
@@ -487,14 +523,20 @@ class Renderer:
                         ]
                     )
                 else:
-                    row = [f"`{member_name}`", self.type_cell(returns), self.cell(summary)]
+                    row = [
+                        f"`{member_name}`",
+                        self.type_cell(returns),
+                        self.cell(summary),
+                    ]
                     properties.append(row)
         lead = ""
         if collections:
             header = ["Name", "Type", "Example", "Description"]
             title = "[Collections](getting-started.md#collections-and-attributes)"
-            lead = f"**{title}**\n\n" + self.table(collections, header)
-        md += self.docstring(cls, title_args="Attributes", lead=lead, properties=properties)
+            lead = f"**{title}**\n\n" + table(collections, header)
+        md += self.docstring(
+            cls, title_args="Attributes", lead=lead, properties=properties
+        )
         for member_name, member in cls.members.items():
             member = target(member)
             if member_name.startswith("_") or not isinstance(member, griffe.Function):
@@ -506,7 +548,9 @@ class Renderer:
         md = f"{'#' * self.level} `{name}` {{#{anchor(name)}}}\n\n"
         if attr.value is not None:
             md += f"```python\n{name} = {attr.value}\n```\n\n"
-        return md + (self.prose(attr.docstring.value) + "\n\n" if attr.docstring else "")
+        return md + (
+            self.prose(attr.docstring.value) + "\n\n" if attr.docstring else ""
+        )
 
     def render(self, obj: griffe.Object, name: str) -> str:
         if isinstance(obj, griffe.Function):
@@ -552,12 +596,16 @@ def class_tree(names: List[str], exports: Dict[str, griffe.Object]) -> List[str]
 
     roots = [name for name in names if not set(base_names(exports[name])) & set(names)]
     # the root with the most subclasses, the base exception, comes first
-    for name in sorted(roots, key=lambda r: -sum(r in base_names(exports[n]) for n in names)):
+    for name in sorted(
+        roots, key=lambda r: -sum(r in base_names(exports[n]) for n in names)
+    ):
         visit(name)
     return ordered
 
 
-def order_section(label: str, names: List[str], exports: Dict[str, griffe.Object]) -> List[str]:
+def order_section(
+    label: str, names: List[str], exports: Dict[str, griffe.Object]
+) -> List[str]:
     if label == "Errors":
         return class_tree(names, exports)
     return sorted(names, key=lambda name: (role(exports[name]), name.lower()))
@@ -568,14 +616,6 @@ def page_slug(label: str) -> str:
         if label in labels:
             return slug
     return label.lower().replace(" ", "-")
-
-
-def frontmatter(title: str, description: str) -> str:
-    md = "---\n"
-    md += f"title: {title}\n"
-    md += f"description: {description}\n"
-    md += "keywords: [dlthub, runtime, python sdk, dlthub_sdk, api]\n"
-    return md + "---\n"
 
 
 def main() -> None:
@@ -591,14 +631,19 @@ def main() -> None:
     sections: Dict[str, List[str]] = {}
     for name, obj in exports.items():
         sections.setdefault(section_label(obj.module.path), []).append(name)
-    sections = {label: order_section(label, names, exports) for label, names in sections.items()}
+    sections = {
+        label: order_section(label, names, exports) for label, names in sections.items()
+    }
     order = [label for _, labels in PAGES.values() for label in labels]
-    ordered = sorted(sections, key=lambda s: (order.index(s) if s in order else len(order), s))
+    ordered = sorted(
+        sections, key=lambda s: (order.index(s) if s in order else len(order), s)
+    )
     pages: Dict[str, List[str]] = {"getting-started": []}
     for label in ordered:
         pages.setdefault(page_slug(label), []).append(label)
     renderer = Renderer(
-        exports, {name: page_slug(label) for label in ordered for name in sections[label]}
+        exports,
+        {name: page_slug(label) for label in ordered for name in sections[label]},
     )
 
     client_version = version(DISTRIBUTION)
@@ -610,9 +655,12 @@ def main() -> None:
         renderer.page = slug
         title = PAGES[slug][0] if slug in PAGES else labels[0]
         preposition = "with" if slug == "getting-started" else "in"
-        md = frontmatter(title, f"{title} {preposition} the dltHub Runtime Python SDK ({PACKAGE})")
+        description = f"{title} {preposition} the dltHub Runtime Python SDK ({PACKAGE})"
+        md = frontmatter(title, description, KEYWORDS)
         md += f"# {title}\n\n"
-        md += f"<!-- generated from {DISTRIBUTION} {client_version}, do not edit -->\n\n"
+        md += (
+            f"<!-- generated from {DISTRIBUTION} {client_version}, do not edit -->\n\n"
+        )
         if slug == "getting-started":
             md += INTRO.format(package=PACKAGE, distribution=DISTRIBUTION) + "\n\n"
             md += f"This reference is generated from `{DISTRIBUTION}` {client_version}.\n\n"
@@ -627,7 +675,9 @@ def main() -> None:
                 md += SECTION_INTROS[label] + "\n\n"
             for name in sections[label]:
                 md += renderer.render(exports[name], name)
-        (args.output_dir / f"{slug}.md").write_text(md.rstrip() + "\n", encoding="utf-8")
+        (args.output_dir / f"{slug}.md").write_text(
+            md.rstrip() + "\n", encoding="utf-8"
+        )
 
     sidebar = {
         "type": "category",
