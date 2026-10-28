@@ -917,11 +917,22 @@ and (max-height : 850px) {
   border-color: transparent transparent transparent var(--ifm-color-primary) !important;
 }
 
-/* the request and response blocks of the REST API reference: a line ties open content to its summary */
+/* the request and response blocks of the REST API reference: outlined and grey instead of the blue admonition */
+.api-details details,
+.api-details [class*="details_"] {
+  background: var(--ifm-color-emphasis-100) !important;
+  border: 1px solid var(--ifm-color-emphasis-300) !important;
+  box-shadow: none !important;
+  color: var(--ifm-font-color-base) !important;
+  margin: 0.5rem 0 !important;
+}
+
+.api-details summary::before {
+  border-color: transparent transparent transparent var(--ifm-color-emphasis-600) !important;
+}
+
 .api-details [class*="collapsibleContent_"] {
-  border-left: 2px solid var(--ifm-color-emphasis-300) !important;
-  margin-left: 0.3rem;
-  padding-left: 1rem;
+  border-top: 1px solid var(--ifm-color-emphasis-300) !important;
 }
 
 .harness-loop {

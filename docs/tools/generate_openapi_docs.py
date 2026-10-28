@@ -252,8 +252,8 @@ def request_body_fields(spec: Schema, request_body: Schema) -> str:
 
 
 def fold(summary: str, group: str, tabs: List[Tuple[str, str, str]]) -> str:
-    """A collapsed block of tabs, each `(value, label, markdown)`, without the admonition box."""
-    md = f'<div class="plain-details api-details">\n<details>\n<summary>{summary}</summary>\n\n'
+    """A collapsed block of tabs, each `(value, label, markdown)`, styled by `.api-details`."""
+    md = f'<div class="api-details">\n<details>\n<summary>{summary}</summary>\n\n'
     md += f'<Tabs groupId="{group}">\n'
     for value, label, content in tabs:
         md += f'  <TabItem value="{value}" label="{label}">\n\n{content.rstrip()}\n\n  </TabItem>\n'
@@ -307,7 +307,7 @@ def render_operation(
 ) -> str:
     operation_id = operation["operationId"]
     md = f"### {operation_title(operation)} {{#{operation_id}}}\n\n"
-    md += f"**{method.upper()}** `{path}`\n\n"
+    md += f"```text\n{method.upper()} {path}\n```\n\n"
     if operation.get("deprecated"):
         md += ":::warning\nThis endpoint is deprecated.\n:::\n\n"
     description = prose(operation.get("description"))
