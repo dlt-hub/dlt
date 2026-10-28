@@ -6,7 +6,7 @@ keywords: [ai harness, workbench, toolkits, skills, mcp, coding agent, claude co
 ---
 # Introduction
 
-The dltHub AI Harness is a set of skills, rules, and MCP servers that teach a general-purpose coding agent (Claude Code, Cursor, or Codex) how to build production-grade pipelines, deploy and run them on dltHub managed infrastructure. It draws from [dltHub Context](https://dlthub.com/context), a hub of deeply researched context on APIs across different SaaS sources, so your agent pulls exactly what it needs to code any dlt pipeline.
+The [dltHub AI Harness](https://dlthub.com/features/ai-harness) is a set of skills, rules, and MCP servers that teach a general-purpose coding agent (Claude Code, Cursor, or Codex) how to build production-grade pipelines, deploy and run them on dltHub managed infrastructure. It draws from [dltHub Context](https://dlthub.com/context), a hub of deeply researched context on APIs across different SaaS sources, so your agent pulls exactly what it needs to code any dlt pipeline.
 
 You describe what you want, the agent picks the right toolkit and writes the pipeline code, and dltHub runs it end to end: ingestion, validation, transformation, deployment, and observation. Agents propose, humans validate, deterministic tooling enforces the boundaries.
 

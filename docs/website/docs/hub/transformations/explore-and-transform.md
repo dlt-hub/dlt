@@ -11,7 +11,7 @@ The [dltHub AI Harness](../ai-harness/introduction.md) is a part of the dltHub p
 
 ## Overview
 
-Once your pipeline is running and your data is loaded, the next step is to understand it and shape it for downstream use. The harness provides two toolkits for this phase:
+Once your pipeline is running and your data is loaded, the next step is to understand it and shape it for downstream use. The [dltHub AI Harness](https://dlthub.com/features/ai-harness) provides two toolkits for this phase:
 
 - **`data-exploration`** — connects to your loaded pipeline data, profiles it, plans charts, and assembles an interactive [marimo](../../general-usage/dataset-access/marimo.md) dashboard with Altair visualizations.
 - **`transformations`** — maps your raw source tables to canonical business concepts, builds a Kimball-style CDM, and generates `@dlt.hub.transformation` functions to populate it.
