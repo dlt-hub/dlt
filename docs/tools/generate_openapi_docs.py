@@ -20,7 +20,7 @@ import re
 import textwrap
 from http import HTTPStatus
 from importlib.metadata import version
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Tuple
 
 import yaml
 
@@ -47,6 +47,21 @@ DATETIME_BOILERPLATE = "datetime with the constraint that the value must have ti
 ERROR_SCHEMA = "ErrorResponse"
 ERROR_LINK = "[error body](index.md#errors)"
 
+#: nesting depth to which bodies are expanded, deeper objects show as `object`
+MAX_DEPTH = 3
+
+#: schemas shown as `object` without their fields: dlt's own job definition, documented with dlt
+OPAQUE_SCHEMAS = ("TJobDefinition",)
+
+#: values of string formats in example responses
+FORMAT_EXAMPLES = {
+    "date-time": "2026-01-01T00:00:00Z",
+    "date": "2026-01-01",
+    "uuid": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+    "uri": "https://example.com",
+    "email": "user@example.com",
+}
+
 Schema = Dict[str, Any]
 
 
@@ -57,10 +72,6 @@ def prose(text: str | None) -> str:
 def cell(text: str | None) -> str:
     """Single-line table cell content."""
     return " ".join(prose(text).split()).replace("|", "\\|")
-
-
-def schema_anchor(name: str) -> str:
-    return "schema-" + name.lower()
 
 
 def operation_title(operation: Schema) -> str:
@@ -80,33 +91,35 @@ def ref_name(ref: str) -> str:
     return ref.rsplit("/", 1)[-1]
 
 
-def type_str(schema: Schema) -> str:
+def type_str(spec: Schema, schema: Schema) -> str:
     if not schema:
         return "any"
     if "$ref" in schema:
-        name = ref_name(schema["$ref"])
-        return f"[{name}](#{schema_anchor(name)})"
+        resolved = resolve(spec, schema)
+        if resolved.get("type") == "object" or "properties" in resolved:
+            return "object"
+        return type_str(spec, resolved)
     for key in ("oneOf", "anyOf"):
         if key in schema:
-            options = [type_str(s) for s in schema[key]]
+            options = [type_str(spec, s) for s in schema[key]]
             # keep `null` last so `X or null` reads as an optional value
             options.sort(key=lambda o: o == "null")
             return " or ".join(dict.fromkeys(options))
     if "allOf" in schema and len(schema["allOf"]) == 1:
-        return type_str(schema["allOf"][0])
+        return type_str(spec, schema["allOf"][0])
     if "enum" in schema:
         return "one of " + ", ".join(f"`{v}`" for v in schema["enum"])
     if "const" in schema:
         return f"`{schema['const']}`"
     schema_type = schema.get("type")
     if isinstance(schema_type, list):
-        return " or ".join(type_str({**schema, "type": t}) for t in schema_type)
+        return " or ".join(type_str(spec, {**schema, "type": t}) for t in schema_type)
     if schema_type == "array":
-        return "array of " + type_str(schema.get("items", {}))
+        return "array of " + type_str(spec, schema.get("items", {}))
     if schema_type == "object":
         additional = schema.get("additionalProperties")
         if isinstance(additional, dict):
-            return "map of " + type_str(additional)
+            return "map of " + type_str(spec, additional)
         return "object"
     if schema_type is None:
         return "any"
@@ -115,24 +128,66 @@ def type_str(schema: Schema) -> str:
     return str(schema_type)
 
 
-def property_table(schema: Schema) -> str:
-    properties = schema.get("properties") or {}
-    if not properties:
-        return ""
+def is_opaque(schema: Schema) -> bool:
+    refs = re.findall(r'"\$ref": "[^"]*/(\w+)"', json.dumps(schema))
+    return any(ref in OPAQUE_SCHEMAS for ref in refs)
+
+
+def unwrap(spec: Schema, schema: Schema) -> Schema:
+    """Resolves refs and single-variant unions, so `X or null` gives the schema of `X`."""
+    schema = resolve(spec, schema)
+    for key in ("anyOf", "oneOf"):
+        variants = [v for v in schema.get(key, []) if v.get("type") != "null"]
+        if len(variants) == 1:
+            return unwrap(spec, variants[0])
+    if len(schema.get("allOf", [])) == 1:
+        return unwrap(spec, schema["allOf"][0])
+    return schema
+
+
+def field_rows(
+    spec: Schema, schema: Schema, prefix: str = "", depth: int = 0, seen: Tuple[int, ...] = ()
+) -> List[List[str]]:
+    """One row per field, nested fields named by their path, e.g. `items[].id`."""
+    schema = unwrap(spec, schema)
     required = set(schema.get("required") or [])
-    rows = ["| Field | Type | Required | Description |", "| --- | --- | --- | --- |"]
-    for name, prop in properties.items():
+    rows = []
+    for name, prop in (schema.get("properties") or {}).items():
         description = cell(field_description(prop))
         if "default" in prop and prop["default"] is not None:
             description = f"{description} Default: `{json.dumps(prop['default'])}`.".strip()
-        rows.append(
-            f"| `{name}` | {cell(type_str(prop))} | {'yes' if name in required else 'no'} |"
-            f" {description} |"
-        )
-    return "\n".join(rows) + "\n"
+        path = f"{prefix}{name}"
+        required_ = "yes" if name in required else "no"
+        rows.append([f"`{path}`", cell(type_str(spec, prop)), required_, description])
+        if is_opaque(prop):
+            continue
+        value = unwrap(spec, prop)
+        if value.get("type") == "array":
+            value, path = unwrap(spec, value.get("items", {})), path + "[]"
+        # recursive schemas stop where they repeat
+        if value.get("properties") and depth < MAX_DEPTH and id(value) not in seen:
+            rows += field_rows(spec, value, path + ".", depth + 1, seen + (id(value),))
+    return rows
 
 
-def render_parameters(parameters: List[Schema]) -> str:
+def fields_table(spec: Schema, schema: Schema, with_required: bool) -> str:
+    schema = unwrap(spec, schema)
+    prefix = ""
+    if schema.get("type") == "array":
+        schema, prefix = unwrap(spec, schema.get("items", {})), "[]."
+    rows = field_rows(spec, schema, prefix)
+    if not rows:
+        return f"Type: {type_str(spec, schema)}\n\n"
+    header = ["Field", "Type", "Required", "Description"]
+    if not with_required:
+        header.remove("Required")
+        rows = [[path, type_, description] for path, type_, _, description in rows]
+    lines = ["| " + " | ".join(header) + " |", "|" + " --- |" * len(header)]
+    lines += ["| " + " | ".join(row) + " |" for row in rows]
+    return "\n".join(lines) + "\n\n"
+
+
+def render_parameters(spec: Schema, parameters: List[Schema]) -> str:
     if not parameters:
         return ""
     rows = ["| Name | In | Type | Required | Description |", "| --- | --- | --- | --- | --- |"]
@@ -142,33 +197,22 @@ def render_parameters(parameters: List[Schema]) -> str:
         if not description and param["in"] == "path" and name.endswith("_id"):
             description = "ID of the " + name[: -len("_id")].replace("_", " ")
         rows.append(
-            f"| `{name}` | {param['in']} | {cell(type_str(param.get('schema', {})))} |"
+            f"| `{name}` | {param['in']} | {cell(type_str(spec, param.get('schema', {})))} |"
             f" {'yes' if param.get('required') else 'no'} | {cell(description)} |"
         )
     return "**Parameters**\n\n" + "\n".join(rows) + "\n\n"
 
 
-def render_content(content: Dict[str, Schema]) -> str:
-    """Renders the body type of each media type, e.g. `[JobResponse](#...)`."""
-    parts = []
-    for media_type, media in content.items():
-        body = type_str(media.get("schema", {}))
-        parts.append(body if media_type == "application/json" else f"{body} (`{media_type}`)")
-    return ", ".join(parts)
-
-
-def render_request_body(request_body: Schema | None) -> str:
+def render_request_body(spec: Schema, request_body: Schema | None) -> str:
     if not request_body:
         return ""
-    content = request_body.get("content") or {}
     md = "**Request body**"
     if not request_body.get("required"):
         md += " (optional)"
-    md += f": {render_content(content)}\n\n"
-    for media in content.values():
-        schema = media.get("schema", {})
-        if "$ref" not in schema:
-            md += property_table(schema) + "\n"
+    for media_type, media in (request_body.get("content") or {}).items():
+        if media_type != "application/json":
+            md += f" (`{media_type}`)"
+        md += "\n\n" + fields_table(spec, media.get("schema", {}), with_required=True)
     return md
 
 
@@ -179,25 +223,46 @@ def status_phrase(status: str) -> str:
         return status
 
 
-def render_responses(responses: Dict[str, Schema]) -> str:
+def render_responses(spec: Schema, responses: Dict[str, Schema]) -> str:
     rows = ["| Status | Description | Body |", "| --- | --- | --- |"]
     # errors sharing a body collapse into one row, they all differ only by status
     errors: Dict[str, List[str]] = {}
+    #: statuses of each distinct success body, keyed by its schema
+    bodies: Dict[str, List[str]] = {}
     for status, response in responses.items():
-        body = cell(render_content(response.get("content") or {})) or "none"
-        if body == type_str({"$ref": ERROR_SCHEMA}):
+        content = response.get("content") or {}
+        media_types = [f"`{m}`" for m in content if m != "application/json"]
+        body = ", ".join((["JSON"] if "application/json" in content else []) + media_types)
+        schema = content.get("application/json", {}).get("schema", {})
+        if schema.get("$ref", "").endswith("/" + ERROR_SCHEMA):
             body = ERROR_LINK
+        elif schema and status.startswith("2"):
+            bodies.setdefault(json.dumps(schema, sort_keys=True), []).append(f"`{status}`")
         if status.isdigit() and int(status) >= 400:
-            errors.setdefault(body, []).append(f"`{status}`")
+            errors.setdefault(body or "none", []).append(f"`{status}`")
             continue
         description = response.get("description") or ""
         # the framework fills in the reason phrase of the status line, which reads oddly
         if description.endswith(" follows"):
             description = status_phrase(status)
-        rows.append(f"| `{status}` | {cell(description)} | {body} |")
+        rows.append(f"| `{status}` | {cell(description)} | {body or 'none'} |")
     for body, statuses in errors.items():
         rows.append(f"| {', '.join(statuses)} | Error | {body} |")
-    return "**Responses**\n\n" + "\n".join(rows) + "\n\n"
+    md = "**Responses**\n\n" + "\n".join(rows) + "\n\n"
+    for key, statuses in bodies.items():
+        schema = json.loads(key)
+        example = json.dumps(example_value(spec, "body", schema, complete=True), indent=2)
+        # arrays of plain values fit on one line
+        example = re.sub(
+            r"\[\s+([^\[\]{}]*?)\s+\]",
+            lambda m: "[" + ", ".join(v.strip() for v in m.group(1).split(",\n")) + "]",
+            example,
+        )
+        md += "**Response body**" + (f" ({', '.join(statuses)})" if len(bodies) > 1 else "") + "\n\n"
+        md += f"```json\n{example}\n```\n\n"
+        md += "<details>\n<summary>Fields</summary>\n\n"
+        md += fields_table(spec, schema, with_required=False) + "</details>\n\n"
+    return md
 
 
 def render_operation(
@@ -211,10 +276,10 @@ def render_operation(
     description = prose(operation.get("description"))
     if description:
         md += description + "\n\n"
-    md += render_parameters(operation.get("parameters") or [])
-    md += render_request_body(operation.get("requestBody"))
+    md += render_parameters(spec, operation.get("parameters") or [])
+    md += render_request_body(spec, operation.get("requestBody"))
     md += render_examples(spec, method, path, operation, base_url, token)
-    md += render_responses(operation.get("responses") or {})
+    md += render_responses(spec, operation.get("responses") or {})
     return md
 
 
@@ -224,8 +289,15 @@ def resolve(spec: Schema, schema: Schema) -> Schema:
     return schema
 
 
-def example_value(spec: Schema, name: str, schema: Schema, depth: int = 0) -> Any:
-    """Placeholder value for a field: its default or first enum value, else one of its type."""
+def example_value(
+    spec: Schema, name: str, schema: Schema, depth: int = 0, complete: bool = False
+) -> Any:
+    """Placeholder value for a field: its default or first enum value, else one of its type.
+
+    A `complete` value fills in every field and gives formatted strings a value of their format.
+    """
+    if complete and is_opaque(schema):
+        return {}
     schema = resolve(spec, schema)
     if schema.get("default") is not None:
         return schema["default"]
@@ -236,29 +308,36 @@ def example_value(spec: Schema, name: str, schema: Schema, depth: int = 0) -> An
     for key in ("anyOf", "oneOf", "allOf"):
         variants = [v for v in schema.get(key, []) if v.get("type") != "null"]
         if variants:
-            return example_value(spec, name, variants[0], depth)
+            return example_value(spec, name, variants[0], depth, complete)
     schema_type = schema.get("type")
     if schema_type == "array":
-        item = example_value(spec, name, schema.get("items", {}), depth)
+        item = example_value(spec, name, schema.get("items", {}), depth, complete)
         return [item] if item != {} else []
     if schema_type == "object" or "properties" in schema:
-        return example_body(spec, schema, depth + 1)
+        return example_body(spec, schema, depth + 1, complete)
     if schema_type == "integer" or schema_type == "number":
         return 0
     if schema_type == "boolean":
         return False
+    if complete and schema.get("format") in FORMAT_EXAMPLES:
+        return FORMAT_EXAMPLES[schema["format"]]
     return f"<{name}>"
 
 
-def example_body(spec: Schema, schema: Schema, depth: int = 0) -> Dict[str, Any]:
+def example_body(
+    spec: Schema, schema: Schema, depth: int = 0, complete: bool = False
+) -> Dict[str, Any]:
     """Required fields of an object schema with placeholder values, all fields if none is."""
     schema = resolve(spec, schema)
-    if depth > 3:
+    if depth > MAX_DEPTH:
         return {}
     properties = schema.get("properties") or {}
     names = [name for name in schema.get("required") or [] if name in properties]
+    if complete:
+        names = list(properties)
     return {
-        name: example_value(spec, name, properties[name], depth) for name in names or properties
+        name: example_value(spec, name, properties[name], depth, complete)
+        for name in names or properties
     }
 
 
@@ -406,17 +485,6 @@ def render_spec(spec: Schema, slug: str, label: str, base_url: str, token: str) 
     for tag in sorted(by_tag):
         md += f"## {tag_label(tag)}\n\n" + "".join(by_tag[tag])
 
-    schemas = spec.get("components", {}).get("schemas", {})
-    schemas = {name: schema for name, schema in schemas.items() if name != ERROR_SCHEMA}
-    if schemas:
-        md += "## Schemas\n\n"
-        for name in sorted(schemas):
-            schema = schemas[name]
-            md += f"### {name} {{#{schema_anchor(name)}}}\n\n"
-            if schema.get("description"):
-                md += prose(schema["description"]) + "\n\n"
-            table = property_table(schema)
-            md += table + "\n" if table else f"Type: {type_str(schema)}\n\n"
     return md.rstrip() + "\n"
 
 
