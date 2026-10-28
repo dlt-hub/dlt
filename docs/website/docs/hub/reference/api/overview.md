@@ -1,9 +1,9 @@
 ---
-title: REST API reference
+title: Overview
 description: Overview of the dltHub Runtime REST API, its base URLs and authentication
 keywords: [dlthub, runtime, rest api, openapi, api key, authentication]
 ---
-# REST API reference
+# Overview
 
 :::info
 The REST API and the [Python SDK](../python-sdk/getting-started.md) are in public preview. Their interfaces will

@@ -43,9 +43,9 @@ HTTP_METHODS = ("get", "post", "put", "patch", "delete")
 #: framework default for timezone-aware datetimes, says nothing the type does not
 DATETIME_BOILERPLATE = "datetime with the constraint that the value must have timezone info"
 
-#: the error body every service shares, documented once on the API index page
+#: the error body every service shares, documented once on the API overview page
 ERROR_SCHEMA = "ErrorResponse"
-ERROR_LINK = "[error body](index.md#errors)"
+ERROR_LINK = "[error body](overview.md#errors)"
 
 #: nesting depth to which bodies are expanded, deeper objects show as `object`
 MAX_DEPTH = 3

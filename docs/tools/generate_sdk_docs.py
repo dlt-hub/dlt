@@ -82,7 +82,7 @@ TITLE = "Python SDK reference"
 
 INTRO = """\
 :::info
-The Python SDK and the [REST API](../api/index.md) are in public preview. Their interfaces will
+The Python SDK and the [REST API](../api/overview.md) are in public preview. Their interfaces will
 remain stable from this point onward and will only be extended. The packaging of the SDK may
 still change: it can move to another PyPI package and another top-level package name than
 `{package}`.
@@ -161,7 +161,7 @@ Each object in this reference lists its collections and its attributes:
 - **Attributes** are the data the object carries. `to_dict()` returns them as a plain dict.
 
 Types in this reference are those of the blocking client. API keys, base URLs and the data plane
-are explained in the [REST API reference](../api/index.md), which the SDK is built on."""
+are explained in the [REST API reference](../api/overview.md), which the SDK is built on."""
 
 #: shown at the top of every page but the getting started page
 START_HERE = "New to the SDK? [Getting started](getting-started.md) shows how to connect and use it."

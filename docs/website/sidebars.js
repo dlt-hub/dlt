@@ -590,8 +590,14 @@ const sidebars = {
     {
       type: "category",
       label: "REST API reference",
-      link: { type: "doc", id: "hub/reference/api/index" },
+      link: {
+        type: "generated-index",
+        title: "REST API reference",
+        description: "Reference of the dltHub Runtime REST API",
+        slug: "/hub/reference/api",
+      },
       items: [
+        "hub/reference/api/overview",
         "hub/reference/api/runtime-api",
         "hub/reference/api/dataplane-api",
         "hub/reference/api/logs-api",
