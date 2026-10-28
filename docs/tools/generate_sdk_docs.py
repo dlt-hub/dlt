@@ -150,9 +150,21 @@ async with dlthub_sdk.connect_async(token="dlt_u_...") as runtime:
         print(line.content)
 ```
 
-Types in this reference are those of the blocking client. Every entity also has `to_dict()`, which
-returns its fields as a plain dict. API keys, base URLs and the data plane are explained in the
-[REST API reference](../api/index.md), which the SDK is built on."""
+## Collections and attributes
+
+Each object in this reference lists its collections and its attributes:
+
+- **Collections** lead to the objects that belong to it, such as `workspace.jobs` or `job.runs`.
+  `list()` iterates over their objects and `get()` fetches one by its ID; most can also
+  `count()` them. A few, such as `workspace.variables` and `workspace.telemetry`, group operations
+  instead of holding objects.
+- **Attributes** are the data the object carries. `to_dict()` returns them as a plain dict.
+
+Types in this reference are those of the blocking client. API keys, base URLs and the data plane
+are explained in the [REST API reference](../api/index.md), which the SDK is built on."""
+
+#: shown at the top of every page but the getting started page
+START_HERE = "New to the SDK? [Getting started](getting-started.md) shows how to connect and use it."
 
 Object = Union[griffe.Object, griffe.Alias]
 
@@ -480,7 +492,8 @@ class Renderer:
         lead = ""
         if collections:
             header = ["Name", "Type", "Example", "Description"]
-            lead = "**Collections**\n\n" + self.table(collections, header)
+            title = "[Collections](getting-started.md#collections-and-attributes)"
+            lead = f"**{title}**\n\n" + self.table(collections, header)
         md += self.docstring(cls, title_args="Attributes", lead=lead, properties=properties)
         for member_name, member in cls.members.items():
             member = target(member)
@@ -603,6 +616,8 @@ def main() -> None:
         if slug == "getting-started":
             md += INTRO.format(package=PACKAGE, distribution=DISTRIBUTION) + "\n\n"
             md += f"This reference is generated from `{DISTRIBUTION}` {client_version}.\n\n"
+        else:
+            md += START_HERE + "\n\n"
         # a single section named like the page would repeat its title
         renderer.level = 2 if labels == [title] else 3
         for label in labels:
