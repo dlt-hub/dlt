@@ -35,39 +35,13 @@ from importlib.metadata import version
 from typing import List, Optional
 
 from mdx_utils import escape_mdx
-
-DEFAULT_TITLE = "dlt CLI reference"
-
-# `title` is the page title, `sidebar_label` keeps the navigation label stable
-HEADER_TEMPLATE = """---
-title: {title}
-sidebar_label: Command Line Interface
-description: Command line interface (CLI) full reference of dlt
-keywords: [command line interface, cli, dlt init]
----
-
-
-# Command Line Interface Reference
-
-<!-- this page is fully generated from the argparse object of dlt, do not edit -->
-
-This page contains all commands available in the dlt CLI and is generated
-automatically from the fully populated python argparse object of dlt.
-:::note
-Flags and positional commands are inherited from the parent command. Position within the command string
-is important. For example if you want to enable debug mode on the pipeline command, you need to add the
-debug flag to the base dlt command:
-
-```sh
-dlt --debug pipeline
-```
-
-Adding the flag after the pipeline keyword will not work.
-:::
-
-"""
-
-HEADER = HEADER_TEMPLATE.format(title=DEFAULT_TITLE)
+from reference_constants import (
+    CLI_DEFAULT_TITLE,
+    CLI_HEADER,
+    CLI_HEADER_TEMPLATE,
+    CLI_INHERITS_TEMPLATE,
+    CLI_VERSIONS_TEMPLATE,
+)
 
 # Developer NOTE: This generation is based on parsing the output of the help string in argparse.
 # It works very well at the moment, but there may be cases where it will break due to unanticipated
@@ -85,7 +59,7 @@ def render_argparse_markdown(
     parser: argparse.ArgumentParser,
     /,
     *,
-    header: str = HEADER,
+    header: str = CLI_HEADER,
     commands: Optional[List[str]] = None,
     sort_commands: bool = False,
 ) -> str:
@@ -153,7 +127,9 @@ def render_argparse_markdown(
         inherits_from = ""
         if parent:
             parent_slug = parent.lower().replace(" ", "-")
-            inherits_from = f"Inherits arguments from [`{parent}`](#{parent_slug})."
+            inherits_from = CLI_INHERITS_TEMPLATE.format(
+                parent=parent, anchor=parent_slug
+            )
 
         # extract all other sections
         # here we remove excess information and style the args nicely
@@ -323,8 +299,8 @@ def main() -> None:
     )
     parser.add_argument(
         "--title",
-        default=DEFAULT_TITLE,
-        help=f"Page title of the generated docs (default: {DEFAULT_TITLE})",
+        default=CLI_DEFAULT_TITLE,
+        help=f"Page title of the generated docs (default: {CLI_DEFAULT_TITLE})",
     )
     parser.add_argument(
         "--sort-commands",
@@ -341,12 +317,12 @@ def main() -> None:
     )
     args = parser.parse_args()
 
-    header = HEADER_TEMPLATE.format(title=args.title)
+    header = CLI_HEADER_TEMPLATE.format(title=args.title)
     if args.show_versions:
         versions = " and ".join(
             f"`{name}` {version(name)}" for name in args.show_versions
         )
-        header += f"This page is generated from {versions}.\n\n"
+        header += CLI_VERSIONS_TEMPLATE.format(versions=versions)
 
     from dlt._workspace.cli._dlt import _create_parser
 

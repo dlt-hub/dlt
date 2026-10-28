@@ -24,62 +24,35 @@ from typing import Any, Dict, List, NamedTuple, Optional, Tuple
 import yaml
 
 from mdx_utils import escape_mdx, frontmatter, one_line, table
-
-DOCS_DIR = pathlib.Path(__file__).resolve().parents[1]
-DEFAULT_OUTPUT_DIR = (
-    DOCS_DIR / "website" / "docs_processed" / "hub" / "reference" / "api"
+from reference_constants import (
+    API_DATETIME_BOILERPLATE,
+    API_DEFAULT_OUTPUT_DIR,
+    API_DEFAULT_STATUS,
+    API_DEFAULT_TAG,
+    API_DEFAULT_TEMPLATE,
+    API_DEPRECATED,
+    API_DESCRIPTION_TEMPLATE,
+    API_ERROR_BODY,
+    API_FORMAT_EXAMPLES,
+    API_GENERATED_TEMPLATE,
+    API_HTTP_METHODS,
+    API_ID_DESCRIPTION_TEMPLATE,
+    API_KEYWORDS,
+    API_MAX_DEPTH,
+    API_MEDIA_TYPE_TEMPLATE,
+    API_OPAQUE_SCHEMAS,
+    API_OPTIONAL_BODY,
+    API_PAGINATION_PARAMS,
+    API_PAGINATION_TEMPLATE,
+    API_REQUIRED,
+    API_RETURNS_NOTHING_TEMPLATE,
+    API_RETURNS_TEMPLATE,
+    API_SERVICES,
+    API_STATUS_RANGE_TEMPLATE,
+    API_STREAM_MEDIA_TYPES,
+    API_UPLOAD_TOKEN,
+    API_VALUES_TEMPLATE,
 )
-
-#: spec file stem -> (page slug, sidebar label, base URL and token in curl examples); also the
-#: page order
-SERVICES = {
-    "api": ("runtime-api", "Runtime API", "https://api.dlthub.com", "$DLTHUB_API_KEY"),
-    "dataplane_api": (
-        "dataplane-api",
-        "Dataplane API",
-        "$DATAPLANE_URL",
-        "$DATAPLANE_TOKEN",
-    ),
-    "telemetry": (
-        "telemetry-api",
-        "Telemetry API",
-        "$DATAPLANE_URL",
-        "$DATAPLANE_TOKEN",
-    ),
-    "logs": ("logs-api", "Logs API", "$DATAPLANE_URL", "$DATAPLANE_TOKEN"),
-}
-
-HTTP_METHODS = ("get", "post", "put", "patch", "delete")
-
-#: framework default for timezone-aware datetimes, says nothing the type does not
-DATETIME_BOILERPLATE = (
-    "datetime with the constraint that the value must have timezone info"
-)
-
-#: the error body every service shares, documented once on the API overview page
-ERROR_LINK = "[error body](overview.md#errors)"
-
-#: nesting depth to which bodies are expanded, deeper objects show as `object`
-MAX_DEPTH = 3
-
-#: schemas shown as `object` without their fields: dlt's own job definition, documented with dlt
-OPAQUE_SCHEMAS = ("TJobDefinition",)
-
-#: values of string formats in example responses
-FORMAT_EXAMPLES = {
-    "date-time": "2026-01-01T00:00:00Z",
-    "date": "2026-01-01",
-    "uuid": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
-    "uri": "https://example.com",
-    "email": "user@example.com",
-}
-
-#: query parameters every list operation takes, described once on the API overview page
-PAGINATION_PARAMS = ("limit", "offset", "cursor", "order")
-PAGINATION_LINK = "[Lists and pagination](overview.md#lists-and-pagination)"
-
-#: marks required parameters and request fields at the start of their description
-REQUIRED = "**Required.**"
 
 Schema = Dict[str, Any]
 
@@ -106,7 +79,7 @@ def operation_title(operation: Schema) -> str:
 
 def field_description(schema: Schema) -> str | None:
     description: str | None = schema.get("description")
-    return None if description == DATETIME_BOILERPLATE else description
+    return None if description == API_DATETIME_BOILERPLATE else description
 
 
 def ref_name(ref: str) -> str:
@@ -170,12 +143,13 @@ def with_values(spec: Schema, schema: Schema, description: str) -> str:
     values = enum_values(spec, schema)
     if not values:
         return description
-    return f"{description} One of: {', '.join(f'`{v}`' for v in values)}.".strip()
+    listed = API_VALUES_TEMPLATE.format(values=", ".join(f"`{v}`" for v in values))
+    return f"{description} {listed}".strip()
 
 
 def is_opaque(schema: Schema) -> bool:
     refs = re.findall(r'"\$ref": "[^"]*/(\w+)"', json.dumps(schema))
-    return any(ref in OPAQUE_SCHEMAS for ref in refs)
+    return any(ref in API_OPAQUE_SCHEMAS for ref in refs)
 
 
 def unwrap(spec: Schema, schema: Schema) -> Schema:
@@ -204,9 +178,8 @@ def field_rows(
     for name, prop in (schema.get("properties") or {}).items():
         description = with_values(spec, prop, field_description(prop) or "")
         if "default" in prop and prop["default"] is not None:
-            description = (
-                f"{description} Default: `{json.dumps(prop['default'])}`.".strip()
-            )
+            default = API_DEFAULT_TEMPLATE.format(default=json.dumps(prop["default"]))
+            description = f"{description} {default}".strip()
         path = f"{prefix}{name}"
         required_ = "yes" if name in required else "no"
         rows.append(
@@ -218,7 +191,7 @@ def field_rows(
         if value.get("type") == "array":
             value, path = unwrap(spec, value.get("items", {})), path + "[]"
         # recursive schemas stop where they repeat
-        if value.get("properties") and depth < MAX_DEPTH and id(value) not in seen:
+        if value.get("properties") and depth < API_MAX_DEPTH and id(value) not in seen:
             rows += field_rows(spec, value, path + ".", depth + 1, seen + (id(value),))
     return rows
 
@@ -234,7 +207,7 @@ def fields_table(spec: Schema, schema: Schema, with_required: bool) -> str:
     for row in rows:
         path, type_, required, description = row
         if with_required and required == "yes":
-            description = f"{REQUIRED} {description}"
+            description = f"{API_REQUIRED} {description}"
         row[:] = [path, type_, description]
     return table(rows, ["Field", "Type", "Description"])
 
@@ -245,15 +218,17 @@ def render_parameters(spec: Schema, parameters: List[Schema]) -> str:
     pagination = []
     for param in parameters:
         name = param["name"]
-        if param["in"] == "query" and name in PAGINATION_PARAMS:
+        if param["in"] == "query" and name in API_PAGINATION_PARAMS:
             pagination.append(f"`{name}`")
             continue
         description = param.get("description") or ""
         if not description and param["in"] == "path" and name.endswith("_id"):
-            description = "ID of the " + name[: -len("_id")].replace("_", " ")
+            description = API_ID_DESCRIPTION_TEMPLATE.format(
+                name=name[: -len("_id")].replace("_", " ")
+            )
         description = cell(with_values(spec, param.get("schema", {}), description))
         if param.get("required") and param["in"] != "path":
-            description = f"{REQUIRED} {description}"
+            description = f"{API_REQUIRED} {description}"
         tables.setdefault(param["in"], []).append(
             [f"`{name}`", cell(type_str(spec, param.get("schema", {}))), description]
         )
@@ -262,15 +237,15 @@ def render_parameters(spec: Schema, parameters: List[Schema]) -> str:
         md += f"**{location.capitalize()} parameters**\n\n"
         md += table(rows, ["Name", "Type", "Description"])
     if pagination:
-        md += f"**Pagination:** {', '.join(pagination)}, see {PAGINATION_LINK}\n\n"
+        md += API_PAGINATION_TEMPLATE.format(params=", ".join(pagination)) + "\n\n"
     return md
 
 
 def request_body_fields(spec: Schema, request_body: Schema) -> str:
-    md = "" if request_body.get("required") else "The body is optional.\n\n"
+    md = "" if request_body.get("required") else API_OPTIONAL_BODY + "\n\n"
     for media_type, media in (request_body.get("content") or {}).items():
         if media_type != "application/json":
-            md += f"Sent as `{media_type}`.\n\n"
+            md += API_MEDIA_TYPE_TEMPLATE.format(media_type=media_type) + "\n\n"
         md += fields_table(spec, media.get("schema", {}), with_required=True)
     return md
 
@@ -292,11 +267,11 @@ def error_code(status: str) -> str:
 def status_phrase(status: str) -> str:
     """Reason phrase of a status, also of the `default` response and of ranges such as `4XX`."""
     if status == "default":
-        return "Any other status"
+        return API_DEFAULT_STATUS
     try:
         return HTTPStatus(int(status)).phrase
     except ValueError:
-        return f"Any {status} status"
+        return API_STATUS_RANGE_TEMPLATE.format(status=status)
 
 
 def render_responses(spec: Schema, responses: Dict[str, Schema]) -> str:
@@ -318,9 +293,11 @@ def render_responses(spec: Schema, responses: Dict[str, Schema]) -> str:
             bodies.setdefault(json.dumps(schema, sort_keys=True), []).append(status)
         elif content:
             media_types = ", ".join(f"`{m}`" for m in content)
-            other_bodies.append(f"`{status}` returns {media_types}.")
+            other_bodies.append(
+                API_RETURNS_TEMPLATE.format(status=status, media_types=media_types)
+            )
         else:
-            other_bodies.append(f"`{status}` returns no body.")
+            other_bodies.append(API_RETURNS_NOTHING_TEMPLATE.format(status=status))
     if other_bodies:
         tabs.append(("body", "Body", "\n\n".join(other_bodies)))
     for key, body_statuses in bodies.items():
@@ -350,9 +327,7 @@ def render_responses(spec: Schema, responses: Dict[str, Schema]) -> str:
         content = "".join(
             f"- {error_code(status)} {status_phrase(status)}\n" for status in errors
         )
-        tabs.append(
-            ("errors", "Errors", content + f"\nEach error returns the {ERROR_LINK}.")
-        )
+        tabs.append(("errors", "Errors", content + f"\n{API_ERROR_BODY}"))
     if not tabs:
         return ""
     summary = "Response"
@@ -373,7 +348,7 @@ def render_operation(
     md = f"### {operation_title(operation)} {{#{operation_id}}}\n\n"
     md += f"```text\n{method.upper()} {path}\n```\n\n"
     if operation.get("deprecated"):
-        md += ":::warning\nThis endpoint is deprecated.\n:::\n\n"
+        md += API_DEPRECATED + "\n\n"
     description = prose(operation.get("description"))
     if description:
         md += description + "\n\n"
@@ -418,8 +393,8 @@ def example_value(
         return 0
     if schema_type == "boolean":
         return False
-    if complete and schema.get("format") in FORMAT_EXAMPLES:
-        return FORMAT_EXAMPLES[schema["format"]]
+    if complete and schema.get("format") in API_FORMAT_EXAMPLES:
+        return API_FORMAT_EXAMPLES[schema["format"]]
     return f"<{name}>"
 
 
@@ -428,7 +403,7 @@ def example_body(
 ) -> Dict[str, Any]:
     """Required fields of an object schema with placeholder values, all fields if none is."""
     schema = resolve(spec, schema)
-    if depth > MAX_DEPTH:
+    if depth > API_MAX_DEPTH:
         return {}
     properties = schema.get("properties") or {}
     names = [name for name in schema.get("required") or [] if name in properties]
@@ -445,8 +420,7 @@ def path_variable(match: "re.Match[str]") -> str:
 
 
 def request_token(path: str, token: str) -> str:
-    # uploads take the token returned by the matching `-issue-upload` operation
-    return "$UPLOAD_TOKEN" if path.endswith("/-upload") else token
+    return API_UPLOAD_TOKEN if path.endswith("/-upload") else token
 
 
 class RequestExample(NamedTuple):
@@ -559,9 +533,7 @@ def python_example(
         if status.startswith("2")
         for media_type in response.get("content") or {}
     ]
-    streams = any(
-        m in ("text/event-stream", "application/x-ndjson") for m in media_types
-    )
+    streams = any(m in API_STREAM_MEDIA_TYPES for m in media_types)
     if streams:
         args.append("stream=True")
     call = (
@@ -599,19 +571,17 @@ def tag_label(tag: str) -> str:
 
 def render_spec(spec: Schema, slug: str, label: str, base_url: str, token: str) -> str:
     info = spec.get("info", {})
-    keywords = ["dlthub", "runtime", "rest api", "openapi", slug]
-    md = frontmatter(label, f"{label} reference of the dltHub Runtime", keywords) + "\n"
-    md += (
-        f"<!-- generated from the {info.get('title')} OpenAPI spec, do not edit -->\n\n"
-    )
+    description = API_DESCRIPTION_TEMPLATE.format(label=label)
+    md = frontmatter(label, description, API_KEYWORDS + [slug]) + "\n"
+    md += API_GENERATED_TEMPLATE.format(title=info.get("title")) + "\n\n"
     md += prose(info.get("description")) + "\n\n"
 
     by_tag: Dict[str, List[str]] = {}
     for path, item in spec.get("paths", {}).items():
-        for method in HTTP_METHODS:
+        for method in API_HTTP_METHODS:
             if method in item:
                 operation = item[method]
-                tag = (operation.get("tags") or ["endpoints"])[0]
+                tag = (operation.get("tags") or [API_DEFAULT_TAG])[0]
                 by_tag.setdefault(tag, []).append(
                     render_operation(spec, method, path, operation, base_url, token)
                 )
@@ -638,21 +608,23 @@ def bundled_spec_dir() -> pathlib.Path:
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--spec-dir", type=pathlib.Path, default=None)
-    parser.add_argument("--output-dir", type=pathlib.Path, default=DEFAULT_OUTPUT_DIR)
+    parser.add_argument(
+        "--output-dir", type=pathlib.Path, default=API_DEFAULT_OUTPUT_DIR
+    )
     args = parser.parse_args()
     if args.spec_dir is None:
         args.spec_dir = bundled_spec_dir()
         print(f"Reading the OpenAPI specs of dlthub-client {version('dlthub-client')}")
 
     args.output_dir.mkdir(parents=True, exist_ok=True)
-    for stem, (slug, label, base_url, token) in SERVICES.items():
+    for stem, (slug, label, base_url, token) in API_SERVICES.items():
         spec_path = args.spec_dir / f"{stem}.openapi.yaml"
         with open(spec_path, encoding="utf-8") as f:
             spec = yaml.safe_load(f)
         (args.output_dir / f"{slug}.md").write_text(
             render_spec(spec, slug, label, base_url, token), encoding="utf-8"
         )
-    print(f"Generated {len(SERVICES)} API reference pages in {args.output_dir}")
+    print(f"Generated {len(API_SERVICES)} API reference pages in {args.output_dir}")
 
 
 if __name__ == "__main__":
