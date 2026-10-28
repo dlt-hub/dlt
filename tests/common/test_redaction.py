@@ -196,6 +196,8 @@ def test_custom_sensitive_params_replace_the_defaults() -> None:
 @pytest.mark.parametrize("redact", REDACT_FUNCTIONS)
 def test_redact(redact: Callable[[str], str], url: str, expected: str) -> None:
     assert redact(url) == expected
+    # redacting again keeps the string as is
+    assert redact(expected) == expected
 
 
 @pytest.mark.parametrize(
@@ -246,6 +248,7 @@ def test_redact_keeps_strings_without_credentials(redact: Callable[[str], str], 
 @pytest.mark.parametrize("redact", REDACT_FUNCTIONS)
 def test_redact_quoted_pairs(redact: Callable[[str], str], text: str, expected: str) -> None:
     assert redact(text) == expected
+    assert redact(expected) == expected
 
 
 @pytest.mark.parametrize(
@@ -262,6 +265,7 @@ def test_redact_quoted_pairs(redact: Callable[[str], str], text: str, expected: 
 )
 def test_redact_url_password_with_spaces(url: str, expected: str) -> None:
     assert redact_url(url) == expected
+    assert redact_url(expected) == expected
 
 
 @pytest.mark.parametrize(
@@ -304,6 +308,9 @@ def test_redact_secrets() -> None:
         "token": None,
     }
     assert redact_secrets(("a", {"secret": "s"})) == ("a", {"secret": "***"})
+    # redacting again keeps the values as is
+    for value in (headers, body, ("a", {"secret": "s"})):
+        assert redact_secrets(redact_secrets(value)) == redact_secrets(value)
 
 
 @pytest.mark.parametrize(
@@ -334,9 +341,13 @@ def test_redact_secrets() -> None:
 @pytest.mark.parametrize("redact", REDACT_FUNCTIONS)
 def test_redact_known_token_formats(redact: Callable[[str], str], token: str) -> None:
     # a token on its own, inside text and in a path or a query parameter of any name
-    assert redact(token) == "***"
-    assert redact(f"Bearer {token} expired") == "Bearer *** expired"
-    assert redact(f"https://h/hooks/{token}/x?id={token}") == "https://h/hooks/***/x?id=***"
+    for text, expected in [
+        (token, "***"),
+        (f"Bearer {token} expired", "Bearer *** expired"),
+        (f"https://h/hooks/{token}/x?id={token}", "https://h/hooks/***/x?id=***"),
+    ]:
+        assert redact(text) == expected
+        assert redact(expected) == expected
 
 
 @pytest.mark.parametrize(
