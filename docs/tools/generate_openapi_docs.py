@@ -261,6 +261,11 @@ def fold(summary: str, group: str, tabs: List[Tuple[str, str, str]]) -> str:
     return md + "</Tabs>\n\n</details>\n</div>\n\n"
 
 
+def error_code(status: str) -> str:
+    """An error status, highlighted by `.api-error`."""
+    return f'<code className="api-error">{status}</code>'
+
+
 def status_phrase(status: str) -> str:
     try:
         return HTTPStatus(int(status)).phrase
@@ -277,7 +282,7 @@ def render_responses(spec: Schema, responses: Dict[str, Schema]) -> str:
     errors = []
     for status, response in responses.items():
         if not status.startswith("2"):
-            errors.append(f"- `{status}` {status_phrase(status)}")
+            errors.append(status)
             continue
         statuses.append(status)
         content = response.get("content") or {}
@@ -303,13 +308,16 @@ def render_responses(spec: Schema, responses: Dict[str, Schema]) -> str:
         tabs.append(("example", f"Example{suffix}", f"```json\n{example}\n```"))
         tabs.append(("fields", f"Fields{suffix}", fields_table(spec, schema, with_required=False)))
     if errors:
-        content = "\n".join(errors) + f"\n\nEach error returns the {ERROR_LINK}."
-        tabs.append(("errors", "Errors", content))
+        content = "".join(f"- {error_code(status)} {status_phrase(status)}\n" for status in errors)
+        tabs.append(("errors", "Errors", content + f"\nEach error returns the {ERROR_LINK}."))
     if not tabs:
         return ""
     summary = "Response"
-    if statuses:
-        summary += " (" + ", ".join(f"<code>{status}</code>" for status in statuses) + ")"
+    # error classes present, e.g. `4xx`, `5xx`
+    classes = sorted({f"{status[0]}xx" for status in errors if status[:1] in "45"})
+    codes = [f"<code>{status}</code>" for status in statuses] + [error_code(c) for c in classes]
+    if codes:
+        summary += " (" + ", ".join(codes) + ")"
     return fold(summary, "api-response", tabs)
 
 

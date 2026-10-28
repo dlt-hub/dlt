@@ -935,6 +935,18 @@ and (max-height : 850px) {
   border-top: 1px solid var(--ifm-color-emphasis-300) !important;
 }
 
+.api-details code.api-error {
+  background-color: #fdba74;
+  border-color: #fb923c;
+  color: #431407;
+}
+
+html[data-theme="dark"] .api-details code.api-error {
+  background-color: #c2410c;
+  border-color: #ea580c;
+  color: #fff7ed;
+}
+
 .harness-loop {
   margin: 1.5rem 0 2rem;
   text-align: center;
