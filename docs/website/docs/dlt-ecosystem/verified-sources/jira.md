@@ -1,7 +1,7 @@
 ---
 title: Jira
 description: dlt verified source for Atlassian Jira
-keywords: [jira api, jira verified source, jira]
+keywords: [jira api, jira verified source, jira, jql, jira issues, incremental loading]
 ---
 # Jira
 
@@ -14,19 +14,27 @@ efficiently, prioritize work, and collaborate.
 
 This Jira `dlt` verified source and
 [pipeline example](https://github.com/dlt-hub/verified-sources/blob/master/sources/jira_pipeline.py)
-loads data using the Jira API to the destination of your choice.
+load data from the Jira Cloud REST API to the destination of your choice. Issues, their comments
+and changelogs, and worklogs load incrementally and are merged by default. The other resources are
+replaced on each run.
 
-The endpoints that this verified source supports are:
+The resources that this verified source supports are:
 
-| Name      | Description                                                                              |
-| --------- | ---------------------------------------------------------------------------------------- |
-| issues    | Individual pieces of work to be completed                                                |
-| users     | Administrators of a given project                                                        |
-| workflows | The key aspect of managing and tracking the progress of issues or tasks within a project |
-| projects  | A collection of tasks that need to be completed to achieve a certain outcome             |
+| Name                | Write disposition | Description                                                      |
+| ------------------- | ----------------- | ---------------------------------------------------------------- |
+| `issues`            | merge on `id`     | Issues matching your JQL query, each field in its own column     |
+| `issue_comments`    | merge on `id`     | All comments of the loaded issues                                |
+| `issue_changelogs`  | merge on `id`     | The whole change history of the loaded issues                    |
+| `worklogs`          | merge on `id`     | Worklogs of all issues of the site, deleted worklogs are removed |
+| `issue_fields`      | replace           | Names and schemas of system and custom fields                    |
+| `users`             | replace           | Active, inactive and deleted users of the site                   |
+| `workflows`         | replace           | Workflows and the statuses they use                              |
+| `workflow_statuses` | replace           | Names and categories of the statuses used by workflows           |
+| `projects`          | replace           | Projects with their issue types, leads and issue counts          |
 
-To get a complete list of sub-endpoints that can be loaded, see
-[jira/settings.py.](https://github.com/dlt-hub/verified-sources/blob/master/sources/jira/settings.py)
+The endpoints of the replaced resources are listed in
+[jira/settings.py](https://github.com/dlt-hub/verified-sources/blob/master/sources/jira/settings.py).
+The source authenticates as the owner of the API token and loads what this user can see.
 
 ## Setup guide
 
@@ -34,15 +42,13 @@ To get a complete list of sub-endpoints that can be loaded, see
 
 1. Log in to your Jira account.
 
-1. Navigate to the Jira project you have created.
-
-1. Click on your profile picture in the top right corner, and choose "Manage Account."
+1. Click on your profile picture in the top right corner, and choose "Manage account."
 
 1. Go to the "Security" tab and select "Create and manage API tokens."
 
-1. Click "Create API Token," provide a descriptive name, and click the "Create" button.
+1. Click "Create API token," provide a descriptive name, and click the "Create" button.
 
-1. Safely copy the newly generated access token.
+1. Safely copy the newly generated API token.
 
 > Note: The Jira UI, which is described here, might change.
 The full guide is available at [this link.](https://support.atlassian.com/atlassian-account/docs/manage-api-tokens-for-your-atlassian-account/)
@@ -112,7 +118,9 @@ For more information, read [General Usage: Credentials.](../../general-usage/cre
    dlt pipeline <pipeline_name> show
    ```
 
-   For example, the `pipeline_name` for the above pipeline example is `jira_pipeline`. You may also use any custom name instead.
+   The pipeline example runs two pipelines: `jira_pipeline` loads users, projects and workflows,
+   and `jira_issues_pipeline` loads issues and their comments. You may also use any custom name
+   instead.
 
 For more information, read the guide on [how to run a pipeline](../../walkthroughs/run-a-pipeline).
 
@@ -120,65 +128,197 @@ For more information, read the guide on [how to run a pipeline](../../walkthroug
 
 `dlt` works on the principle of [sources](../../general-usage/source) and [resources](../../general-usage/resource).
 
-### Default endpoints
-
-You can write your own pipelines to load data to a destination using this verified source. However, it is important to note the complete list of the default endpoints given in [jira/settings.py.](https://github.com/dlt-hub/verified-sources/blob/master/sources/jira/settings.py)
-
 ### Source `jira`
 
-This source function creates a list of resources to load data into the destination.
+This source function returns all resources of the table above.
 
 ```py
-from typing import Iterable
+from typing import Any, Iterable, Optional
+from dlt.common.schema.typing import TWriteDispositionConfig
+from dlt.common.typing import TAnyDateTime
 from dlt.extract import DltResource
 
-@dlt.source
+@dlt.source(max_table_nesting=2)
 def jira(
-     subdomain: str = dlt.secrets.value,
-     email: str = dlt.secrets.value,
-     api_token: str = dlt.secrets.value,
+    subdomain: str = dlt.secrets.value,
+    email: str = dlt.secrets.value,
+    api_token: str = dlt.secrets.value,
+    page_size: Optional[int] = None,
+    jql: Optional[str] = None,
+    start_date: Optional[TAnyDateTime] = None,
+    incremental: Optional[dlt.sources.incremental[Any]] = None,
+    write_disposition: Optional[TWriteDispositionConfig] = "merge",
 ) -> Iterable[DltResource]:
-   ...
+    ...
 ```
 
 - `subdomain`: The subdomain of the Jira account. Configured in ".dlt/secrets.toml".
 - `email`: The email associated with the Jira account. Configured in ".dlt/secrets.toml".
 - `api_token`: The API token for accessing the Jira account. Configured in ".dlt/secrets.toml".
+- `page_size`: Rows per request of users, workflows and projects. Defaults to the largest page each endpoint serves.
+- `jql`: A JQL query that selects the issues to load, e.g. `project = KAN`. It must not contain `ORDER BY`.
+- `start_date`: Loads issues and worklogs updated since this date on the first run. If not set, the first run loads all of them.
+- `incremental`: Your own incremental for issues instead of the default one, see [`jira_issues`](#resource-issues).
+- `write_disposition`: The write disposition of issues, comments, changelogs and worklogs, `merge` by default. See [Replace all issues on each run](#replace-all-issues-on-each-run).
 
-### Source `jira_search`
+`issues` loads [incrementally](../../general-usage/incremental-loading.md) on the `updated` field:
 
-This function returns a resource for querying issues using JQL [(Jira Query Language)](https://support.atlassian.com/jira-service-management-cloud/docs/use-advanced-search-with-jira-query-language-jql/).
+- The first run loads all issues matching `jql`, or the issues updated since `start_date`.
+- The next runs load the issues updated since the last run. Jira search is eventually consistent,
+  so each run reads the last 10 minutes of the previous run again with a
+  [lag](../../general-usage/incremental/lag.md).
+- Issues are [merged](../../general-usage/merge-loading.md) on `id`, so each issue keeps its latest
+  version.
 
-```py
-from typing import Iterable
-from dlt.extract import DltResource
-
-@dlt.source
-def jira_search(
-     subdomain: str = dlt.secrets.value,
-     email: str = dlt.secrets.value,
-     api_token: str = dlt.secrets.value,
-) -> Iterable[DltResource]:
-   ...
-```
-
-The above function uses the same arguments `subdomain`, `email`, and `api_token` as described above for the [jira source](jira.md#source-jira).
+The comments and changelogs of the issues loaded in a run are loaded with them. Worklogs are read
+from the worklog feeds of the whole site: `jql` does not restrict them.
 
 ### Resource `issues`
 
-The resource function searches issues using JQL queries and then loads them to the destination.
+`jira_issues` returns the `issues` resource. Use it to load issues without the other resources, or
+to load several tables of issues with different JQL queries.
 
 ```py
-from typing import Iterable
-from dlt.common.typing import TDataItem
+from typing import Any, List, Optional
+from dlt.common.schema.typing import TWriteDispositionConfig
+from dlt.common.typing import TAnyDateTime, TColumnNames
+from dlt.extract import DltResource
 
-@dlt.resource(write_disposition="replace")
-def issues(jql_queries: list[str]) -> Iterable[TDataItem]:
-   api_path = "rest/api/3/search"
-   return {}  # return the retrieved values here
+def jira_issues(
+    subdomain: str = dlt.secrets.value,
+    email: str = dlt.secrets.value,
+    api_token: str = dlt.secrets.value,
+    jql: Optional[str] = None,
+    start_date: Optional[TAnyDateTime] = None,
+    incremental: Optional[dlt.sources.incremental[Any]] = None,
+    lag: Optional[float] = None,
+    chunk_size: Optional[int] = None,
+    bulk_fetch_size: Optional[int] = None,
+    search_page_size: int = 5000,
+    included_columns: Optional[List[str]] = None,
+    excluded_columns: Optional[List[str]] = None,
+    write_disposition: Optional[TWriteDispositionConfig] = "merge",
+    primary_key: TColumnNames = None,
+    merge_key: TColumnNames = None,
+    name: str = "issues",
+) -> DltResource:
+    ...
 ```
 
-`jql_queries`: Accepts a list of JQL queries.
+- `jql`, `start_date`: As in the [`jira` source](#source-jira).
+- `incremental`: Your own `dlt.sources.incremental` instead of the default one. Its cursor must be a
+  date or datetime field, e.g. `created` or the id of a custom date field. Its `initial_value` and
+  `end_value` are added to the JQL query, so you can also use it to
+  [backfill](../../general-usage/incremental/cursor.md#using-end_value-for-backfill) a date range.
+- `lag`: Seconds that each run reads again, 600 by default.
+- `chunk_size`: Rows in a page of issues, comments and changelogs, 1000 by default.
+- `bulk_fetch_size`: Issues fetched in a single request, at most 1000.
+- `search_page_size`: Issue ids listed in a single search request, at most 5000.
+- `included_columns`: Field ids to load, all fields if not set.
+- `excluded_columns`: Field ids to skip.
+- `write_disposition`, `primary_key`, `merge_key`: `merge` on `id` by default.
+- `name`: The name of the resource and of its table.
+
+The issues are fetched in parallel by the
+[extract workers](../../reference/performance.md#extract) of the pipeline.
+
+The `issues` table has a column for each field, named by the field id:
+
+- System fields keep their names, e.g. `summary`, `duedate` or `status__name`. Custom fields are
+  named by their ids, e.g. `customfield_10016`. The `issue_fields` table holds the names of the
+  fields.
+- Values are converted to the type of their field. A value that cannot be converted loads as
+  `NULL` and the source logs a warning.
+- Objects and arrays load as Jira returns them, e.g. `status__name` or the
+  [nested table](../../general-usage/destination-tables.md#nested-tables) `issues__labels`. The
+  sources load at most two levels of nested tables. `jira_issues` used without a source has no
+  limit, set `issues.max_table_nesting = 2` to keep it.
+- Fields of unknown structure, e.g. fields added by apps, load as JSON text. Empty values do not
+  create columns.
+- Rich text fields, e.g. `description`, are in wiki markup.
+- Comments and worklogs are not columns of `issues`. Load them with `issue_comments` and `worklogs`.
+
+A field gets a column when the first issue with a value is loaded. Fields in `included_columns` get
+typed columns on the first run, also before they have values.
+
+### Resources `issue_comments` and `issue_changelogs`
+
+These [transformers](../../general-usage/resource.md#process-resources-with-dlttransformer) load
+the comments and changelogs of the issues piped into them:
+
+```py notype
+issues = jira_issues(jql="project = KAN")
+pipeline.run([issues, issues | issue_comments, issues | issue_changelogs])
+```
+
+- `issue_comments` loads all comments of each loaded issue, which replace the comments of this
+  issue loaded before. Edited comments are updated and deleted comments are removed. The merge key
+  is `issue_id`.
+- `issue_changelogs` loads the whole changelog of each loaded issue, since Jira cannot filter
+  changelogs by date. The changed fields are in the nested table `issue_changelogs__items`.
+
+A transformer runs its parent: `jira().with_resources("issue_comments")` loads only comments, but it
+still searches and fetches the issues.
+
+### Resource `worklogs`
+
+```py
+from datetime import datetime
+from typing import Iterator
+from dlt.common.typing import TDataItem
+
+@dlt.resource(name="worklogs", write_disposition="merge", primary_key="id")
+def worklogs(
+    subdomain: str = dlt.secrets.value,
+    email: str = dlt.secrets.value,
+    api_token: str = dlt.secrets.value,
+    updated: dlt.sources.incremental[datetime] = dlt.sources.incremental(
+        "updated", lag=600
+    ),
+) -> Iterator[TDataItem]:
+    ...
+```
+
+`worklogs` loads the worklogs changed since the last run and removes the deleted ones. It reads the
+worklogs of all issues of the site, not only of the issues loaded by `issues`. The first run reads
+all worklogs: set the `initial_value` of `updated`, or `start_date` of the `jira` source, to start
+later.
+
+### Resource `issue_fields`
+
+`issue_fields` loads the id, name, schema and JQL clause names of each field. Join
+`issue_fields.id` to the column names of `issues` to find the name of a custom field.
+
+### Source `jira_search`
+
+This source returns an `issues` resource that loads the issues found by several JQL queries
+([Jira Query Language](https://support.atlassian.com/jira-service-management-cloud/docs/use-advanced-search-with-jira-query-language-jql/)).
+It replaces its table on each run.
+
+```py
+from typing import Iterable, List, Optional
+from dlt.extract import DltResource
+
+@dlt.source(max_table_nesting=2)
+def jira_search(
+    subdomain: str = dlt.secrets.value,
+    email: str = dlt.secrets.value,
+    api_token: str = dlt.secrets.value,
+    page_size: Optional[int] = None,
+    jql_queries: List[str] = dlt.config.value,
+    page_limit: Optional[int] = None,
+) -> Iterable[DltResource]:
+    ...
+```
+
+- `page_size`: Issue ids listed in a single search request, at most 5000 (the default).
+- `jql_queries`: The JQL queries to run. Jira rejects a query without a filtering clause, e.g. a
+  query that only sorts.
+- `page_limit`: The maximum number of search pages to read per query.
+
+Issues load as in the [`issues` resource](#resource-issues), with the `query_index` of the query
+that found them. An issue found by two queries loads twice, and the primary key is `id` and
+`query_index`.
 
 ## Customization
 
@@ -188,34 +328,204 @@ If you wish to create your own pipelines, you can leverage source and resource m
 
 1. Configure the pipeline by specifying the pipeline name, destination, and dataset. To read more about pipeline configuration, please refer to our documentation [here](../../general-usage/pipeline):
 
-    ```py
-    pipeline = dlt.pipeline(
-        pipeline_name="jira_pipeline",  # Use a custom name if desired
-        destination="duckdb",  # Choose the appropriate destination (e.g., duckdb, redshift, post)
-        dataset_name="jira"  # Use a custom name if desired
-    )
-    ```
+   ```py
+   pipeline = dlt.pipeline(
+       pipeline_name="jira_pipeline",  # Use a custom name if desired
+       destination="duckdb",  # Choose the appropriate destination (e.g., duckdb, redshift, post)
+       dataset_name="jira",  # Use a custom name if desired
+   )
+   ```
 
-2. To load custom endpoints such as "issues" and "users" using the jira source function:
+1. To load selected resources, e.g. users and projects:
 
-    ```py notype
-    # Run the pipeline
-    load_info = pipeline.run(jira().with_resources("issues", "users"))
-    print(f"Load Information: {load_info}")
-    ```
+   ```py notype
+   load_info = pipeline.run(jira().with_resources("users", "projects"))
+   print(load_info)
+   ```
 
-3. To load custom issues using JQL queries, you can use custom queries. Here is an example below:
+1. To load the issues of a project updated since a date, with their comments, changelogs and all
+   worklogs of the site since the same date:
 
-    ```py notype
-    # Define the JQL queries as follows
-    queries = [
-              "created >= -30d order by created DESC",
-              'created >= -30d AND project = DEV AND issuetype = Epic AND status = "In Progress" order by created DESC',
-              ]
-    # Run the pipeline
-    load_info = pipeline.run(jira_search().issues(jql_queries=queries))
-    # Print Load information
-    print(f"Load Information: {load_info}")
-    ```
+   ```py notype
+   source = jira(jql="project = KAN", start_date="2024-01-01")
+   load_info = pipeline.run(
+       source.with_resources("issues", "issue_comments", "issue_changelogs", "worklogs")
+   )
+   print(load_info)
+   ```
+
+   Each next run loads the issues updated since the previous run.
+
+1. To load issues and their comments without the other resources:
+
+   ```py notype
+   issues = jira_issues(jql="project = KAN AND issuetype = Bug")
+   load_info = pipeline.run([issues, issues | issue_comments])
+   print(load_info)
+   ```
+
+1. To load only some fields:
+
+   ```py notype
+   issues = jira_issues(
+       jql="project = KAN",
+       included_columns=["summary", "status", "assignee", "updated", "customfield_10016"],
+   )
+   load_info = pipeline.run(issues)
+   ```
+
+   If you request at most 100 fields with a single value, Jira returns 1000 issues per request
+   instead of 100.
+
+1. To load issues created in a date range, with your own incremental on `created`:
+
+   ```py notype
+   from datetime import datetime, timezone
+
+   issues = jira_issues(
+       jql="project = KAN",
+       incremental=dlt.sources.incremental(
+           "created",
+           initial_value=datetime(2024, 1, 1, tzinfo=timezone.utc),
+           end_value=datetime(2024, 7, 1, tzinfo=timezone.utc),
+       ),
+   )
+   load_info = pipeline.run(issues)
+   ```
+
+1. To load two tables of issues in one pipeline, give each resource its own name. Each keeps its own
+   table and incremental state:
+
+   ```py notype
+   bugs = jira_issues(jql="issuetype = Bug", name="bugs")
+   epics = jira_issues(jql="issuetype = Epic", name="epics")
+   load_info = pipeline.run([bugs, epics])
+   ```
+
+1. Jira objects carry `self` links to the REST API and `avatarUrls` and `iconUrl` image urls. To skip
+   these columns, add `drop_keys` to the resources. Pass key names to `drop_keys` to skip other keys:
+
+   ```py notype
+   source = jira()
+   for resource in source.resources.values():
+       resource.add_map(drop_keys())
+   load_info = pipeline.run(source)
+   ```
+
+1. To load the issues found by JQL queries, replaced on each run:
+
+   ```py notype
+   queries = [
+       "created >= -30d order by created DESC",
+       'created >= -30d AND project = DEV AND issuetype = Epic AND status = "In Progress" order by created DESC',
+   ]
+   load_info = pipeline.run(jira_search(jql_queries=queries))
+   print(load_info)
+   ```
+
+### Replace all issues on each run
+
+A replace load skips the merge at the destination. It is often cheaper than merging, and it works
+on destinations that do not support merge, e.g. [filesystem](../destinations/filesystem.md) without
+a table format. With `write_disposition="replace"`, each run loads all issues matching `jql`, or
+the issues updated since `start_date`. The example below loads the issues of a project to Parquet
+files:
+
+```py notype
+pipeline = dlt.pipeline(
+    pipeline_name="jira_issues_files",
+    destination="filesystem",
+    dataset_name="jira",
+)
+issues = jira_issues(jql="project = KAN", write_disposition="replace")
+load_info = pipeline.run(issues, loader_file_format="parquet")
+print(load_info)
+```
+
+Set the location of the files in `.dlt/config.toml`:
+
+```toml
+[destination.filesystem]
+bucket_url = "s3://my-bucket/jira"
+```
+
+The `jira` source passes its `write_disposition` to issues, comments, changelogs and worklogs.
+Deleted worklogs are not loaded:
+
+```py notype
+load_info = pipeline.run(
+    jira(jql="project = KAN", write_disposition="replace"), loader_file_format="parquet"
+)
+```
+
+You can also set it in `.dlt/config.toml`:
+
+```toml
+[sources.jira]
+write_disposition = "replace"
+```
+
+:::caution
+When you pipe the transformers yourself, give them the write disposition of the issues:
+
+```py notype
+issues = jira_issues(jql="project = KAN", write_disposition="replace")
+comments = (issues | issue_comments).apply_hints(write_disposition="replace")
+load_info = pipeline.run([issues, comments], loader_file_format="parquet")
+```
+
+Pass the write disposition to `jira_issues` or set it in the config. `apply_hints` on `issues` does
+not reset the incremental state, so each run would replace the table with the updated issues only.
+:::
+
+The dict form `{"disposition": "replace"}` keeps the incremental state: each run replaces the tables
+with the issues updated since the previous run.
+
+### Configure issues in `config.toml`
+
+The arguments of `jira` and `jira_issues` can be set in `.dlt/config.toml`. The arguments of
+`issues` are in the `sources.jira.issues` section:
+
+```toml
+[sources.jira]
+jql = "project = KAN"
+start_date = "2024-01-01"
+
+[sources.jira.issues]
+included_columns = ["summary", "status", "assignee", "updated"]
+lag = 60
+```
+
+### Reset the incremental state
+
+The incremental state of `issues` is kept by `issues_ids`, the resource that lists the issue ids.
+To load all issues again, run the pipeline once with
+[`refresh="drop_resources"`](../../general-usage/pipeline.md#refresh-pipeline-data-and-state), or
+drop both resources with the CLI:
+
+```sh
+dlt pipeline <pipeline_name> drop issues issues_ids
+```
+
+For a resource named with `jira_issues(name=...)`, the state is kept by `<name>_ids`.
+
+`issue_changelogs` loads the changelogs of the issues updated since it was added to the pipeline.
+Reset the state of `issues` to load the changelogs of older issues.
+
+### Large loads
+
+- Set `file_max_items` (e.g. `100000`) in the `[sources.data_writer]` section, so that the pipeline
+  normalizes and loads in parallel, see
+  [file rotation](../../reference/performance.md#controlling-intermediary-file-size-and-rotation).
+- `add_limit(n)` on the source or on `issues` loads at most `n` pages of `chunk_size` issues, 1000
+  by default, with their comments and changelogs. `dlt` versions before 1.32.0 do not limit
+  `issues`: narrow `jql` or set `start_date` instead. `page_limit` of `jira_search` limits each
+  query.
+
+## Upgrade from previous versions
+
+Version 1.0.0 has breaking changes. The
+[changelog](https://github.com/dlt-hub/verified-sources/blob/master/sources/jira/README.md#changelog)
+in the README of the source lists them with the upgrade steps.
 
 <!--@@@DLT_TUBA jira-->
