@@ -340,7 +340,8 @@ Displays last run trace, use -v or -vv for more info.
 
 **Usage**
 ```sh
-dlt pipeline [pipeline_name] trace [-h]
+dlt pipeline [pipeline_name] trace [-h] [--steps {extract,normalize,load}
+    [{extract,normalize,load} ...]] [action]
 ```
 
 **Description**
@@ -350,14 +351,22 @@ same information for all the steps (`extract`, `normalize`, and `load`). If any 
 you'll see the message of the exceptions that caused that problem. Successful `load` and `run` steps
 will display the load info instead.
 
+With `metrics`, displays the files, rows and sizes of each step by table, and by resource for
+`extract`. With the verbose flag set (`-v`), it displays each file instead. Use `--steps` to
+select the steps.
+
 <details>
 
 <summary>Show Arguments and Options</summary>
 
 Inherits arguments from [`dlt pipeline`](#dlt-pipeline).
 
+**Positional arguments**
+* `action` - `metrics`: files, rows and sizes of each step.
+
 **Options**
 * `-h, --help` - Show this help message and exit
+* `--steps {extract,normalize,load} [{extract,normalize,load} ...]` - Steps to display metrics for. defaults to all.
 
 </details>
 
