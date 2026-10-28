@@ -936,15 +936,15 @@ and (max-height : 850px) {
 }
 
 .api-details code.api-error {
-  background-color: #fdba74;
-  border-color: #fb923c;
-  color: #431407;
+  background-color: #ffedd5;
+  border-color: #fed7aa;
+  color: #9a3412;
 }
 
 html[data-theme="dark"] .api-details code.api-error {
-  background-color: #c2410c;
-  border-color: #ea580c;
-  color: #fff7ed;
+  background-color: rgba(251, 146, 60, 0.2);
+  border-color: rgba(251, 146, 60, 0.4);
+  color: #fed7aa;
 }
 
 .harness-loop {
