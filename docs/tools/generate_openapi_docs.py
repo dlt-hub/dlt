@@ -242,17 +242,22 @@ def render_parameters(spec: Schema, parameters: List[Schema]) -> str:
     return md
 
 
-def render_request_body(spec: Schema, request_body: Schema | None) -> str:
-    if not request_body:
-        return ""
-    md = "**Request body**"
-    if not request_body.get("required"):
-        md += " (optional)"
+def request_body_fields(spec: Schema, request_body: Schema) -> str:
+    md = "" if request_body.get("required") else "The body is optional.\n\n"
     for media_type, media in (request_body.get("content") or {}).items():
         if media_type != "application/json":
-            md += f" (`{media_type}`)"
-        md += "\n\n" + fields_table(spec, media.get("schema", {}), with_required=True)
+            md += f"Sent as `{media_type}`.\n\n"
+        md += fields_table(spec, media.get("schema", {}), with_required=True)
     return md
+
+
+def fold(summary: str, group: str, tabs: List[Tuple[str, str, str]]) -> str:
+    """A collapsed block of tabs, each `(value, label, markdown)`, without the admonition box."""
+    md = f'<div class="plain-details">\n<details>\n<summary>{summary}</summary>\n\n'
+    md += f'<Tabs groupId="{group}">\n'
+    for value, label, content in tabs:
+        md += f'  <TabItem value="{value}" label="{label}">\n\n{content.rstrip()}\n\n  </TabItem>\n'
+    return md + "</Tabs>\n\n</details>\n</div>\n\n"
 
 
 def render_responses(spec: Schema, responses: Dict[str, Schema]) -> str:
@@ -272,7 +277,7 @@ def render_responses(spec: Schema, responses: Dict[str, Schema]) -> str:
         elif content:
             media_types = ", ".join(f"`{m}`" for m in content)
             label = "" if status == "200" else f" (`{status}`)"
-            md += f"**Response body**{label}: {media_types}\n\n"
+            md += f"**Response{label}:** {media_types}\n\n"
         else:
             md += f"**Response:** `{status}` with no body\n\n"
     for key, statuses in bodies.items():
@@ -284,15 +289,14 @@ def render_responses(spec: Schema, responses: Dict[str, Schema]) -> str:
             lambda m: "[" + ", ".join(v.strip() for v in m.group(1).split(",\n")) + "]",
             example,
         )
-        summary = "Response body"
+        summary = "Response"
         if statuses != ["200"]:
             summary += " (" + ", ".join(f"<code>{status}</code>" for status in statuses) + ")"
-        md += f"<details>\n<summary>{summary}</summary>\n\n"
-        md += '<Tabs groupId="api-response">\n'
-        md += f'  <TabItem value="example" label="Example">\n\n```json\n{example}\n```\n\n'
-        md += '  </TabItem>\n  <TabItem value="fields" label="Fields">\n\n'
-        md += fields_table(spec, schema, with_required=False)
-        md += "  </TabItem>\n</Tabs>\n\n</details>\n\n"
+        tabs = [
+            ("example", "Example", f"```json\n{example}\n```"),
+            ("fields", "Fields", fields_table(spec, schema, with_required=False)),
+        ]
+        md += fold(summary, "api-response", tabs)
     if errors:
         md += f"**Errors:** {', '.join(errors)}, each with the {ERROR_LINK}\n\n"
     return md
@@ -310,8 +314,7 @@ def render_operation(
     if description:
         md += description + "\n\n"
     md += render_parameters(spec, operation.get("parameters") or [])
-    md += render_request_body(spec, operation.get("requestBody"))
-    md += render_examples(spec, method, path, operation, base_url, token)
+    md += render_request(spec, method, path, operation, base_url, token)
     md += render_responses(spec, operation.get("responses") or {})
     return md
 
@@ -470,18 +473,17 @@ def python_example(
     return "import os\n\nimport requests\n\n" + "\n".join(lines)
 
 
-def render_examples(
+def render_request(
     spec: Schema, method: str, path: str, operation: Schema, base_url: str, token: str
 ) -> str:
+    tabs = []
+    if operation.get("requestBody"):
+        tabs.append(("body", "Body", request_body_fields(spec, operation["requestBody"])))
     curl = curl_example(spec, method, path, operation, base_url, token)
     python = python_example(spec, method, path, operation, base_url, token)
-    return (
-        "<details>\n<summary>Example request</summary>\n\n"
-        '<Tabs groupId="api-example">\n'
-        f'  <TabItem value="curl" label="curl">\n\n```sh\n{curl}\n```\n\n  </TabItem>\n'
-        f'  <TabItem value="python" label="Python">\n\n```python\n{python}\n```\n\n'
-        "  </TabItem>\n</Tabs>\n\n</details>\n\n"
-    )
+    tabs.append(("curl", "curl", f"```sh\n{curl}\n```"))
+    tabs.append(("python", "Python", f"```python\n{python}\n```"))
+    return fold("Request", "api-request", tabs)
 
 
 def tag_label(tag: str) -> str:
