@@ -840,11 +840,6 @@ bigquery = [
     { name = "grpcio" },
     { name = "pyarrow" },
 ]
-cli = [
-    { name = "cron-descriptor" },
-    { name = "pip" },
-    { name = "pipdeptree" },
-]
 databricks = [
     { name = "databricks-sdk" },
     { name = "databricks-sql-connector" },
@@ -1119,8 +1114,7 @@ dependencies = [
     { name = "connectorx" },
     { name = "dbt-core" },
     { name = "dbt-duckdb" },
-    { name = "dlt", extra = ["bigquery", "cli", "databricks", "duckdb", "hub", "lancedb", "mssql", "postgres", "qdrant", "sql-database", "weaviate"] },
-    { name = "dlthub-client" },
+    { name = "dlt", extra = ["bigquery", "databricks", "duckdb", "hub", "lancedb", "mssql", "postgres", "qdrant", "sql-database", "weaviate"] },
     { name = "flake8" },
     { name = "google-api-python-client" },
     { name = "google-auth-oauthlib" },
@@ -1168,8 +1162,7 @@ requires-dist = [
     { name = "connectorx", marker = "python_full_version >= '3.10'", specifier = ">=0.4.2" },
     { name = "dbt-core", specifier = ">=1.5.0" },
     { name = "dbt-duckdb", specifier = ">=1.5.0" },
-    { name = "dlt", extras = ["cli", "duckdb", "postgres", "bigquery", "mssql", "databricks", "qdrant", "sql-database", "weaviate", "hub", "lancedb"], editable = "../" },
-    { name = "dlthub-client", specifier = ">=0.28.8a3" },
+    { name = "dlt", extras = ["duckdb", "postgres", "bigquery", "mssql", "databricks", "qdrant", "sql-database", "weaviate", "hub", "lancedb"], editable = "../" },
     { name = "flake8", specifier = ">=7.0.0,<8" },
     { name = "google-api-python-client", specifier = ">=1.7.11" },
     { name = "google-auth-oauthlib", specifier = ">=1.0.0,<2" },
@@ -1211,32 +1204,31 @@ hub = [{ name = "dlt", extras = ["hub"], editable = "../" }]
 
 [[package]]
 name = "dlthub"
-version = "0.31.0"
+version = "0.30.0"
 source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/93/22/90c16d459f3ab3809a0093595539e3fab6316bf1185a4724e94992db068b/dlthub-0.31.0.tar.gz", hash = "sha256:89618eaf0dbc452aba4849e11e24f84ebe1d0c8bbf8e8b5c9c9edf185423d7f2", size = 175239, upload-time = "2026-10-09T10:09:53.851Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/11/16/7ba6ca3b3be3212cd13225f614fba9b654719a858a40e6dd6824a346e072/dlthub-0.30.0.tar.gz", hash = "sha256:6b13c732ad81fc2e96d629a0e7f45f9d1cb4b8a5f230256cb1ef6d5b6b2bec1a", size = 173007, upload-time = "2026-08-11T12:20:33.682Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/4d/b9/a75954bfb5ed36ce277b27dd32983fcb06f4cd3d816449be9c0976da1b80/dlthub-0.31.0-py3-none-any.whl", hash = "sha256:16b0219f55fb15a60af25b3d0a9d68d98417ed36d99aedf6a973e91cfe13292c", size = 233063, upload-time = "2026-10-09T10:09:51.826Z" },
+    { url = "https://files.pythonhosted.org/packages/c7/b2/ac1c1cea00bc7808d1a05649207d126d5e4694595327c2e685fda26ae110/dlthub-0.30.0-py3-none-any.whl", hash = "sha256:205d52ef8b10e8b613b90df9c6c73911a2eff3cb5f5f07747d7f140db83747e0", size = 230487, upload-time = "2026-08-11T12:20:34.948Z" },
 ]
 
 [[package]]
 name = "dlthub-client"
-version = "0.28.8a3"
+version = "0.28.4"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "attrs" },
     { name = "cron-descriptor" },
     { name = "croniter" },
     { name = "httpx" },
-    { name = "packaging" },
     { name = "pathspec" },
     { name = "pyjwt" },
     { name = "regex" },
     { name = "tabulate" },
     { name = "typing-extensions" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/9b/ca/ea98abe31b46162addfad2d0f86174f0651664734027de70176e706c8e49/dlthub_client-0.28.8a3.tar.gz", hash = "sha256:145a53305dbff761e45ab2928a4c3473f2969a9112e596b6568ab7a9aff28b8d", size = 315705, upload-time = "2026-10-26T11:23:10.999Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/e3/ce/e8822974df965645a159fce5a4abca37164ef9ca6d5cc2fbd697978b1bc0/dlthub_client-0.28.4.tar.gz", hash = "sha256:f0a38268cc8690bb97d733ee5e1981c60521d14bc737472287e01d2c18b1666a", size = 303781, upload-time = "2026-09-10T12:19:38.372Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/ae/10/8e90b2f5ebac75b912b004dcddc6383504fd66e9793fa00865fd378068a9/dlthub_client-0.28.8a3-py3-none-any.whl", hash = "sha256:79fa4df9c8657cb694a2bbb9151cdd787a50e1469b6ffa9b464068795d5774b7", size = 534512, upload-time = "2026-10-26T11:23:12.202Z" },
+    { url = "https://files.pythonhosted.org/packages/80/05/409b5539a5e46cd3e32e2f3d037ae7457f5c60a1f294ff68fae9553dec70/dlthub_client-0.28.4-py3-none-any.whl", hash = "sha256:2bab5cb34d9ff692f0789be639aa2d5f21ffd80139109440db2a04f17ce9bb31", size = 678866, upload-time = "2026-09-10T12:19:36.98Z" },
 ]
 
 [[package]]
@@ -3275,24 +3267,6 @@ wheels = [
 ]
 
 [[package]]
-name = "pip"
-version = "26.2.2"
-source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/fa/e8/0842d757e483e895e670f655084cfe8b8c72580c6769a76b30b2789a0608/pip-26.2.2.tar.gz", hash = "sha256:3a8e5c800492787f33a4114ef54444546c340df428974ebba17e0fd47e11af2f", size = 1863336, upload-time = "2026-10-20T16:36:29.008Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/3f/06/3e4420302363fbb71be3c7f35ce042f54bfca330e3e66b3a2e3c4cca579f/pip-26.2.2-py3-none-any.whl", hash = "sha256:fd7f4dfa8190e014013b9f08f3e973f4e4c26ffd179a204895533a7254813a70", size = 1819850, upload-time = "2026-10-20T16:36:27.046Z" },
-]
-
-[[package]]
-name = "pipdeptree"
-version = "2.9.6"
-source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/0a/b2/2508e11f44e0e7b136555175f21c121f20642d43ab2a09797b178e968834/pipdeptree-2.9.6.tar.gz", hash = "sha256:f815caf165e89c576ce659b866c7a82ae4590420c2d020a92d32e45097f8bc73", size = 30858, upload-time = "2023-07-14T22:34:19.07Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/41/2c/63ad89d8e01d471b91c0ad4d69ed45f5221f70f3ece6c097beecb7c67f7a/pipdeptree-2.9.6-py3-none-any.whl", hash = "sha256:de93f990d21224297c9f03e057da5a3dc65ff732a0147945dd9421671f13626b", size = 19768, upload-time = "2023-07-14T22:34:17.109Z" },
-]
-
-[[package]]
 name = "platformdirs"
 version = "4.5.0"
 source = { registry = "https://pypi.org/simple" }
@@ -3742,14 +3716,14 @@ wheels = [
 
 [[package]]
 name = "pyjwt"
-version = "2.15.1"
+version = "2.13.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "typing-extensions", marker = "python_full_version < '3.11'" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/43/ea/5194e52748b0da83d71e082d75496eaec6e58f419f5e184786ded517e6a9/pyjwt-2.15.1.tar.gz", hash = "sha256:4f259e80cdfb6b3fc18a7de51fd1ef9ec79652f25019bae68975ca2468a34df8", size = 121252, upload-time = "2026-09-28T18:40:42.598Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/3b/81/58d0ac84e1ef3a3843791d6954d94c0b33d526c75eeb1efbce9d0a4c4077/pyjwt-2.13.0.tar.gz", hash = "sha256:41571c89ca91598c79e8ef18a2d07367d4810fbbd6f637794879baf1b7703423", size = 107515, upload-time = "2026-05-21T19:54:36.618Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/50/ca/44de4e75f8aadc457f0634be3b542815078ded46dca30efb960edeecad6e/pyjwt-2.15.1-py3-none-any.whl", hash = "sha256:42d59d631f7768a1028a64c7ff581a9bf7519804daf91fc5b6c56e30eec5e193", size = 33860, upload-time = "2026-09-28T18:40:41.429Z" },
+    { url = "https://files.pythonhosted.org/packages/a3/5e/ecf12fdb62546d64385c158514e9b2b671f7832108ef2ecd2020ce0af2d1/pyjwt-2.13.0-py3-none-any.whl", hash = "sha256:66adcc2aff09b3f1bbd95fc1e1577df8ac8723c978552fd43304c8a290ac5728", size = 31274, upload-time = "2026-05-21T19:54:35.362Z" },
 ]
 
 [[package]]

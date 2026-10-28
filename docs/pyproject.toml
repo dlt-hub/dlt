@@ -7,7 +7,7 @@ requires-python = ">=3.10, <3.13"
 
 # NOTE: working here is always dev enviroment, so we don't need a dev group
 dependencies = [
-    "dlt[cli,duckdb,postgres,bigquery,mssql,databricks,qdrant,sql_database,weaviate,hub,lancedb]",
+    "dlt[duckdb,postgres,bigquery,mssql,databricks,qdrant,sql_database,weaviate,hub,lancedb]",
     "flake8>=7.0.0,<8",
     "modal>=1.2.1",
     "mypy>=1.11.0,<1.13.0",
@@ -46,9 +46,6 @@ dependencies = [
     "ty>=0.0.72",
     "mdsmith>=0.55.1",
     "griffe>=1.5",
-    # the hub references are generated from the newest release, see `HUB_RUN` in the Makefile.
-    # TODO: `>=0.28.8` once released
-    "dlthub-client>=0.28.8a3",
 ]
 
 [dependency-groups]

@@ -57,9 +57,11 @@ cli-generate: ## Regenerates CLI reference docs
 cli-check: ## Checks CLI reference docs are up to date (CI)
 	uv --quiet run --script tools/generate_cli_docs.py website/docs/reference/command-line-interface.md --compare
 
-# the hub references describe the newest dlthub and dlthub-client releases, which also updates
-# `uv.lock` when one is out
-HUB_RUN = uv --quiet run --upgrade-package dlthub --upgrade-package dlthub-client
+# the hub references describe the newest dlthub and dlthub-client releases, resolved in an
+# environment of their own so the build never writes `uv.lock`
+# TODO: `dlthub-client>=0.28.8` (first release bundling the api specs and sdk docs) once released
+HUB_RUN = uv --quiet run --isolated --no-project --with "$(abspath ..)[cli,hub]" \
+	--with "dlthub-client>=0.28.8a3" --with griffe --with pyyaml
 
 # runs in tools/dlthub_cli because workspace commands need a workspace context
 HUB_CLI_DOCS ?= website/docs_processed/hub/command-line-interface.md
