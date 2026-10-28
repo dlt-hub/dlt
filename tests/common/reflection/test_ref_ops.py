@@ -40,6 +40,15 @@ def test_ref_import_with_missing_deps() -> None:
     )
     assert class_.__name__ == "One"
     assert trace is None
+    # what module level code got from the missing module is a callable dummy
+    interval_type, trace = object_from_ref(
+        "missing_dep.interval_type",
+        lambda o_: o_,
+        raise_exec_errors=True,
+        import_missing_modules=True,
+    )
+    assert callable(interval_type)
+    assert trace is None
 
 
 def test_ref_import_with_missing_package_deps() -> None:
