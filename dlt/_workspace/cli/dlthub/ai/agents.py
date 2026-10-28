@@ -43,17 +43,16 @@ class InstallAction(NamedTuple):
     dest_path: Path
     op: TInstallOp
     content_or_path: Union[str, Path]
-    conflict: bool
     source_kind: Optional[TComponentType] = None
     skip_index: bool = False
     component_dir: Optional[Path] = None
-    """For `remove`: directory of the component; empty folders are pruned only below it."""
+    """Component folder for writes; pruning boundary for removals."""
 
 
 def _copy_folder_actions(
-    kind: TComponentType, source_name: str, src_dir: Path, dest_dir: Path, conflict: bool
+    kind: TComponentType, source_name: str, src_dir: Path, dest_dir: Path
 ) -> List[InstallAction]:
-    """One `copy` action per file of `src_dir`, all sharing the folder-level conflict."""
+    """One `copy` action per file of `src_dir`."""
     actions: List[InstallAction] = []
     for src_file in sorted(src_dir.rglob("*")):
         # an agent may ship Python code; what a toolkit checkout compiled is not part of it
@@ -66,7 +65,7 @@ def _copy_folder_actions(
                 dest_path=dest_dir / src_file.relative_to(src_dir),
                 op="copy",
                 content_or_path=src_file,
-                conflict=conflict,
+                component_dir=dest_dir,
             )
         )
     return actions
@@ -110,7 +109,6 @@ class _AIAgent(ABC):
         source_name: str,
         toolkit_name: str,
         project_root: Path,
-        overwrite: bool = False,
     ) -> List["InstallAction"]:
         """Build install actions for a single component.
 
@@ -123,19 +121,16 @@ class _AIAgent(ABC):
             source_name: original name (stem or dir name)
             toolkit_name: toolkit identifier
             project_root: target project root
-            overwrite: if True, ignore existing conflicts
 
         Returns:
             list of InstallAction to execute
         """
         if component_type == "skill":
             assert isinstance(content_or_path, Path)
-            return self._install_skill(content_or_path, source_name, project_root, overwrite)
+            return self._install_skill(content_or_path, source_name, project_root)
         if component_type == "agent":
             assert isinstance(content_or_path, Path)
-            return self._install_agent(
-                content_or_path, source_name, toolkit_name, project_root, overwrite
-            )
+            return self._install_agent(content_or_path, source_name, toolkit_name, project_root)
         if component_type == "ignore":
             assert isinstance(content_or_path, str)
             dest = self.component_dir("ignore", project_root) / self.ignore_file_name
@@ -146,12 +141,11 @@ class _AIAgent(ABC):
                     dest_path=dest,
                     op="save",
                     content_or_path=content_or_path,
-                    conflict=not overwrite and dest.exists(),
                 )
             ]
         assert isinstance(content_or_path, str)
         return self._install_command_or_rule(
-            component_type, content_or_path, source_name, toolkit_name, project_root, overwrite
+            component_type, content_or_path, source_name, toolkit_name, project_root
         )
 
     def _install_skill(
@@ -159,13 +153,10 @@ class _AIAgent(ABC):
         content_or_path: Path,
         source_name: str,
         project_root: Path,
-        overwrite: bool,
     ) -> List["InstallAction"]:
         """Install actions for a skill directory, copied verbatim."""
         dest = self.component_dir("skill", project_root) / source_name
-        return _copy_folder_actions(
-            "skill", source_name, content_or_path, dest, not overwrite and dest.exists()
-        )
+        return _copy_folder_actions("skill", source_name, content_or_path, dest)
 
     def _install_agent(
         self,
@@ -173,13 +164,10 @@ class _AIAgent(ABC):
         source_name: str,
         toolkit_name: str,
         project_root: Path,
-        overwrite: bool,
     ) -> List["InstallAction"]:
         """Install actions for an agent directory, copied verbatim under its toolkit's folder."""
         dest = self.component_dir("agent", project_root) / toolkit_name / source_name
-        return _copy_folder_actions(
-            "agent", source_name, content_or_path, dest, not overwrite and dest.exists()
-        )
+        return _copy_folder_actions("agent", source_name, content_or_path, dest)
 
     def component_path(
         self,
@@ -214,7 +202,6 @@ class _AIAgent(ABC):
         source_name: str,
         toolkit_name: str,
         project_root: Path,
-        overwrite: bool,
     ) -> List["InstallAction"]:
         """Install actions for commands and rules.
 
@@ -231,7 +218,6 @@ class _AIAgent(ABC):
                     dest_path=dest,
                     op="save",
                     content_or_path=content,
-                    conflict=not overwrite and dest.exists(),
                 )
             ]
         transformed = self._transform_rule(content)
@@ -244,7 +230,6 @@ class _AIAgent(ABC):
                 dest_path=dest,
                 op="save",
                 content_or_path=transformed,
-                conflict=not overwrite and dest.exists(),
             )
         ]
 
@@ -424,9 +409,8 @@ class _CodexAgent(_AIAgent):
         content_or_path: Path,
         source_name: str,
         project_root: Path,
-        overwrite: bool,
     ) -> List["InstallAction"]:
-        actions = super()._install_skill(content_or_path, source_name, project_root, overwrite)
+        actions = super()._install_skill(content_or_path, source_name, project_root)
         skill_md = content_or_path / COMPONENT_MARKERS["skill"]
         for i, action in enumerate(actions):
             if action.content_or_path != skill_md:
@@ -446,7 +430,6 @@ class _CodexAgent(_AIAgent):
         source_name: str,
         toolkit_name: str,
         project_root: Path,
-        overwrite: bool,
     ) -> List["InstallAction"]:
         if component_type == "command":
             wrapped = wrap_as_skill(content, source_name)
@@ -461,8 +444,8 @@ class _CodexAgent(_AIAgent):
                     dest_path=dest,
                     op="save",
                     content_or_path=wrapped,
-                    conflict=not overwrite and dest.exists(),
                     source_kind="command",
+                    component_dir=dest.parent,
                 )
             ]
         # rule → always-apply skill (AGENTS.md is handled by finalize_actions)
@@ -479,8 +462,8 @@ class _CodexAgent(_AIAgent):
                 dest_path=skill_dest,
                 op="save",
                 content_or_path=wrapped,
-                conflict=not overwrite and skill_dest.exists(),
                 source_kind="rule",
+                component_dir=skill_dest.parent,
             )
         ]
 
@@ -493,14 +476,14 @@ class _CodexAgent(_AIAgent):
         """Coalesce rule-converted-to-skill actions into a single AGENTS.md merge action."""
         skill_names: List[str] = []
         for a in actions:
-            if a.source_kind == "rule" and not a.conflict:
+            if a.source_kind == "rule":
                 skill_names.append(a.dest_path.parent.name)
 
         if not skill_names:
             return actions
 
         agents_md = self.agents_md_path(project_root)
-        existing = agents_md.read_text(encoding="utf-8") if agents_md.is_file() else ""
+        existing = agents_md.read_bytes().decode("utf-8") if agents_md.is_file() else ""
         template = read_agents_md_template(workbench_base)
         merged = merge_agents_md_skills(existing, skill_names, template=template)
         if merged != existing:
@@ -511,7 +494,6 @@ class _CodexAgent(_AIAgent):
                     dest_path=agents_md,
                     op="save",
                     content_or_path=merged,
-                    conflict=False,
                     skip_index=True,
                 )
             )

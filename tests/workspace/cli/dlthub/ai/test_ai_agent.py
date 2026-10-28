@@ -267,7 +267,6 @@ def test_codex_finalize_actions_agents_md() -> None:
                 "---\nname: tk-coding\ndescription: ALWAYS read and follow"
                 " this skill before acting. Coding\n---\n# Coding"
             ),
-            conflict=False,
             source_kind="rule",
         ),
         InstallAction(
@@ -279,7 +278,6 @@ def test_codex_finalize_actions_agents_md() -> None:
                 "---\nname: tk-styling\ndescription: ALWAYS read and follow"
                 " this skill before acting. Styling\n---\n# Styling"
             ),
-            conflict=False,
             source_kind="rule",
         ),
     ]
@@ -318,7 +316,6 @@ def test_codex_finalize_actions_dedup() -> None:
                 "---\nname: tk-coding\ndescription: ALWAYS read and follow"
                 " this skill before acting. Coding\n---\n# Coding"
             ),
-            conflict=False,
             source_kind="rule",
         ),
     ]
