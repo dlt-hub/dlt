@@ -198,6 +198,18 @@ SELECT 1
     ) -> ContextManager[DBApiCursor]:
         pass
 
+    def iter_arrow_query(
+        self,
+        query: AnyStr,
+        chunk_size: Optional[int] = None,
+        columns_schema: Optional[TTableSchemaColumns] = None,
+    ) -> Generator["ArrowTable", None, None]:
+        """Runs `query` and yields its result as arrow tables, in full or in chunks of `chunk_size` rows."""
+        with self.execute_query(query) as cursor:
+            if columns_schema:
+                cursor.columns_schema = columns_schema
+            yield from cursor.iter_arrow(chunk_size)
+
     def execute_fragments(
         self, fragments: Sequence[AnyStr], *args: Any, **kwargs: Any
     ) -> Optional[Sequence[Sequence[Any]]]:

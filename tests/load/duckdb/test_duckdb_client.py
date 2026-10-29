@@ -304,6 +304,39 @@ def test_session_config_on_external_connection(session_timezone: str) -> None:
         ext_conn.close()
 
 
+def test_iter_arrow_query() -> None:
+    db_path = os.path.join(get_test_storage_root(), f"arrow_query_{uniq_id()}.duckdb")
+    pipeline = dlt.pipeline("test_arrow_query_" + uniq_id(), destination=duckdb(db_path))
+    query = "SELECT range AS id, range::VARCHAR AS name FROM range(10000)"
+
+    with pipeline.sql_client() as c:
+        # arrow chunks are full
+        sizes = [t.num_rows for t in c.iter_arrow_query(query, chunk_size=3000)]
+        assert sizes == [3000, 3000, 3000, 1000]
+        assert next(c.iter_arrow_query(query)).num_rows == 10000
+
+        # a partly read stream does not block the next query on the connection
+        tables = c.iter_arrow_query(query, chunk_size=1000)
+        next(tables)
+        tables.close()
+        assert c.execute_sql("SELECT 1") == [(1,)]
+
+        # a partly read cursor does not block the next arrow read
+        with c.execute_query(query) as cursor:
+            cursor.fetchone()
+        assert next(c.iter_arrow_query(query)).num_rows == 10000
+
+        # statements before the last one run once
+        c.execute_sql("CREATE TABLE writes (a INT)")
+        table = next(c.iter_arrow_query("INSERT INTO writes VALUES (1); SELECT * FROM writes"))
+        assert table.num_rows == 1
+        assert c.execute_sql("SELECT count(*) FROM writes") == [(1,)]
+
+        # errors are translated
+        with pytest.raises(DatabaseUndefinedRelation):
+            next(c.iter_arrow_query("SELECT * FROM missing_table"))
+
+
 @pytest.mark.no_load
 def test_destination_credentials_with_config() -> None:
     import duckdb
