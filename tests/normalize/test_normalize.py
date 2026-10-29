@@ -1,3 +1,4 @@
+import gzip
 import os
 import random
 from copy import deepcopy
@@ -920,6 +921,21 @@ def test_file_sizes_of_missing_files(raw_normalize: Normalize) -> None:
     # a file that is gone weighs nothing, its worker reports the actual error
     missing = "1234.5/new_jobs/" + _job_file("items", 0)
     assert raw_normalize._file_sizes([missing]) == {missing: 0}
+
+
+def test_file_sizes_of_gzipped_files(raw_normalize: Normalize) -> None:
+    # a gzipped file weighs its uncompressed size, the work normalize does on it
+    storage = raw_normalize.normalize_storage.extracted_packages.storage
+    storage.create_folder("1234.5/new_jobs")
+    gzipped = "1234.5/new_jobs/" + _job_file("items", 0)
+    plain = "1234.5/new_jobs/" + _job_file("items", 1)
+    data = b'{"id": 1}\n' * 10000
+    with gzip.open(storage.make_full_path(gzipped), "wb") as f:
+        f.write(data)
+    with storage.open_file(plain, "wb") as f:
+        f.write(data)
+    assert os.path.getsize(storage.make_full_path(gzipped)) < len(data)
+    assert raw_normalize._file_sizes([gzipped, plain]) == {gzipped: len(data), plain: len(data)}
 
 
 EXPECTED_ETH_TABLES = [

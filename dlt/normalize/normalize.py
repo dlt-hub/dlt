@@ -13,6 +13,7 @@ from dlt.common.runtime.collector import Collector, NULL_COLLECTOR
 from dlt.common.schema.typing import TSchemaUpdate, TStoredSchema, TTableSchema
 from dlt.common.schema.utils import merge_schema_updates
 from dlt.common.storages import (
+    FileStorage,
     NormalizeStorage,
     SchemaStorage,
     LoadStorage,
@@ -190,12 +191,12 @@ class Normalize(Runnable[Executor], WithStepInfo[NormalizeMetrics, NormalizeInfo
         )
 
     def _file_sizes(self, files: Sequence[str]) -> Dict[str, int]:
-        """Sizes of extracted `files`, 0 for a file that cannot be read"""
+        """Uncompressed sizes of extracted `files`, 0 for a file that cannot be read"""
         storage = self.normalize_storage.extracted_packages.storage
         sizes: Dict[str, int] = {}
         for file_name in files:
             try:
-                sizes[file_name] = os.path.getsize(storage.make_full_path(file_name))
+                sizes[file_name] = FileStorage.uncompressed_size(storage.make_full_path(file_name))
             except OSError:
                 # the worker that gets the file reports the actual error
                 sizes[file_name] = 0
