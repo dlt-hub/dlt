@@ -45,7 +45,7 @@ The agent job is named after the agent definition: `job_inspector`. On the platf
 
 ```cli
 # a single manual run, on a failed run id from `dlthub job runs list`
-dlthub local run job_inspector -c failed_run_id=<run-id>
+dlthub local run job_inspector -c failed_run_id=<run_id>
 
 # push the job graph; every failed job tagged "ingest" now starts an inspector run
 dlthub deploy
@@ -76,7 +76,7 @@ Only `job.fail:` resolves in step 3. An agent run that a `job.success:` trigger 
 If you give the agent job a run id, the agent reads that job run, whatever its status. To inspect a job run that succeeded:
 
 ```cli
-dlthub local run job_inspector -c failed_run_id=<run-id>
+dlthub local run job_inspector -c failed_run_id=<run_id>
 ```
 
 If a job run succeeded but loaded no rows, the agent looks for the cause as it does for a failure: it follows the empty input back to the job that produces it. If a filter or a date range in the source limited the load, the `Diagnosis` names the setting, its value, and the load. The agent can't run the source, so it can't prove that the filter is the cause.
@@ -151,7 +151,7 @@ inspector = run.agent(
 To change a setting for one agent run, pass it with `-c`:
 
 ```cli
-dlthub local run job_inspector -c failed_run_id=<run-id> -c agent.model=sonnet
+dlthub local run job_inspector -c failed_run_id=<run_id> -c agent.model=sonnet
 ```
 
 [Triggers for agents](index.md#triggers-for-agents) lists the selectors a `job.fail:` trigger accepts.

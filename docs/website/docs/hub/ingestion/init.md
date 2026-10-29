@@ -40,7 +40,7 @@ This scaffolds a workspace with `.dlt/.workspace` already set, the AI toolkits v
 A lightweight, code-first approach ideal for developers comfortable with Python.
 
 ```cli
-dlthub pipeline init {source_name} duckdb
+dlthub pipeline init <source> duckdb
 ````
 
 for example:

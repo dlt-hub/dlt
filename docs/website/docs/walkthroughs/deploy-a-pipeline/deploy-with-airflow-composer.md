@@ -41,7 +41,7 @@ pip install "dlt[cli]"
 then:
 
 ```cli
-dlt deploy {pipeline_name}_pipeline.py airflow-composer
+dlt deploy <pipeline_name>_pipeline.py airflow-composer
 ```
 
 This command checks if your pipeline has run successfully before and creates the following folders:

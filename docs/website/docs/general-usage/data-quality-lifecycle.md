@@ -127,7 +127,7 @@ Use the [dltHub Dashboard](../hub/ingestion/dashboard.md) to interactively inspe
 - Catch issues like pagination bugs (suspiciously round counts) before they reach production
 
 ```cli
-dlt pipeline {pipeline_name} show
+dlt pipeline <pipeline_name> show
 ```
 
 ## Get the full lifecycle with dltHub

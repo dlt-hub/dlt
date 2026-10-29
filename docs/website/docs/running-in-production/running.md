@@ -567,7 +567,7 @@ Load package does not need to be present locally - if you are investigating remo
 destination state with
 
 ```cli
-dlt pipeline <name> sync
+dlt pipeline <pipeline_name> sync
 ```
 
 first.

@@ -176,7 +176,7 @@ Manifest validation refuses a local-only profile (`dev`, `tests`) and takes any 
 Each trigger of the agent job produces an agent run. You can also start a run manually, the way you run any job locally or on the platform:
 
 ```cli
-dlthub local run job_inspector -c failed_run_id=<run-id>     # locally
+dlthub local run job_inspector -c failed_run_id=<run_id>     # locally
 dlthub run job_inspector -f                                  # on the platform
 ```
 

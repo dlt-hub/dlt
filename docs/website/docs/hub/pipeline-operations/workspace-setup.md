@@ -30,7 +30,7 @@ dlthub login
 This opens a GitHub OAuth device flow and authenticates the current user. Then bind this repo to a remote workspace:
 
 ```cli
-dlthub workspace connect [<name_or_id>] [--org-id <id>]
+dlthub workspace connect [<workspace>] [--org-id <org_id>]
 ```
 
 With no argument, an interactive picker is shown, grouped by organization. The chosen `workspace_id` (and `organization_id`, on the first connect) is persisted to `.dlt/config.toml`. To list workspaces you have access to, use `dlthub workspace list`.

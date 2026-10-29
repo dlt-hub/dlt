@@ -53,7 +53,7 @@ You can use the `show` [CLI command](../command-line-interface.md#dlthub-local-p
 with your pipeline name to directly jump to the dashboard page of this pipeline:
 
 ```cli
-dlthub local pipeline show {pipeline_name}
+dlthub local pipeline show <pipeline_name>
 ```
 
 Use the pipeline name you defined in your Python code with the `pipeline_name` argument. If you are unsure, you can use the `dlthub local pipeline list` command to list all pipelines.
@@ -348,7 +348,7 @@ By selecting a specific load, you can:
 You can eject the code for the workspace dashboard into your current working directory and start editing it to create a custom version that fits your needs. To do this, run the `show` command with the `--edit` flag:
 
 ```cli
-dlthub local pipeline show {pipeline_name} --edit
+dlthub local pipeline show <pipeline_name> --edit
 # or for the overview
 dlthub local show --edit
 ```

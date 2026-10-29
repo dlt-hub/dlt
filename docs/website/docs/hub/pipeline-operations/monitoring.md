@@ -20,11 +20,11 @@ The command returns the workspace name, job count, latest run status, and the la
 ## Inspect jobs
 
 ```cli
-dlthub job list                    # all jobs
-dlthub job list "tag:ingest"       # jobs matching selector
-dlthub job list batch              # only batch jobs
-dlthub job info <name>             # details for one job
-dlthub job show <name>             # open the job page in the dashboard
+dlthub job list                                # all jobs
+dlthub job list "tag:ingest"                   # jobs matching selector
+dlthub job list batch                          # only batch jobs
+dlthub job info <selector_or_job_name>         # details for one job
+dlthub job show <selector_or_job_name>         # open the job page in the dashboard
 ```
 
 ## Inspect runs
@@ -33,13 +33,13 @@ List, inspect, and open runs from the CLI:
 
 ```cli
 # list runs (optionally filter by job name or selector)
-dlthub job runs list [name_or_selector] [--running]
+dlthub job runs list [<selector_or_job_name>] [--running]
 
 # exit status, timing, and metadata of a run (defaults to latest)
-dlthub job runs info <name> [run#]
+dlthub job runs info <selector_or_job_name> [<run_number>]
 
 # open the run page in the web dashboard
-dlthub job runs show <name> [run#]
+dlthub job runs show <selector_or_job_name> [<run_number>]
 ```
 
 ## View logs
@@ -85,7 +85,7 @@ Select any run on the Jobs page to open its **run detail page**, which provides:
 
 From the CLI:
 
-1. `dlthub job runs info <name> [run#]` — check exit status and timing
+1. `dlthub job runs info <selector_or_job_name> [<run_number>]` — check exit status and timing
 2. `dlthub job logs <name> [run#]` — read the error output
 
 From the Web UI:
