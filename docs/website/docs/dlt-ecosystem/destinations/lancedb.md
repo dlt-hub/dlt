@@ -20,7 +20,7 @@ First, you need to decide which embedding model provider to use. You can find al
 
 To use LanceDB as a destination, make sure `dlt` is installed with the `lancedb` extra:
 
-```sh
+```cli
 pip install "dlt[lancedb]"
 ```
 

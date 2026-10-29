@@ -19,7 +19,7 @@ You declare an agent job for it, as for any other agent definition. [Background 
 
 Make sure that you meet the [prerequisites](index.md#prerequisites) for agent jobs. Then install the toolkit:
 
-```sh
+```cli
 dlthub ai toolkit install dlthub-platform
 ```
 
@@ -43,9 +43,9 @@ __all__ = ["load_commits", "inspector"]
 
 The agent job is named after the agent definition: `job_inspector`. On the platform, `require={"profile": "access"}` keeps the production credentials out of the job environment. `dlthub local run` uses the active profile, or the profile you pass with `--profile`. See [Profile of an agent job](index.md#profile-of-an-agent-job). Run the agent job locally on a job run that failed. Then deploy:
 
-```sh
+```cli
 # a single manual run, on a failed run id from `dlthub job runs list`
-dlthub local run job_inspector -c failed_run_id=<run-id>
+dlthub local run job_inspector -c failed_run_id=<run_id>
 
 # push the job graph; every failed job tagged "ingest" now starts an inspector run
 dlthub deploy
@@ -75,8 +75,8 @@ Only `job.fail:` resolves in step 3. An agent run that a `job.success:` trigger 
 
 If you give the agent job a run id, the agent reads that job run, whatever its status. To inspect a job run that succeeded:
 
-```sh
-dlthub local run job_inspector -c failed_run_id=<run-id>
+```cli
+dlthub local run job_inspector -c failed_run_id=<run_id>
 ```
 
 If a job run succeeded but loaded no rows, the agent looks for the cause as it does for a failure: it follows the empty input back to the job that produces it. If a filter or a date range in the source limited the load, the `Diagnosis` names the setting, its value, and the load. The agent can't run the source, so it can't prove that the filter is the cause.
@@ -150,8 +150,8 @@ inspector = run.agent(
 
 To change a setting for one agent run, pass it with `-c`:
 
-```sh
-dlthub local run job_inspector -c failed_run_id=<run-id> -c agent.model=sonnet
+```cli
+dlthub local run job_inspector -c failed_run_id=<run_id> -c agent.model=sonnet
 ```
 
 [Triggers for agents](index.md#triggers-for-agents) lists the selectors a `job.fail:` trigger accepts.

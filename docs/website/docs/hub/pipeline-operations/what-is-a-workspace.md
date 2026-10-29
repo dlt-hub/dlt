@@ -26,7 +26,7 @@ Every workspace contains:
 
 ## Creating a workspace
 
-```sh
+```cli
 uv run dlthub login
 uv run dlthub workspace connect "<name>" --create
 ```

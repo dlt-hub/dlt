@@ -9,7 +9,7 @@ keywords: [fabric, microsoft fabric, warehouse, destination, data warehouse, syn
 
 To install the dlt library with Fabric Warehouse dependencies, use:
 
-```sh
+```cli
 pip install "dlt[fabric]"
 ```
 
@@ -51,19 +51,19 @@ Fabric Warehouse requires Azure Active Directory Service Principal authenticatio
 
 1. Initialize a project with a pipeline that loads to Fabric by running:
 
-```sh
+```cli
 dlt init chess fabric
 ```
 
 2. Install the necessary dependencies for Fabric by running:
 
-```sh
+```cli
 pip install -r requirements.txt
 ```
 
 or run:
 
-```sh
+```cli
 pip install "dlt[fabric]"
 ```
 

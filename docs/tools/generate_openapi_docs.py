@@ -346,7 +346,7 @@ def render_operation(
 ) -> str:
     operation_id = operation["operationId"]
     md = f"### {operation_title(operation)} {{#{operation_id}}}\n\n"
-    md += f"```text\n{method.upper()} {path}\n```\n\n"
+    md += f"```endpoint\n{method.upper()} {path}\n```\n\n"
     if operation.get("deprecated"):
         md += API_DEPRECATED + "\n\n"
     description = prose(operation.get("description"))

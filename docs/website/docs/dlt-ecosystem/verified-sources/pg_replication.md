@@ -74,7 +74,7 @@ To get started with your data pipeline, follow these steps:
 
 1. Run the following command:
 
-   ```sh
+   ```cli
    dlt init pg_replication duckdb
    ```
 
@@ -82,7 +82,7 @@ To get started with your data pipeline, follow these steps:
 
 2. If you'd like to use a different destination, simply replace `duckdb` with the name of your preferred [destination](../../dlt-ecosystem/destinations). For example:
 
-   ```sh
+   ```cli
    dlt init pg_replication bigquery
    ```
 
@@ -118,7 +118,7 @@ For more information, read the [Configuration section.](../../general-usage/cred
 
 1. Ensure that you have installed all the necessary dependencies by running:
 
-   ```sh
+   ```cli
    pip install -r requirements.txt
    ```
 
@@ -130,7 +130,7 @@ For more information, read the [Configuration section.](../../general-usage/cred
 
 3. Once the pipeline has finished running, you can verify that everything loaded correctly with:
 
-   ```sh
+   ```cli
    dlt pipeline <pipeline_name> show
    ```
 

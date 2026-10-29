@@ -29,7 +29,7 @@ Before we start, make sure you have a Python virtual environment set up. Follow 
 
 Verify that dlt is installed by running the following command in your terminal:
 
-```sh
+```cli
 dlt --version
 ```
 
@@ -96,13 +96,13 @@ print(table.limit(10).arrow())
 
 To allow a sneak peek and basic discovery, you can take advantage of [built-in integration with the marimo dashboard app](../reference/command-line-interface#dlt-pipeline-show):
 
-```sh
+```cli
 dlt pipeline quick_start show
 ```
 
 **quick_start** is the name of the pipeline from the script above. If you do not have marimo installed yet, do:
 
-```sh
+```cli
 pip install marimo
 ```
 
@@ -159,7 +159,7 @@ python github_issues.py
 
 Once the data has been loaded, you can inspect the created dataset using the dashboard app:
 
-```sh
+```cli
 dlt pipeline github_issues show
 ```
 
@@ -292,7 +292,7 @@ Now you can run this script on a daily schedule, and each day you’ll load only
 Between pipeline runs, `dlt` keeps the state in the same database it loaded data into.
 Peek into that state, the tables loaded, and get other information with:
 
-```sh
+```cli
 dlt pipeline -v github_issues_incremental info
 ```
 

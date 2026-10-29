@@ -280,7 +280,7 @@ pipeline.run(my_facebook_ads.with_resources("ads"))
 
 If you want to change the `ads` resource to use `merge`, you must first drop the existing resource tables from the destination:
 
-```sh
+```cli
 dlt pipeline facebook_ads_pipeline drop ads
 ```
 

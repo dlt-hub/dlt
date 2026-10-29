@@ -16,7 +16,7 @@ Use of the dltHub platform and toolkits is subject to a commercial [dltHub Licen
 
 ## Quickstart
 
-```sh
+```cli
 uvx dlthub-start@latest
 ```
 

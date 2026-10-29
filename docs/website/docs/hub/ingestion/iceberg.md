@@ -26,7 +26,7 @@ The Iceberg destination in dlt allows you to load data into Iceberg tables using
 
 If you don't have a dltHub workspace yet, scaffold one with:
 
-```sh
+```cli
 uvx dlthub-init@latest
 ```
 

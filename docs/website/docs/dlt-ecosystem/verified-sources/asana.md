@@ -53,7 +53,7 @@ To get started with your data pipeline, follow these steps:
 
 1. Enter the following command:
 
-   ```sh
+   ```cli
    dlt init asana_dlt duckdb
    ```
 
@@ -92,7 +92,7 @@ For more information, read the [General Usage: Credentials.](../../general-usage
 1. Before running the pipeline, ensure that you have installed all the necessary dependencies by
    running the command:
 
-   ```sh
+   ```cli
    pip install -r requirements.txt
    ```
 
@@ -105,7 +105,7 @@ For more information, read the [General Usage: Credentials.](../../general-usage
 1. Once the pipeline has finished running, you can verify that everything loaded correctly by using
    the following command:
 
-   ```sh
+   ```cli
    dlt pipeline <pipeline_name> show
    ```
 

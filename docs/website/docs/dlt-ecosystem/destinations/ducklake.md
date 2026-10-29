@@ -20,13 +20,13 @@ If you are looking for a managed ducklake infra, check the [Motherduck Ducklake 
 
 - Install dlt with DuckDB dependencies:
 
-```sh
+```cli
 pip install "dlt[ducklake]"
 ```
 
 - Initialize new test pipeline
 
-```sh
+```cli
 dlt init foo ducklake
 ```
 

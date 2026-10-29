@@ -322,7 +322,7 @@ The TOML provider loads files from the `.dlt` folder **relative to your current 
 
 For example, if your working directory is `my_dlt_project` with this structure:
 
-```text
+```tree
 my_dlt_project:
   |
   pipelines/

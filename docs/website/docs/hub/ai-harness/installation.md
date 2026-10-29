@@ -12,13 +12,13 @@ To install the [AI Harness](https://dlthub.com/features/ai-harness), you need Py
 
 Run the following command in the directory where you want the workspace:
 
-```sh
+```cli
 uvx dlthub-init@latest
 ```
 
 This scaffolds a dltHub workspace, then wires the base `init` toolkit for Claude Code (default):
 
-```text
+```tree
 your-project/
 ├── .dlt/
 │   ├── .workspace              # marks this directory as a dltHub workspace
@@ -38,7 +38,7 @@ your-project/
 
 To wire up Cursor or Codex instead, run:
 
-```sh
+```cli
 uv run dlthub ai init --agent cursor
 ```
 
@@ -66,19 +66,19 @@ For example, if you tell the agent:
 
 If you prefer explicit installs, the same three CLI commands are always available. List everything:
 
-```sh
+```cli
 uv run dlthub ai toolkit list
 ```
 
 Inspect a specific toolkit before installing:
 
-```sh
+```cli
 uv run dlthub ai toolkit info rest-api-pipeline
 ```
 
 Install it:
 
-```sh
+```cli
 uv run dlthub ai toolkit install rest-api-pipeline
 ```
 
@@ -90,7 +90,7 @@ A toolkit that ships agent definitions installs each one to `.claude/dlthub/agen
 
 Check that the workspace is fully wired:
 
-```sh
+```cli
 uv run dlthub ai status
 ```
 
