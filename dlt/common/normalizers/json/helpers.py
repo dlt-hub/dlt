@@ -106,7 +106,7 @@ def should_be_nested(schema: Schema, table_name: str) -> bool:
 
 def get_root_row_id_type(schema: Schema, table_name: str) -> TRowIdType:
     if table := schema.tables.get(table_name):
-        merge_strategy = resolve_merge_strategy(schema.tables, table)
+        merge_strategy = resolve_merge_strategy(schema.tables, table, is_prepared=False)
         if merge_strategy in ("upsert", "insert-only", "cdc"):
             return "key_hash"
         elif merge_strategy == "scd2":
@@ -138,7 +138,7 @@ def requires_root_key(
     """Checks if table chain containing `table` requires root_key to propagate.
 
     1. if there's any table with `root_key` in table chain already - we always propagate
-    2. if write disposition is merge and merge strategy is "delete-insert", "upsert" and root_key_propagation is not False
+    2. if merge strategy is "delete-insert", "upsert", "insert-only" or "cdc" and root_key_propagation is None
     3. root_key_propagation is True
     """
     table_name = root_table["name"]
@@ -146,7 +146,8 @@ def requires_root_key(
     if table_name in schema.dlt_table_names():
         merge_requires = False
     else:
-        merge_strategy = resolve_merge_strategy(schema.tables, root_table)
+        merge_strategy = resolve_merge_strategy(schema.tables, root_table, is_prepared=False)
+        # scd2 never deletes nested rows and inserts them by row key, so it does not need root key
         merge_requires = (
             merge_strategy in ["delete-insert", "upsert", "insert-only", "cdc"]
             if root_key_propagation is None

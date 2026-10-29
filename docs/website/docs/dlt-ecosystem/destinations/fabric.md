@@ -9,7 +9,7 @@ keywords: [fabric, microsoft fabric, warehouse, destination, data warehouse, syn
 
 To install the dlt library with Fabric Warehouse dependencies, use:
 
-```sh
+```cli
 pip install "dlt[fabric]"
 ```
 
@@ -51,19 +51,19 @@ Fabric Warehouse requires Azure Active Directory Service Principal authenticatio
 
 1. Initialize a project with a pipeline that loads to Fabric by running:
 
-```sh
+```cli
 dlt init chess fabric
 ```
 
 2. Install the necessary dependencies for Fabric by running:
 
-```sh
+```cli
 pip install -r requirements.txt
 ```
 
 or run:
 
-```sh
+```cli
 pip install "dlt[fabric]"
 ```
 
@@ -155,7 +155,7 @@ Data is loaded via INSERT statements by default. Fabric Warehouse has a limit of
 
 ### Table and column identifiers
 
-Fabric Warehouse (like SQL Server) uses **case-insensitive identifiers** but preserves the casing of identifiers stored in the INFORMATION SCHEMA. You can use [case-sensitive naming conventions](../../general-usage/naming-convention.md#case-sensitive-and-insensitive-destinations) to keep the identifier casing. Note that you risk generating identifier collisions, which are detected by `dlt` and will fail the load process.
+Fabric Warehouse (like [SQL Server](./mssql.md)) uses **case-insensitive identifiers** but preserves the casing of identifiers stored in the INFORMATION SCHEMA. You can use [case-sensitive naming conventions](../../general-usage/naming-convention.md#case-sensitive-and-insensitive-destinations) to keep the identifier casing. Note that you risk generating identifier collisions, which are detected by `dlt` and will fail the load process.
 
 ## Syncing of `dlt` state
 

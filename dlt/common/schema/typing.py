@@ -111,14 +111,15 @@ class TColumnPropInfo(NamedTuple):
     defaults: Tuple[Any, ...] = (None,)
     is_hint: bool = False
     compound: bool = False
+    type_modifier: bool = False
 
 
 _ColumnPropInfos = [
     TColumnPropInfo("name"),
     TColumnPropInfo("data_type"),
-    TColumnPropInfo("precision"),
-    TColumnPropInfo("scale"),
-    TColumnPropInfo("timezone", (True, None)),
+    TColumnPropInfo("precision", type_modifier=True),
+    TColumnPropInfo("scale", type_modifier=True),
+    TColumnPropInfo("timezone", (True, None), type_modifier=True),
     TColumnPropInfo("nullable", (True, None)),
     TColumnPropInfo("variant", (False, None)),
     TColumnPropInfo("partition", (False, None), False, True),
@@ -135,6 +136,7 @@ _ColumnPropInfos = [
     TColumnPropInfo("incremental", (False, None), False, True),
     # any x- hint with special settings ie. defaults
     TColumnPropInfo("x-active-record-timestamp", (), is_hint=True),  # no default values
+    TColumnPropInfo("x-nested-type", type_modifier=True),
 ]
 
 ColumnPropInfos: Dict[Union[TColumnProp, str], TColumnPropInfo] = {
@@ -289,6 +291,12 @@ class TMergeDispositionDict(TWriteDispositionDict):
     """The destination picks its default strategy when not set."""
 
 
+class TReplaceDispositionDict(TWriteDispositionDict):
+    exclude_resource_state: NotRequired[bool]
+    """If `True`, dlt keeps the resource state, including incremental cursors, when it replaces
+    the table. Defaults to `True`, unlike the `replace` shorthand that resets the state."""
+
+
 class TSourceFilterDict(TypedDict):
     source_filter: NotRequired[str]
     """SQL condition that selects the merge source from the loaded rows. dlt discards the other
@@ -300,12 +308,21 @@ class TDestinationScopeDict(TypedDict):
     """SQL condition that selects the destination rows that the merge can delete or retire."""
 
 
-class TDeleteInsertStrategyDict(TWriteDispositionDict, TSourceFilterDict, TDestinationScopeDict):
+class TMergeConditionPlaceholdersDict(TypedDict):
+    extra_placeholders: NotRequired[Dict[str, Union[Any, Callable[[Any, str], Any]]]]
+    """Values of the merge condition placeholders. A callable gets the resource and table name."""
+
+
+class TDeleteInsertStrategyDict(
+    TWriteDispositionDict, TSourceFilterDict, TDestinationScopeDict, TMergeConditionPlaceholdersDict
+):
     strategy: Literal["delete-insert"]
     deduplicated: NotRequired[bool]
 
 
-class TScd2StrategyDict(TWriteDispositionDict, TSourceFilterDict, TDestinationScopeDict):
+class TScd2StrategyDict(
+    TWriteDispositionDict, TSourceFilterDict, TDestinationScopeDict, TMergeConditionPlaceholdersDict
+):
     strategy: Literal["scd2"]
     validity_column_names: NotRequired[List[str]]
     active_record_timestamp: NotRequired[Optional[TAnyDateTime]]
@@ -324,12 +341,18 @@ class TUpsertOptionsDict(TypedDict):
     this column to detect changed records."""
 
 
-class TUpsertStrategyDict(TWriteDispositionDict, TSourceFilterDict, TUpsertOptionsDict):
+class TUpsertStrategyDict(
+    TWriteDispositionDict, TSourceFilterDict, TMergeConditionPlaceholdersDict, TUpsertOptionsDict
+):
     strategy: Literal["upsert"]
 
 
 class TCdcStrategyDict(
-    TWriteDispositionDict, TSourceFilterDict, TDestinationScopeDict, TUpsertOptionsDict
+    TWriteDispositionDict,
+    TSourceFilterDict,
+    TDestinationScopeDict,
+    TMergeConditionPlaceholdersDict,
+    TUpsertOptionsDict,
 ):
     strategy: Literal["cdc"]
 
@@ -337,6 +360,7 @@ class TCdcStrategyDict(
 TWriteDispositionConfig = Union[
     TWriteDisposition,
     TWriteDispositionDict,
+    TReplaceDispositionDict,
     TMergeDispositionDict,
     TScd2StrategyDict,
     TUpsertStrategyDict,

@@ -9,7 +9,7 @@ keywords: [dlthub platform, agents, AGENT.md, agent definition, inputs, output, 
 This feature is in public preview
 :::
 
-Installed toolkits ship verified agent definitions ready to declare as agent jobs, such as the [job inspector agent](job-inspector.md) in the `dlthub-platform` toolkit. This page describes how to write your own, or how to adapt an installed one for your workspace.
+Installed toolkits ship verified agent definitions ready to declare as [background agent](https://dlthub.com/products/background-agents) jobs, such as the [job inspector agent](job-inspector.md) in the `dlthub-platform` toolkit. This page describes how to write your own, or how to adapt an installed one for your workspace.
 
 An agent definition consists of a system prompt and a declaration of the agent's inputs, output, tools, and access. You can write it as an `AGENT.md` file or as a decorated Python function. Both forms produce the same agent job.
 

@@ -1,6 +1,7 @@
 from functools import wraps
 import inspect
 import os
+from unittest import mock
 import sys
 from typing import Awaitable, Callable, List, Optional, Dict, Iterator, Any, cast
 
@@ -317,6 +318,15 @@ def test_apply_hints_columns() -> None:
     assert cast(TTableSchemaColumns, users.columns)["things"] == {
         "name": "things",
         "nullable": False,
+    }
+
+    # changing data type drops precision and scale of the previous type
+    users.apply_hints(columns={"price": {"data_type": "decimal", "precision": 10, "scale": 2}})
+    users.apply_hints(columns={"price": {"data_type": "text", "precision": 50}})
+    assert cast(TTableSchemaColumns, users.columns)["price"] == {
+        "data_type": "text",
+        "name": "price",
+        "precision": 50,
     }
 
     # delete columns by passing empty
@@ -1158,6 +1168,34 @@ def test_resource_sets_invalid_write_disposition() -> None:
     assert "write_disposition" in str(py_ex.value)
 
 
+def test_replace_disposition_dict_hints() -> None:
+    """The table schema gets the shorthand of the replace dict. The resource keeps the dict."""
+    replace_dict: Any = {"disposition": "replace", "exclude_resource_state": True}
+
+    @dlt.resource(write_disposition=replace_dict)
+    def items():
+        yield [{"id": 1, "children": [{"name": "a"}]}]
+
+    assert items.write_disposition == replace_dict
+    assert items.write_disposition_shorthand == "replace"
+    table = items.compute_table_schema()
+    assert table["write_disposition"] == "replace"
+    assert "exclude_resource_state" not in table
+
+    # a nested table with the same disposition is consistent with the dict root
+    items.apply_hints(nested_hints={"children": {"write_disposition": "replace"}})
+    with mock.patch("dlt.extract.hints.logger.warning") as warning_mock:
+        items.compute_nested_table_schemas("items", Schema("default").naming)
+    warning_mock.assert_not_called()
+
+    # the flag is only valid with replace
+    append_dict: Any = {"disposition": "append", "exclude_resource_state": True}
+    with pytest.raises(ValueError):
+        dlt.resource([1, 2, 3], name="invalid", write_disposition=append_dict)
+    with pytest.raises(ValueError):
+        items.apply_hints(write_disposition=append_dict)
+
+
 @pytest.mark.parametrize("strategy", ["upsert", "cdc", None], ids=["upsert", "cdc", "default"])
 @pytest.mark.parametrize("skip_unchanged_rows", [False, True], ids=["update", "skip"])
 def test_skip_unchanged_rows_hints(strategy: Optional[str], skip_unchanged_rows: bool) -> None:
@@ -1207,6 +1245,23 @@ def test_skip_unchanged_rows_hints(strategy: Optional[str], skip_unchanged_rows:
             {"strategy": "delete-insert", "row_version_column_name": "version"},
             "dlt supports `row_version_column_name` only with the `scd2`, `upsert`, `cdc`",
         ),
+        (
+            {"destination_scope": "day = {day}", "extra_placeholders": {"load_id": "1"}},
+            "redefines the placeholders `load_id`",
+        ),
+        (
+            {"strategy": "scd2", "extra_placeholders": {"boundary_timestamp": "2024-01-01"}},
+            "redefines the placeholders `boundary_timestamp`",
+        ),
+        ({"extra_placeholders": ["day"]}, "must be a dict"),
+        (
+            {"strategy": "insert-only", "extra_placeholders": {"day": 1}},
+            "`extra_placeholders` only with the `delete-insert`, `scd2`, `upsert`, `cdc`",
+        ),
+        (
+            {"destination_scope": "day = {day}", "extra_placeholders": {"days": 1}},
+            "unknown placeholders `{day}`",
+        ),
     ],
     ids=[
         "unknown_placeholder",
@@ -1217,6 +1272,11 @@ def test_skip_unchanged_rows_hints(strategy: Optional[str], skip_unchanged_rows:
         "scope_upsert",
         "filter_insert_only",
         "row_version_delete_insert",
+        "reserved_extra_placeholder",
+        "reserved_boundary_timestamp",
+        "extra_placeholders_not_dict",
+        "extra_placeholders_insert_only",
+        "undeclared_extra_placeholder",
     ],
 )
 def test_resource_rejects_invalid_merge_options(disposition: Any, expected: str) -> None:
@@ -1238,9 +1298,39 @@ def test_resource_rejects_invalid_merge_options(disposition: Any, expected: str)
         valid_resource.apply_hints(write_disposition=write_disposition)
     assert expected in str(py_ex.value)
 
+    # so do nested hints, a nested table with a key merges on its own
+    with pytest.raises(ValueError) as py_ex:
+        valid_resource.apply_hints(
+            nested_hints={
+                "sub": dlt.mark.make_nested_hints(
+                    primary_key="id", write_disposition=write_disposition
+                )
+            }
+        )
+    assert expected in str(py_ex.value)
+
     # a doubled brace is a literal brace
     literal_brace: Any = {"disposition": "merge", "destination_scope": "name LIKE '{{x}}'"}
     valid_resource.apply_hints(write_disposition=literal_brace)
+    # built-in and declared placeholders are accepted
+    placeholders: Any = {
+        "disposition": "merge",
+        "source_filter": "_dlt_load_id = {load_id}",
+        "destination_scope": "day = {day} AND {table}.id > 0",
+        "extra_placeholders": {"day": 1},
+    }
+    valid_resource.apply_hints(write_disposition=placeholders)
+    # a nested scope uses the placeholders of the root table
+    nested_scope: Any = {"disposition": "merge", "destination_scope": "day = {day}"}
+    valid_resource.apply_hints(
+        nested_hints={"sub": dlt.mark.make_nested_hints(write_disposition=nested_scope)}
+    )
+    unknown_scope: Any = {"disposition": "merge", "destination_scope": "day = {week}"}
+    with pytest.raises(ValueError) as py_ex:
+        valid_resource.apply_hints(
+            nested_hints={"sub": dlt.mark.make_nested_hints(write_disposition=unknown_scope)}
+        )
+    assert "unknown placeholders `{week}`" in str(py_ex.value)
 
 
 def test_custom_source_impl() -> None:

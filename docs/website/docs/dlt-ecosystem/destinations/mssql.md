@@ -9,7 +9,7 @@ keywords: [mssql, sqlserver, destination, data warehouse]
 
 To install the dlt library with MS SQL dependencies, use:
 
-```sh
+```cli
 pip install "dlt[mssql]"
 ```
 
@@ -33,19 +33,19 @@ You can also [configure the driver name](#additional-destination-options) explic
 
 1. Initialize a project with a pipeline that loads to MS SQL by running:
 
-```sh
+```cli
 dlt init chess mssql
 ```
 
 2. Install the necessary dependencies for MS SQL by running:
 
-```sh
+```cli
 pip install -r requirements.txt
 ```
 
 or run:
 
-```sh
+```cli
 pip install "dlt[mssql]"
 ```
 
@@ -144,7 +144,7 @@ dbc install mssql
 
 with `uv` you can run `dbc` directly:
 
-```sh
+```cli
 uv tool run dbc search
 ```
 

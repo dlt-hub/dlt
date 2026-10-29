@@ -158,7 +158,7 @@ To get started with your data pipeline, follow these steps:
 
 1. Enter the following command:
 
-   ```sh
+   ```cli
    dlt init zendesk duckdb
    ```
 
@@ -211,7 +211,7 @@ For more information, read the [General Usage: Credentials.](../../general-usage
 1. Before running the pipeline, ensure that you have installed all the necessary dependencies by
    running the command:
 
-   ```sh
+   ```cli
    pip install -r requirements.txt
    ```
 
@@ -224,7 +224,7 @@ For more information, read the [General Usage: Credentials.](../../general-usage
 1. Once the pipeline has finished running, you can verify that everything loaded correctly by using
    the following command:
 
-   ```sh
+   ```cli
    dlt pipeline <pipeline_name> show
    ```
 
@@ -344,6 +344,10 @@ verified source.
    > Supports incremental loading for Support, Chat, and Talk endpoints. By default, it fetches data
    > from the last load time in the dlt state or from 1st Jan 2000 if no prior load. This approach
    > ensures data retrieval since the specified date, while still updating the last load time.
+
+   This source does not set `allow_external_schedulers`. To load the data interval of each Airflow
+   run, set `allow_external_schedulers=True` on the incrementals of the source. For an example, see
+   [Using Airflow schedule for backfill and incremental loading](../../general-usage/incremental/cursor.md#using-airflow-schedule-for-backfill-and-incremental-loading).
 
 1. To load historical data in weekly ranges from Jan 1st, 2023, then switch to incremental loading
    for new tickets.

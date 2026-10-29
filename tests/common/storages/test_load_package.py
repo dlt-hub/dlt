@@ -1,3 +1,4 @@
+import datetime
 import os
 import pytest
 import semver
@@ -182,6 +183,8 @@ def test_create_package(load_storage: LoadStorage) -> None:
     # get state, created at must be == load_id
     state = package_storage.get_load_package_state(load_id)
     assert state["created_at"] == pendulum.from_timestamp(float(load_id))
+    assert type(state["created_at"]) is datetime.datetime
+    assert state["created_at"].tzinfo is datetime.timezone.utc
     # assume those few lines execute in less than a second
     assert pendulum.now().diff(state["created_at"]).total_seconds() < 1
 
@@ -222,8 +225,8 @@ def test_create_and_update_load_package_state(load_storage: LoadStorage) -> None
 
     # check timestamp
     created_at = state["created_at"]
-    now = pendulum.now()
-    assert (now - created_at).in_seconds() < 2
+    now = datetime.datetime.now(datetime.timezone.utc)
+    assert (now - created_at).total_seconds() < 2
 
 
 def test_create_load_id() -> None:

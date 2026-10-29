@@ -13,13 +13,13 @@ Currently, MySQL, SQLite, and DuckDB are considered to have full support and are
 
 Install dlt with the `sqlalchemy` extra dependency:
 
-```sh
+```cli
 pip install "dlt[sqlalchemy]"
 ```
 
 Note that database drivers are not included and need to be installed separately for the database you plan on using. For example, for MySQL:
 
-```sh
+```cli
 pip install mysqlclient
 ```
 
@@ -31,19 +31,19 @@ Refer to the [SQLAlchemy documentation on dialects](https://docs.sqlalchemy.org/
 
 1. Initialize a project with a pipeline that loads to MS SQL by running:
 
-```sh
+```cli
 dlt init chess sqlalchemy
 ```
 
 **2. Install the necessary dependencies for SQLAlchemy by running:**
 
-```sh
+```cli
 pip install -r requirements.txt
 ```
 
 or run:
 
-```sh
+```cli
 pip install "dlt[sqlalchemy]"
 ```
 
@@ -51,7 +51,7 @@ pip install "dlt[sqlalchemy]"
 
 E.g., for MySQL:
 
-```sh
+```cli
 pip install mysqlclient
 ```
 
@@ -293,7 +293,7 @@ To work around this issue, use one of the following approaches:
 
 Install the [duckdb_engine](https://github.com/Mause/duckdb_engine) dialect to use DuckDB with the SQLAlchemy destination:
 
-```sh
+```cli
 pip install duckdb-engine
 ```
 
@@ -345,7 +345,7 @@ workers=1
 Install the [python-oracledb](https://oracle.github.io/python-oracledb/) driver and use the `oracle+oracledb` dialect in your
 connection URL:
 
-```sh
+```cli
 pip install oracledb
 ```
 
@@ -644,7 +644,7 @@ dbc install mysql
 
 with `uv` you can run `dbc` directly:
 
-```sh
+```cli
 uv tool run dbc install mysql
 ```
 

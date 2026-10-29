@@ -1,16 +1,14 @@
+from datetime import datetime
 from typing import Callable, Dict, Union
 
-# NOTE: pendulum stays here. `path_utils.prepare_datetime_params` renders `current_datetime` with
-# pendulum format tokens, so a stdlib datetime cannot produce the layout placeholders
-from pendulum.datetime import DateTime
 from typing_extensions import TypeAlias
 
 
-TCurrentDateTimeCallback: TypeAlias = Callable[[], DateTime]
-"""A callback function to which should return pendulum.DateTime instance"""
+TCurrentDateTimeCallback: TypeAlias = Callable[[], datetime]
+"""A callback function which returns a `datetime`"""
 
-TCurrentDateTime: TypeAlias = Union[DateTime, TCurrentDateTimeCallback]
-"""pendulum.DateTime instance or a callable which should return pendulum.DateTime"""
+TCurrentDateTime: TypeAlias = Union[datetime, TCurrentDateTimeCallback]
+"""A `datetime` or a callable which returns a `datetime`. A naive value is UTC"""
 
 TLayoutPlaceholderCallback: TypeAlias = Callable[[str, str, str, str, str], str]
 """A callback which should return prepared string value the following arguments passed
@@ -18,6 +16,6 @@ TLayoutPlaceholderCallback: TypeAlias = Callable[[str, str, str, str, str], str]
 """
 
 TExtraPlaceholders: TypeAlias = Dict[
-    str, Union[Union[str, int, DateTime], TLayoutPlaceholderCallback]
+    str, Union[Union[str, int, datetime], TLayoutPlaceholderCallback]
 ]
 """Extra placeholders for filesystem layout"""

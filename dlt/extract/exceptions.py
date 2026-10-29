@@ -317,6 +317,20 @@ class DataItemRequiredForDynamicTableHints(DltResourceException):
         )
 
 
+class ExtraPlaceholderError(DltResourceException):
+    def __init__(
+        self, resource_name: str, table_name: str, placeholder: str, error: Exception
+    ) -> None:
+        self.table_name = table_name
+        self.placeholder = placeholder
+        super().__init__(
+            resource_name,
+            f"The function of the merge placeholder `{placeholder}` of resource `{resource_name}`"
+            f" raised for table `{table_name}`: {type(error).__name__}: {error}. Fix this function"
+            " in `write_disposition['extra_placeholders']`.",
+        )
+
+
 class SourceDataIsNone(DltSourceException):
     def __init__(self, source_name: str) -> None:
         self.source_name = source_name

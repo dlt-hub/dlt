@@ -11,7 +11,7 @@ The filesystem destination stores data in remote file systems and cloud storage 
 
 Install the dlt library with filesystem dependencies:
 
-```sh
+```cli
 pip install "dlt[filesystem]"
 ```
 
@@ -21,7 +21,7 @@ This installs the `s3fs` and `botocore` packages.
 
 You may also install the dependencies independently. Try:
 
-```sh
+```cli
 pip install dlt
 pip install s3fs
 ```
@@ -35,7 +35,7 @@ so pip does not fail on backtracking.
 
 Let's start by initializing a new dlt project as follows:
 
-```sh
+```cli
 dlt init chess filesystem
 ```
 
@@ -49,7 +49,7 @@ This command will initialize your pipeline with chess as the source and AWS S3 a
 
 The command above creates a sample `secrets.toml` and requirements file for an AWS S3 bucket. You can install those dependencies by running:
 
-```sh
+```cli
 pip install -r requirements.txt
 ```
 
@@ -471,6 +471,23 @@ The filesystem destination handles the write dispositions as follows:
 - `replace` - all files that belong to such tables are deleted from the dataset folder, and then the current set of files is added.
 - `merge` - falls back to `append`
 
+dlt deletes files one at a time because some buckets do not report errors for a bulk delete. Where the client allows it, dlt deletes files concurrently: 10 workers on S3, 32 on Google storage, 16 on Azure and 8 on the local filesystem. On SFTP, Google Drive, the in-memory filesystem and interpreters without threads, such as Pyodide, dlt deletes files sequentially. To change the default, set `max_delete_workers` in the destination config:
+
+```toml
+[destination.filesystem]
+max_delete_workers=4
+```
+
+The S3 client opens at most 10 connections by default, and additional workers wait for a free connection. To delete with more workers on S3, raise `max_pool_connections` as well:
+
+```toml
+[destination.filesystem]
+max_delete_workers=32
+
+[destination.filesystem.kwargs]
+config_kwargs={max_pool_connections=32}
+```
+
 ## File compression
 
 The filesystem destination in the dlt library uses `gzip` compression by default for efficiency.
@@ -631,7 +648,7 @@ Ensure that the placeholder names match the intended usage. For example, `{test_
 Configuration options, including layout and placeholders, can be overridden dynamically when initializing and passing the filesystem destination directly to the pipeline.
 
 ```py
-import pendulum
+import datetime
 
 import dlt
 from dlt.destinations import filesystem
@@ -640,7 +657,7 @@ pipeline = dlt.pipeline(
     pipeline_name="data_things",
     destination=filesystem(
         layout="{table_name}/{test_placeholder}/{timestamp}/{load_id}.{file_id}.{ext}",
-        current_datetime=pendulum.now(),
+        current_datetime=datetime.datetime.now(datetime.timezone.utc),
         extra_placeholders={
             "test_placeholder": "test_value",
         }
@@ -651,10 +668,10 @@ pipeline = dlt.pipeline(
 Furthermore, it is possible to:
 
 1. Customize the behavior with callbacks for extra placeholder functionality. Each callback must accept the following positional arguments and return a string.
-2. Customize the `current_datetime`, which can also be a callback function and is expected to return a `pendulum.DateTime` instance.
+2. Customize the `current_datetime`, which can also be a callback function. The value is a `datetime`. dlt renders the date and time placeholders in the timezone of the value, and takes a naive value as UTC.
 
 ```py
-import pendulum
+import datetime
 
 import dlt
 from dlt.destinations import filesystem
@@ -663,8 +680,8 @@ def placeholder_callback(schema_name: str, table_name: str, load_id: str, file_i
     # Custom logic here
     return "custom_value"
 
-def get_current_datetime() -> pendulum.DateTime:
-    return pendulum.now()
+def get_current_datetime() -> datetime.datetime:
+    return datetime.datetime.now(datetime.timezone.utc)
 
 pipeline = dlt.pipeline(
     pipeline_name="data_things",

@@ -11,7 +11,8 @@ import Header from './_source-info-header.md';
 
 [Pipedrive](https://developers.pipedrive.com/docs/api/v1) is a cloud-based sales Customer
 Relationship Management (CRM) tool designed to help businesses manage leads and deals, track
-communication, and automate sales processes.
+communication, and automate sales processes. For other CRMs, see the [Salesforce](./salesforce.md)
+and [HubSpot](./hubspot.md) sources.
 
 This Pipedrive `dlt` verified source and
 [pipeline example](https://github.com/dlt-hub/verified-sources/blob/master/sources/pipedrive_pipeline.py)
@@ -50,7 +51,7 @@ To get started with your data pipeline, follow these steps:
 
 1. Enter the following command:
 
-   ```sh
+   ```cli
    dlt init pipedrive duckdb
    ```
 
@@ -89,7 +90,7 @@ For more information, read the [General Usage: Credentials.](../../general-usage
 1. Before running the pipeline, ensure that you have installed all the necessary dependencies by
    running the command:
 
-   ```sh
+   ```cli
    pip install -r requirements.txt
    ```
 
@@ -102,7 +103,7 @@ For more information, read the [General Usage: Credentials.](../../general-usage
 3. Once the pipeline has finished running, you can verify that everything loaded correctly by using
    the following command:
 
-   ```sh
+   ```cli
    dlt pipeline <pipeline_name> show
    ```
 

@@ -1,6 +1,7 @@
 from abc import ABC, abstractmethod
 import dataclasses
 import contextlib
+import os
 import sqlglot
 import sqlglot.expressions as sge
 import traceback
@@ -432,6 +433,10 @@ class LoadJob(ABC):
         self._parsed_file_name = ParsedLoadJobFileName.parse(self._file_name)
         self._started_at: datetime.datetime = None
         self._finished_at: datetime.datetime = None
+        # the job file moves to another folder when the job completes
+        self._file_size: Optional[int] = None
+        with contextlib.suppress(OSError):
+            self._file_size = os.path.getsize(file_path)
 
     def job_id(self) -> str:
         """The job id that is derived from the file name and does not changes during job lifecycle"""
@@ -475,6 +480,7 @@ class LoadJob(ABC):
             self.state(),
             None,
             self._parsed_file_name.retry_count,
+            file_size=self._file_size,
         )
 
 
@@ -709,6 +715,7 @@ class JobClientBase(ABC):
         only_tables: Iterable[str] = None,
         expected_update: TSchemaTables = None,
         force: bool = False,
+        include_existing_tables: bool = False,
     ) -> Optional[TSchemaTables]:
         """Updates storage to the current schema.
 
@@ -719,6 +726,7 @@ class JobClientBase(ABC):
             only_tables (Sequence[str], optional): Updates only listed tables. Defaults to None.
             expected_update (TSchemaTables, optional): Update that is expected to be applied to the destination
             force (bool): force full schema migration regardless of previous updates
+            include_existing_tables (bool): Also adds missing columns to tables outside of `only_tables` that already exist in the destination.
         Returns:
             Optional[TSchemaTables]: Returns an update that was applied at the destination.
         """

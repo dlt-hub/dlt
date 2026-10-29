@@ -1,5 +1,6 @@
 ---
-title: Command Line Interface
+title: dlt CLI reference
+sidebar_label: Command Line Interface
 description: Command line interface (CLI) full reference of dlt
 keywords: [command line interface, cli, dlt init]
 ---
@@ -7,7 +8,7 @@ keywords: [command line interface, cli, dlt init]
 
 # Command Line Interface Reference
 
-<!-- this page is fully generated from the argparse object of dlt, run make update-cli-docs to update it -->
+<!-- this page is fully generated from the argparse object of dlt, do not edit -->
 
 This page contains all commands available in the dlt CLI and is generated
 automatically from the fully populated python argparse object of dlt.
@@ -16,7 +17,7 @@ Flags and positional commands are inherited from the parent command. Position wi
 is important. For example if you want to enable debug mode on the pipeline command, you need to add the
 debug flag to the base dlt command:
 
-```sh
+```cli
 dlt --debug pipeline
 ```
 
@@ -28,7 +29,7 @@ Adding the flag after the pipeline keyword will not work.
 Creates, adds, inspects and deploys dlt pipelines. Further help is available at https://dlthub.com/docs/reference/command-line-interface.
 
 **Usage**
-```sh
+```cli
 dlt [-h] [-v] [--non-interactive] [-y] [--debug] [--version]
     [--disable-telemetry] [--enable-telemetry] [--no-pwd]
     {telemetry,schema,pipeline,init,deploy,dashboard,ai} ...
@@ -65,7 +66,7 @@ dlt [-h] [-v] [--non-interactive] [-y] [--debug] [--version]
 Shows telemetry status.
 
 **Usage**
-```sh
+```cli
 dlt telemetry [-h]
 ```
 
@@ -89,7 +90,7 @@ Inherits arguments from [`dlt`](#dlt).
 Shows, converts and upgrades schemas.
 
 **Usage**
-```sh
+```cli
 dlt schema [-h] [--format {json,yaml,dbml,dot,mermaid}] [--remove-defaults] file
 ```
 
@@ -118,7 +119,7 @@ Inherits arguments from [`dlt`](#dlt).
 Inspects pipeline state, trace, load packages, provides basic maintenance.
 
 **Usage**
-```sh
+```cli
 dlt pipeline [-h] [--list-pipelines] [--pipelines-dir PIPELINES_DIR]
     [pipeline_name]
     {info,show,failed-jobs,drop-pending-packages,abort-packages,sync,trace,schema,drop,load-package,mcp}
@@ -163,7 +164,7 @@ Inherits arguments from [`dlt`](#dlt).
 Displays state of the pipeline, use -v or -vv for more info.
 
 **Usage**
-```sh
+```cli
 dlt pipeline [pipeline_name] info [-h]
 ```
 
@@ -189,7 +190,7 @@ Inherits arguments from [`dlt pipeline`](#dlt-pipeline).
 Generates and launches workspace dashboard with the loading status and dataset explorer.
 
 **Usage**
-```sh
+```cli
 dlt pipeline [pipeline_name] show [-h] [--edit]
 ```
 
@@ -220,7 +221,7 @@ Inherits arguments from [`dlt pipeline`](#dlt-pipeline).
 Displays information on all the failed loads in all completed packages, failed jobs and associated error messages.
 
 **Usage**
-```sh
+```cli
 dlt pipeline [pipeline_name] failed-jobs [-h]
 ```
 
@@ -245,7 +246,7 @@ Inherits arguments from [`dlt pipeline`](#dlt-pipeline).
 [Deprecated: use abort-packages] Deletes all extracted and normalized packages including those that are partially loaded.
 
 **Usage**
-```sh
+```cli
 dlt pipeline [pipeline_name] drop-pending-packages [-h]
 ```
 
@@ -275,7 +276,7 @@ Inherits arguments from [`dlt pipeline`](#dlt-pipeline).
 Safely cancels pending loads: marks packages as aborted, records failed jobs, then resyncs pipeline state from the destination.
 
 **Usage**
-```sh
+```cli
 dlt pipeline [pipeline_name] abort-packages [-h]
 ```
 
@@ -304,7 +305,7 @@ Inherits arguments from [`dlt pipeline`](#dlt-pipeline).
 Drops the local state of the pipeline and resets all the schemas and restores it from destination. The destination state, data and schemas are left intact.
 
 **Usage**
-```sh
+```cli
 dlt pipeline [pipeline_name] sync [-h] [--destination DESTINATION]
     [--dataset-name DATASET_NAME]
 ```
@@ -338,8 +339,9 @@ Inherits arguments from [`dlt pipeline`](#dlt-pipeline).
 Displays last run trace, use -v or -vv for more info.
 
 **Usage**
-```sh
-dlt pipeline [pipeline_name] trace [-h]
+```cli
+dlt pipeline [pipeline_name] trace [-h] [--steps {extract,normalize,load}
+    [{extract,normalize,load} ...]] [action]
 ```
 
 **Description**
@@ -349,14 +351,22 @@ same information for all the steps (`extract`, `normalize`, and `load`). If any 
 you'll see the message of the exceptions that caused that problem. Successful `load` and `run` steps
 will display the load info instead.
 
+With `metrics`, displays the files, rows and sizes of each step by table, and by resource for
+`extract`. With the verbose flag set (`-v`), it displays each file instead. Use `--steps` to
+select the steps.
+
 <details>
 
 <summary>Show Arguments and Options</summary>
 
 Inherits arguments from [`dlt pipeline`](#dlt-pipeline).
 
+**Positional arguments**
+* `action` - `metrics`: files, rows and sizes of each step.
+
 **Options**
 * `-h, --help` - Show this help message and exit
+* `--steps {extract,normalize,load} [{extract,normalize,load} ...]` - Steps to display metrics for. defaults to all.
 
 </details>
 
@@ -365,7 +375,7 @@ Inherits arguments from [`dlt pipeline`](#dlt-pipeline).
 Displays default schema.
 
 **Usage**
-```sh
+```cli
 dlt pipeline [pipeline_name] schema [-h] [--format {json,yaml,dbml,dot,mermaid}]
     [--remove-defaults]
 ```
@@ -392,7 +402,7 @@ Inherits arguments from [`dlt pipeline`](#dlt-pipeline).
 Selectively drop tables and reset state.
 
 **Usage**
-```sh
+```cli
 dlt pipeline [pipeline_name] drop [-h] [--destination DESTINATION]
     [--dataset-name DATASET_NAME] [--drop-all] [--state-paths [STATE_PATHS ...]]
     [--schema SCHEMA_NAME] [--state-only] [resources ...]
@@ -402,15 +412,15 @@ dlt pipeline [pipeline_name] drop [-h] [--destination DESTINATION]
 
 Selectively drop tables and reset state.
 
-```sh
-dlt pipeline <pipeline name> drop [resource_1] [resource_2]
+```cli
+dlt pipeline <pipeline_name> drop [resource_1] [resource_2]
 ```
 
 Drops tables generated by selected resources and resets the state associated with them. Mainly used
 to force a full refresh on selected tables. In the example below, we drop all tables generated by
 the `repo_events` resource in the GitHub pipeline:
 
-```sh
+```cli
 dlt pipeline github_events drop repo_events
 ```
 
@@ -440,20 +450,20 @@ The `drop` command accepts several advanced settings:
 1. You can use regexes to select resources. Prepend the `re:` string to indicate a regex pattern. The example
    below will select all resources starting with `repo`:
 
-```sh
+```cli
 dlt pipeline github_events drop "re:^repo"
 ```
 
 2. You can drop all tables in the indicated schema:
 
-```sh
+```cli
 dlt pipeline chess drop --drop-all
 ```
 
 3. You can indicate additional state slots to reset by passing JsonPath to the source state. In the example
    below, we reset the `archives` slot in the source state:
 
-```sh
+```cli
 dlt pipeline chess_pipeline drop --state-paths archives
 ```
 
@@ -498,7 +508,7 @@ Inherits arguments from [`dlt pipeline`](#dlt-pipeline).
 Displays information on a load package or acts on it (abort, fail-job, ...).
 
 **Usage**
-```sh
+```cli
 dlt pipeline [pipeline_name] load-package [-h] [load-id]
     [{info,row-counts,abort,job,fail-job}] [job]
 ```
@@ -532,7 +542,7 @@ Inherits arguments from [`dlt pipeline`](#dlt-pipeline).
 Launch MCP server attached to this pipeline.
 
 **Usage**
-```sh
+```cli
 dlt pipeline [pipeline_name] mcp [-h] [--stdio] [--sse] [--port PORT]
     [--features [FEATURES ...]] [--no-default-features] [--access ACCESS]
 ```
@@ -563,7 +573,7 @@ Inherits arguments from [`dlt pipeline`](#dlt-pipeline).
 Creates a pipeline in the current folder by adding existing verified source or creating a new one from template.
 
 **Usage**
-```sh
+```cli
 dlt init [-h] [--list-sources] [--list-destinations] [--location LOCATION]
     [--branch BRANCH] [--eject] [source] [destination]
 ```
@@ -607,7 +617,7 @@ Inherits arguments from [`dlt`](#dlt).
 Creates a deployment package for a selected pipeline script.
 
 **Usage**
-```sh
+```cli
 dlt deploy [-h] pipeline-script-path {github-action,airflow-composer} ...
 ```
 
@@ -638,7 +648,7 @@ Inherits arguments from [`dlt`](#dlt).
 Deploys the pipeline to Github Actions.
 
 **Usage**
-```sh
+```cli
 dlt deploy pipeline-script-path github-action [-h] [--location LOCATION]
     [--branch BRANCH] --schedule SCHEDULE [--run-manually] [--run-on-push]
 ```
@@ -678,7 +688,7 @@ Inherits arguments from [`dlt deploy`](#dlt-deploy).
 Deploys the pipeline to Airflow.
 
 **Usage**
-```sh
+```cli
 dlt deploy pipeline-script-path airflow-composer [-h] [--location LOCATION]
     [--branch BRANCH] [--secrets-format {env,toml}]
 ```
@@ -714,7 +724,7 @@ Inherits arguments from [`dlt deploy`](#dlt-deploy).
 Shows the dlthub workspace dashboard.
 
 **Usage**
-```sh
+```cli
 dlt dashboard [-h] [--pipelines-dir PIPELINES_DIR] [--edit]
 ```
 
@@ -745,7 +755,7 @@ Inherits arguments from [`dlt`](#dlt).
 Moved to `dlthub ai` (run `pip install dlt\[hub]`).
 
 **Usage**
-```sh
+```cli
 dlt ai [-h]
 ```
 

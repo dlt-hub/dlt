@@ -42,6 +42,23 @@ If you prefer to truncate it, put the following line in `config.toml`:
 truncate_staging_dataset=true
 ```
 
+### Keep the staging tables when the load begins
+
+When the load step begins, `dlt` truncates the staging tables that receive data. To keep the data of earlier loads in the staging tables of `merge` tables, put the following line in `config.toml`:
+
+```toml
+[load]
+truncate_staging_merge_tables_before_load=false
+```
+
+The setting applies to `merge` tables only. Other tables that load through the staging dataset, like `replace` tables or Athena Iceberg tables, copy the whole staging table into the destination table, so `dlt` always truncates their staging tables. A pipeline without tables that load through the staging dataset does not create it at all.
+
+:::caution
+Use this setting only if you limit the merge to the records of the current load, for example with the source filter `_dlt_load_id = {load_id}` (read [Fill placeholders with values from the load](../general-usage/merge-loading.md#fill-placeholders-with-values-from-the-load)). `dlt` merges the whole staging table into the destination table. Without a limit, `dlt` loads the records of earlier loads again.
+
+`dlt` does not remove the records of finished loads from the staging tables. You must remove them yourself after the merge, for example by dropping the partition of the load in a destination subclass. Do not enable `truncate_staging_dataset` when pipelines share staging tables: it truncates whole tables, including the records of loads that have not merged yet.
+:::
+
 :::warning
 When configuring a custom staging dataset naming pattern, ensure that the resulting staging dataset name differs from the final dataset name. If the pattern results in identical names, dlt will raise a `ValueError` to alert you that the pattern must be adjusted. This prevents potential data loss from setup commands accidentally truncating the final dataset instead of the staging dataset.
 

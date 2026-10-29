@@ -23,6 +23,9 @@ class DataWriterMetrics(NamedTuple):
     file_size: int
     created: float
     last_modified: float
+    files_count: Optional[int] = None
+    """Number of files the metrics sum up. None in metrics restored from traces of dlt versions
+    before 1.32, which did not store it."""
 
     def __add__(self, other: Tuple[object, ...], /) -> "DataWriterMetrics":
         if isinstance(other, DataWriterMetrics):
@@ -33,11 +36,17 @@ class DataWriterMetrics(NamedTuple):
                 self.file_size + other.file_size,
                 min(self.created, other.created),
                 max(self.last_modified, other.last_modified),
+                # a sum with an unknown count is unknown
+                (
+                    None
+                    if self.files_count is None or other.files_count is None
+                    else self.files_count + other.files_count
+                ),
             )
         return NotImplemented
 
 
-EMPTY_DATA_WRITER_METRICS = DataWriterMetrics("", 0, 0, 2**32, 0.0)
+EMPTY_DATA_WRITER_METRICS = DataWriterMetrics("", 0, 0, 2**32, 0.0, 0)
 
 
 def aggregate_job_metrics(
@@ -62,10 +71,11 @@ class DataWriterAndCustomMetrics(DataWriterMetrics):
         file_size: int,
         created: float,
         last_modified: float,
+        files_count: Optional[int] = None,
         custom_metrics: Dict[str, Any] = None,
     ) -> "DataWriterAndCustomMetrics":
         self = super(DataWriterAndCustomMetrics, cls).__new__(
-            cls, file_path, items_count, file_size, created, last_modified
+            cls, file_path, items_count, file_size, created, last_modified, files_count
         )
         self.custom_metrics = custom_metrics or {}
         return self
@@ -110,11 +120,12 @@ class TDataLocation(TypedDict):
     """
 
     kind: str
-    """Location type: `dataset`, `sql_database`, `filesystem`, `rest_api`, or a custom value."""
+    """Location type: `dataset`, `sql_database`, `filesystem`, `rest_api`, `code`, or a custom value."""
     resource_name: str
     """Resource that read from or wrote to this location, authoritative when metrics are collected."""
     location: NotRequired[str]
-    """Non-secret scope of the location, e.g. `postgresql://example.com:5432`, `s3://bucket`.
+    """Non-secret scope of the location, e.g. `postgresql://example.com:5432`, `s3://bucket`, or
+    `module.source_function` for `code`.
 
     The key is absent when the location has no public address, for example a reverse ETL sink.
     """
@@ -186,6 +197,8 @@ class LoadJobMetrics(NamedTuple):
     remote_url: Optional[str]
     retry_count: int = 0
     followup_jobs: Optional[Sequence[str]] = ()
+    file_size: Optional[int] = None
+    """Bytes of the job file on disk. `None` in traces of older dlt versions."""
 
 
 class LoadMetrics(StepMetrics):

@@ -34,7 +34,6 @@ from dlt.common.schema.utils import DEFAULT_WRITE_DISPOSITION
 from dlt.common.schema.schema import Schema
 from dlt.common.schema.typing import (
     TFileFormat,
-    TWriteDisposition,
     TWriteDispositionConfig,
     TAnySchemaColumns,
     TSchemaContract,
@@ -231,9 +230,6 @@ class DltSourceFactoryWrapper(SourceFactory[TSourceFunParams, TDltSourceImpl]):
                 resource.apply_hints(schema_contract=self.schema_contract)
         else:
             source = self._deco_f(*args, **kwargs)
-        if not inspect.iscoroutine(source):
-            # store back-reference to the factory on the source instance
-            source._factory = self
         return self._apply_postprocessors(source)
 
     def bind(self, f: AnyFun) -> Self:
@@ -302,6 +298,7 @@ class DltSourceFactoryWrapper(SourceFactory[TSourceFunParams, TDltSourceImpl]):
             # parallelize resources
             if self.parallelized:
                 s.parallelize()
+            s._factory = self
             return s
 
         def _make_schema() -> Schema:
@@ -632,6 +629,7 @@ def resource(
         write_disposition (TTableHintTemplate[TWriteDispositionConfig], optional): Controls how to write data to a table. Accepts a shorthand string literal or configuration dictionary.
             Allowed shorthand string literals: `append` will always add new data at the end of the table. `replace` will replace existing data with new data. `skip` will prevent data from loading. "merge" will deduplicate and merge data based on "primary_key" and "merge_key" hints. Defaults to "append".
             Write behaviour can be further customized through a configuration dictionary. For example, to obtain an SCD2 table provide `write_disposition={"disposition": "merge", "strategy": "scd2"}`.
+            The `replace` shorthand resets the resource state, including incremental cursors, so dlt reloads the table from scratch. The dictionary form `{"disposition": "replace"}` keeps the state by default and loads only the newly extracted rows. Set `exclude_resource_state` to `False` to reset the state. See `TReplaceDispositionDict`.
             This argument also accepts a callable that is used to dynamically create tables for stream-like resources yielding many datatypes.
 
         columns (TTableHintTemplate[TAnySchemaColumns], optional): A list, dict, pydantic model or pyarrow schema of column schemas.
@@ -798,7 +796,7 @@ def resource(
 
         # associate source factory with the decorated function for the standalone=True resource
         # this provides access to standalone resources in the same way as to sources via SourceReference
-        r_._factory = factory  # type: ignore[attr-defined]
+        r_._factory = factory
 
         return r_
 
@@ -830,7 +828,7 @@ def transformer(
     name: TTableHintTemplate[str] = None,
     table_name: TTableHintTemplate[str] = None,
     max_table_nesting: int = None,
-    write_disposition: TTableHintTemplate[TWriteDisposition] = None,
+    write_disposition: TTableHintTemplate[TWriteDispositionConfig] = None,
     columns: TTableHintTemplate[TAnySchemaColumns] = None,
     primary_key: TTableHintTemplate[TColumnNames] = None,
     merge_key: TTableHintTemplate[TColumnNames] = None,
@@ -858,7 +856,7 @@ def transformer(
     name: TTableHintTemplate[str] = None,
     table_name: TTableHintTemplate[str] = None,
     max_table_nesting: int = None,
-    write_disposition: TTableHintTemplate[TWriteDisposition] = None,
+    write_disposition: TTableHintTemplate[TWriteDispositionConfig] = None,
     columns: TTableHintTemplate[TAnySchemaColumns] = None,
     primary_key: TTableHintTemplate[TColumnNames] = None,
     merge_key: TTableHintTemplate[TColumnNames] = None,
@@ -882,7 +880,7 @@ def transformer(
     name: TTableHintTemplate[str] = None,
     table_name: TTableHintTemplate[str] = None,
     max_table_nesting: int = None,
-    write_disposition: TTableHintTemplate[TWriteDisposition] = None,
+    write_disposition: TTableHintTemplate[TWriteDispositionConfig] = None,
     columns: TTableHintTemplate[TAnySchemaColumns] = None,
     primary_key: TTableHintTemplate[TColumnNames] = None,
     merge_key: TTableHintTemplate[TColumnNames] = None,
@@ -936,7 +934,9 @@ def transformer(
 
         max_table_nesting (int, optional): A schema hint that sets the maximum depth of nested table above which the remaining nodes are loaded as structs or JSON.
 
-        write_disposition (TTableHintTemplate[TWriteDisposition], optional): Controls how to write data to a table. `append` will always add new data at the end of the table. `replace` will replace existing data with new data. `skip` will prevent data from loading. "merge" will deduplicate and merge data based on "primary_key" and "merge_key" hints. Defaults to "append".
+        write_disposition (TTableHintTemplate[TWriteDispositionConfig], optional): Controls how to write data to a table. Accepts a shorthand string literal or configuration dictionary.
+            Allowed shorthand string literals: `append` will always add new data at the end of the table. `replace` will replace existing data with new data. `skip` will prevent data from loading. "merge" will deduplicate and merge data based on "primary_key" and "merge_key" hints. Defaults to "append".
+            Write behaviour can be further customized through a configuration dictionary. For example, to obtain an SCD2 table provide `write_disposition={"disposition": "merge", "strategy": "scd2"}`.
             This argument also accepts a callable that is used to dynamically create tables for stream-like resources yielding many datatypes.
 
         columns (TTableHintTemplate[TAnySchemaColumns], optional): A list, dict, pydantic model or pyarrow schema of column schemas. Typed dictionary describing column names, data types, write disposition and performance hints that gives you full control over the created table schema.

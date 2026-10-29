@@ -5,7 +5,7 @@ keywords: [transformation, dataset, sql, pipeline, ibis, arrow]
 ---
 # Transformations: Reshape data after loading
 
-`dlt transformations` build new tables or full datasets from datasets that dlt has _already_ ingested. You write and run them in the same fashion as dlt sources and resources. A transformation needs data that you already loaded to a data location, for example a local duckdb database, a bucket, or a warehouse. dlt supports transformations on every SQL destination, and on every filesystem and bucket format.
+[dltHub Transformations](https://dlthub.com/products/transformations) build new tables or full datasets from data that dlt has _already_ ingested. You write and run them in the same fashion as dlt sources and resources. A transformation needs data that you already loaded to a data location, for example a local DuckDB database, a bucket, or a warehouse. dlt supports transformations on every SQL destination, and on every filesystem and bucket format.
 
 You create them with the `@dlt.hub.transformation` decorator. This decorator has the same signature as the `@dlt.resource` decorator, but it yields a SQL query with the resulting
 column schema, rather than data items. dlt transformations support the same write_dispositions per destination as dlt resources do.
@@ -669,6 +669,10 @@ For lower-level cursor rules, including range inclusivity and `lag`, see [Filter
 ### Schema evolution
 
 For example, a transformation that joins two tables and creates new columns makes `dlt` update the destination schema. An incompatible schema change, such as a column type change that can lose data, makes `dlt` fail before the transformation runs. This protects your data and saves execution and debug time.
+
+`dlt` resolves every column of the query against the dataset schema. If a column cannot be resolved, for example an unqualified column of a table that is not in the dataset schema, computing the schema fails with `LineageFailedException` before the transformation runs.
+
+A column whose data type cannot be derived from the query, such as a `NULL` literal, a function unknown to `dlt`, or a column of a table outside the dataset schema, has no data type. A transformation that runs as SQL on the destination does not load such a column and logs a warning. Cast the column in the query, or set its data type with the `columns` hint.
 
 You can inspect the computed result schema during development. Read `Relation.columns_schema`, or print `Relation.columns` for the column names only:
 

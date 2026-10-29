@@ -54,7 +54,7 @@ To get started with your data pipeline, follow these steps:
 
 1. Enter the following command:
 
-   ```sh
+   ```cli
    dlt init personio duckdb
    ```
 
@@ -98,7 +98,7 @@ For more information, read [Credentials](../../general-usage/credentials).
 1. Before running the pipeline, ensure that you have installed all the necessary dependencies by
    running the command:
 
-   ```sh
+   ```cli
    pip install -r requirements.txt
    ```
 
@@ -111,7 +111,7 @@ For more information, read [Credentials](../../general-usage/credentials).
 1. Once the pipeline has finished running, you can verify that everything loaded correctly by using
    the following command:
 
-   ```sh
+   ```cli
    dlt pipeline <pipeline_name> show
    ```
 
@@ -169,7 +169,7 @@ def employees(
     updated_at: dlt.sources.incremental[
         pendulum.DateTime
     ] = dlt.sources.incremental(
-        "last_modified_at", initial_value=None, allow_external_schedulers=True
+        "last_modified_at", initial_value=None
     ),
     items_per_page: int = 100,
 ) -> Iterable[TDataItem]:
@@ -181,7 +181,9 @@ def employees(
 
 `items_per_page`: Maximum number of items per page, defaults to 200.
 
-`allow_external_schedulers`: A boolean that, if true, permits [external schedulers](../../general-usage/incremental/cursor.md#using-airflow-schedule-for-backfill-and-incremental-loading) to manage incremental loading.
+This source does not set `allow_external_schedulers`. To load the data interval of each Airflow run,
+set `allow_external_schedulers=True` on the incrementals of the source. For an example, see
+[Using Airflow schedule for backfill and incremental loading](../../general-usage/incremental/cursor.md#using-airflow-schedule-for-backfill-and-incremental-loading).
 
 Like the `employees` resource discussed above, other resources `absences` and `attendances` load
 data incrementally from the Personio API to your preferred destination.

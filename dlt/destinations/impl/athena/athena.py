@@ -132,14 +132,8 @@ class AthenaMergeJob(SqlMergeFollowupJob):
         return sql, temp_table_name
 
     @classmethod
-    def gen_concat_sql(cls, columns: Sequence[str]) -> str:
-        # Athena requires explicit casting
-        columns = [f"CAST({c} AS VARCHAR)" for c in columns]
-        return f"CONCAT({', '.join(columns)})"
-
-    @classmethod
-    def requires_temp_table_for_delete(cls) -> bool:
-        return True
+    def supports_alias_in_delete(cls) -> bool:
+        return False
 
 
 class LfTagsManager:
@@ -275,7 +269,7 @@ class AthenaClient(SqlJobClientWithStagingDataset, SupportsStagingDestination):
             load_table["table_format"] = "iceberg"
         if load_table["write_disposition"] == "merge":
             merge_strategy = resolve_merge_strategy(
-                self.schema.tables, load_table, self.capabilities
+                self.schema.tables, load_table, self.capabilities, is_prepared=True
             )
             if merge_strategy is None:
                 logger.warning(f"Falling back to `append` on `{table_name}`.")
@@ -403,9 +397,13 @@ class AthenaClient(SqlJobClientWithStagingDataset, SupportsStagingDestination):
         only_tables: Iterable[str] = None,
         expected_update: TSchemaTables = None,
         force: bool = False,
+        include_existing_tables: bool = False,
     ) -> Optional[TSchemaTables]:
         applied_update = super().update_stored_schema(
-            only_tables, expected_update=expected_update, force=force
+            only_tables,
+            expected_update=expected_update,
+            force=force,
+            include_existing_tables=include_existing_tables,
         )
         # here we could apply tags only if any migration happened, right now we do it on each run
         # NOTE: tags are applied before any data is loaded

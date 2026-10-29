@@ -297,6 +297,20 @@ class ClickHouseMergeJob(SqlMergeFollowupJob):
         return f"ALTER TABLE {table_name} UPDATE"
 
     @classmethod
+    def gen_merge_key_present_clause(
+        cls,
+        table_name: str,
+        staging_root_table_name: str,
+        merge_keys: Sequence[str],
+        sql_client: SqlClientBase[Any],
+        source_filter: Optional[str] = None,
+    ) -> Optional[str]:
+        # mutations do not support correlated subqueries
+        if not merge_keys:
+            return None
+        return cls._gen_keys_in_staging_cond(staging_root_table_name, merge_keys, source_filter)
+
+    @classmethod
     def requires_temp_table_for_delete(cls) -> bool:
         return False
 
@@ -535,6 +549,8 @@ class ClickHouseClient(SqlJobClientWithStagingDataset, SupportsStagingDestinatio
         engine_name = TABLE_ENGINE_TYPE_TO_CLICKHOUSE_ATTR.get(table_type)
         sql[0] = f"{sql[0]}\nENGINE = {engine_name}{engine_params}"
 
+        sort_key = self._get_key(table, "sort")
+
         # PRIMARY KEY
         if primary_key_list := [
             self.sql_client.escape_column_name(c["name"])
@@ -542,11 +558,12 @@ class ClickHouseClient(SqlJobClientWithStagingDataset, SupportsStagingDestinatio
             if c.get("primary_key")
         ]:
             sql[0] += "\nPRIMARY KEY (" + ", ".join(primary_key_list) + ")"
-        else:
+        elif not sort_key:
+            # an explicit empty primary key would override the index ClickHouse derives from ORDER BY
             sql[0] += "\nPRIMARY KEY tuple()"
 
         # ORDER BY
-        if sort_key := self._get_key(table, "sort"):
+        if sort_key:
             sql[0] += f"\nORDER BY {sort_key}"
 
         # PARTITION BY

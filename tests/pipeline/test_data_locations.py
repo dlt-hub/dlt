@@ -1,11 +1,28 @@
+import asyncio
+import json
 import os
-from typing import Any, Dict, List, cast
+from typing import Any, Callable, Dict, List, cast
+
+import pytest
 
 import dlt
+from dlt.common import known_env
 from dlt.common.metrics import TDatasetDataLocation, data_location_version
-from dlt.common.utils import uniq_id
+from dlt.common.runners import Venv
+from dlt.common.utils import digest128, uniq_id
+from dlt.extract.reference import SourceReference
 
+from tests.pipeline.cases.code_location_pipeline import (
+    async_rows,
+    async_shop,
+    inner_resource,
+    passthrough,
+    rows,
+    shop,
+    users,
+)
 from tests.pipeline.utils import assert_load_info
+from tests.utils import get_test_storage_root
 
 
 def _outputs(info: Any) -> List[TDatasetDataLocation]:
@@ -18,8 +35,19 @@ def _by_resource(locations: List[TDatasetDataLocation]) -> Dict[str, TDatasetDat
 
 
 def _inputs(info: Any) -> List[Any]:
-    """All input locations of an extract info"""
-    return info.metrics[info.loads_ids[0]][0]["inputs"]
+    """All input locations of an extract info, across load packages and the sources in them"""
+    return [
+        location
+        for metrics in info.metrics.values()
+        for source_metrics in metrics
+        for location in source_metrics["inputs"]
+    ]
+
+
+def _code_locations(inputs: List[Any]) -> Dict[str, str]:
+    """`code` location of each resource, no other kind is expected among `inputs`"""
+    assert all(location["kind"] == "code" for location in inputs)
+    return {location["resource_name"]: location["location"] for location in inputs}
 
 
 @dlt.resource(primary_key="id", name="orders")
@@ -85,6 +113,21 @@ def test_output_locations_identify_the_dataset() -> None:
     # a new column changes the schema hash and with it the version of the location
     info = pipeline.run(dlt.resource([{"id": 2, "extra": "x"}], name="customers"))
     assert _by_resource(_outputs(info))["customers"]["version"] != location["version"]
+
+
+def test_local_filesystem_fingerprint() -> None:
+    """A local path reports the fingerprint of its file:// url, as all past dlt versions did"""
+    pipeline = dlt.pipeline(
+        pipeline_name="out_local_fs_" + uniq_id(),
+        destination=dlt.destinations.filesystem(os.path.join(get_test_storage_root(), "lake")),
+        dataset_name="local_" + uniq_id(),
+    )
+    info = pipeline.run(dlt.resource([{"id": 1}], name="customers"))
+    assert_load_info(info)
+
+    assert info.destination_fingerprint == digest128("file://")
+    location = _by_resource(_outputs(info))["customers"]
+    assert location["destination_fingerprint"] == digest128("file://")
 
 
 def test_output_locations_of_multiple_datasets() -> None:
@@ -209,3 +252,93 @@ def test_input_and_output_locations_join_on_physical_dataset_name() -> None:
     assert read["physical_dataset_name"] == written["physical_dataset_name"]
     assert read["location"] == written["location"]
     assert read["resource_name"] == "orders_copy"
+
+
+CODE_MODULE = "tests.pipeline.cases.code_location_pipeline"
+SHOP_LOCATIONS = {"users": f"{CODE_MODULE}.shop", "static": f"{CODE_MODULE}.shop"}
+
+
+def test_code_input_location_joins_pipelines_of_the_same_source() -> None:
+    """Pipelines running the same custom source report the same `code` location"""
+    locations = [
+        _code_locations(_inputs(dlt.pipeline(pipeline_name="code_" + uniq_id()).extract(shop())))
+        for _ in range(2)
+    ]
+    assert locations == [SHOP_LOCATIONS] * 2
+
+
+@pytest.mark.parametrize(
+    "data,expected",
+    [
+        # plain data and anonymous code have no location, a transformer has its parent instead
+        pytest.param(lambda: [{"id": 1}], {}, id="list"),
+        pytest.param(lambda: iter([{"id": 1}]), {}, id="iterator"),
+        pytest.param(lambda: dlt.resource(lambda: [{"id": 1}], name="t"), {}, id="lambda_resource"),
+        pytest.param(lambda: (x for x in [{"id": 1}]), {}, id="generator_expression"),
+        pytest.param(
+            lambda: dlt.resource([{"id": 1}], name="t") | dlt.transformer(name="tr")(passthrough),
+            {},
+            id="transformer_over_list",
+        ),
+        # resources and generators are named after their function
+        pytest.param(lambda: rows(), {"t": f"{CODE_MODULE}.rows"}, id="generator"),
+        pytest.param(
+            lambda: async_rows(), {"t": f"{CODE_MODULE}.async_rows"}, id="async_generator"
+        ),
+        pytest.param(lambda: users(), {"users": f"{CODE_MODULE}.users"}, id="resource"),
+        pytest.param(
+            lambda: users.with_name("renamed")(),
+            {"renamed": f"{CODE_MODULE}.users"},
+            id="renamed_resource",
+        ),
+        pytest.param(
+            lambda: inner_resource(),
+            {"inner": f"{CODE_MODULE}.inner_resource.<locals>.inner"},
+            id="inner_resource",
+        ),
+        pytest.param(
+            lambda: SourceReference.from_reference(f"{CODE_MODULE}.users"),
+            {"users": f"{CODE_MODULE}.users"},
+            id="resource_from_reference",
+        ),
+        # resources of a source point at the source, however the source was obtained
+        pytest.param(lambda: shop(), SHOP_LOCATIONS, id="source"),
+        pytest.param(lambda: shop, SHOP_LOCATIONS, id="source_factory"),
+        pytest.param(
+            lambda: shop().with_resources("static"),
+            {"static": f"{CODE_MODULE}.shop"},
+            id="source_with_resources",
+        ),
+        # the parent of a selected transformer is extracted and reported, the transformer is not
+        pytest.param(
+            lambda: shop().with_resources("enrich"),
+            {"users": f"{CODE_MODULE}.shop"},
+            id="source_transformer_selected",
+        ),
+        pytest.param(lambda: shop().clone(with_name="shop_2"), SHOP_LOCATIONS, id="source_clone"),
+        pytest.param(lambda: shop().decompose("scc"), SHOP_LOCATIONS, id="source_decomposed"),
+        pytest.param(
+            lambda: asyncio.run(async_shop()),  # type: ignore[arg-type]
+            {"users": f"{CODE_MODULE}.async_shop"},
+            id="async_source",
+        ),
+        # a resource taken out of its source is on its own
+        pytest.param(
+            lambda: shop().resources["users"],
+            {"users": f"{CODE_MODULE}.users"},
+            id="resource_of_source",
+        ),
+    ],
+)
+def test_code_input_location_of_data(data: Callable[[], Any], expected: Dict[str, str]) -> None:
+    pipeline = dlt.pipeline(pipeline_name="code_" + uniq_id())
+    assert _code_locations(_inputs(pipeline.extract(data(), table_name="t"))) == expected
+
+
+def test_code_input_location_of_module_run_as_main() -> None:
+    """A source in a pipeline module run with `python -m` is named after that module, not `__main__`"""
+    # the pipeline run by the subprocess must land in test storage, not in the user's home
+    os.environ[known_env.DLT_DATA_DIR] = get_test_storage_root()
+    output = Venv.restore_current().run_module(CODE_MODULE)
+    inputs = json.loads(output.strip().splitlines()[-1])
+    assert _code_locations(inputs) == SHOP_LOCATIONS

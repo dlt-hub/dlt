@@ -146,6 +146,12 @@ def _validation_reason(error: Any) -> str:
     )
 
 
+def is_retry_part(part: Any) -> bool:
+    """Tells if a message part sends a failed call back to the model for a retry."""
+    # newer pydantic-ai sends a retried tool call back as a tool return with a `retried` outcome
+    return isinstance(part, RetryPromptPart) or getattr(part, "outcome", None) == "retried"
+
+
 class ToolRetryBudget(AbstractCapability[Any]):
     """Allows `loop_run_args.retries` retries per tool, then fails its calls."""
 
@@ -470,7 +476,7 @@ class PydanticAILoop(AgentLoop):
                         tool=event.part.tool_name,
                         detail=event.part.content,
                         error=(
-                            isinstance(event.part, RetryPromptPart)
+                            is_retry_part(event.part)
                             or getattr(event.part, "outcome", None) == "failed"
                         ),
                     )

@@ -522,6 +522,7 @@ class Pipeline(SupportsPipeline):
                 )
                 # commit load packages with state
                 extract_step.commit_packages()
+                extract_step.warn_on_unbalanced_files(self.pipeline_name)
                 return self._get_step_info(extract_step)
         except (Exception, KeyboardInterrupt) as exc:
             # emit step info
@@ -754,6 +755,7 @@ class Pipeline(SupportsPipeline):
             write_disposition (TWriteDispositionConfig, optional): Controls how to write data to a table. Accepts a shorthand string literal or configuration dictionary.
                 Allowed shorthand string literals: `append` will always add new data at the end of the table. `replace` will replace existing data with new data. `skip` will prevent data from loading. "merge" will deduplicate and merge data based on "primary_key" and "merge_key" hints. Defaults to "append".
                 Write behaviour can be further customized through a configuration dictionary. For example, to obtain an SCD2 table provide `write_disposition={"disposition": "merge", "strategy": "scd2"}`.
+                The `replace` shorthand resets the resource state, including incremental cursors, so dlt reloads the table from scratch. The dictionary form `{"disposition": "replace"}` keeps the state by default and loads only the newly extracted rows. Set `exclude_resource_state` to `False` to reset the state. See `TReplaceDispositionDict`.
                 Please note that in case of `dlt.resource` the table schema value will be overwritten and in case of `dlt.source`, the values in all resources will be overwritten.
 
             columns (TAnySchemaColumns, optional): A list of column schemas. Typed dictionary describing column names, data types, write disposition and performance hints that gives you full control over the created table schema.
@@ -1338,8 +1340,16 @@ class Pipeline(SupportsPipeline):
         return plan
 
     @with_schemas_sync
-    def sync_schema(self, schema_name: str = None) -> TSchemaTables:
-        """Synchronizes the schema `schema_name` with the destination. If no name is provided, the default schema will be synchronized."""
+    def sync_schema(self, schema_name: str = None, force: bool = False) -> TSchemaTables:
+        """Synchronizes the schema `schema_name` with the destination. If no name is provided, the default schema will be synchronized.
+
+        Args:
+            schema_name (str, optional): Name of the schema to synchronize. Defaults to the default schema.
+            force (bool): Applies the migration even if the schema version hash is already stored in the destination.
+
+        Returns:
+            TSchemaTables: Tables and columns that were created or added in the destination.
+        """
         if not schema_name and not self.default_schema_name:
             raise PipelineConfigMissing(
                 self.pipeline_name,
@@ -1352,7 +1362,7 @@ class Pipeline(SupportsPipeline):
         schema = self.schemas[schema_name] if schema_name else self.default_schema
         with self._get_destination_clients(schema)[0] as client:
             client.initialize_storage()
-            return client.update_stored_schema()
+            return client.update_stored_schema(force=force)
 
     def set_local_state_val(self, key: str, value: Any) -> None:
         """Sets value in local state. Local state is not synchronized with destination."""
@@ -1639,8 +1649,11 @@ class Pipeline(SupportsPipeline):
                     deepcopy(prepare_refresh_source(self, source, refresh))
                 )
                 if refresh == "drop_sources":
-                    # replace the whole source AFTER we got tables to drop
-                    source.schema = source_schema
+                    # replace the whole source AFTER we got tables to drop. like on the first run,
+                    # start from the import schema
+                    source.schema = (
+                        self._schema_storage.load_import_schema(source_schema.name) or source_schema
+                    )
             # NOTE: we do pass any programmatic changes from source schema to pipeline schema except settings below
             # TODO: enable when we have full identifier lineage and we are able to merge table identifiers
             if type(source.schema.naming) is not type(source_schema.naming):  # noqa

@@ -1,7 +1,9 @@
 import dlt, pytest
 import contextlib
-from typing import Any, Callable, ClassVar, Dict, Iterator, Literal, Union, Optional, Type
+from typing import Any, Callable, ClassVar, Dict, Iterator, Literal, Union, Optional, Type, cast
 
+from dlt.common import Decimal
+from dlt.common.destination.typing import PreparedTableSchema
 from dlt.common.schema.typing import (
     TColumnSchema,
     TSchemaContract,
@@ -13,6 +15,7 @@ from dlt.common.schema import Schema
 from dlt.common.schema.utils import new_table
 from dlt.common.schema.exceptions import DataValidationError
 from dlt.common.typing import TDataItems
+from dlt.destinations import snowflake
 from dlt.extract.hints import make_hints
 
 from dlt.extract import DltResource
@@ -1282,6 +1285,113 @@ def test_arrow_data_new_column_blocked_by_contract(contract_setting: TSchemaEvol
         assert (
             "email" not in table["columns"]
         ), f"arrow-data column 'email' should be blocked by {contract_setting}"
+
+
+@pytest.mark.parametrize("item_format", ["pandas", "arrow-table", "arrow-batch"])
+@pytest.mark.parametrize("data_type_contract", ["evolve", "discard_value"])
+def test_arrow_hint_changes_data_type(
+    item_format: TestDataItemFormat, data_type_contract: TSchemaEvolutionMode
+) -> None:
+    """Text hint over decimal arrow data (ie. sql_database reflection) leaves no stale scale."""
+    pipeline = get_pipeline()
+    contract: TSchemaContract = {"data_type": data_type_contract}
+    decimals = data_to_item_format(item_format, [{"id": 1, "value": Decimal("10.25")}])
+    texts = data_to_item_format(item_format, [{"id": 2, "value": "some text"}])
+    text_hint: TColumnSchema = {"data_type": "text", "precision": 50}
+    decimal_hint: TColumnSchema = {"data_type": "decimal", "precision": 10, "scale": 2}
+
+    # new table: contract does not apply, text hint replaces arrow decimal type
+    pipeline.extract(
+        dlt.resource(
+            decimals, name=NEW_ITEMS_TABLE, columns={"value": text_hint}, schema_contract=contract
+        )
+    )
+    # existing decimal column: text hint is accepted or discarded by the contract
+    pipeline.extract(
+        dlt.resource(
+            decimals, name=ITEMS_TABLE, columns={"value": decimal_hint}, schema_contract=contract
+        )
+    )
+    pipeline.normalize()
+    pipeline.extract(
+        dlt.resource(
+            texts, name=ITEMS_TABLE, columns={"value": text_hint}, schema_contract=contract
+        )
+    )
+
+    expected = [(NEW_ITEMS_TABLE, text_hint, "VARCHAR(50)")]
+    if data_type_contract == "evolve":
+        expected.append((ITEMS_TABLE, text_hint, "VARCHAR(50)"))
+    else:
+        expected.append((ITEMS_TABLE, decimal_hint, "NUMBER(10,2)"))
+    mapper = snowflake().capabilities().get_type_mapper()
+    for table_name, hint, destination_type in expected:
+        table = pipeline.default_schema.get_table(table_name)
+        column = table["columns"]["value"]
+        assert column == {"name": "value", "nullable": True, **hint}
+        # a stale scale fails in VARCHAR(%i) with TypeError
+        assert (
+            mapper.to_destination_type(column, cast(PreparedTableSchema, table)) == destination_type
+        )
+
+
+@pytest.mark.parametrize("item_format", ["pandas", "arrow-table", "arrow-batch"])
+@pytest.mark.parametrize("contract_mode", ["discard_row", "discard_value"])
+@pytest.mark.parametrize("schema_entity", ["columns", "data_type"])
+@pytest.mark.parametrize("dynamic_table_name", [False, True], ids=["static_name", "dynamic_name"])
+def test_arrow_contract_filters_follow_arrow_schema(
+    item_format: TestDataItemFormat,
+    contract_mode: TSchemaEvolutionMode,
+    schema_entity: str,
+    dynamic_table_name: bool,
+) -> None:
+    """Contract filters apply to each arrow item, also when an item lacks the filtered column."""
+    pipeline = get_pipeline()
+    # `columns` filters a new column, `data_type` filters text values of a bigint column
+    column = NEW_COLUMN_NAME if schema_entity == "columns" else "value"
+    existing = {"id": 1} if schema_entity == "columns" else {"id": 1, column: 1}
+    pipeline.run(data_to_item_format(item_format, [existing]), table_name=ITEMS_TABLE)
+
+    @dlt.resource(
+        name=ITEMS_TABLE,
+        table_name=(lambda _: ITEMS_TABLE) if dynamic_table_name else ITEMS_TABLE,
+        schema_contract=cast(TSchemaContractDict, {schema_entity: contract_mode}),
+    )
+    def arrow_items():
+        yield from data_to_item_format(
+            item_format, [{"id": 2, column: None}, {"id": 3, column: "x"}]
+        )
+        yield from data_to_item_format(item_format, [{"id": 4}])
+        yield from data_to_item_format(
+            item_format, [{"id": 5, column: "y"}, {"id": 6, column: None}]
+        )
+        # bigint values are new for `columns` and valid for `data_type`
+        yield from data_to_item_format(item_format, [{"id": 7, column: 7}])
+
+    assert_load_info(pipeline.run(arrow_items()))
+
+    rows = pipeline.dataset()[ITEMS_TABLE].order_by("id").fetchall()
+    if schema_entity == "columns":
+        assert column not in pipeline.default_schema.get_table_columns(ITEMS_TABLE)
+        expected_ids = [1, 2, 4, 6] if contract_mode == "discard_row" else [1, 2, 3, 4, 5, 6, 7]
+        assert [row[0] for row in rows] == expected_ids
+    else:
+        assert (
+            pipeline.default_schema.get_table_columns(ITEMS_TABLE)[column]["data_type"] == "bigint"
+        )
+        expected_values = {1: 1, 2: None, 4: None, 6: None, 7: 7}
+        if contract_mode == "discard_value":
+            expected_values.update({3: None, 5: None})
+        assert {row[0]: row[1] for row in rows} == expected_values
+
+    # a new table is discarded with all its items
+    @dlt.resource(name=NEW_ITEMS_TABLE, schema_contract={"tables": contract_mode})
+    def new_arrow_items():
+        yield from data_to_item_format(item_format, [{"id": 1}])
+        yield from data_to_item_format(item_format, [{"id": 2}])
+
+    pipeline.run(new_arrow_items())
+    assert NEW_ITEMS_TABLE not in pipeline.default_schema.tables
 
 
 TABLE_NAME_MAP = {"click": "click_events", "purchase": "purchase_events", "debug": "debug_events"}

@@ -20,11 +20,17 @@ from dlt.common.schema.typing import (
 from dlt.common.schema.utils import (
     get_columns_names_with_prop,
     get_first_column_name_with_prop,
+    get_root_table,
     has_column_with_prop,
     is_nested_table,
     pipeline_state_table,
 )
-from dlt.common.destination.utils import MERGE_CONDITION_PLACEHOLDERS, validate_merge_condition
+from dlt.common.destination.utils import (
+    MERGE_CONDITION_PLACEHOLDERS,
+    MERGE_CONDITION_VALUE_PLACEHOLDERS,
+    get_merge_placeholder_values,
+    validate_merge_condition,
+)
 
 from dlt.destinations.exceptions import DatabaseTransientException
 from dlt.extract import DltResource, resource as make_resource, DltSource
@@ -150,7 +156,9 @@ def verify_unsupported_merge_options(
     `options` that `target` (a destination type or table format) cannot apply."""
     exception_log: List[Exception] = []
     for table in load_tables:
-        merge_strategy = resolve_merge_strategy(schema.tables, table, capabilities)
+        merge_strategy = resolve_merge_strategy(
+            schema.tables, table, capabilities, is_prepared=True
+        )
         if merge_strategy is None:
             continue
         set_options = _get_merge_options(table)
@@ -167,6 +175,43 @@ def verify_unsupported_merge_options(
     return exception_log
 
 
+def _verify_nested_destination_scope(
+    schema: Schema,
+    table: PreparedTableSchema,
+    root_table: PreparedTableSchema,
+    capabilities: DestinationCapabilitiesContext,
+    destination_scope_placeholders: Sequence[str],
+) -> List[Exception]:
+    merge_strategy = resolve_merge_strategy(
+        schema.tables, root_table, capabilities, is_prepared=True
+    )
+    if merge_strategy is None:
+        # the prepared root table does not merge, ie. on a staging filesystem
+        return []
+    if merge_strategy != "delete-insert" or "x-merge-destination-scope" not in root_table:
+        return [
+            SchemaCorruptedException(
+                schema.name,
+                f"Nested table `{table['name']}` has `destination_scope`. dlt uses it only with"
+                " the `delete-insert` merge strategy and when the root table"
+                f" `{root_table['name']}` has `destination_scope`.",
+            )
+        ]
+    try:
+        validate_merge_condition(
+            "destination_scope",
+            cast(str, table["x-merge-destination-scope"]),  # type: ignore[typeddict-item]
+            [
+                *destination_scope_placeholders,
+                *MERGE_CONDITION_VALUE_PLACEHOLDERS,
+                *get_merge_placeholder_values(root_table["name"]),
+            ],
+        )
+    except ValueError as scope_ex:
+        return [SchemaCorruptedException(schema.name, f"Table `{table['name']}`: {scope_ex}")]
+    return []
+
+
 def verify_schema_merge_disposition(
     schema: Schema,
     load_tables: Sequence[PreparedTableSchema],
@@ -181,11 +226,26 @@ def verify_schema_merge_disposition(
     log = logger.warning if warnings else logger.info
     # collect all exceptions to show all problems in the schema
     exception_log: List[Exception] = []
+    prepared_tables = {table["name"]: table for table in load_tables}
 
     # verifies schema settings specific to sql job client
     for table in load_tables:
-        # from now on validate only top level tables
         if is_nested_table(table):
+            if "x-merge-destination-scope" in table:
+                root_name = get_root_table(schema.tables, table["name"])["name"]
+                # a nested table has data only with its root table, so the root is loaded too
+                if root_table := prepared_tables.get(root_name):
+                    exception_log.extend(
+                        _verify_nested_destination_scope(
+                            schema, table, root_table, capabilities, destination_scope_placeholders
+                        )
+                    )
+                else:
+                    logger.warning(
+                        "dlt did not verify the `destination_scope` of nested table"
+                        f" `{table['name']}`. Its root table `{root_name}` has no data in this"
+                        " load."
+                    )
             continue
 
         table_name = table["name"]
@@ -199,7 +259,9 @@ def verify_schema_merge_disposition(
                     )
                 )
 
-            merge_strategy = resolve_merge_strategy(schema.tables, table, capabilities)
+            merge_strategy = resolve_merge_strategy(
+                schema.tables, table, capabilities, is_prepared=True
+            )
             if merge_strategy is None:
                 table_format_info = ""
                 if capabilities.supported_table_formats:
@@ -217,13 +279,21 @@ def verify_schema_merge_disposition(
                 )
                 continue
             has_destination_scope = "x-merge-destination-scope" in table
+            value_placeholders = {
+                *MERGE_CONDITION_VALUE_PLACEHOLDERS,
+                *get_merge_placeholder_values(table_name),
+            }
             for hint_name, x_hint, placeholders in (
                 ("source_filter", "x-merge-source-filter", source_filter_placeholders),
                 ("destination_scope", "x-merge-destination-scope", destination_scope_placeholders),
             ):
                 if filter_ := table.get(x_hint):
                     try:
-                        validate_merge_condition(hint_name, cast(str, filter_), placeholders)
+                        validate_merge_condition(
+                            hint_name,
+                            cast(str, filter_),
+                            [*placeholders, *sorted(value_placeholders)],
+                        )
                     except ValueError as filter_ex:
                         exception_log.append(
                             SchemaCorruptedException(

@@ -29,7 +29,7 @@ Before we start, make sure you have a Python virtual environment set up. Follow 
 
 Verify that dlt is installed by running the following command in your terminal:
 
-```sh
+```cli
 dlt --version
 ```
 
@@ -39,13 +39,13 @@ If you see the version number (such as "dlt 0.5.3"), you're ready to proceed.
 
 Initialize a new dlt project with a REST API source and DuckDB destination:
 
-```sh
+```cli
 dlt init rest_api duckdb
 ```
 
 `dlt init` creates multiple files and a directory for your project. Let's take a look at the project structure:
 
-```sh
+```tree
 rest_api_pipeline.py
 requirements.txt
 .dlt/
@@ -65,7 +65,7 @@ Here's what each file and directory contains:
 
 Before we proceed, let's install the required dependencies for this tutorial. Run the following command to install the dependencies listed in the `requirements.txt` file:
 
-```sh
+```cli
 pip install -r requirements.txt
 ```
 
@@ -90,13 +90,13 @@ Load package 1692364844.9254808 is LOADED and contains no failed jobs
 
 Now that the pipeline has run successfully, let's explore the data loaded into DuckDB. dlt comes with a built-in browser application that allows you to interact with the data. To enable it, run the following command:
 
-```sh
+```cli
 pip install marimo
 ```
 
 Next, run the following command to start the data browser:
 
-```sh
+```cli
 dlt pipeline rest_api_pokemon show
 ```
 

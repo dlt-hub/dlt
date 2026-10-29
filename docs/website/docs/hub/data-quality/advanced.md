@@ -9,7 +9,7 @@ keywords: ["dlthub", "data quality", "contracts", "check", "metrics"]
 This feature is in public preview
 :::
 
-This page covers more in-depth details about data quality features, such as metrics and checks. It shows the full flexibility available for advanced use cases. It can also serve as an FAQ and helper for debugging.
+This page covers more in-depth details about [dltHub data quality](https://dlthub.com/products/data-quality) features, such as metrics and checks. It shows the full flexibility available for advanced use cases. It can also serve as an FAQ and helper for debugging.
 
 Note that these APIs are more likely to change than the basics page.
 

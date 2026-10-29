@@ -15,6 +15,7 @@ from dlt.common.libs.sqlglot import (
     resolve_date_cast,
     resolve_timestamp_cast,
     to_sqlglot_type,
+    where_on_output,
 )
 from dlt.common.schema.typing import TTableSchemaColumns
 
@@ -244,7 +245,9 @@ def apply_incremental(
                 range_start=range_start,
             )
             filtered_query = (
-                target_query.where(lower_condition) if lower_condition is not None else target_query
+                where_on_output(target_query, lower_condition)
+                if lower_condition is not None
+                else target_query
             )
             agg_query = _build_incremental_aggregate(
                 filtered_query,
@@ -276,7 +279,9 @@ def apply_incremental(
         range_start=range_start,
         range_end=range_end,
     )
-    final_query = target_query.where(condition) if condition is not None else target_query
+    final_query = (
+        where_on_output(target_query, condition) if condition is not None else target_query
+    )
     ctx = _RelationIncrementalContext(incremental=incremental, cursor_column=column_ref.copy())
     return final_query, ctx
 

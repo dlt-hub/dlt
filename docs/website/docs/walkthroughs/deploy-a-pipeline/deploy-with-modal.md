@@ -30,7 +30,7 @@ Here’s a dlt project setup to copy data from public MySQL database into DuckDB
 
 Run the `dlt init` CLI command to initialize the SQL database source and set up the `sql_database_pipeline.py` template.
 
-```sh
+```cli
 dlt init sql_database duckdb
 ```
 

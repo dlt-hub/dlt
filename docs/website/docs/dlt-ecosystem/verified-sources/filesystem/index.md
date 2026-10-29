@@ -110,7 +110,7 @@ To get started with your data pipeline, follow these steps:
 
 1. Enter the following command:
 
-   ```sh
+   ```cli
    dlt init filesystem duckdb
    ```
 
@@ -412,6 +412,29 @@ filesystem_pipe = filesystem(
 We advise that you give each resource a [specific name](../../../general-usage/resource.md#duplicate-and-rename-resources) before loading with `pipeline.run`. This will ensure that data goes to a table with the name you want and that each pipeline uses a [separate state for incremental loading.](../../../general-usage/state.md#read-and-write-pipeline-state-in-a-resource)
 :::
 
+:::tip
+The table gets its hints, such as `write_disposition`, from the reader after `|`, not from the `filesystem` resource. Set the `incremental` on `filesystem` to pick new files and the write disposition on the piped resource. A `replace` set on `filesystem` does not reach the table, and its shorthand form resets the `filesystem` incremental on each run, so dlt reads all files again.
+
+To replace the table with the records from new files only, use the dictionary form of `replace`. Unlike the shorthand, it keeps the incremental state. See [Replace with incremental loading](../../../general-usage/full-loading.md#replace-with-incremental-loading):
+
+```py
+import dlt
+from dlt.sources.filesystem import filesystem, read_jsonl
+
+new_files = filesystem(
+  bucket_url="s3://bucket_name",
+  file_glob="directory/*.jsonl",
+  incremental=dlt.sources.incremental("modification_date"),
+)
+filesystem_pipe = new_files | read_jsonl()
+filesystem_pipe.apply_hints(write_disposition={"disposition": "replace"})
+
+pipeline = dlt.pipeline(pipeline_name="my_pipeline", destination="duckdb")
+pipeline.run(filesystem_pipe.with_name("new_records"))
+```
+
+:::
+
 ### 3. Create and run a pipeline
 
 ```py
@@ -596,6 +619,23 @@ while not pipeline.run(fs_.with_name("files").add_limit(1)).is_empty:
 ```
 
 **Note that you must set row_order on incremental to not miss a file**:
+
+You can also limit a reader or the `readers` source. dlt sets the limit on the `filesystem` resource. As a result, each run reads one page of files:
+
+```py
+import dlt
+from dlt.sources.filesystem import filesystem, read_csv
+
+incremental_ = dlt.sources.incremental("modification_date", row_order="asc")  # type: ignore
+fs_ = filesystem(bucket_url=bucket_url, file_glob="csv/*", incremental=incremental_, files_per_page=1)
+reader = (fs_ | read_csv()).with_name("records")
+
+# read one file in each run
+while not pipeline.run(reader.add_limit(1)).is_empty:
+    print(pipeline.last_trace.last_load_info)  # ty: ignore[unresolved-attribute]
+```
+
+The limit counts pages of files, not chunks of the reader. dlt reads each file to the end. To set the size of a run, use `files_per_page`. The `chunksize` of the reader controls only the memory use.
 
 ### 7. Filter files
 

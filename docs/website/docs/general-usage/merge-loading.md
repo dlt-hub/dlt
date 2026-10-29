@@ -252,21 +252,19 @@ If you plan for some of resources to do merges but your initial backfill is appe
 1. [Enable root key propagation right away](#forcing-root-key-propagation)
 2. or, if you are sure that nested tables are max 1 level deep: [Explicitly disable root key propagation](#disable-root-key-propagation)
 
-If you try to switch to merge after nested tables were already created you'll get a warning and NULL column violation from your
-destination. You can fix your pipeline by:
+If you switch to merge, or set `root_key=True`, after nested tables were already created, dlt logs a warning and adds `_dlt_root_id`
+to the nested tables as a NOT NULL column. Your destination rejects it if the tables contain data. You can fix your pipeline by:
 
 1. Drop affected resources using `dlt pipeline ... drop` command or by using `refresh` argument on the pipeline. This will drop
 data from related resources and reset the schema so NOT NULL columns can be created.
 2. If you have nested tables up to 1 nesting level you may [Explicitly disable root key propagation](#disable-root-key-propagation)
-3. You can fix your nested tables in both staging and final datasets. Add `_dlt_root_id` to all nested tables and copy data
-from related [root (top level) tables](../general-usage/schema.md#nested-references-root-and-nested-tables) `_dlt_id` (`row_key`).
-In that case `dlt` will update pipeline schema but will skip database migration.
+3. [Add the root key to existing tables](#add-the-root-key-to-existing-tables) yourself. This keeps your data.
 
 #### Forcing root key propagation
 
-`Root key` propagation is automatically enabled for all tables that have the `merge` write disposition set from the beginning. We do not always enable it by default because it takes up additional storage space. Nevertheless, in some cases, you may want to permanently enable `root key` propagation.
+`Root key` propagation is automatically enabled for tables that use the `delete-insert`, `upsert`, `insert-only` or `cdc` merge strategy from the beginning. We do not always enable it by default because it takes up additional storage space. Nevertheless, in some cases, you may want to permanently enable `root key` propagation.
 
-To enable `root key` propagation on an existing source or resource, you must drop and recreate its tables, since the `_dlt_root_id` column cannot be added to tables that already contain data.
+dlt cannot add the `_dlt_root_id` column to tables that already contain data. To enable `root key` propagation on an existing source or resource, drop and recreate its tables as shown below, or [add the root key to existing tables](#add-the-root-key-to-existing-tables) yourself.
 
 For example, suppose you used the [Facebook Ads](../dlt-ecosystem/verified-sources/facebook_ads.md) verified source, where the `merge` write disposition and `root key` are not enabled by default, to load the `ads` resource:
 
@@ -282,7 +280,7 @@ pipeline.run(my_facebook_ads.with_resources("ads"))
 
 If you want to change the `ads` resource to use `merge`, you must first drop the existing resource tables from the destination:
 
-```sh
+```cli
 dlt pipeline facebook_ads_pipeline drop ads
 ```
 
@@ -315,10 +313,37 @@ If your source generates single level of nested table (nested tables do not have
 by setting `root_key` to `False` on the source level. In that case `dlt` will use `parent_key` which is identical to `root_key` for level 1 nested tables. Note that currently you cannot disable propagation on the resource level.
 
 :::tip
-If you switched from `append` to `merge` and you forgot to set `root_key` on your source, it is too late to set it to `True` if you already have data in
+If you switched from `append` to `merge` and you forgot to set `root_key` on your source, setting it to `True` fails if you already have data in
 the destination. However, if you are sure that you do not have nested tables in nested tables (nesting level = 1), you can set it to `False` so the
 existing `parent_key` will be used.
 :::
+
+#### Add the root key to existing tables
+
+You can add `_dlt_root_id` to nested tables that already contain data yourself. dlt finds the column in the destination and skips the migration.
+
+1. Add `_dlt_root_id` as a nullable text column to every nested table of the resource.
+2. Copy the `_dlt_id` of the root table into it. In nested tables of level 1, `_dlt_parent_id` already holds this value. Deeper nested tables take `_dlt_root_id` from their parent table, one level at a time.
+3. Drop the nested tables of the resource in the [staging dataset](../dlt-ecosystem/staging.md#staging-dataset), if they exist. They keep the rows of the last load, so dlt cannot add the column there either. dlt creates them again in the next load.
+4. Run the pipeline with the new settings. If a load already failed, run the pipeline again: dlt loads the pending load package.
+
+For example, the `parent` resource in the `my_data` dataset has the nested tables `parent__children` and `parent__children__grand`:
+
+```sql
+ALTER TABLE my_data.parent__children ADD COLUMN _dlt_root_id VARCHAR;
+UPDATE my_data.parent__children SET _dlt_root_id = _dlt_parent_id;
+
+ALTER TABLE my_data.parent__children__grand ADD COLUMN _dlt_root_id VARCHAR;
+UPDATE my_data.parent__children__grand AS g
+SET _dlt_root_id = c._dlt_root_id
+FROM my_data.parent__children AS c
+WHERE g._dlt_parent_id = c._dlt_id;
+
+DROP TABLE IF EXISTS my_data_staging.parent__children__grand;
+DROP TABLE IF EXISTS my_data_staging.parent__children;
+```
+
+The example uses DuckDB and PostgreSQL syntax. Adjust the data type and the `UPDATE` statement to your destination.
 
 ## `scd2` strategy
 
@@ -597,16 +622,18 @@ You can configure the literal used to indicate an active record with `active_rec
         "disposition": "merge",
         "strategy": "scd2",
         # accepts various types of date/datetime objects
-        "active_record_timestamp": "9999-12-31",
+        "active_record_timestamp": "9999-12-31T00:00:00+00:00",
     }
 )
 def dim_customer():
     ...
 ```
 
+dlt compares this value with the "valid to" column of every load, so it must not change between loads. dlt stores it like a loaded timestamp, see [timezones of the validity columns](#timezones-of-the-validity-columns).
+
 ### Example: configure boundary timestamp
 
-You can configure the "boundary timestamp" used for record validity windows with `boundary_timestamp`. The provided date(time) value is used as "valid from" for new records and as "valid to" for retired records. The timestamp at which a load package is created is used if `boundary_timestamp` is omitted.
+You can configure the "boundary timestamp" used for record validity windows with `boundary_timestamp`. The provided date(time) value is used as "valid from" for new records and as "valid to" for retired records. If `boundary_timestamp` is omitted or `None`, dlt uses the time at which the load package was created.
 
 ```py
 @dlt.resource(
@@ -621,35 +648,34 @@ def dim_customer():
     ...
 ```
 
-#### Reset boundary timestamp to the current load time
-
-To stop using a previously set `boundary_timestamp` and revert to the default (the current load package creation time), set `boundary_timestamp` to `None`. You can do this either at definition time or dynamically with `apply_hints` before a run.
-
-Definition-time (always use current load time):
+The boundary applies only to the load that declares it. dlt stores it in the load package, not in the schema, so a new boundary does not create a new schema version, and the next load without `boundary_timestamp` uses its own creation time. To set the boundary of a single run, use `apply_hints` before the run:
 
 ```py
-@dlt.resource(
-    write_disposition={
-        "disposition": "merge",
-        "strategy": "scd2",
-        "boundary_timestamp": None,  # reset to current load time
-    }
-)
+@dlt.resource(write_disposition={"disposition": "merge", "strategy": "scd2"})
 def dim_customer():
     ...
 
-# Per-run reset (override just for this run):
 dim_customer.apply_hints(
     write_disposition={
         "disposition": "merge",
         "strategy": "scd2",
-        "boundary_timestamp": None,  # reset to current load time for this run
+        "boundary_timestamp": "2024-08-22T00:00:00+00:00",
     }
 )
 pipeline.run(dim_customer())
 ```
 
-When `boundary_timestamp` is `None` (or omitted), `dlt` uses the load package's creation timestamp as the boundary for both retiring existing versions and creating new versions.
+dlt reads `boundary_timestamp` only from a write disposition dict, not from a function that returns the write disposition.
+
+### Timezones of the validity columns
+
+dlt writes `boundary_timestamp`, `active_record_timestamp` and the load package creation time into the validity columns by the rules for [loaded timestamps](schema.md#handling-of-timestamp-and-time-zones), so they are in the same timezone as the data:
+
+- A value with a timezone is converted to the [context timezone](schema.md#context-timezone), UTC by default.
+- A naive value is read in the context timezone.
+- A destination without timezone support, like Athena, stores the wall clock of the context timezone.
+
+The load package creation time is UTC, so the default boundary is the instant of the load.
 
 ### Example: Use your own row hash
 
@@ -702,6 +728,10 @@ adding the transform with `add_map`.
 ### Nested tables
 
 Nested tables, if any, do not contain validity columns. Validity columns are only added to the root table. To get the validity columns for a nested record, join the nested table to its parent on `_dlt_parent_id`. By default, `_dlt_id` in the root table is the row hash of the record version. Deeper nested tables join through each parent level. If you set `root_key=True` on the source, nested tables also get `_dlt_root_id`, and you can join the root table directly.
+
+:::caution
+`scd2` does not need the root key, so dlt does not propagate it by default. If you want `_dlt_root_id` in nested tables, set `root_key=True` before the first load. dlt cannot add `_dlt_root_id` to tables that already contain data, but you can [add it yourself](#add-the-root-key-to-existing-tables).
+:::
 
 ### Limitations
 
@@ -858,7 +888,7 @@ def events_source():
 ```
 
 :::caution
-`upsert` and `cdc` delete nested records by the root key. If you may switch the resource to one of these strategies later, keep the root key. dlt cannot add `_dlt_root_id` to tables that already contain data.
+`upsert` and `cdc` delete nested records by the root key. If you may switch the resource to one of these strategies later, keep the root key. dlt cannot add `_dlt_root_id` to tables that already contain data, but you can [add it yourself](#add-the-root-key-to-existing-tables).
 :::
 
 ## `cdc` strategy
@@ -1044,7 +1074,9 @@ The conditions can reference the tables by placeholder. The expansion depends on
 On SQL destinations:
 
 - `destination_scope` can use both placeholders.
-- `source_filter` cannot use placeholders. dlt applies it to the staging table, so write it with bare column names.
+- `source_filter` cannot use the table placeholders. dlt applies it to the staging table, so write it with bare column names.
+
+Both conditions can also use [value placeholders](#fill-placeholders-with-values-from-the-load).
 
 On the `delta` table format, the conditions are Delta merge predicates:
 
@@ -1056,49 +1088,76 @@ To write a literal brace, double it: `{{` or `}}`.
 
 ### Replacing a partition with `delete-insert`
 
-For [`delete-insert`](#delete-insert-strategy), `destination_scope` is the delete condition. dlt deletes the records that the destination scope selects and inserts the merge source. The delete does not use keys, so `primary_key` and `merge_key` are optional. If you set a `primary_key`, dlt still deduplicates the loaded data. BigQuery and Snowflake prune partitions for this delete:
+For [`delete-insert`](#delete-insert-strategy), `destination_scope` is the delete condition. dlt deletes the records that the destination scope selects and inserts the merge source. The delete does not use keys, so `primary_key` and `merge_key` are optional. If you set a `primary_key`, dlt still deduplicates the loaded data.
+
+The partition usually changes with every load. Write it as a [placeholder](#fill-placeholders-with-values-from-the-load). Take its value from the argument of the resource:
 
 ```py
+from datetime import date
+
 @dlt.resource(
     write_disposition={
         "disposition": "merge",
         "strategy": "delete-insert",
-        "destination_scope": "date_col = '2026-08-01'",
+        "destination_scope": "date_col = {day}",
+        "extra_placeholders": {"day": lambda resource, table_name: resource.explicit_args["day"]},
     },
 )
-def my_partition():
+def my_partition(day: date):
     # yield the records for that one partition
     ...
-...
+
+pipeline = dlt.pipeline("my_pipeline", destination="duckdb")
+pipeline.run(my_partition(date(2026, 8, 1)))
 ```
 
+The schema keeps `date_col = {day}`. The load package stores the value, and dlt expands the destination scope to `date_col = '2026-08-01'`. A load for another day does not create a new schema version.
+
 :::warning
-If a record **changes** the value that the destination scope tests, dlt does not delete its old copy. For example, a record can move to another date. Then the destination has two records with this key. To also delete records by key, add the key match to the destination scope: `"date_col = '2026-08-01' OR id IN (SELECT id FROM {staging_table})"`. With this destination scope, the destination cannot prune partitions.
+If a record **changes** the value that the destination scope tests, dlt does not delete its old copy. For example, a record can move to another date. Then the destination has two records with this key. To also delete records by key, add the key match to the destination scope: `"date_col = {day} OR id IN (SELECT id FROM {staging_table})"`. With this destination scope, the destination cannot prune partitions.
 :::
 
 If a `delete-insert` resource has no keys and no `destination_scope`, dlt appends the data. With a `destination_scope`, dlt replaces the records that the destination scope selects.
 
 With `source_filter` and no `destination_scope`, `delete-insert` deletes by the keys and `merge_key` partitions of the merge source. dlt keeps a destination record only when its key and partition are not in the merge source.
 
+#### Partition pruning
+
+If the destination table is partitioned, the delete can read only the partition that it replaces. BigQuery and Snowflake prune partitions for this delete when:
+
+1. On BigQuery, the destination table is partitioned on the column, for example with [`bigquery_adapter(my_partition, partition="date_col")`](../dlt-ecosystem/destinations/bigquery.md#use-an-adapter-to-apply-hints-to-a-resource). Snowflake has no partition hint. It skips micro-partitions by the minimum and maximum values of the column, which works best when records arrive in date order.
+2. The destination scope compares this column to a literal, for example `"date_col = {day}"`. A value placeholder expands to a literal.
+
+These conditions prevent partition pruning:
+
+- a `merge_key` instead of a destination scope. On BigQuery, a `merge_key` compiles to a subquery.
+- a subquery in the destination scope, for example `OR id IN (SELECT id FROM {staging_table})`
+- a function on the partition column, for example `DATE(date_col) = {day}` on a timestamp column
+
+To prune partitions based on the loaded data, also in nested tables, see the [partition pruning cookbook](../examples/partition_pruning.md).
+
 ### Use placeholders to match keys in one partition
 
 By default, dlt deletes all records that the destination scope selects. If the primary key is unique only within a partition, match the keys against the staging table. Then dlt deletes only the records that the load replaces:
 
 ```py
+from datetime import date
+
 @dlt.resource(
     primary_key="id",
     write_disposition={
         "disposition": "merge",
         "strategy": "delete-insert",
-        "destination_scope": "day = '2026-08-01' AND id IN (SELECT id FROM {staging_table})",
+        "destination_scope": "day = {day} AND id IN (SELECT id FROM {staging_table})",
+        "extra_placeholders": {"day": lambda resource, table_name: resource.explicit_args["day"]},
     },
 )
-def items():
-    # yield the records for 2026-08-01
+def items(day: date):
+    # yield the records for that day
     ...
 ```
 
-On a SQL destination, dlt expands the placeholder and runs this delete before the insert:
+For `day=date(2026, 8, 1)`, dlt expands the placeholders on a SQL destination and runs this delete before the insert:
 
 ```sql
 DELETE FROM "my_dataset"."items"
@@ -1107,4 +1166,55 @@ WHERE day = '2026-08-01' AND id IN (SELECT id FROM "my_dataset_staging"."items")
 
 The outer `day` and `id` refer to the destination table. The `id` in the subquery refers to the staging table. The subquery is not correlated, so ClickHouse also accepts this form.
 
-The `delta` table format does not support `delete-insert`. With `cdc`, write the partition condition as `"{table}.day = '2026-08-01'"`. dlt expands it to `target.day = '2026-08-01'`.
+The `delta` table format does not support `delete-insert`. With `cdc`, write the partition condition as `"{table}.day = {day}"`. dlt expands it to `target.day = '2026-08-01'`.
+
+### Fill placeholders with values from the load
+
+dlt stores the merge conditions in the schema. A literal that changes with every load, such as the date of a partition, creates a new schema version with every load. Write a value placeholder instead. dlt expands each value placeholder to an escaped SQL literal, so do not put quotes around it. A `datetime` value expands to a timestamp literal of the destination, with the timestamp precision of the destination, by the same rules as the [validity columns](#timezones-of-the-validity-columns), so it compares to the loaded timestamps.
+
+dlt fills these value placeholders from the load package:
+
+| placeholder                               | value                                                                                        |
+| ----------------------------------------- | -------------------------------------------------------------------------------------------- |
+| `{load_id}`                               | the load id, the value of `_dlt_load_id` in this load                                        |
+| `{table_name}`                            | the name of the root table                                                                   |
+| `{load_package_timestamp}`                | the creation time of the load package, in seconds                                            |
+| `{load_package_timestamp_ms}`             | the creation time of the load package, in milliseconds                                       |
+| `{boundary_timestamp}`                    | the `scd2` boundary timestamp, or the creation time of the load package, a timestamp literal |
+| `{curr_date}`                             | the date of the load package, a date literal                                                 |
+| `{YYYY}`, `{MM}`, `{DD}`, `{HH}` and more | parts of the creation time of the load package                                               |
+
+The date and time placeholders are the same as the [date and time placeholders of the filesystem layout](../dlt-ecosystem/destinations/filesystem.md#date-and-time-placeholders). In merge conditions, a number is a number literal, so `{MM}` expands to `3`, not `'03'`. Names like `{MMMM}` expand to string literals.
+
+If the table is partitioned by the load date, a destination scope like `"load_day = {curr_date}"` needs no other values.
+
+:::caution
+The date placeholders give the date of the **load** in UTC, not the date of the data. A load that runs after midnight, or that carries late records, has a different date from its records. To replace the partitions of the data, set the value in `extra_placeholders`.
+:::
+
+A list or tuple value expands to a list of literals for `IN`. For example, `"event_day IN {days}"` expands to `event_day IN ('2026-10-02', '2026-10-04')`. An empty list expands to `(NULL)`, which matches no records.
+
+Set other values in `extra_placeholders`. A value is a constant or a function. dlt calls the function after the extract step, once for each table of the resource. The function receives the resource and the table name. It can read the arguments of the resource from `resource.explicit_args`, as in [Replacing a partition with `delete-insert`](#replacing-a-partition-with-delete-insert). For an [incremental](incremental-loading.md) resource, it can read `resource.incremental.incremental.last_value`, the highest cursor value of the load.
+
+dlt stores the values in the load package, not in the schema. The schema does not change between loads. If a load fails, dlt retries the package with the values of the extract step, even if the resource changed after the extract step.
+
+To merge only the records of the current load, use `{load_id}` in the source filter:
+
+```py
+@dlt.resource(
+    primary_key="id",
+    write_disposition={
+        "disposition": "merge",
+        "strategy": "delete-insert",
+        "source_filter": "_dlt_load_id = {load_id}",
+    },
+)
+def items():
+    ...
+```
+
+This source filter is useful when the staging tables keep the records of earlier loads, for example with [`truncate_staging_merge_tables_before_load`](../dlt-ecosystem/staging.md#keep-the-staging-tables-when-the-load-begins).
+
+The names of `extra_placeholders` cannot be `table`, `staging_table` or the name of a value placeholder that dlt fills. dlt reads `extra_placeholders` only from a write disposition dict, not from a function that returns the write disposition.
+
+A table [variant](resource.md#dispatch-data-to-many-tables) and a nested table with its own `primary_key` or `merge_key` in [`nested_hints`](schema.md#generate-custom-linking-for-nested-tables) merge on their own. dlt takes their values from their own write disposition. A variant without a write disposition uses the one of the resource.

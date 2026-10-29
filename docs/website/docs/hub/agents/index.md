@@ -9,7 +9,7 @@ keywords: [dlthub platform, agents, background agents, agent job, AGENT.md, run.
 This feature is in public preview
 :::
 
-An agent job is a dltHub job that runs an AI agent loop. It runs unattended on a schedule, after another job fails, or when you start it from the CLI or the Web UI. It can read the workspace. It can query runs and logs through the dltHub Model Context Protocol (MCP) server. It returns a job result, which shows on the page of each entity that the agent run acted on.
+An agent job is a dltHub job that runs an AI agent loop, the building block of [background agents](https://dlthub.com/products/background-agents). It runs unattended on a schedule, after another job fails, or when you start it from the CLI or the Web UI. It can read the workspace. It can query runs and logs through the dltHub Model Context Protocol (MCP) server. It returns a job result, which shows on the page of each entity that the agent run acted on.
 
 Agent jobs are declared, run, and deployed like every other job: in `__deployment__.py`, with `dlthub local run` locally and `dlthub deploy` on the platform. [Deployments](../pipeline-operations/deployments.md), [Triggers and scheduling](../pipeline-operations/triggers.md), and [Job configuration](../pipeline-operations/job-configuration.md) apply to agent jobs too.
 
@@ -26,14 +26,14 @@ This page covers how to declare an agent job and how to run it locally and on th
 | Access axis      | Area of the workspace that `access` covers: `local` for the files and the shell, `data` for the data in your destinations, `context` for runs, logs, job definitions, and telemetry | Key of `access` in the agent definition                               |
 | Verb             | What the agent can do on an axis: `local` takes `read`, `write`, `execute`, `network`; `data` takes `read`, `write`; `context` takes `read`. `all` grants every verb of its axis    | Listed under the axis in `access`                                     |
 
-The [dltHub AI harness](../ai-harness/introduction.md) ships verified agent definitions in its toolkits. Installing a toolkit copies the `AGENT.md` into your workspace, where you can adapt it. Your `__deployment__.py` declares the agent jobs built on these definitions, and `dlthub deploy` ships the definitions with the rest of the workspace.
+The [dltHub AI Harness](../ai-harness/introduction.md) ships verified agent definitions in its toolkits. Installing a toolkit copies the `AGENT.md` into your workspace, where you can adapt it. Your `__deployment__.py` declares the agent jobs built on these definitions, and `dlthub deploy` ships the definitions with the rest of the workspace.
 
 ## Prerequisites
 
 1. A dltHub workspace with `dlt[hub]` installed and connected to the platform. See [Workspace setup](../pipeline-operations/workspace-setup.md).
 2. An agent loop installed locally. dltHub ships two agent loops, `pydantic-ai` (default) and `claude-agent-sdk`:
 
-   ```sh
+   ```cli
    uv add "pydantic-ai-slim[anthropic,openai,google,mcp,spec]"   # pydantic-ai loop (default)
    uv add claude-agent-sdk                                        # claude-agent-sdk loop
    ```
@@ -175,8 +175,8 @@ Manifest validation refuses a local-only profile (`dev`, `tests`) and takes any 
 
 Each trigger of the agent job produces an agent run. You can also start a run manually, the way you run any job locally or on the platform:
 
-```sh
-dlthub local run job_inspector -c failed_run_id=<run-id>     # locally
+```cli
+dlthub local run job_inspector -c failed_run_id=<run_id>     # locally
 dlthub run job_inspector -f                                  # on the platform
 ```
 
@@ -255,7 +255,7 @@ printf '%s' '<key>' | dlthub variable set AGENT__API_KEY --secret --workspace
 
 `dlthub deploy` ships the job graph and the agent definitions with the rest of the workspace:
 
-```sh
+```cli
 dlthub deploy
 ```
 

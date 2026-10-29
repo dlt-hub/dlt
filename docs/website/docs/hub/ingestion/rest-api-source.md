@@ -1,21 +1,21 @@
 ---
-title: REST API Source with dlthub AI Harness
+title: REST API Source with dltHub AI Harness
 description: Build any REST API source with dltHub AI Harness toolkits - workflows, skills, rules, and MCP tools
 keywords: [cursor, claude, codex, llm, restapi, ai, workbench, toolkit]
 ---
 # REST API Source with dltHub AI Harness
 
 :::info
-The dltHub AI Harness is a part of the dltHub platform. View the license [here](https://github.com/dlt-hub/dlthub-ai-workbench/blob/master/LICENSE).
+The [dltHub AI Harness](../ai-harness/introduction.md) is a part of the dltHub platform. View the license [here](https://github.com/dlt-hub/dlthub-ai-workbench/blob/master/LICENSE).
 :::
 
 ## Overview
 
-Build a custom REST API connector for any of the 8k+ available sources — often in a single session. Instead of generating ad-hoc code, the AI assistant follows a defined sequence of steps from start to finish to help you build production-grade pipelines following the dltHub best practices.
+Build a custom REST API connector with the [dltHub AI Harness](https://dlthub.com/features/ai-harness) for any of the 11,000+ sources in dltHub Context — often in a single session. Instead of generating ad-hoc code, the AI assistant follows a defined sequence of steps from start to finish to help you build production-grade pipelines following the dltHub best practices.
 
-The **rest-api-pipeline** toolkit is part of the [dltHub AI Harness](../ai-harness/introduction.md) and gives your coding assistant a structured, guided workflow — skills, rules, and an MCP server — tied together by a **workflow** that tells the assistant which skill to run at each step. It is designed to support an iterative data pipeline development flow and helps you validate results step by step.
+The **rest-api-pipeline** toolkit is part of the harness and gives your coding assistant a structured, guided workflow — skills, rules, and an MCP server — tied together by a **workflow** that tells the assistant which skill to run at each step. It is designed to support an iterative data pipeline development flow and helps you validate results step by step.
 
-The dltHub AI Harness works with **Claude Code**, **Cursor**, and **Codex**.
+The harness works with **Claude Code**, **Cursor**, and **Codex**.
 
 ## Setup
 
@@ -23,7 +23,7 @@ The dltHub AI Harness works with **Claude Code**, **Cursor**, and **Codex**.
 
 Install `uv` ([instructions](https://docs.astral.sh/uv/getting-started/installation/)), then scaffold a dltHub workspace — this installs `dlt[hub]` and all dependencies and sets up the AI skills your coding assistant uses (see the [installation guide](../getting-started/installation.md)):
 
-```sh
+```cli
 uvx dlthub-init@latest
 ```
 
@@ -34,14 +34,14 @@ Wire up your specific coding assistant:
 <Tabs values={[{"label": "Claude Code", "value": "claude"}, {"label": "Cursor", "value": "cursor"}, {"label": "Codex", "value": "codex"}]} groupId="ai-agent" defaultValue="claude">
 <TabItem value="claude">
 
-```sh
+```cli
 dlthub ai init --agent claude
 ```
 
 </TabItem>
 <TabItem value="cursor">
 
-```sh
+```cli
 dlthub ai init --agent cursor
 ```
 
@@ -59,7 +59,7 @@ CRITICAL: never ask for credentials in chat. Always let the user edit secrets di
 </TabItem>
 <TabItem value="codex">
 
-```sh
+```cli
 dlthub ai init --agent codex
 ```
 
@@ -90,14 +90,14 @@ The Codex CLI picks up the MCP server automatically; in the Codex UI you need to
 
 ### Install toolkit
 
-```sh
+```cli
 dlthub ai toolkit install rest-api-pipeline
 ```
 
 This installs the **rest-api-pipeline** toolkit: a workflow that orchestrates the assistant, an entry point skill, and step-by-step skills for each phase.
 
 :::info Claude Code marketplace plugin
-The workbench is also available as a **Claude Code marketplace plugin**. You don't need `uv`, Python, or `dlt` installed to get started — the `bootstrap` plugin handles everything from scratch.
+The dltHub AI Harness is also available as a **Claude Code marketplace plugin**. You don't need `uv`, Python, or `dlt` installed to get started — the `bootstrap` plugin handles everything from scratch.
 
 > The Claude Code plugin may not yet provide the best linking experience between different toolkits. We recommend using the `dlthub ai` CLI above for the best experience.
 
@@ -191,7 +191,7 @@ A pipeline that runs without errors is not necessarily correct. Before moving on
 
 You can open [Workspace Dashboard](./dashboard.md) to apply your own judgement:
 
-```sh
+```cli
 dlthub local pipeline show github_pipeline
 ```
 
@@ -285,7 +285,7 @@ Once your pipeline is validated, you can continue to the next phase of the data 
 
 - **`dlthub-platform`** — deploy, schedule, and monitor your pipeline in production
 
-```sh
+```cli
 uv run dlthub ai toolkit install data-exploration
 uv run dlthub ai toolkit install dlthub-platform
 ```

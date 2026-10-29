@@ -9,7 +9,7 @@ keywords: [Snowflake, destination, data warehouse]
 
 To install the `dlt` library with Snowflake dependencies, run:
 
-```sh
+```cli
 pip install "dlt[snowflake]"
 ```
 
@@ -19,13 +19,13 @@ pip install "dlt[snowflake]"
 
 1. Initialize a project with a pipeline that loads to Snowflake by running:
 
-```sh
+```cli
 dlt init chess snowflake
 ```
 
 2. Install the necessary dependencies for Snowflake by running:
 
-```sh
+```cli
 pip install -r requirements.txt
 ```
 

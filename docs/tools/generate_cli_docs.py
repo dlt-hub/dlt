@@ -4,7 +4,7 @@
 # requires-python = ">=3.10"
 # dependencies = [
 #   "dlt[cli]",
-#   "duckdb>=0.9",
+#   "duckdb>=0.9,<2",
 #   "ibis-framework>=12.0.0",
 #   "pyarrow>=16.0.0",
 #   "marimo>=0.14.5",
@@ -22,7 +22,7 @@
 """Standalone tool for generating and checking CLI reference docs.
 
 Usage:
-    uv run python tools/check_cli_docs.py <file_name> [--commands CMD ...] [--compare]
+    uv run --script tools/generate_cli_docs.py <file_name> [--commands CMD ...] [--compare]
 """
 
 import argparse
@@ -31,34 +31,17 @@ import os
 import re
 import sys
 import textwrap
+from importlib.metadata import version
 from typing import List, Optional
 
-HEADER = """---
-title: Command Line Interface
-description: Command line interface (CLI) full reference of dlt
-keywords: [command line interface, cli, dlt init]
----
-
-
-# Command Line Interface Reference
-
-<!-- this page is fully generated from the argparse object of dlt, run make update-cli-docs to update it -->
-
-This page contains all commands available in the dlt CLI and is generated
-automatically from the fully populated python argparse object of dlt.
-:::note
-Flags and positional commands are inherited from the parent command. Position within the command string
-is important. For example if you want to enable debug mode on the pipeline command, you need to add the
-debug flag to the base dlt command:
-
-```sh
-dlt --debug pipeline
-```
-
-Adding the flag after the pipeline keyword will not work.
-:::
-
-"""
+from mdx_utils import escape_mdx
+from reference_constants import (
+    CLI_DEFAULT_TITLE,
+    CLI_HEADER,
+    CLI_HEADER_TEMPLATE,
+    CLI_INHERITS_TEMPLATE,
+    CLI_VERSIONS_TEMPLATE,
+)
 
 # Developer NOTE: This generation is based on parsing the output of the help string in argparse.
 # It works very well at the moment, but there may be cases where it will break due to unanticipated
@@ -71,56 +54,14 @@ class _WidthFormatter(argparse.RawTextHelpFormatter):
         super().__init__(prog, width=99999, max_help_position=99999)
 
 
-def _escape_mdx(s: str) -> str:
-    """Escape `<` / `>` so MDX does not parse `<word>` as a JSX tag.
-
-    Skips fenced code blocks (```...```) and inline code spans (`...`),
-    since MDX renders those verbatim.
-    """
-    if not s:
-        return s
-    out: List[str] = []
-    in_fence = False
-    i = 0
-    n = len(s)
-    while i < n:
-        if s.startswith("```", i):
-            out.append("```")
-            i += 3
-            in_fence = not in_fence
-            continue
-        if in_fence:
-            out.append(s[i])
-            i += 1
-            continue
-        if s[i] == "`":
-            j = s.find("`", i + 1)
-            if j != -1:
-                out.append(s[i : j + 1])
-                i = j + 1
-                continue
-        if s.startswith("__", i):
-            out.append("\\_\\_")
-            i += 2
-            continue
-        ch = s[i]
-        if ch == "<":
-            out.append("&lt;")
-        elif ch == ">":
-            out.append("&gt;")
-        else:
-            out.append(ch)
-        i += 1
-    return "".join(out)
-
-
 def render_argparse_markdown(
     name: str,
     parser: argparse.ArgumentParser,
     /,
     *,
-    header: str = HEADER,
+    header: str = CLI_HEADER,
     commands: Optional[List[str]] = None,
+    sort_commands: bool = False,
 ) -> str:
     def get_parser_help_recursive(
         parser: argparse.ArgumentParser,
@@ -154,6 +95,12 @@ def render_argparse_markdown(
         # extract usage section denoted by "usage: "
         usage = sections[0]
         usage = usage.replace("usage: ", "")
+        if sort_commands:
+            usage = re.sub(
+                r"{([\w,-]+)}",
+                lambda m: "{" + ",".join(sorted(m[1].split(","))) + "}",
+                usage,
+            )
         usage = _text_wrap_line(usage)
 
         # get description or use help passed down from choices
@@ -167,9 +114,9 @@ def render_argparse_markdown(
             description = None
 
         # MDX parses `<word>` as a JSX tag; escape angle brackets in prose.
-        # Usage (inside ```sh) and backtick-wrapped tokens are left untouched.
-        help_string = _escape_mdx(help_string) if help_string else help_string
-        description = _escape_mdx(description) if description else description
+        # Usage (inside ```cli) and backtick-wrapped tokens are left untouched.
+        help_string = escape_mdx(help_string) if help_string else help_string
+        description = escape_mdx(description) if description else description
 
         if not parser.description:
             print(
@@ -180,7 +127,9 @@ def render_argparse_markdown(
         inherits_from = ""
         if parent:
             parent_slug = parent.lower().replace(" ", "-")
-            inherits_from = f"Inherits arguments from [`{parent}`](#{parent_slug})."
+            inherits_from = CLI_INHERITS_TEMPLATE.format(
+                parent=parent, anchor=parent_slug
+            )
 
         # extract all other sections
         # here we remove excess information and style the args nicely
@@ -199,7 +148,11 @@ def render_argparse_markdown(
             # remove first line with header and empty lines
             header = section_lines[0].replace(":", "")
 
-            if header.lower() not in ["available subcommands", "positional arguments", "options"]:
+            if header.lower() not in [
+                "available subcommands",
+                "positional arguments",
+                "options",
+            ]:
                 print(
                     f"WARNING: Skipping unknown section {header} of {cmd}.",
                     file=sys.stderr,
@@ -208,18 +161,27 @@ def render_argparse_markdown(
 
             section_lines = section_lines[1:]
             section_lines = [line for line in section_lines if line]
-            section_lines = [line for line in section_lines if not line.strip().startswith("{")]
+            section_lines = [
+                line for line in section_lines if not line.strip().startswith("{")
+            ]
             section = textwrap.dedent(os.linesep.join(section_lines))
 
             # NOTE: this is based on convention to name the subcommands section
             # "available subcommands"
             is_subcommands_list = "subcommands" in header
 
-            # split section and remove lines starting with {
-            section_lines = section.splitlines()
+            # an indented line continues the help of the entry above it
+            entries: List[str] = []
+            for line in section.splitlines():
+                if entries and line[:1].isspace():
+                    entries[-1] += " " + line.strip()
+                else:
+                    entries.append(line)
+            if is_subcommands_list and sort_commands:
+                entries.sort()
             # make markdown list of args
             section = ""
-            for line in section_lines:
+            for line in entries:
                 line = line.strip()
                 line_elements = re.split(r"\s{2,}|\n+", line)
                 arg_title = line_elements[0]
@@ -241,16 +203,21 @@ def render_argparse_markdown(
                 else:
                     quoted_title = f"`{arg_title}`"
                 if quoted_title:
-                    section += f"* {quoted_title} - {_escape_mdx(arg_help.capitalize())}\n"
+                    section += (
+                        f"* {quoted_title} - {escape_mdx(arg_help.capitalize())}\n"
+                    )
 
-            extracted_sections.append({"header": header.capitalize(), "section": section})
+            extracted_sections.append(
+                {"header": header.capitalize(), "section": section}
+            )
 
         heading = "##" if nesting < 2 else "###"
         markdown += f"{heading} `{cmd}`\n\n"
         if help_string:
             markdown += f"{help_string}\n\n"
         markdown += "**Usage**\n"
-        markdown += "```sh\n"
+        # `cli` is highlighted by the grammar in website/src/theme/prism-include-languages.js
+        markdown += "```cli\n"
         markdown += f"{usage}\n"
         markdown += "```\n\n"
 
@@ -274,7 +241,10 @@ def render_argparse_markdown(
         commands_found = []
         for action in parser._actions:
             if isinstance(action, argparse._SubParsersAction):
-                for subaction in action._get_subactions():
+                subactions = action._get_subactions()
+                if sort_commands:
+                    subactions = sorted(subactions, key=lambda a: a.dest)
+                for subaction in subactions:
                     subparser = action._name_parser_map[subaction.dest]
                     # skip unwanted commands
                     if commands and subaction.dest not in commands:
@@ -305,9 +275,10 @@ def render_argparse_markdown(
     return header + markdown
 
 
-# TODO we can probably remove the `file_name` argument for the output and set a constant
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Generate or check CLI reference docs.")
+    parser = argparse.ArgumentParser(
+        description="Generate or check CLI reference docs."
+    )
     parser.add_argument("file_name", help="Output file name")
     parser.add_argument(
         "--commands",
@@ -326,12 +297,43 @@ def main() -> None:
         default="dlt",
         help="Name of the executable shown in generated docs (default: dlt)",
     )
+    parser.add_argument(
+        "--title",
+        default=CLI_DEFAULT_TITLE,
+        help=f"Page title of the generated docs (default: {CLI_DEFAULT_TITLE})",
+    )
+    parser.add_argument(
+        "--sort-commands",
+        default=False,
+        action="store_true",
+        help="Sort subcommands by name instead of registration order, which depends on plugins",
+    )
+    parser.add_argument(
+        "--show-versions",
+        nargs="+",
+        default=None,
+        metavar="DISTRIBUTION",
+        help="State the installed versions of these packages on the page",
+    )
     args = parser.parse_args()
+
+    header = CLI_HEADER_TEMPLATE.format(title=args.title)
+    if args.show_versions:
+        versions = " and ".join(
+            f"`{name}` {version(name)}" for name in args.show_versions
+        )
+        header += CLI_VERSIONS_TEMPLATE.format(versions=versions)
 
     from dlt._workspace.cli._dlt import _create_parser
 
     cli_parser, _, _ = _create_parser(host=args.executable_name)
-    result = render_argparse_markdown(args.executable_name, cli_parser, commands=args.commands)
+    result = render_argparse_markdown(
+        args.executable_name,
+        cli_parser,
+        header=header,
+        commands=args.commands,
+        sort_commands=args.sort_commands,
+    )
 
     if args.compare:
         with open(args.file_name, "r", encoding="utf-8") as f:
@@ -345,7 +347,7 @@ def main() -> None:
                 )
                 print(
                     "ERROR: CLI docs out of date, please run"
-                    " update-cli-docs from the main Makefile and commit your changes.\n"
+                    " `make cli-generate` in docs/ and commit your changes.\n"
                     "Diff:\n" + "".join(diff),
                     file=sys.stderr,
                 )

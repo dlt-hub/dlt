@@ -9,9 +9,9 @@ keywords: [dlthub, background agents, job inspector, ai harness, dlthub-platform
 Background agents are in public preview.
 :::
 
-Background agents are dltHub jobs that run an AI agent loop. They run unattended, for example after another job fails, and report a structured result next to the job run they acted on.
+[Background agents](https://dlthub.com/products/background-agents) are dltHub jobs that run an AI agent loop. They run unattended, for example after another job fails, and report a structured result next to the job run they acted on.
 
-The agents ship with the [AI Harness](../ai-harness/introduction.md). The [`dlthub-platform`](../ai-harness/toolkits.md#dlthub-platform) toolkit includes `job-inspector`, a verified agent that diagnoses failed job runs.
+The agents ship with the [dltHub AI Harness](../ai-harness/introduction.md). The [`dlthub-platform`](../ai-harness/toolkits.md#dlthub-platform) toolkit includes `job-inspector`, a verified agent that diagnoses failed job runs.
 
 ## Prerequisites
 
@@ -68,13 +68,13 @@ If your workspace is not connected to dltHub yet, run `uv run dlthub workspace c
 
 Deploy the workspace:
 
-```sh
+```cli
 uv run dlthub deploy
 ```
 
 Then run the watched job, from the CLI:
 
-```sh
+```cli
 uv run dlthub run <job-name>
 ```
 

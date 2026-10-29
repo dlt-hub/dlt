@@ -9,7 +9,7 @@ keywords: [duckdb, destination, data warehouse]
 
 Install the dlt library with DuckDB dependencies:
 
-```sh
+```cli
 pip install "dlt[duckdb]"
 ```
 
@@ -19,13 +19,13 @@ pip install "dlt[duckdb]"
 
 1. Initialize a project with a pipeline that loads to DuckDB:
 
-```sh
+```cli
 dlt init chess duckdb
 ```
 
 2. Install the dependencies for DuckDB:
 
-```sh
+```cli
 pip install -r requirements.txt
 ```
 

@@ -8,13 +8,19 @@
 	],
     "assets": {
         "directory": "./build",
-        "run_worker_first": ["/*"],
+        // pagefind loads many index chunks per search, serve them directly without tracing
+        "run_worker_first": ["/*", "!/docs/pagefind/*"],
         "html_handling": "drop-trailing-slash",
         "binding": "ASSETS" // <-- creates env.ASSETS variable
     },
     "observability": {
       "enabled": true,
-      "head_sampling_rate": 1
+      "head_sampling_rate": 1,
+      "logs": {
+        "enabled": true,
+        "destinations": ["axiom-traffic-logs"],
+        "head_sampling_rate": 1
+      }
     },
   	"vars": {
       "AXIOM_DATASET": "vibes",

@@ -9,7 +9,7 @@ keywords: [ clickhouse, destination, data warehouse ]
 
 To install the dlt library with ClickHouse dependencies:
 
-```sh
+```cli
 pip install "dlt[clickhouse]"
 ```
 
@@ -21,7 +21,7 @@ pip install "dlt[clickhouse]"
 
 Let's start by initializing a new `dlt` project as follows:
 
-```sh
+```cli
 dlt init chess clickhouse
 ```
 
@@ -29,7 +29,7 @@ dlt init chess clickhouse
 
 The above command generates several files and directories, including `.dlt/secrets.toml` and a requirements file for ClickHouse. You can install the necessary dependencies specified in the requirements file by executing it as follows:
 
-```sh
+```cli
 pip install -r requirements.txt
 ```
 
@@ -388,6 +388,7 @@ clickhouse_adapter(my_resource, partition="toYYYYMMDD(TIMESTAMP)")  # WRONG: non
 :::note
 
 - The sorting/partitioning key can only be set when the table is first created. The value for `sort`/`partition` is ignored for existing tables.
+- To replace one partition with a merge, set a destination scope on the partition column. Read [Replacing a partition with `delete-insert`](../../general-usage/merge-loading.md#replacing-a-partition-with-delete-insert).
 - We explicitly mark the sorting/partition columns as **not nullable** in the examples above, because, by default, ClickHouse does not allow nullable columns in the sorting/partition key. Set `allow_nullable_key` to `True` in your [table settings](#mergetree-table-settings) if you insist on nullable key columns.
 :::
 

@@ -1,6 +1,8 @@
 import contextlib
 import string
-from typing import Callable, Dict, Iterable, List, Optional, Sequence, Set
+from datetime import datetime, timezone
+from functools import partial
+from typing import Any, Callable, Dict, Iterable, List, Optional, Sequence, Set, Tuple, cast
 
 from dlt.common import logger
 from dlt.common.configuration.inject import with_config
@@ -33,9 +35,42 @@ from dlt.common.schema.utils import (
     find_incomplete_columns,
 )
 from dlt.common.storages import ParsedLoadJobFileName
-from dlt.common.typing import ConfigValue, DictStrStr, TLoaderFileFormat
+from dlt.common.storages.exceptions import CurrentLoadPackageStateNotAvailable
+from dlt.common.storages.load_package import load_package_state
+from dlt.common.time import (
+    DATETIME_PLACEHOLDERS,
+    datetime_to_placeholders,
+    datetime_to_timestamp,
+    datetime_to_timestamp_ms,
+    ensure_datetime,
+    ensure_datetime_in_tz,
+    normalize_timezone,
+    reduce_datetime_precision,
+)
+from dlt.common.typing import ConfigValue, DictStrStr, TAnyDateTime, TLoaderFileFormat
 
 MERGE_CONDITION_PLACEHOLDERS = ("table", "staging_table")
+"""Placeholders that expand to table identifiers."""
+MERGE_CONDITION_VALUE_PLACEHOLDERS = (
+    "load_id",
+    "table_name",
+    "load_package_timestamp",
+    "load_package_timestamp_ms",
+    "boundary_timestamp",
+    "curr_date",
+    *sorted(DATETIME_PLACEHOLDERS),
+)
+"""Placeholders that dlt fills from the load package. They expand to literals."""
+
+
+def _get_condition_placeholders(hint_name: str, filter_: str) -> Set[str]:
+    try:
+        return {name for _, name, _, _ in string.Formatter().parse(filter_) if name is not None}
+    except ValueError as format_ex:
+        raise ValueError(
+            f"dlt cannot parse `{hint_name}` `{filter_}`: {format_ex}. To write a literal brace,"
+            " use `{{` or `}}`."
+        ) from format_ex
 
 
 def validate_merge_condition(
@@ -44,13 +79,7 @@ def validate_merge_condition(
     """Raises `ValueError` if the merge condition `filter_` is malformed or uses a placeholder
     not in `placeholders`.
     """
-    try:
-        used = {name for _, name, _, _ in string.Formatter().parse(filter_) if name is not None}
-    except ValueError as format_ex:
-        raise ValueError(
-            f"dlt cannot parse `{hint_name}` `{filter_}`: {format_ex}. To write a literal brace,"
-            " use `{{` or `}}`."
-        ) from format_ex
+    used = _get_condition_placeholders(hint_name, filter_)
     if unknown := sorted(used.difference(placeholders)):
         if placeholders:
             available = ", ".join("`{" + name + "}`" for name in placeholders)
@@ -62,6 +91,94 @@ def validate_merge_condition(
             f" {', '.join('`{' + name + '}`' for name in unknown)}. {allowed} To write a literal"
             " brace, use `{{` or `}}`."
         )
+
+
+def get_merge_placeholder_values(table_name: str) -> Dict[str, Any]:
+    """Returns the values of the value placeholders of `table_name` in the current load package.
+
+    Returns an empty dict outside of a load package.
+    """
+    try:
+        package = load_package_state()
+    except CurrentLoadPackageStateNotAvailable:
+        return {}
+    state = package["state"]
+    values = dict(state.get("placeholders", {}).get(table_name, {}))
+    values.update(load_id=package["load_id"], table_name=table_name)
+    if state.get("created_at"):
+        created_at = ensure_datetime_in_tz(state["created_at"], timezone.utc)
+        values.setdefault("boundary_timestamp", created_at)
+        values["load_package_timestamp"] = datetime_to_timestamp(created_at)
+        values["load_package_timestamp_ms"] = datetime_to_timestamp_ms(created_at)
+        values["curr_date"] = created_at.date()
+        for name, rendered in datetime_to_placeholders(created_at).items():
+            if name in DATETIME_PLACEHOLDERS:
+                # a SQL condition compares numbers to numbers, `{MM}` is 1, not '01'
+                values[name] = int(rendered) if rendered.isdigit() else rendered
+    return values
+
+
+def to_literal_datetime(
+    value: TAnyDateTime, supports_tz_aware_datetime: bool = True, precision: int = 6
+) -> datetime:
+    """Returns `value` as the destination stores a loaded timestamp: in the context timezone, as
+    the naive wall clock on a destination without tz support, at `precision`. A naive value is
+    read in the context timezone."""
+    value = normalize_timezone(ensure_datetime(value), supports_tz_aware_datetime)
+    return reduce_datetime_precision(value, precision)
+
+
+def get_scd2_timestamps(
+    root_table: TTableSchema, caps: DestinationCapabilitiesContext
+) -> Tuple[datetime, Optional[datetime]]:
+    """Returns the boundary and active record timestamps of an `scd2` table as literal values of
+    the destination, see `to_literal_datetime`. The boundary comes from the load package."""
+    # `x-boundary-timestamp` of older schemas is a stale value and is never read
+    boundary = get_merge_placeholder_values(root_table["name"])["boundary_timestamp"]
+    to_column = get_first_column_name_with_prop(root_table, "x-active-record-timestamp")
+    active_record = root_table["columns"][to_column]["x-active-record-timestamp"]  # type: ignore[typeddict-item]
+    # the literal is written to and compared with the validity columns, so it must not be finer
+    to_literal = partial(
+        to_literal_datetime,
+        supports_tz_aware_datetime=caps.supports_tz_aware_datetime,
+        precision=caps.timestamp_precision,
+    )
+    return to_literal(boundary), None if active_record is None else to_literal(active_record)
+
+
+def expand_merge_condition(
+    hint_name: str,
+    filter_: str,
+    identifiers: Dict[str, str],
+    values: Dict[str, Any],
+    escape_literal: Callable[[Any], Any],
+    supports_tz_aware_datetime: bool = True,
+    timestamp_precision: int = 6,
+) -> str:
+    """Expands identifier placeholders as they are and value placeholders as escaped literals.
+    A `datetime` value is converted with `to_literal_datetime`. A list or tuple value expands
+    to a list of literals for `IN`, an empty one to `(NULL)`.
+
+    Raises `ValueError` if `filter_` uses a placeholder that has no identifier or value.
+    """
+
+    def _to_literal(value: Any) -> Any:
+        if isinstance(value, datetime):
+            value = to_literal_datetime(value, supports_tz_aware_datetime, timestamp_precision)
+        return escape_literal(value)
+
+    validate_merge_condition(hint_name, filter_, [*identifiers, *values])
+    literals: Dict[str, Any] = {}
+    for name in _get_condition_placeholders(hint_name, filter_):
+        if name in identifiers:
+            continue
+        value = values[name]
+        if isinstance(value, (list, tuple)):
+            # `IN ()` is not valid SQL, `IN (NULL)` matches no rows
+            literals[name] = f"({', '.join(map(str, map(_to_literal, value))) or 'NULL'})"
+        else:
+            literals[name] = _to_literal(value)
+    return filter_.format(**identifiers, **literals)
 
 
 def get_merge_compare_columns(table: TTableSchema) -> List[str]:
@@ -340,11 +457,15 @@ def resolve_merge_strategy(
     tables: TSchemaTables,
     table: TTableSchema,
     destination_capabilities: Optional[DestinationCapabilitiesContext] = ConfigValue,
+    *,
+    is_prepared: bool,
 ) -> Optional[TLoaderMergeStrategy]:
     """Resolve merge strategy for a table, possibly resolving the 'x-merge-strategy from a table chain. strategies selector in `destination_capabilities`
     is used if present. If `table` does not contain strategy hint, a default value will be used which is the first.
 
-    `destination_capabilities` are injected from context if not explicitly passed.
+    `destination_capabilities` are injected from context if not explicitly passed. A table
+    prepared by a job client (`is_prepared`) is used as it is, other tables are prepared from
+    `tables`.
 
     Returns None if table write disposition is not merge
     """
@@ -353,8 +474,8 @@ def resolve_merge_strategy(
             destination_capabilities or DestinationCapabilitiesContext.generic_capabilities()
         )
         supported_strategies = destination_capabilities.supported_merge_strategies
-        # prepare table
-        table = prepare_load_table(tables, table, destination_capabilities)
+        if not is_prepared:
+            table = prepare_load_table(tables, table, destination_capabilities)
 
         table_name = table["name"]
         if destination_capabilities.merge_strategies_selector:
@@ -363,7 +484,14 @@ def resolve_merge_strategy(
             )
         if not supported_strategies:
             return None
-        merge_strategy = get_merge_strategy(tables, table_name)
+        merge_strategy = cast(
+            Optional[TLoaderMergeStrategy],
+            (
+                table.get("x-merge-strategy")
+                if is_prepared
+                else get_merge_strategy(tables, table_name)
+            ),
+        )
         # use first merge strategy as default
         if merge_strategy is None and supported_strategies:
             merge_strategy = supported_strategies[0]

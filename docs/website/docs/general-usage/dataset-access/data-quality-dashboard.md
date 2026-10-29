@@ -20,7 +20,7 @@ For example, to monitor data loading, consider plotting "count of records by `lo
 
 To find the number of rows loaded per table, use the following command:
 
-```sh
+```cli
 dlt pipeline <pipeline_name> trace
 ```
 
@@ -64,7 +64,7 @@ representation of the rows loaded with `load_id` for different tables:
 
 Data loading time for each table can be obtained by using the following command:
 
-```sh
+```cli
 dlt pipeline <pipeline_name> load-package
 ```
 

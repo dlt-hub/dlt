@@ -66,7 +66,7 @@ To get started with your data pipeline, follow these steps:
 
 1. Enter the following command:
 
-   ```sh
+   ```cli
    dlt init shopify_dlt duckdb
    ```
 
@@ -122,7 +122,7 @@ For more information, read the [General Usage: Credentials.](../../general-usage
 
 1. Before running the pipeline, ensure that you have installed all the necessary dependencies by running the command:
 
-   ```sh
+   ```cli
    pip install -r requirements.txt
    ```
 
@@ -134,7 +134,7 @@ For more information, read the [General Usage: Credentials.](../../general-usage
 
 1. Once the pipeline has finished running, you can verify that everything loaded correctly by using the following command:
 
-   ```sh
+   ```cli
    dlt pipeline <pipeline_name> show
    ```
 
@@ -194,7 +194,6 @@ def products(
         "updated_at",
         initial_value=START_DATE,
         end_value=END_DATE,
-        allow_external_schedulers=True,
     ),
     created_at_min: pendulum.DateTime = created_at_min_obj,
     items_per_page: int = ITEMS_PER_PAGE,
@@ -203,6 +202,10 @@ def products(
 ```
 
 `updated_at`: The saved [state](../../general-usage/state) of the last 'updated_at' value.
+
+This source does not set `allow_external_schedulers`. To load the data interval of each Airflow run,
+set `allow_external_schedulers=True` on the incrementals of the source. For an example, see
+[Using Airflow schedule for backfill and incremental loading](../../general-usage/incremental/cursor.md#using-airflow-schedule-for-backfill-and-incremental-loading).
 
 Similar to the mentioned resource, there are two more resources "orders" and "customers", both support incremental loading and pagination.
 

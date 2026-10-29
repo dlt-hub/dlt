@@ -29,6 +29,7 @@ from dlt._workspace.deployment.configuration import AgentConfiguration
 from dlt._workspace.deployment.exceptions import JobAbortedException, JobResolutionError
 from dlt._workspace.deployment.job_result import JobRun
 from dlt._workspace.deployment.launchers._launcher import (
+    activate_profile,
     apply_job_configuration,
     parse_launcher_args,
     prepare_run_env,
@@ -294,6 +295,7 @@ def run(entry_point: TRuntimeEntryPoint, run_id: str, trigger: str) -> Any:
         JobAbortedException: The agent output has `status: aborted`.
     """
     # the agent module is imported here, before run_job, so its config env must be set first
+    activate_profile(entry_point)
     apply_job_configuration(entry_point)
     prepare_run_env(entry_point)
     # the job launcher owns config env vars, profile, interval and signals; only the call differs

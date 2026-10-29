@@ -62,6 +62,7 @@ const sidebars = {
             keywords: ["release notes", "release highlights"],
           },
           items: [
+            { type: "doc", id: "release-notes/1.31", label: "1.31" },
             { type: "doc", id: "release-notes/1.30", label: "1.30" },
             { type: "doc", id: "release-notes/1.29", label: "1.29" },
             { type: "doc", id: "release-notes/1.28", label: "1.28" },
@@ -112,9 +113,9 @@ const sidebars = {
       items: [
         {
           type: "link",
-          label: "10k+ AI Context assets",
+          label: "11,000+ AI Context assets",
           description: "Build a custom dlt REST API source with your agent",
-          href: "https://dlthub.com/workspace",
+          href: "https://dlthub.com/context",
         },
         {
           type: "category",
@@ -586,6 +587,25 @@ const sidebars = {
       ],
     },
     "hub/command-line-interface",
+    {
+      type: "category",
+      label: "REST API reference",
+      link: {
+        type: "generated-index",
+        title: "REST API reference",
+        description: "Reference of the dltHub Runtime REST API",
+        slug: "/hub/reference/api",
+      },
+      items: [
+        "hub/reference/api/overview",
+        "hub/reference/api/runtime-api",
+        "hub/reference/api/dataplane-api",
+        "hub/reference/api/logs-api",
+        "hub/reference/api/telemetry-api",
+      ],
+    },
+    // replaced by the generated category of all python sdk pages, see below
+    "hub/reference/python-sdk/getting-started",
     "hub/license",
   ],
   cookbookSidebar: [
@@ -613,6 +633,7 @@ const sidebars = {
         "examples/logfire_telemetry_export",
         "examples/nested_data",
         "examples/partial_loading",
+        "examples/partition_pruning",
         "examples/pdf_to_weaviate",
         "examples/postgres_to_postgres",
         "examples/propagate_hints",
@@ -645,6 +666,19 @@ if (fs.existsSync("./docs_processed/api_reference/sidebar.json")) {
       item.items.splice(0, 0, require("./docs_processed/api_reference/sidebar.json"));
     }
   }
+}
+
+// inject the python sdk reference pages, generated with their sidebar into docs_processed by the
+// build and into docs by `make md-check`
+const sdkSidebar = ["docs_processed", "docs"]
+  .map((dir) => `./${dir}/hub/reference/python-sdk/sidebar.json`)
+  .find((file) => fs.existsSync(file));
+if (sdkSidebar) {
+  const index = sidebars.hubSidebar.indexOf("hub/reference/python-sdk/getting-started");
+  if (index < 0) {
+    throw new Error("the python sdk placeholder is missing from hubSidebar");
+  }
+  sidebars.hubSidebar.splice(index, 1, require(sdkSidebar));
 }
 
 module.exports = sidebars;

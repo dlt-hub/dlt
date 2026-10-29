@@ -6,12 +6,19 @@ help: ## Shows this help message
 	@grep -E '^[a-zA-Z0-9_-]+:.*##' $(MAKEFILE_LIST) | awk -F ':.*## ' '{printf "  %-28s %s\n", $$1, $$2}'
 
 dev: ## Set up development environment
-	uv sync --all-extras --all-groups --all-packages --quiet --locked
+	uv sync --all-extras --all-groups --all-packages --quiet
 	uv run prek install --hook-type pre-commit --hook-type pre-push
 
 start: ## Generate docs and start the docusaurus dev server
 	$(MAKE) preprocess-docs
 	cd website && npx docusaurus start
+
+# Pagefind indexes rendered HTML, so this needs a production build. The dev server
+# (`make start`) serves this index as is via `website/plugins/pagefind-dev.js`:
+# run it at least once to populate search, and again to refresh it.
+search-index: ## Build the docs and the search index used by the dev server
+	cd website && npx docusaurus build --out-dir build/docs
+	cd website && npm run search-index
 
 build: ## Full production build of the docs website into `website/build/docs`
 	cd website && uv run npm run update-versions
@@ -19,6 +26,7 @@ build: ## Full production build of the docs website into `website/build/docs`
 	$(MAKE) check-orphan-docs
 	$(MAKE) preprocess-docs
 	cd website && npx docusaurus build --out-dir build/docs
+	cd website && npm run search-index
 	cd website && npm run verify-redirects
 	cd website && node scripts/verify-llms-txt.js
 
@@ -31,6 +39,9 @@ preprocess-docs: ## Dynamically generate pages under `website/docs_processed`
 	# generators that write into it must run afterwards.
 	uv run --script tools/preprocess_docs.py
 	uv run --script tools/generate_api_reference.py
+	$(MAKE) cli-generate-hub
+	$(MAKE) api-generate-hub
+	$(MAKE) sdk-generate-hub
 
 lint: lint-core lint-notebooks lint-website check-orphan-docs ## Runs all linters
 
@@ -45,6 +56,19 @@ cli-generate: ## Regenerates CLI reference docs
 
 cli-check: ## Checks CLI reference docs are up to date (CI)
 	uv --quiet run --script tools/generate_cli_docs.py website/docs/reference/command-line-interface.md --compare
+
+# the hub references describe the newest dlthub and dlthub-client releases, resolved in an
+# environment of their own so the build never writes `uv.lock`
+# TODO: `dlthub-client>=0.28.8` (first release bundling the api specs and sdk docs) once released
+HUB_RUN = uv --quiet run --isolated --no-project --with "$(abspath ..)[cli,hub]" \
+	--with "dlthub-client>=0.28.8a3" --with griffe --with pyyaml
+
+# runs in tools/dlthub_cli because workspace commands need a workspace context
+HUB_CLI_DOCS ?= website/docs_processed/hub/command-line-interface.md
+cli-generate-hub: ## Generates the dlthub CLI reference into `website/docs_processed`
+	cd tools/dlthub_cli && $(HUB_RUN) python ../generate_cli_docs.py $(abspath $(HUB_CLI_DOCS)) \
+		--executable-name dlthub --title "CLI reference" --sort-commands \
+		--show-versions dlthub dlthub-client
 
 # TODO consolidate the flake8, black, mypy tooling to be the same as root `pyproject.toml`
 lint-core: ## Lints the docs tooling, non-embedded snippets, examples and notebooks
@@ -89,7 +113,22 @@ snippets-typecheck:
 snippets-test:
 	uv run pytest test_snippets.py::test_run_snippets
 
+# set to a folder of specs, e.g. a runtime checkout's clients/cli/dlthub_sdk/_specs
+RUNTIME_OPENAPI_DIR ?=
+API_DOCS_DIR ?= website/docs_processed/hub/reference/api
+api-generate-hub: ## Generates the runtime REST API reference into `website/docs_processed`
+	$(HUB_RUN) python tools/generate_openapi_docs.py --output-dir $(API_DOCS_DIR) \
+		$(if $(RUNTIME_OPENAPI_DIR),--spec-dir $(RUNTIME_OPENAPI_DIR))
+
+SDK_DOCS_DIR ?= website/docs_processed/hub/reference/python-sdk
+sdk-generate-hub: ## Generates the Python SDK reference into `website/docs_processed`
+	$(HUB_RUN) python tools/generate_sdk_docs.py $(SDK_DOCS_DIR)
+
+# links into the generated hub references resolve against fresh, git-ignored copies
 md-check:  ## Check markdown file formatting errors in website/docs
+	$(MAKE) cli-generate-hub HUB_CLI_DOCS=website/docs/hub/command-line-interface.md
+	$(MAKE) api-generate-hub API_DOCS_DIR=website/docs/hub/reference/api
+	$(MAKE) sdk-generate-hub SDK_DOCS_DIR=website/docs/hub/reference/python-sdk
 	uv run mdsmith check website/docs
 
 md-fix:  ## Fix markdown file formatting errors in website/docs

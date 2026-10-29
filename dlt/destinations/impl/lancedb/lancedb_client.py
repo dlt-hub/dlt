@@ -352,8 +352,9 @@ class LanceDBClient(JobClientBase, WithStateSync, WithSqlClient):
         only_tables: Iterable[str] = None,
         expected_update: TSchemaTables = None,
         force: bool = False,
+        include_existing_tables: bool = False,
     ) -> Optional[TSchemaTables]:
-        super().update_stored_schema(only_tables, expected_update, force)
+        super().update_stored_schema(only_tables, expected_update, force, include_existing_tables)
         try:
             schema_info = self.get_stored_schema_by_hash(self.schema.stored_version_hash)
         except DestinationUndefinedEntity:
@@ -366,7 +367,9 @@ class LanceDBClient(JobClientBase, WithStateSync, WithSqlClient):
                 "not found in the storage (or update enforced). upgrading"
             )
             applied_update = self._execute_schema_update(
-                only_tables, store_schema=schema_info is None
+                only_tables,
+                store_schema=schema_info is None,
+                include_existing_tables=include_existing_tables,
             )
         else:
             logger.debug(
@@ -423,11 +426,18 @@ class LanceDBClient(JobClientBase, WithStateSync, WithSqlClient):
         # table.update(values={field.name: None})
 
     def _execute_schema_update(
-        self, only_tables: Iterable[str], store_schema: bool = True
+        self,
+        only_tables: Iterable[str],
+        store_schema: bool = True,
+        include_existing_tables: bool = False,
     ) -> TSchemaTables:
         applied_update: TSchemaTables = {}
-        for table_name in only_tables or self.schema.tables:
+        only_tables = set(only_tables or self.schema.tables)
+        for table_name in self.schema.tables.keys() if include_existing_tables else only_tables:
             exists, existing_columns = self.get_storage_table(table_name)
+            # tables outside only_tables get new columns but are not created
+            if not exists and table_name not in only_tables:
+                continue
             new_columns: List[TColumnSchema] = self.schema.get_new_table_columns(
                 table_name,
                 existing_columns,
@@ -679,7 +689,9 @@ class LanceDBClient(JobClientBase, WithStateSync, WithSqlClient):
         # orphan removal replaces old versions of docs, skip for insert-only
         first_table_in_chain = table_chain[0]
         merge_strategy = resolve_merge_strategy(
-            {first_table_in_chain["name"]: first_table_in_chain}, first_table_in_chain
+            {first_table_in_chain["name"]: first_table_in_chain},
+            first_table_in_chain,
+            is_prepared=True,
         )
         if (
             first_table_in_chain.get("write_disposition") == "merge"

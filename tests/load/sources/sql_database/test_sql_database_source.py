@@ -13,12 +13,12 @@ import dlt
 from dlt.common import logger
 from dlt.common import json
 from dlt.common.configuration.exceptions import ConfigFieldMissingException
-from dlt.common.exceptions import DependencyVersionException, MissingDependencyException
+from dlt.common.exceptions import MissingDependencyException
 
 from dlt.common.schema.exceptions import DataValidationError
 from dlt.common.schema.typing import TColumnSchema, TSortOrder, TTableSchemaColumns
 from dlt.common.time import ensure_pendulum_datetime
-from dlt.common.utils import assert_min_pkg_version, uniq_id
+from dlt.common.utils import uniq_id
 
 from dlt.extract.exceptions import ResourceExtractionError
 from dlt.extract.incremental.transform import JsonIncremental, ArrowIncremental
@@ -125,8 +125,8 @@ def test_pyarrow_applies_hints_before_extract(
     )
 
     pipeline = make_pipeline("duckdb")
-    # Use count_rows so empty Arrow Table (0 rows) for defered-reflect doesn't count toward limit
-    load_info = pipeline.run(table.add_limit(1, count_rows=True))
+    # the hints item of the deferred reflection is not counted into the limit
+    load_info = pipeline.run(table.add_limit(1))
 
     # verify
     # 1: pipeline schema
@@ -188,7 +188,7 @@ def test_apply_hints_column_order(
                 "date_col": {"data_type": "date"},
             },
         )
-        items = list(resource.add_limit(1, count_rows=True))
+        items = list(resource.add_limit(1))
         for item in items:
             # pandas DataFrames are converted to arrow for type checking
             if hasattr(item, "columns") and hasattr(item, "index") and len(item.index) > 0:
@@ -221,7 +221,7 @@ def test_apply_hints_column_order(
         },
     )
     pipeline = make_pipeline("duckdb")
-    load_info = pipeline.run(resource2.add_limit(1, count_rows=True))
+    load_info = pipeline.run(resource2.add_limit(1))
     assert_load_info(load_info)
 
     with pipeline.sql_client() as client:
@@ -260,7 +260,7 @@ def test_non_snake_case_columns(
         },
     )
 
-    items = list(resource.add_limit(1, count_rows=True))
+    items = list(resource.add_limit(1))
 
     # extract column names from the first non-empty data item
     keys = None
@@ -292,7 +292,7 @@ def test_non_snake_case_columns(
         defer_table_reflect=defer_table_reflect,
     )
     pipeline = make_pipeline("duckdb")
-    load_info = pipeline.run(resource2.add_limit(1, count_rows=True))
+    load_info = pipeline.run(resource2.add_limit(1))
     assert_load_info(load_info)
 
     with pipeline.sql_client() as client:
@@ -338,7 +338,7 @@ def test_pyarrow_normalized_hints_on_camel_case_columns(
 
     pipeline = make_pipeline("duckdb")
     with capture_dlt_logger(caplog) as caplog:
-        load_info = pipeline.run(resource.add_limit(1, count_rows=True))
+        load_info = pipeline.run(resource.add_limit(1))
     assert_load_info(load_info)
 
     # warning was emitted about unmatched columns
@@ -1439,8 +1439,15 @@ def test_sql_table_incremental_datetime_ntz(
     )
 
     pipeline = make_pipeline("duckdb")
-    rc = postgres_db.table_infos["has_precision"]["row_count"]
-    assert_incremental_chunks(pipeline, table, "datetime_ntz_col", timezone=False, row_count=rc)
+    info = postgres_db.table_infos["has_precision"]
+    assert_incremental_chunks(
+        pipeline,
+        table,
+        "datetime_ntz_col",
+        timezone=False,
+        row_count=info["row_count"],
+        cursor_values=[row["datetime_ntz_col"] for row in info["rows"]],
+    )
 
 
 @pytest.mark.parametrize("backend", ["sqlalchemy", "pyarrow", "pandas", "connectorx"])
@@ -1466,8 +1473,15 @@ def test_sql_table_incremental_datetime_tz(
     )
 
     pipeline = make_pipeline("duckdb")
-    rc = postgres_db.table_infos["has_precision"]["row_count"]
-    assert_incremental_chunks(pipeline, table, "datetime_tz_col", timezone=True, row_count=rc)
+    info = postgres_db.table_infos["has_precision"]
+    assert_incremental_chunks(
+        pipeline,
+        table,
+        "datetime_tz_col",
+        timezone=True,
+        row_count=info["row_count"],
+        cursor_values=[row["datetime_tz_col"] for row in info["rows"]],
+    )
 
 
 @pytest.mark.parametrize("backend", ["sqlalchemy", "pyarrow", "pandas", "connectorx"])
@@ -2021,8 +2035,8 @@ def remove_timestamp_precision(
 
 
 def convert_connectorx_types(columns: List[TColumnSchema]) -> List[TColumnSchema]:
-    """connector x converts decimals to double, otherwise tries to keep data types and precision
-    nullability is not kept, string precision is not kept
+    """connector x returns decimals without precision as decimal(38, 10), otherwise tries to keep
+    data types and precision. nullability is not kept, string precision is not kept
     """
     for column in columns:
         if column["data_type"] == "bigint":
@@ -2033,11 +2047,7 @@ def convert_connectorx_types(columns: List[TColumnSchema]) -> List[TColumnSchema
         if column["data_type"] == "text" and column.get("precision"):
             del column["precision"]
         if column["data_type"] == "decimal" and column["name"] == "numeric_default_col":
-            try:
-                assert_min_pkg_version(pkg_name="connectorx", version="0.4.4")
-                add_default_arrow_decimal_precision([column], is_connectorx=True)
-            except DependencyVersionException:
-                pass
+            add_default_arrow_decimal_precision([column], is_connectorx=True)
     return columns
 
 

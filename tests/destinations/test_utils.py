@@ -1,12 +1,24 @@
+from datetime import date, datetime, timezone
 from typing import Any, Optional
+from zoneinfo import ZoneInfo
 
 import dlt
 import pytest
 
-from dlt.common.destination import Destination
-from dlt.common.destination.utils import prepare_load_table
+from dlt.common.configuration.container import Container
+from dlt.common.configuration.specs.timezone_context import TimezoneContext
+from dlt.common.data_writers.escape import escape_snowflake_literal
+from dlt.common.destination import Destination, DestinationCapabilitiesContext
+from dlt.common.destination import utils as destination_utils
+from dlt.common.destination.utils import (
+    expand_merge_condition,
+    get_scd2_timestamps,
+    prepare_load_table,
+)
 from dlt.common.schema import Schema
 from dlt.common.schema.typing import TTableFormat
+from dlt.destinations import filesystem
+from dlt.destinations.impl.filesystem.configuration import FilesystemDestinationClientConfiguration
 from dlt.destinations.utils import (
     get_resource_for_adapter,
     verify_schema_merge_disposition,
@@ -136,3 +148,177 @@ def test_verify_unsupported_merge_options(write_disposition: str) -> None:
                 " `resource.add_filter()` instead."
             ),
         ]
+
+
+@pytest.mark.parametrize("root_strategy", ["delete-insert", "upsert"])
+def test_verify_nested_destination_scope(root_strategy: str, caplog: Any) -> None:
+    """A nested table with its own destination scope is verified against its prepared root
+    table. A staging filesystem appends the files of an Iceberg table, so it accepts the scope.
+    A merging destination needs `delete-insert` and a destination scope on the root table.
+    Without its root table in the load, the nested table is not verified."""
+    nested_scope: Any = {
+        "disposition": "merge",
+        "strategy": "delete-insert",
+        "destination_scope": "day = 1",
+    }
+    root_disposition: Any = (
+        nested_scope
+        if root_strategy == "delete-insert"
+        else {"disposition": "merge", "strategy": root_strategy}
+    )
+
+    @dlt.resource(
+        primary_key="id",
+        columns={"id": {"data_type": "bigint"}},
+        table_format="iceberg",
+        write_disposition=root_disposition,
+        nested_hints={"lines": dlt.mark.make_nested_hints(write_disposition=nested_scope)},
+    )
+    def events():
+        yield [{"id": 1, "day": 1, "lines": [{"line": 1}]}]
+
+    schema = Schema("test")
+    resource = events()
+    schema.update_table(resource.compute_table_schema())
+    for nested_table in resource.compute_nested_table_schemas("events", schema.naming):
+        schema.update_table(nested_table)
+    table_names = ["events", "events__lines"]
+
+    staging_config = FilesystemDestinationClientConfiguration(
+        as_staging_destination=True
+    )._bind_dataset_name(dataset_name="staging")
+    staging_client = filesystem("memory:///staging").client(schema, staging_config)
+    staged_tables = staging_client.verify_schema(only_tables=table_names)
+    assert {t["name"]: t["write_disposition"] for t in staged_tables} == {
+        "events": "append",
+        "events__lines": "append",
+    }
+
+    caps = Destination.from_reference("duckdb").capabilities()
+    load_tables = [
+        prepare_load_table(schema.tables, schema.tables[name], caps) for name in table_names
+    ]
+    exceptions = verify_schema_merge_disposition(schema, load_tables, caps)
+    if root_strategy == "delete-insert":
+        assert exceptions == []
+    else:
+        assert [str(e) for e in exceptions] == [
+            "In schema `test`: Nested table `events__lines` has `destination_scope`. dlt uses it"
+            " only with the `delete-insert` merge strategy and when the root table `events` has"
+            " `destination_scope`."
+        ]
+
+    with capture_dlt_logger(caplog):
+        assert verify_schema_merge_disposition(schema, load_tables[1:], caps) == []
+    assert (
+        "dlt did not verify the `destination_scope` of nested table `events__lines`" in caplog.text
+    )
+
+
+@pytest.mark.parametrize(
+    "condition,expected",
+    [
+        ("{table}.id = {tenant}", "\"t\".id = 'O''B'"),
+        ("day = {day} AND n > {n}", "day = '2024-01-01' AND n > 3"),
+        ("ts >= {since}", "ts >= '2024-01-01T12:00:00+00:00'"),
+        ("name LIKE '{{x}}%'", "name LIKE '{x}%'"),
+        ("day IN {days}", "day IN ('2024-01-01', '2024-01-02')"),
+        ("tenant IN {tenants}", "tenant IN ('O''B', 'A')"),
+        ("ts IN {stamps}", "ts IN ('2024-01-01T11:00:00+00:00')"),
+        ("day IN {no_days}", "day IN (NULL)"),
+    ],
+    ids=[
+        "identifier_and_string",
+        "date_and_int",
+        "naive_datetime",
+        "literal_brace",
+        "list_of_dates",
+        "tuple_of_strings",
+        "list_of_aware_datetimes",
+        "empty_list",
+    ],
+)
+def test_expand_merge_condition(condition: str, expected: str) -> None:
+    values = {
+        "tenant": "O'B",
+        "day": date(2024, 1, 1),
+        "n": 3,
+        "since": datetime(2024, 1, 1, 12),
+        "days": [date(2024, 1, 1), date(2024, 1, 2)],
+        "tenants": ("O'B", "A"),
+        "stamps": [datetime(2024, 1, 1, 12, tzinfo=ZoneInfo("Europe/Berlin"))],
+        "no_days": [],
+    }
+    expanded = expand_merge_condition(
+        "destination_scope", condition, {"table": '"t"'}, values, escape_snowflake_literal
+    )
+    assert expanded == expected
+
+
+def test_expand_merge_condition_missing_value() -> None:
+    with pytest.raises(ValueError) as py_ex:
+        expand_merge_condition("source_filter", "day = {day}", {}, {}, escape_snowflake_literal)
+    assert "unknown placeholders `{day}`" in str(py_ex.value)
+
+
+def test_scd2_timestamps(monkeypatch: pytest.MonkeyPatch) -> None:
+    caps = DestinationCapabilitiesContext.generic_capabilities()
+    caps.timestamp_precision = 3
+    created_at = datetime(2024, 3, 1, 23, 30, 0, 123456, tzinfo=ZoneInfo("Asia/Kolkata"))
+    state: Any = {"created_at": created_at}
+    package = {"load_id": "1.2", "state": state}
+    monkeypatch.setattr(destination_utils, "load_package_state", lambda: package)
+    valid_to: Any = {
+        "name": "_dlt_valid_to",
+        "data_type": "timestamp",
+        "x-active-record-timestamp": None,
+    }
+    # a hint left by an older dlt version is a stale value
+    table: Any = {
+        "name": "items",
+        "x-boundary-timestamp": datetime(2020, 1, 1),
+        "columns": {"_dlt_valid_to": valid_to},
+    }
+
+    # the boundary defaults to the package creation time, in UTC at the precision of the destination
+    boundary, active_record = get_scd2_timestamps(table, caps)
+    assert boundary == created_at.replace(microsecond=123000)
+    assert str(boundary.tzinfo) == "UTC"
+    assert active_record is None
+
+    # the package holds the declared boundary. like loaded data, a naive value is read in the
+    # context timezone and an aware value is converted to it
+    state["placeholders"] = {"items": {"boundary_timestamp": datetime(2024, 1, 1, 12)}}
+    valid_to["x-active-record-timestamp"] = "9999-12-31T00:00:00+01:00"
+    for context_tz in ("UTC", "Europe/Berlin"):
+        with Container().injectable_context(TimezoneContext(context_tz)):
+            boundary, active_record = get_scd2_timestamps(table, caps)
+        assert boundary == datetime(2024, 1, 1, 12, tzinfo=ZoneInfo(context_tz))
+        assert active_record == datetime(9999, 12, 30, 23, tzinfo=timezone.utc)
+        assert str(active_record.tzinfo) == context_tz
+
+    # a destination without tz support stores the wall clock of the context timezone, UTC here
+    caps.supports_tz_aware_datetime = False
+    state["placeholders"]["items"]["boundary_timestamp"] = "2024-01-01T12:00:00+01:00"
+    valid_to["x-active-record-timestamp"] = "9999-12-31"
+    assert get_scd2_timestamps(table, caps) == (datetime(2024, 1, 1, 11), datetime(9999, 12, 31))
+
+
+def test_merge_placeholder_values_of_load_date(monkeypatch: pytest.MonkeyPatch) -> None:
+    # 23:30 in Kolkata is 18:00 UTC of the same day. the values follow UTC
+    created_at = datetime(2024, 3, 1, 23, 30, tzinfo=ZoneInfo("Asia/Kolkata"))
+    package: Any = {"load_id": "1.2", "state": {"created_at": created_at, "placeholders": {}}}
+    monkeypatch.setattr(destination_utils, "load_package_state", lambda: package)
+
+    values = destination_utils.get_merge_placeholder_values("items")
+    assert values["curr_date"] == date(2024, 3, 1)
+    assert (values["YYYY"], values["MM"], values["DD"], values["HH"]) == (2024, 3, 1, 18)
+    assert (values["MMMM"], values["dddd"]) == ("march", "friday")
+    assert values["load_package_timestamp"] == int(created_at.timestamp())
+    assert values["boundary_timestamp"] == created_at
+    assert values["boundary_timestamp"].tzinfo is timezone.utc
+
+    # a declared boundary is stored in the load package
+    package["state"]["placeholders"] = {"items": {"boundary_timestamp": date(2024, 1, 1)}}
+    values = destination_utils.get_merge_placeholder_values("items")
+    assert values["boundary_timestamp"] == date(2024, 1, 1)

@@ -1,5 +1,6 @@
 from datetime import datetime, timezone  # noqa: I251
 from typing import List, Tuple
+from zoneinfo import ZoneInfo
 
 import pytest
 import dlt.destinations.path_utils
@@ -602,6 +603,25 @@ def test_datetime_params_do_not_follow_context_timezone(tz_name: str) -> None:
     assert params["timestamp"] == str(int(moment.timestamp()))
 
 
+@pytest.mark.parametrize(
+    "current_datetime,expected",
+    [
+        (datetime(2024, 1, 15, 23, 30), ("2024-01-15", "23")),
+        (pendulum.datetime(2024, 1, 15, 23, 30, tz="Europe/Berlin"), ("2024-01-15", "23")),
+        (
+            datetime(2024, 1, 15, 23, 30, tzinfo=timezone.utc).astimezone(ZoneInfo("Asia/Kolkata")),
+            ("2024-01-16", "05"),
+        ),
+    ],
+    ids=["naive_is_utc", "pendulum_keeps_timezone", "stdlib_keeps_timezone"],
+)
+def test_datetime_params_from_current_datetime(
+    current_datetime: datetime, expected: Tuple[str, str]
+) -> None:
+    params = prepare_datetime_params(current_datetime=current_datetime)
+    assert (params["curr_date"], params["HH"]) == expected
+
+
 def test_create_path_resolves_current_datetime(test_load: TestLoad) -> None:
     """Check the flow when the current_datetime is passed
 
@@ -679,17 +699,23 @@ def test_create_path_uses_current_moment_if_current_datetime_is_not_given(
 ) -> None:
     load_id, job_info = test_load
     logger_spy = mocker.spy(logger, "info")
-    pendulum_spy = mocker.spy(pendulum, "now")
+    now = datetime(2024, 4, 14, 3, 4, 5, tzinfo=timezone.utc)
+
+    class FixedDatetime(datetime):
+        @classmethod
+        def now(cls, tz=None):
+            return now
+
+    mocker.patch.object(dlt.destinations.path_utils, "datetime", FixedDatetime)
     path = create_path(
         "{schema_name}/{table_name}/{load_id}.{file_id}.{timestamp}.{ext}",
         schema_name="schema_name",
         load_id=load_id,
         file_name=job_info.file_name(),
     )
-    timestamp = int(pendulum_spy.spy_return.timestamp())
+    timestamp = int(now.timestamp())
     assert path == f"schema_name/mock_table/{load_id}.{job_info.file_id}.{timestamp}.jsonl"
-    logger_spy.assert_called_once_with("current_datetime is not set, using pendulum.now()")
-    pendulum_spy.assert_called()
+    logger_spy.assert_called_once_with("`current_datetime` is not set. dlt uses the current time.")
 
 
 def test_create_path_uses_load_package_timestamp_as_current_datetime(
@@ -700,9 +726,7 @@ def test_create_path_uses_load_package_timestamp_as_current_datetime(
     timestamp = int(now.timestamp())
     now_timestamp = now
     logger_spy = mocker.spy(logger, "info")
-    ensure_pendulum_datetime_spy = mocker.spy(
-        dlt.destinations.path_utils, "ensure_pendulum_datetime"
-    )
+    ensure_datetime_spy = mocker.spy(dlt.destinations.path_utils, "ensure_datetime_in_tz")
     path = create_path(
         "{schema_name}/{table_name}/{load_id}.{file_id}.{timestamp}.{ext}",
         schema_name="schema_name",
@@ -712,10 +736,10 @@ def test_create_path_uses_load_package_timestamp_as_current_datetime(
     )
     assert path == f"schema_name/mock_table/{load_id}.{job_info.file_id}.{timestamp}.jsonl"
     logger_spy.assert_called_once_with(
-        "current_datetime is not set, using timestamp from load package"
+        "`current_datetime` is not set. dlt uses the load package timestamp."
     )
     # pinned to UTC, so the path never moves with the context timezone
-    ensure_pendulum_datetime_spy.assert_called_once_with(now_timestamp, timezone.utc)
+    ensure_datetime_spy.assert_called_once_with(now_timestamp, timezone.utc)
 
 
 def test_create_path_resolves_extra_placeholders(test_load: TestLoad) -> None:

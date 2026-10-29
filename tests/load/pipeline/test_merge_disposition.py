@@ -1,6 +1,7 @@
 from copy import copy
 from datetime import date, datetime, timezone  # noqa: I251
 from decimal import Decimal
+from zoneinfo import ZoneInfo
 import os
 import pytest
 import random
@@ -27,6 +28,7 @@ from dlt.common.schema.typing import (
     TTableFormat,
     TTableSchemaColumns,
 )
+from dlt.common.time import ensure_datetime_in_tz
 from dlt.common.typing import StrAny
 from dlt.common.utils import digest128
 from dlt.common.destination import DestinationCapabilitiesContext
@@ -41,15 +43,21 @@ from dlt.pipeline.exceptions import PipelineStepFailed
 from dlt.normalize.exceptions import NormalizeJobFailed
 
 from tests.load.pipeline.merge_utils import (
+    EVENT_DAY_SCOPE,
+    EVENT_TABLES,
     LOADED_RECORDS,
     NEW_BUCKET,
     NEW_BUCKET_SUBQUERY,
     PARTITION,
     PARTITION_LOCAL_KEY,
+    PARTITION_PLACEHOLDERS,
     PARTITIONED_INPUT,
     PARTITIONED_TARGET,
     STORED_RECORDS,
+    assert_day_events,
     assert_nested_rows_have_parents,
+    day_events,
+    day_partitioned_events,
     load_ids_by_key,
     merge_condition,
     merge_resource,
@@ -57,6 +65,7 @@ from tests.load.pipeline.merge_utils import (
 from tests.load.pipeline.utils import LOCAL_DESTINATIONS, skip_if_unsupported_merge_strategy
 from tests.pipeline.utils import (
     assert_load_info,
+    assert_trace_restored,
     load_table_counts,
     select_data,
     load_tables_to_dicts,
@@ -1850,8 +1859,6 @@ def test_merge_arrow(
     """Merges Arrow tables by `primary_key` or by `merge_key` only. Without a primary key there is
     no `_dlt_id`, so destinations that delete through a temp table failed (#2248)."""
     skip_if_unsupported_merge_strategy(destination_config, merge_strategy)
-    if key_hint == "merge_key" and destination_config.destination_type == "athena":
-        pytest.skip("Athena requires _dlt_id for merge (no correlated subquery support)")
     hints: Any = {key_hint: "id"}
 
     @dlt.resource(
@@ -2242,6 +2249,8 @@ def test_cdc_composite_primary_key(
         return merge_resource(
             data,
             "cdc",
+            # the staging alias must not shadow the root table
+            name="s",
             primary_key=["region", "id"],
             table_format=destination_config.table_format,
             **options,
@@ -2289,7 +2298,7 @@ def test_cdc_composite_primary_key(
     # the source filter discards (us, 1), so cdc deletes its stored copy although (eu, 1) stays
     if not source_filter:
         expected.append(us_1)
-    rows = load_tables_to_dicts(p, "items", exclude_system_cols=True)["items"]
+    rows = load_tables_to_dicts(p, "s", exclude_system_cols=True)["s"]
     assert_records_as_set(rows, expected)
 
 
@@ -2654,6 +2663,50 @@ def test_merge_rejected_before_load(
 
 @pytest.mark.parametrize(
     "destination_config",
+    destinations_configs(
+        table_format_local_configs=True, supports_merge=True, with_table_format="delta"
+    ),
+    ids=lambda x: x.name,
+)
+@pytest.mark.parametrize(
+    "disposition,columns",
+    [
+        ({"strategy": "cdc", "destination_scope": "{table}.bucket = 'new'"}, {}),
+        ({"strategy": "cdc"}, {"deleted": {"hard_delete": True, "data_type": "bool"}}),
+        ({"strategy": "upsert"}, {"deleted": {"hard_delete": True, "data_type": "bool"}}),
+        ({"strategy": "upsert", "source_filter": "{staging_table}.bucket = 'new'"}, {}),
+    ],
+    ids=["cdc_scope", "cdc_hard_delete", "upsert_hard_delete", "upsert_filter"],
+)
+def test_delta_merge_with_declared_nested_table(
+    destination_config: DestinationTestConfiguration,
+    disposition: Dict[str, Any],
+    columns: Dict[str, Any],
+) -> None:
+    """Delta rejects merge conditions and `hard_delete` with nested tables. A nested table that
+    `nested_hints` declares but that has no data does not count, so the merge loads."""
+    write_disposition: Any = {"disposition": "merge", **disposition}
+    nested_hints: Any = {"children": dlt.mark.make_nested_hints(columns=[{"name": "c"}])}
+
+    @dlt.resource(
+        name="items",
+        primary_key="id",
+        columns=columns,
+        table_format="delta",
+        write_disposition=write_disposition,
+        nested_hints=nested_hints,
+    )
+    def items():
+        yield [{"id": 1, "bucket": "new", "deleted": False}]
+
+    p = destination_config.setup_pipeline("merge_declared_nested", dev_mode=True)
+    assert_load_info(p.run(items(), **destination_config.run_kwargs))
+    assert "items__children" in p.default_schema.tables
+    assert load_table_counts(p, "items") == {"items": 1}
+
+
+@pytest.mark.parametrize(
+    "destination_config",
     destinations_configs(default_sql_configs=True, supports_merge=True, subset=LOCAL_DESTINATIONS),
     ids=lambda x: x.name,
 )
@@ -2676,24 +2729,28 @@ def test_merge_key_source_filter(
     strategy: TLoaderMergeStrategy,
     conditions: Dict[str, str],
 ) -> None:
-    """Seeds four records in three buckets and reloads two of them with `merge_key` on the
-    bucket, a source filter that discards one, and a destination scope. Checks which partitions
-    the merge replaces."""
+    """Seeds five records in four partitions and reloads two of them with a compound `merge_key`
+    on bucket and shard, a source filter that discards one, and a destination scope. Checks which
+    partitions the merge replaces."""
     skip_if_unsupported_merge_strategy(destination_config, strategy)
 
     def events(data: List[StrAny], **options: Any) -> DltSource:
-        return merge_resource(data, strategy, name="events", merge_key="bucket", **options)
+        return merge_resource(
+            data, strategy, name="events", merge_key=["bucket", "shard"], **options
+        )
 
-    # seed four records in the buckets 'old', 'new' and 'mid'
+    # seed five records in the partitions 'old', 'new', 'mid' and ('ne', 'wa')
     p = destination_config.setup_pipeline("merge_key_source_filter", dev_mode=True)
     assert_load_info(
         p.run(
             events(
                 [
-                    {"id": 1, "bucket": "old", "value": 1},
-                    {"id": 2, "bucket": "new", "value": 2},
-                    {"id": 3, "bucket": "new", "value": 3},
-                    {"id": 4, "bucket": "mid", "value": 4},
+                    {"id": 1, "bucket": "old", "shard": "a", "value": 1},
+                    {"id": 2, "bucket": "new", "shard": "a", "value": 2},
+                    {"id": 3, "bucket": "new", "shard": "a", "value": 3},
+                    {"id": 4, "bucket": "mid", "shard": "a", "value": 4},
+                    # concatenated, the key equals the key of partition ('new', 'a')
+                    {"id": 6, "bucket": "ne", "shard": "wa", "value": 6},
                 ]
             ),
             **destination_config.run_kwargs,
@@ -2704,20 +2761,27 @@ def test_merge_key_source_filter(
     assert_load_info(
         p.run(
             events(
-                [{"id": 2, "bucket": "new", "value": 22}, {"id": 5, "bucket": "mid", "value": 1}],
+                [
+                    {"id": 2, "bucket": "new", "shard": "a", "value": 22},
+                    {"id": 5, "bucket": "mid", "shard": "a", "value": 1},
+                ],
                 **conditions,
             ),
             **destination_config.run_kwargs,
         )
     )
 
-    # in all cases the merge replaces partition 'new' and keeps 1 in partition 'old'
-    expected = [{"id": 1, "bucket": "old", "value": 1}, {"id": 2, "bucket": "new", "value": 22}]
+    # in all cases the merge replaces partition 'new' and keeps partitions 'old' and ('ne', 'wa')
+    expected = [
+        {"id": 1, "bucket": "old", "shard": "a", "value": 1},
+        {"id": 2, "bucket": "new", "shard": "a", "value": 22},
+        {"id": 6, "bucket": "ne", "shard": "wa", "value": 6},
+    ]
     if not conditions:
-        expected.append({"id": 5, "bucket": "mid", "value": 1})
+        expected.append({"id": 5, "bucket": "mid", "shard": "a", "value": 1})
     elif "destination_scope" not in conditions:
         # 5 is not in the merge source, so the merge does not replace partition 'mid'
-        expected.append({"id": 4, "bucket": "mid", "value": 4})
+        expected.append({"id": 4, "bucket": "mid", "shard": "a", "value": 4})
     # with the destination scope, the merge deletes partition 'mid' and inserts nothing
     tables = load_tables_to_dicts(p, "events", exclude_system_cols=True)
     assert_records_as_set(tables["events"], expected)
@@ -2860,13 +2924,20 @@ def test_delete_insert_partition_local_primary_key(
             **destination_config.run_kwargs,
         )
     )
-    # merge 1 and 3 into p15
+    # merge 1 and 3 into p15. the scope takes the partition from the resource argument
     assert_load_info(
         p.run(
-            merge_resource(PARTITIONED_INPUT, strategy, destination_scope=destination_scope),
+            merge_resource(
+                PARTITIONED_INPUT,
+                strategy,
+                destination_scope=destination_scope,
+                extra_placeholders=PARTITION_PLACEHOLDERS,
+                part="p15",
+            ),
             **destination_config.run_kwargs,
         )
     )
+    assert_trace_restored(p)
 
     # the parametrization explains which copies survive per strategy and scope
     rows = load_tables_to_dicts(p, "items", exclude_system_cols=True)["items"]
@@ -3001,6 +3072,162 @@ def test_delete_insert_destination_scope_nested_tables(
     # 2 is not reloaded, so the scope deletes it with its nested rows
     load([{"id": 1, "part": "A", "child": [{"val": "c1_final"}]}])
     assert observed() == ([1, 3], ["c1_final", "c3", "c4"])
+
+
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(default_sql_configs=True, supports_merge=True),
+    ids=lambda x: x.name,
+)
+@pytest.mark.parametrize("nested_scope", [True, False], ids=["nested-scope", "root-scope-only"])
+def test_delete_insert_nested_destination_scope(
+    destination_config: DestinationTestConfiguration, nested_scope: bool
+) -> None:
+    """Replaces 2 of 5 days with fewer nested rows in three levels of nested tables. `event_day`
+    propagates to the nested tables, so their own scope deletes the same rows as the root key of
+    the replaced root rows, and they do not need the root key."""
+    p = destination_config.setup_pipeline("di_nested_scope", dev_mode=True)
+    all_days = [date(2026, 10, day) for day in range(1, 6)]
+    reloaded = [all_days[1], all_days[3]]
+
+    events = day_partitioned_events(day_events(all_days, "v1"), nested_scope)
+    assert_load_info(p.run(events, **destination_config.run_kwargs))
+    events = day_partitioned_events(day_events(reloaded, "v2", size=1), nested_scope)
+    assert_load_info(p.run(events, **destination_config.run_kwargs))
+    # the placeholder function is a closure, the trace keeps its name
+    assert_trace_restored(p)
+
+    for table_name in EVENT_TABLES[1:]:
+        nested_table = p.default_schema.tables[table_name]
+        assert nested_table.get("x-merge-destination-scope") == (
+            EVENT_DAY_SCOPE if nested_scope else None
+        )
+        assert ("_dlt_root_id" in nested_table["columns"]) is not nested_scope
+    assert_day_events(p, {day: ("v2", 1) if day in reloaded else ("v1", 2) for day in all_days})
+
+
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(
+        default_sql_configs=True, table_format_local_configs=True, supports_merge=True
+    ),
+    ids=lambda x: x.name,
+)
+def test_merge_condition_placeholders(destination_config: DestinationTestConfiguration) -> None:
+    """Runs four loads of `items` that each replace one partition. The partition is selected by
+    the destination scope `part = {part} AND ts >= {since} AND load_day = {curr_date}`:
+
+    - `{part}` is a `str` from `extra_placeholders`, a callable or a constant
+    - `{since}` is a `datetime` from `extra_placeholders`, naive or with a timezone
+    - `{curr_date}` is the date of the load package, filled by dlt
+
+    The staging tables keep the records of earlier loads, so the source filter
+    `_dlt_load_id = {load_id}` is what limits the merge source to the current load.
+
+    Checks the stored records after each load, the values stored in the load package, that the
+    schema does not change between loads and that a load uses the values of its extract step.
+    """
+    if destination_config.table_format == "iceberg":
+        pytest.skip("Iceberg does not support merge conditions.")
+    # keep the records of earlier loads in staging, only the source filter excludes them
+    os.environ["LOAD__TRUNCATE_STAGING_MERGE_TABLES_BEFORE_LOAD"] = "false"
+    p = destination_config.setup_pipeline("merge_placeholders", dev_mode=True)
+    # delta has no `delete-insert`. `cdc` deletes the absent records of the partition the same way
+    strategy: TLoaderMergeStrategy = (
+        "cdc" if destination_config.table_format == "delta" else "delete-insert"
+    )
+    # delta merge predicates name the merged tables by alias
+    t = "{table}." if destination_config.table_format == "delta" else ""
+    scope = f"{t}part = {{part}} AND {t}ts >= {{since}} AND {t}load_day = {{curr_date}}"
+    source_filter = merge_condition("_dlt_load_id = {load_id}", destination_config, "staging_table")
+    today = datetime.now(timezone.utc).date()
+
+    def row(
+        id_: int, part: str, hour: int, minute: int, day: date = today, version: int = 1
+    ) -> StrAny:
+        """A record of `part` with `ts` at hour:minute UTC on 2024-01-01. `load_day` defaults to
+        the date of the load, so the record is in the `{curr_date}` partition. The dedup keeps
+        the lowest `version` of a record."""
+        ts = datetime(2024, 1, 1, hour, minute, tzinfo=timezone.utc)
+        return {"id": id_, "part": part, "ts": ts, "load_day": day, "version": version}
+
+    def items(
+        data: Sequence[StrAny], part: Any = None, since: datetime = None, part_arg: str = None
+    ) -> DltSource:
+        """A merge of `data` with the placeholders `part` and `since`. Without `part`, an
+        append that seeds the table. `part_arg` is the argument of the resource that a callable
+        `part` reads."""
+        return merge_resource(
+            data,
+            strategy,
+            # the dedup keeps the lowest `version`. the stale copy of a key in staging has
+            # `version=1`
+            columns={"version": {"dedup_sort": "asc"}},
+            table_format=destination_config.table_format,
+            append=part is None,
+            destination_scope=scope,
+            source_filter=source_filter,
+            extra_placeholders={"part": part, "since": since},
+            part=part_arg,
+        )
+
+    def stored() -> List[Tuple[int, int]]:
+        """(id, version) of the records in the destination."""
+        return sorted((r["id"], r["version"]) for r in load_tables_to_dicts(p, "items")["items"])
+
+    # load 1: seed part A and part B. in part A, 1 is before noon UTC and 4 has an old
+    # `load_day`, so a scope with `since` = noon UTC and `{curr_date}` selects only 2 of part A
+    seed = [row(1, "A", 11, 30), row(2, "A", 12, 30), row(3, "B", 12, 30)]
+    seed.append(row(4, "A", 12, 30, date(2000, 1, 1)))
+    assert_load_info(p.run(items(seed), **destination_config.run_kwargs))
+
+    # load 2: replace part A with 5
+    # - `part` is a callable that reads the resource argument "A"
+    # - `since` is a naive noon, which dlt reads in the context timezone, UTC here
+    # the scope deletes only 2: 1 is before `since` and 4 is not in the `{curr_date}` partition
+    info = p.run(
+        items([row(5, "A", 12, 30)], PARTITION_PLACEHOLDERS["part"], datetime(2024, 1, 1, 12), "A"),
+        **destination_config.run_kwargs,
+    )
+    assert_load_info(info)
+    assert_trace_restored(p)
+    assert stored() == [(1, 1), (3, 1), (4, 1), (5, 1)]
+    # the package stores the values of `extra_placeholders`. dlt computes `{curr_date}` at load
+    assert p.get_load_package_state(info.loads_ids[0])["placeholders"] == {
+        "items": {"part": "A", "since": datetime(2024, 1, 1, 12)}
+    }
+    version_hash = p.default_schema.version_hash
+
+    # load 3: replace part B with 6
+    # - `part` is the constant "B"
+    # - `since` is 13:00 in Berlin, which is noon UTC
+    # the scope deletes 3. staging still holds 5 from load 2, the source filter leaves it out, so
+    # the merge does not insert 5 again
+    since = datetime(2024, 1, 1, 13, tzinfo=ZoneInfo("Europe/Berlin"))
+    info = p.run(items([row(6, "B", 12, 30)], "B", since), **destination_config.run_kwargs)
+    assert_load_info(info)
+    assert stored() == [(1, 1), (4, 1), (5, 1), (6, 1)]
+    assert p.get_load_package_state(info.loads_ids[0])["placeholders"]["items"]["since"] == since
+    # new placeholder values do not change the schema
+    assert p.default_schema.version_hash == version_hash
+
+    # load 4: replace part A with 7 and a new version of 5 (`version=2`), in separate steps
+    # - after extract, the hint of the resource changes `part` to "B". the load must use "A",
+    #   the value stored at extract
+    # - staging still holds the stale copy of 5 from load 2 (`version=1`), which the dedup sorts
+    #   first. the dedup must rank only the merge source, otherwise it keeps the stale copy and
+    #   the source filter then drops it, so 5 would be missing
+    source = items(
+        [row(7, "A", 12, 30), row(5, "A", 12, 30, version=2)], "A", datetime(2024, 1, 1, 12)
+    )
+    p.extract(source, **destination_config.run_kwargs)
+    source.resources["items"].write_disposition["extra_placeholders"]["part"] = "B"  # type: ignore[index,typeddict-item]
+    p.normalize()
+    load_id = p.list_normalized_load_packages()[0]
+    assert p.get_load_package_state(load_id)["placeholders"]["items"]["part"] == "A"
+    assert_load_info(p.load())
+    assert stored() == [(1, 1), (4, 1), (5, 2), (6, 1), (7, 1)]
+    assert p.default_schema.version_hash == version_hash
 
 
 @pytest.mark.parametrize(

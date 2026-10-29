@@ -18,7 +18,7 @@ pytestmark = pytest.mark.essential
         pytest.param(None, "", id="empty"),
         pytest.param(
             DuckLakeCredentials(storage="ducklake.files"),
-            digest128(""),
+            digest128("file://"),
             id="storage_local",
         ),
         pytest.param(

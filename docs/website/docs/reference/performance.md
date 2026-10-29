@@ -159,7 +159,7 @@ processing.
 
 ### Controlling intermediary file size and rotation
 
-`dlt` writes data to intermediary files. You can control the file size and the number of created files by setting the maximum number of data items stored in a single file or the maximum single file size. Keep in mind that the file size is computed after compression has been performed.
+`dlt` writes data to intermediary files. You can control the file size and the number of created files by setting the maximum number of data items stored in a single file or the maximum single file size. For the text formats that `dlt` compresses with gzip, such as `jsonl`, `dlt` measures the file size before compression.
 
 * `dlt` uses a custom version of the [JSON file format](../dlt-ecosystem/file-formats.md#jsonl) between the **extract** and **normalize** stages.
 * Files created between the **normalize** and **load** stages are the same files that will be loaded to the destination.
@@ -207,6 +207,22 @@ disable_compression=true
 :::note
 **Filesystem destination**: Starting with dlt version 1.15.0, compressed `csv` and `jsonl` files automatically include a `.gz` extension to reflect their gzip-compressed format. In versions prior to 1.15.0, compressed files were saved without the `.gz` extension. If you have a dataset created with an earlier version (e.g., 1.14.0 or below), dlt will automatically detect the older format and preserve the original naming (without `.gz`) for that dataset. New datasets created with 1.15.0 or later will include the `.gz` extension by default.
 :::
+
+### Inspect the files of each step
+
+The trace of the last run records the files that each step wrote or loaded. To see their rows and sizes by table, run:
+
+```sh
+dlt pipeline <pipeline name> trace metrics
+```
+
+* `extract` shows rows, files and sizes by resource and by table.
+* `normalize` shows rows, files and sizes by table, nested tables included.
+* `load` shows files, sizes, job time and failed jobs by table. It does not count rows.
+
+To select steps, use `--steps`, for example `--steps extract normalize`. To list each file instead of the tables, add `-v`.
+
+Extract and normalize show sizes before compression, the same bytes that `file_max_bytes` limits. Load shows the size of files on disk. For a staged load, this is the size of the file that references the staged data. Traces of dlt versions before 1.32 do not store file counts or load sizes. For these traces, the output shows `files unknown` and `size unknown`.
 
 ### Freeing disk space after loading
 
@@ -441,14 +457,30 @@ in parallel, instead yield functions or async functions that will be evaluated i
 The **normalize** stage uses a process pool to create load packages concurrently. Each file created by the **extract** stage is sent to a process pool. **If you have just a single resource with a lot of data, you should enable [extract file rotation](#controlling-intermediary-file-size-and-rotation)**. The number of processes in the pool is controlled by the `workers` config value:
 
 ```toml
-[normalize.data_writer]
-# force extract file rotation if size exceeds 1MiB
+[sources.data_writer]
+# rotate extract files when they exceed 1 MB
 file_max_bytes=1000000
 
 [normalize]
 # use 3 worker processes to process 3 files in parallel
 workers=3
 ```
+
+#### How normalize assigns files to workers
+
+Each worker gets a group of files and processes them one by one. `dlt` sorts the files by name, so the files of a table stay together. Then it cuts them into groups of similar uncompressed size, one group per worker. `dlt` splits the files of each format separately. Normalize parses the `jsonl` files of Python objects row by row. It often only links the `parquet` files of Arrow tables.
+
+A worker cannot share a file with other workers. One large file keeps one worker busy while the other workers wait. With fewer files than workers, some workers get no files.
+
+#### Choose the size of extract files
+
+Use about 8 to 10 extract files per worker for your largest tables. As a starting point, divide the extracted size by the number of workers, then by 8. Set `file_max_bytes` to the result. For example, use about 50 MB for 1.6 GB of data and 4 workers. If your tables have rows of different sizes, use `file_max_bytes` instead of `file_max_items`. Files of equal size split evenly.
+
+Small `jsonl` extract files do not create more load jobs. Each worker writes one normalized file per table, unless you also rotate the normalize output. Normalize imports each `parquet` file that it does not rewrite as a load job of its own.
+
+#### Warning on unbalanced files
+
+The extract stage logs a warning if normalize can use only half of its workers or less. The usual cause is a single file that dlt did not rotate, or one large file that holds most of the data. The warning names the table to split and tells you whether to set or lower `file_max_items` and `file_max_bytes`. It also shows the command that lists the extracted files (see [Inspect the files of each step](#inspect-the-files-of-each-step)). `dlt` skips this check when less than 32 MiB of `jsonl` data needs normalization.
 
 :::note
 The default is to not parallelize normalization and to perform it in the main process.
@@ -686,6 +718,46 @@ call `pipeline.activate()` to inject the right context into the current thread.
 
 You can also run pipelines in parallel across multiple machines. Please consult our [deployment guides](../walkthroughs/deploy-a-pipeline) for more information. Please take note of the pitfalls listed below.
 
+### Load many pipelines into one dataset
+
+In a multi-tenant setup, each tenant has its own pipeline. All pipelines load into the same dataset and share the destination tables. Each record carries a tenant column. `dlt` supports this setup, but **pipelines that load at the same time must not share a staging dataset**.
+
+The `merge` write disposition and the `insert-from-staging` and `staging-optimized` [replace strategies](../general-usage/full-loading.md#choosing-the-correct-replace-strategy-for-your-full-load) first load data into the [staging dataset](../dlt-ecosystem/staging.md#staging-dataset). When the load step begins, `dlt` truncates the staging tables that receive data. Then it merges or copies the whole staging table into the destination table. By default, `dlt` derives the name of the staging dataset from the dataset name. As a result, pipelines that load into the same dataset also share the staging tables. When two such loads overlap, one pipeline can truncate the staging tables before the other pipeline merges its records. Or both pipelines merge the records of both loads. Both loads succeed, but the destination tables lose records or contain duplicates.
+
+Set a unique `staging_dataset_name_layout` for each pipeline:
+
+```py
+import dlt
+
+tenant_id = "acme"
+pipeline = dlt.pipeline(
+    pipeline_name=f"tenant_{tenant_id}",
+    destination=dlt.destinations.clickhouse(
+        staging_dataset_name_layout=f"%s_staging_{tenant_id}"
+    ),
+    dataset_name="analytics",
+)
+```
+
+#### Limit the number of staging tables
+
+A staging dataset contains one table for each table that `dlt` loads through staging. With 800 tenants and 40 tables, you have 32,000 staging tables. A staging dataset must be unique only among the pipelines that **load at the same time**. Some orchestrators run at most N loads at the same time, from a pool of N slots. In this case, name the staging dataset after the slot instead of the tenant: `staging_dataset_name_layout=f"%s_staging_{slot}"`.
+
+:::caution
+Make sure that the orchestrator never assigns one slot to two loads at the same time. Two loads that share a slot lose or duplicate records.
+:::
+
+After each load, to free the storage of the staging tables, enable [`truncate_staging_dataset`](../dlt-ecosystem/staging.md#cleanup-staging-dataset-automatically). This is safe because no other load shares the staging dataset.
+
+#### Choose the keys and the write disposition
+
+- With `merge`, add the tenant column to the `primary_key`, for example `primary_key=["tenant_id", "id"]`. Then records of different tenants never match.
+- `replace` replaces the whole destination table, including the records of other tenants. To replace only the records of one tenant, use the [`delete-insert` strategy](../general-usage/merge-loading.md#delete-insert-strategy) with `merge_key="tenant_id"`. `dlt` deletes all records of the tenants in the loaded data. Then it inserts the loaded records.
+
+#### Schema changes
+
+Pipelines that load into the same tables also evolve the same tables. When two loads create the same table or add the same column at the same time, one of them fails with a `SchemaUpdateError`. Retry it with [`retry_schema_update`](../running-in-production/running.md#retrying-only-the-schema-update-evolution): on the next attempt, `dlt` applies only the changes that are still missing. To avoid this failure, run a single pipeline first after a schema change. Then start the other pipelines.
+
 ### Pitfalls
 
 Due to the way `dlt` works, there are a few general pitfalls to be aware of:
@@ -699,8 +771,7 @@ Due to the way `dlt` works, there are a few general pitfalls to be aware of:
 
     If you do not, files might be deleted by one pipeline that are still required to be loaded by another pipeline running in parallel.
 
-3. If you are using a write disposition that requires a staging dataset on the final destination, you should provide a unique staging dataset name for each pipeline, otherwise similar problems as noted above may occur. You can do this with the
-[`staging_dataset_name_layout` setting.](../dlt-ecosystem/staging#staging-dataset)
+3. If a write disposition uses a staging dataset, give each pipeline a unique staging dataset. Otherwise, the destination tables can lose records or contain duplicates. Read [Load many pipelines into one dataset](#load-many-pipelines-into-one-dataset).
 
 ## Keep pipeline working folder in a bucket on constrained environments
 

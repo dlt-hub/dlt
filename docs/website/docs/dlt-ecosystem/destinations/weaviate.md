@@ -18,7 +18,7 @@ The Weaviate destination uses the weaviate-client v4 Python library.
 
 1. To use Weaviate as a destination, make sure dlt is installed with the 'weaviate' extra:
 
-```sh
+```cli
 pip install "dlt[weaviate]"
 ```
 
@@ -181,7 +181,7 @@ info = pipeline.run(products_tables)
 ```
 
 :::tip
-A more comprehensive pipeline would load data from [API](https://dlthub.com/workspace) or use one of dlt's [sources](../verified-sources/).
+A more comprehensive pipeline would load data from [API](https://dlthub.com/context) or use one of dlt's [sources](../verified-sources/).
 :::
 
 ## Write disposition

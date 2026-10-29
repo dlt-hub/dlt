@@ -5,6 +5,7 @@ from typing import Any, Dict, Iterator
 
 import pytest
 import asyncio
+from pytest_mock import MockerFixture
 
 import dlt, os
 from dlt.common.configuration.container import Container
@@ -38,6 +39,7 @@ from dlt.extract.exceptions import (
     ResourceNotFoundError,
     ResourcesNotFoundError,
 )
+from dlt.extract.items_transform import LimitItem
 from dlt.extract.pipe import Pipe
 from dlt.extract.utils import dynstr, make_schema_with_default_name
 from tests.common.utils import load_yml_case
@@ -1034,6 +1036,99 @@ def test_limit_empty_batches() -> None:
     assert counter == 3
 
 
+def test_limit_skips_hints_only_items() -> None:
+    counter = 0
+
+    @dlt.resource
+    def pages():
+        nonlocal counter
+        # an empty list with hints is not a page
+        yield dlt.mark.with_hints(
+            [], dlt.mark.make_hints(columns=[{"name": "hinted", "data_type": "text"}])
+        )
+        for i in range(3):
+            counter += 1
+            yield [{"id": i}]
+
+    assert list(pages().add_limit(1)) == [{"id": 0}]
+    assert counter == 1
+    assert list(pages().add_limit(1, count_rows=True)) == [{"id": 0}]
+
+    # hints still reach the extractor
+    pipeline = dlt.pipeline(dev_mode=True)
+    pipeline.extract(pages().add_limit(1))
+    assert "hinted" in pipeline.default_schema.get_table_columns("pages")
+
+
+@pytest.mark.parametrize(
+    "parent_selected", [True, False], ids=["parent_selected", "parent_not_selected"]
+)
+@pytest.mark.parametrize("limit_on", ["source", "transformer"])
+def test_limit_transformer_pushed_to_parent(parent_selected: bool, limit_on: str) -> None:
+    pages = 0
+
+    def numbers():
+        nonlocal pages
+        for i in range(5):
+            pages += 1
+            yield [i * 10, i * 10 + 1]
+
+    @dlt.source
+    def numbers_source():
+        parent = dlt.resource(numbers, name="parent", selected=parent_selected)
+        yield parent
+        yield parent | dlt.transformer(name="child")(lambda items: [{"of": i} for i in items])
+
+    source = numbers_source()
+    if limit_on == "source":
+        source.add_limit(1)
+    else:
+        source.resources["child"].add_limit(1)
+
+    items = list(source)
+    assert pages == 1
+    assert [item for item in items if isinstance(item, dict)] == [{"of": 0}, {"of": 1}]
+    assert [item for item in items if isinstance(item, int)] == ([0, 1] if parent_selected else [])
+
+
+def test_limit_transformer_pushdown_rules(mocker: MockerFixture) -> None:
+    # limits compare by settings
+    assert LimitItem(1, None, False) == LimitItem(1, None, False)
+    assert LimitItem(1, None, False) != LimitItem(1, None, True)
+    assert LimitItem(None, None, False) == LimitItem(-1, None, False)
+
+    warning_spy = mocker.spy(dlt.common.logger, "warning")
+    grandparent = dlt.resource([1, 2, 3, 4, 5], name="grandparent")
+    t1 = dlt.transformer(lambda i: i * 2, name="t1")
+    t2 = dlt.transformer(lambda i: i + 1, name="t2")
+    chain = grandparent | t1 | t2
+
+    # the limit goes to the head of the chain
+    chain.add_limit(1)
+    assert grandparent.limit.max_items == 1
+    assert t1.limit is None and t2.limit is None
+    assert list(chain) == [3]
+    warning_spy.assert_not_called()
+
+    # a different limit on the head is replaced with a warning, the last limit wins
+    grandparent.add_limit(3)
+    t2.add_limit(1)
+    assert grandparent.limit.max_items == 1
+    assert warning_spy.call_count == 1
+    assert "`grandparent`" in warning_spy.call_args[0][0]
+
+    # the same limit is replaced without a warning
+    t1.add_limit(1)
+    assert warning_spy.call_count == 1
+
+    # a transformer that is not bound to a resource cannot be limited
+    unbound = dlt.transformer(lambda i: i, name="unbound")
+    unbound.add_limit(1)
+    assert warning_spy.call_count == 2
+    assert DltResource.Empty._pipe.get_by_type(LimitItem) is None
+    assert list(dlt.resource([1, 2, 3], name="data") | unbound) == [1, 2, 3]
+
+
 def test_limit_skip_filtered_batches() -> None:
     counter = 0
 
@@ -1074,9 +1169,10 @@ def test_various_limit_setups() -> None:
     assert list(r) == [1, 2, 3, 4]
     assert list(r | t) == [2, 4, 6, 8]
 
-    # adding limit to transformer is disregarded
+    # limit on transformer replaces the limit of its parent
     t = t.add_limit(2)
-    assert list(r | t) == [2, 4, 6, 8]
+    assert r.limit.max_items == 2
+    assert list(r | t) == [2, 4]
 
     # limits are fully replaced (more genereous limit applied later takes precedence)
     r = dlt.resource([1, 2, 3, 4, 5], name="test").add_limit(3).add_limit(4)

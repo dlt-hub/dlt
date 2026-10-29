@@ -668,12 +668,15 @@ def to_seconds(td: Optional[TimedeltaSeconds]) -> Optional[float]:
 TTimeWithPrecision = TypeVar("TTimeWithPrecision", bound=Union[datetime.datetime, datetime.time])
 
 
-def reduce_pendulum_datetime_precision(
-    value: TTimeWithPrecision, precision: int
-) -> TTimeWithPrecision:
+def reduce_datetime_precision(value: TTimeWithPrecision, precision: int) -> TTimeWithPrecision:
+    """Truncates the fractional seconds of a `datetime` or `time` to `precision` digits."""
     if precision >= 6:
         return value
     return value.replace(microsecond=value.microsecond // 10 ** (6 - precision) * 10 ** (6 - precision))  # type: ignore
+
+
+reduce_pendulum_datetime_precision = reduce_datetime_precision
+"""Deprecated name of `reduce_datetime_precision`."""
 
 
 def get_precision_from_datetime_unit(unit: str) -> int:
@@ -693,3 +696,95 @@ def get_precision_from_datetime_unit(unit: str) -> int:
         return 6
     else:  # "ns" or any other unit defaults to nanosecond precision
         return 9
+
+
+DATETIME_PLACEHOLDERS = {
+    # years: 2024, 24
+    "YYYY",
+    "YY",
+    "Y",
+    # months: january, jan, 01, 1
+    "MMMM",
+    "MMM",
+    "MM",
+    "M",
+    # days: 01, 1
+    "DD",
+    "D",
+    # hours, minutes, seconds: 03, 3
+    "HH",
+    "H",
+    "mm",
+    "m",
+    "ss",
+    "s",
+    # days of week: monday, mon, mo, 0-6 with sunday as 0
+    "dddd",
+    "ddd",
+    "dd",
+    "d",
+    # fractional seconds: 1234, 123, 12, 1
+    "SSSS",
+    "SSS",
+    "SS",
+    "S",
+    # quarters: 1-4
+    "Q",
+}
+"""Date and time placeholders of filesystem layouts and merge conditions. The names follow the
+pendulum format tokens."""
+
+# fixed English names, `strftime` would follow the process locale
+_MONTH_NAMES = (
+    "january",
+    "february",
+    "march",
+    "april",
+    "may",
+    "june",
+    "july",
+    "august",
+    "september",
+    "october",
+    "november",
+    "december",
+)
+_WEEKDAY_NAMES = ("monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday")
+
+
+def datetime_to_placeholders(moment: datetime.datetime) -> Dict[str, str]:
+    """Renders `DATETIME_PLACEHOLDERS`, `curr_date`, `timestamp` and `timestamp_ms` of `moment`
+    in its own timezone."""
+    year = str(moment.year)
+    month = _MONTH_NAMES[moment.month - 1]
+    weekday = _WEEKDAY_NAMES[moment.weekday()]
+    fraction = f"{moment.microsecond:06d}"
+    return {
+        "YYYY": year,
+        "YY": year[2:],
+        "Y": year,
+        "MMMM": month,
+        "MMM": month[:3],
+        "MM": f"{moment.month:02d}",
+        "M": str(moment.month),
+        "DD": f"{moment.day:02d}",
+        "D": str(moment.day),
+        "HH": f"{moment.hour:02d}",
+        "H": str(moment.hour),
+        "mm": f"{moment.minute:02d}",
+        "m": str(moment.minute),
+        "ss": f"{moment.second:02d}",
+        "s": str(moment.second),
+        "dddd": weekday,
+        "ddd": weekday[:3],
+        "dd": weekday[:2],
+        "d": str((moment.weekday() + 1) % 7),
+        "SSSS": fraction[:4],
+        "SSS": fraction[:3],
+        "SS": fraction[:2],
+        "S": fraction[:1],
+        "Q": str((moment.month - 1) // 3 + 1),
+        "curr_date": str(moment.date()),
+        "timestamp": str(datetime_to_timestamp(moment)),
+        "timestamp_ms": str(datetime_to_timestamp_ms(moment)),
+    }

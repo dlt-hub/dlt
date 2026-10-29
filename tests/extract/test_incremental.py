@@ -29,7 +29,7 @@ from dlt.common.json import json
 from dlt.common.pendulum import pendulum, timedelta
 from dlt.common.pipeline import NormalizeInfo, StateInjectableContext
 from dlt.common.schema.schema import Schema
-from dlt.common.typing import TSortOrder, TDataItems
+from dlt.common.typing import TSortOrder, TDataItem, TDataItems
 from dlt.common.utils import chunks, uniq_id
 
 from dlt.extract import DltSource
@@ -44,7 +44,7 @@ from dlt.extract.incremental.exceptions import (
 )
 from dlt.extract.incremental.lag import apply_lag
 from dlt.extract.incremental.transform import ArrowIncremental
-from dlt.extract.items_transform import ValidateItem
+from dlt.extract.items_transform import MapItem, MetricsItem, ValidateItem
 from dlt.extract.resource import DltResource
 from dlt.extract.utils import (
     digest_dedup_value,
@@ -1520,6 +1520,15 @@ def test_replace_resets_state(item_type: TestDataItemFormat) -> None:
     assert len(info.loads_ids) == 0
     info = p.run(standalone_some_data(item_type, now), write_disposition="replace")
     assert len(info.loads_ids) == 1
+    # the dict form keeps the state: dlt extracts nothing new, the empty load truncates the table
+    info = p.run(standalone_some_data(item_type, now), write_disposition={"disposition": "replace"})
+    assert len(info.loads_ids) == 1
+    assert p.last_trace.last_normalize_info.row_counts["standalone_some_data"] == 0
+    info = p.run(
+        standalone_some_data(item_type, now),
+        write_disposition={"disposition": "replace", "exclude_resource_state": False},
+    )
+    assert p.last_trace.last_normalize_info.row_counts["standalone_some_data"] == 20
 
     parent_r = standalone_some_data(item_type, now)
 
@@ -1584,6 +1593,47 @@ def test_replace_resets_state(item_type: TestDataItemFormat) -> None:
     assert extracted[child.name].write_disposition == "replace"
     # now parent exists separately and has its own write disposition - because we search by name to identify matching resource
     assert extracted[child._pipe.parent.name].write_disposition == "append"
+
+
+@pytest.mark.parametrize("hint_location", ("decorator", "apply_hints", "run"))
+def test_replace_dict_keeps_incremental_state(hint_location: str) -> None:
+    """The dict form of `replace` keeps the incremental state so each run replaces the table with
+    the newly extracted rows only. A run without new rows leaves the table empty."""
+    rows = [
+        {"id": i, "updated_at": datetime(2026, 10, 1 + i, tzinfo=timezone.utc)} for i in range(3)
+    ]
+    replace_dict: Any = {"disposition": "replace", "exclude_resource_state": True}
+
+    @dlt.resource(write_disposition=replace_dict if hint_location == "decorator" else "append")
+    def items(updated_at=dlt.sources.incremental("updated_at")):
+        yield rows
+
+    if hint_location == "apply_hints":
+        items.apply_hints(write_disposition=replace_dict)
+    run_kwargs: Dict[str, Any] = (
+        {"write_disposition": replace_dict} if hint_location == "run" else {}
+    )
+
+    p = dlt.pipeline(pipeline_name="p" + uniq_id(), destination="duckdb")
+    p.run(items(), **run_kwargs)
+    assert p.last_trace.last_normalize_info.row_counts["items"] == 3
+    assert load_table_counts(p, "items")["items"] == 3
+
+    rows.extend(
+        {"id": i, "updated_at": datetime(2026, 10, 1 + i, tzinfo=timezone.utc)} for i in (3, 4)
+    )
+    p.run(items(), **run_kwargs)
+    assert p.last_trace.last_normalize_info.row_counts["items"] == 2
+    assert_query_column(p, "SELECT id FROM items ORDER BY id", [3, 4])
+    cursor_state = p.state["sources"][p.default_schema_name]["resources"]["items"]["incremental"][
+        "updated_at"
+    ]
+    assert cursor_state["last_value"] == datetime(2026, 10, 5, tzinfo=timezone.utc)
+    assert cursor_state["start_value"] == datetime(2026, 10, 3, tzinfo=timezone.utc)
+
+    # nothing new: an empty load truncates the table
+    p.run(items(), **run_kwargs)
+    assert load_table_counts(p, "items")["items"] == 0
 
 
 @pytest.mark.parametrize("item_type", ALL_TEST_DATA_ITEM_FORMATS)
@@ -2040,6 +2090,71 @@ def test_incremental_wrapper_on_clone_incremental() -> None:
     assert r_3.incremental.incremental is not r_4.incremental.incremental
     # now the clone should share the incremental because it was done after parameters were bound
     assert r_4_clone.incremental is r_4.incremental
+
+
+def test_incremental_step_keeps_position() -> None:
+    """Steps inserted after incremental keep their place when hints are re-applied or resource is cloned"""
+    data = [{"id": 1, "updated_at": 1}, {"id": 2, "updated_at": 2}, {"id": 3, "updated_at": 3}]
+
+    @dlt.source
+    def my_source():
+        @dlt.resource
+        def events():
+            yield data
+
+        @dlt.resource
+        def events_arg(updated_at=dlt.sources.incremental("updated_at", initial_value=2)):
+            yield data
+
+        @dlt.resource
+        def events_cfg(api_key: str = "key"):
+            yield data
+
+        return events, events_arg, events_cfg
+
+    seen: List[int] = []
+
+    def collect(item: TDataItem) -> TDataItem:
+        seen.append(item["id"])
+        return item
+
+    def count_rows(items: TDataItems, meta: Any, metrics: Dict[str, Any]) -> None:
+        metrics["row_count"] = metrics.get("row_count", 0) + len(items)
+
+    p = dlt.pipeline(pipeline_name="p" + uniq_id())
+
+    # hints based incremental: pipeline.extract re-applies hints on a copy of the resource
+    r = my_source().events
+    r.apply_hints(incremental=dlt.sources.incremental("updated_at", initial_value=2))
+    r.add_map(collect, insert_at=len(r._pipe))
+    r.add_metrics(count_rows, insert_at=len(r._pipe))
+    steps = [type(s) for s in r._pipe.steps]
+    assert steps.index(Incremental) < steps.index(MapItem) < steps.index(MetricsItem)
+    r.apply_hints()
+    assert [type(s) for s in r._pipe.steps] == steps
+    info = p.extract(r)
+    assert seen == [2, 3]
+    resource_metrics = info.metrics[info.loads_ids[0]][0]["resource_metrics"]["events"]
+    assert resource_metrics.custom_metrics["row_count"] == 2
+    assert [type(s) for s in r.with_name("events_clone")._pipe.steps] == steps
+
+    # arg based incremental: clone ejects and re-injects the wrapper
+    r = my_source().events_arg
+    r.add_map(collect, insert_at=len(r._pipe))
+    steps = [type(s) for s in r._pipe.steps]
+    assert steps.index(IncrementalResourceWrapper) < steps.index(MapItem)
+    r_clone = r.with_name("events_arg_clone")
+    assert [type(s) for s in r_clone._pipe.steps] == steps
+    seen.clear()
+    p.extract(r_clone)
+    assert seen == [2, 3]
+
+    # hints based incremental on resource with config: clone ejects config wrapper
+    r = my_source().events_cfg
+    r.apply_hints(incremental=dlt.sources.incremental("updated_at", initial_value=2))
+    r_clone = r.with_name("events_cfg_clone")
+    assert isinstance(r_clone.incremental, Incremental)
+    assert [item["id"] for item in r_clone] == [2, 3]
 
 
 def test_last_value_func_on_dict() -> None:
@@ -2647,6 +2762,40 @@ def test_start_out_of_range_open_equals_start_value(item_type: TestDataItemForma
     data = list(descending)
     # only 12 and 11 are > 10 (open range excludes 10)
     assert data_item_length(data) == 2
+
+
+@pytest.mark.parametrize("item_type", ALL_TEST_DATA_ITEM_FORMATS)
+@pytest.mark.parametrize("last_value_func", [max, min], ids=["max", "min"])
+def test_descending_boundary_dedup_keeps_extracting(
+    item_type: TestDataItemFormat, last_value_func: Any
+) -> None:
+    """A deduplicated boundary row must not stop extraction: with row_order="desc"
+    and a closed range, new rows sharing the cursor value may sit on later pages.
+    Regression test for #4523.
+    """
+    # row_order is relative to last_value_func: "desc" with min is numerically ascending
+    sign = 1 if last_value_func is max else -1
+    pages = [[{"id": 1, "v": 100 * sign}]]
+
+    @dlt.resource(primary_key="id")
+    def events(v=dlt.sources.incremental("v", row_order="desc", last_value_func=last_value_func)):
+        for page in pages:
+            yield data_to_item_format(item_type, page)
+
+    with Container().injectable_context(StateInjectableContext(state={})):
+        r = events()
+        assert data_item_length(list(r)) == 1
+        assert r.state["incremental"]["v"]["last_value"] == 100 * sign
+
+        pages = [
+            [{"id": 3, "v": 105 * sign}, {"id": 1, "v": 100 * sign}],
+            [{"id": 2, "v": 100 * sign}, {"id": 4, "v": 99 * sign}],
+        ]
+        r = events()
+        ids = [row["id"] for item in r for row in data_item_to_list(item_type, [item])]
+        # 3 is above the boundary, 2 shares the cursor value on the next page,
+        # 1 is already loaded and 4 is below the boundary which stops extraction
+        assert ids == [3, 2]
 
 
 @pytest.mark.parametrize("item_type", ALL_TEST_DATA_ITEM_FORMATS)
@@ -5094,6 +5243,21 @@ def test_end_range_monotonic(
         .fetchall()
     ]
     assert items == expected_items
+
+
+@pytest.mark.parametrize("item_type", ALL_TEST_DATA_ITEM_FORMATS)
+def test_incremental_forwards_empty_lists(item_type: TestDataItemFormat) -> None:
+    """Empty lists pass so hints-only items and materialized tables reach the extractor. Items
+    with all rows filtered out are consumed."""
+    incr = bind_state(dlt.sources.incremental[int]("v", initial_value=10), 10)
+    empty: List[Any] = []
+    assert incr(empty) is empty
+    materialized = dlt.mark.materialize_table_schema()
+    assert incr(materialized) is materialized
+
+    # all rows are below the start value
+    filtered = data_to_item_format(item_type, [{"v": 1}, {"v": 2}])
+    assert incr(filtered if item_type == "object" else filtered[0]) is None
 
 
 @pytest.mark.parametrize("offset_by_last_value", [True, False])
