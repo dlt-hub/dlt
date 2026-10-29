@@ -231,6 +231,10 @@ With `decompose="parallel"` or `decompose="parallel-isolated"`, the decomposed t
 When you run the `load_data` DAG above, Airflow will call the `source` function every 30 seconds (by default) to be able to monitor the tasks. Make sure that your source function does not perform any long-lasting operations, e.g., reflecting the source database. In the case of [sql_database](../../dlt-ecosystem/verified-sources/sql_database/index.md), we added an option to delay database reflection until data is accessed by a resource.
 :::
 
+:::tip
+To load the data interval of each DAG run, set `allow_external_schedulers=True` on the incrementals of your resources. Then the incrementals do not use the dlt state. See [Using Airflow schedule for backfill and incremental loading](../../general-usage/incremental/cursor.md#using-airflow-schedule-for-backfill-and-incremental-loading).
+:::
+
 :::caution
 Always instantiate `PipelineTasksGroup` **before** creating the `dlt.pipeline`. The constructor of `PipelineTasksGroup` overrides the `DLT_DATA_DIR` environment variable to a fresh random per-worker directory so that Airflow workers, which are reused across DAG runs, do not leak pipeline state between runs.
 :::

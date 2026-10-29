@@ -457,11 +457,15 @@ def resolve_merge_strategy(
     tables: TSchemaTables,
     table: TTableSchema,
     destination_capabilities: Optional[DestinationCapabilitiesContext] = ConfigValue,
+    *,
+    is_prepared: bool,
 ) -> Optional[TLoaderMergeStrategy]:
     """Resolve merge strategy for a table, possibly resolving the 'x-merge-strategy from a table chain. strategies selector in `destination_capabilities`
     is used if present. If `table` does not contain strategy hint, a default value will be used which is the first.
 
-    `destination_capabilities` are injected from context if not explicitly passed.
+    `destination_capabilities` are injected from context if not explicitly passed. A table
+    prepared by a job client (`is_prepared`) is used as it is, other tables are prepared from
+    `tables`.
 
     Returns None if table write disposition is not merge
     """
@@ -470,8 +474,8 @@ def resolve_merge_strategy(
             destination_capabilities or DestinationCapabilitiesContext.generic_capabilities()
         )
         supported_strategies = destination_capabilities.supported_merge_strategies
-        # prepare table
-        table = prepare_load_table(tables, table, destination_capabilities)
+        if not is_prepared:
+            table = prepare_load_table(tables, table, destination_capabilities)
 
         table_name = table["name"]
         if destination_capabilities.merge_strategies_selector:
@@ -480,7 +484,14 @@ def resolve_merge_strategy(
             )
         if not supported_strategies:
             return None
-        merge_strategy = get_merge_strategy(tables, table_name)
+        merge_strategy = cast(
+            Optional[TLoaderMergeStrategy],
+            (
+                table.get("x-merge-strategy")
+                if is_prepared
+                else get_merge_strategy(tables, table_name)
+            ),
+        )
         # use first merge strategy as default
         if merge_strategy is None and supported_strategies:
             merge_strategy = supported_strategies[0]

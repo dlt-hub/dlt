@@ -1,5 +1,7 @@
+import datetime  # noqa: I251
 import yaml
-from typing import Any, Sequence, Tuple
+from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple
+import humanize
 import dlt
 
 from dlt.common.json import json
@@ -25,6 +27,7 @@ from dlt._workspace.cli._pipeline_command_helpers import (
     drop_pipeline,
     fail_package_job,
 )
+from dlt._workspace.typing import TTraceStepMetrics
 
 
 def list_pipelines(pipelines_dir: str = None, verbosity: int = 1) -> None:
@@ -60,6 +63,130 @@ def list_pipelines(pipelines_dir: str = None, verbosity: int = 1) -> None:
         fmt.echo(
             "%s %s" % (fmt.style(name, fg="green"), fmt.style(f"(last run: {time_str})", fg="cyan"))
         )
+
+
+def print_trace_metrics(steps: List[TTraceStepMetrics], verbosity: int) -> None:
+    """Prints files, rows and sizes of trace steps by resource and table, by file if `verbosity` > 0"""
+    if not steps:
+        fmt.echo("The last run trace has no extract, normalize or load steps.")
+        return
+    for step in steps:
+        fmt.echo(_step_metrics_header(step))
+        if "step_exception" in step:
+            fmt.secho("  failed: %s" % step["step_exception"], fg="red")
+        if verbosity > 0:
+            _print_metrics_rows("files", step.get("files", []), "job_id", with_table=True)
+            _print_metrics_rows("files", step.get("jobs", []), "job_id", with_table=True)
+        else:
+            _print_metrics_rows("resources", step.get("resources", []), "resource_name")
+            _print_metrics_rows("tables", step.get("tables", []), "table_name")
+            _print_metrics_rows("tables", _jobs_by_table(step.get("jobs", [])), "table_name")
+        fmt.echo()
+
+
+def _print_metrics_rows(
+    title: str, rows: Sequence[Mapping[str, Any]], name_key: str, with_table: bool = False
+) -> None:
+    if not rows:
+        return
+    fmt.echo("  %s:" % title)
+    for row in rows:
+        table_str = "table %s, " % row["table_name"] if with_table else ""
+        fmt.echo("    %s: %s%s" % (fmt.bold(row[name_key]), table_str, _metrics_str(row)))
+
+
+def _jobs_by_table(jobs: Sequence[Mapping[str, Any]]) -> List[Dict[str, Any]]:
+    """Sums `LoadJobMetrics` rows by table, largest tables first"""
+    tables: Dict[str, Dict[str, Any]] = {}
+    for job in jobs:
+        table = tables.setdefault(
+            job["table_name"],
+            {
+                "table_name": job["table_name"],
+                "files_count": 0,
+                "file_size": 0,
+                "elapsed": 0.0,
+                "failed_count": 0,
+            },
+        )
+        table["files_count"] += 1
+        if job["file_size"] is None or table["file_size"] is None:
+            table["file_size"] = None
+        else:
+            table["file_size"] += job["file_size"]
+        table["elapsed"] += _job_elapsed(job) or 0.0
+        table["failed_count"] += job["state"] == "failed"
+    return sorted(tables.values(), key=lambda t: -(t["file_size"] or 0))
+
+
+def _job_elapsed(job: Mapping[str, Any]) -> Optional[float]:
+    if job["started_at"] and job["finished_at"]:
+        return float((job["finished_at"] - job["started_at"]).total_seconds())
+    return None
+
+
+def _step_metrics_header(step: TTraceStepMetrics) -> str:
+    if "finished_at" in step:
+        timing = "finished in %s" % _duration_str(
+            (step["finished_at"] - step["started_at"]).total_seconds()
+        )
+    else:
+        timing = "did not finish"
+    tables = step.get("tables") or _jobs_by_table(step.get("jobs", []))
+    sizes = [table["file_size"] for table in tables]
+    counts = [table["files_count"] for table in tables]
+    totals: Dict[str, Any] = {
+        "files_count": None if None in counts else sum(counts),
+        "file_size": None if None in sizes else sum(sizes),
+    }
+    if "tables" in step:
+        totals["items_count"] = sum(table["items_count"] for table in tables)
+    header = "%s %s: %s, %s" % (
+        fmt.bold(step["step"]),
+        timing,
+        _count_str(len(tables), "table"),
+        _metrics_str(totals),
+    )
+    if step["load_ids"]:
+        header += " (load ids: %s)" % ", ".join(step["load_ids"])
+    return header
+
+
+def _metrics_str(row: Mapping[str, Any]) -> str:
+    """Renders `DataWriterMetrics` and `LoadJobMetrics` rows, their sums by table and step totals"""
+    parts: List[str] = []
+    if "items_count" in row:
+        parts.append(_count_str(row["items_count"], "row"))
+    # a row of a single job file counts 1 file
+    if "files_count" in row and "job_id" not in row:
+        if row["files_count"] is None:
+            parts.append("files unknown")
+        else:
+            parts.append(_count_str(row["files_count"], "file"))
+    if row["file_size"] is None:
+        parts.append("size unknown")
+    else:
+        parts.append(humanize.naturalsize(row["file_size"], binary=True))
+    if "state" in row:
+        parts.append(row["state"])
+        if (elapsed := _job_elapsed(row)) is not None:
+            parts.append(_duration_str(elapsed))
+        if row["retry_count"]:
+            parts.append(_count_str(row["retry_count"], "retry", "retries"))
+    if "elapsed" in row:
+        # tables sum the time of their jobs, which may run in parallel
+        parts.append(_duration_str(row["elapsed"]) + " in jobs")
+    if row.get("failed_count"):
+        parts.append(fmt.style("%d failed" % row["failed_count"], fg="red"))
+    return ", ".join(parts)
+
+
+def _count_str(count: int, noun: str, plural: str = None) -> str:
+    return "%d %s" % (count, noun if count == 1 else plural or noun + "s")
+
+
+def _duration_str(seconds: float) -> str:
+    return humanize.precisedelta(datetime.timedelta(seconds=seconds), format="%0.1f")
 
 
 def pipeline_command(
@@ -282,7 +409,12 @@ def pipeline_command(
         if trace is None or len(trace.steps) == 0:
             fmt.warning("Pipeline does not have last run trace.")
             return
-        fmt.echo(trace.asstr(verbosity))
+        if command_kwargs.get("action") == "metrics":
+            print_trace_metrics(
+                utils.fetch_trace_metrics(trace, command_kwargs.get("steps")), verbosity
+            )
+        else:
+            fmt.echo(trace.asstr(verbosity))
 
     if operation == "failed-jobs":
         completed_loads = pipeline.list_completed_load_packages()

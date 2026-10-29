@@ -156,7 +156,9 @@ def verify_unsupported_merge_options(
     `options` that `target` (a destination type or table format) cannot apply."""
     exception_log: List[Exception] = []
     for table in load_tables:
-        merge_strategy = resolve_merge_strategy(schema.tables, table, capabilities)
+        merge_strategy = resolve_merge_strategy(
+            schema.tables, table, capabilities, is_prepared=True
+        )
         if merge_strategy is None:
             continue
         set_options = _get_merge_options(table)
@@ -176,13 +178,15 @@ def verify_unsupported_merge_options(
 def _verify_nested_destination_scope(
     schema: Schema,
     table: PreparedTableSchema,
+    root_table: PreparedTableSchema,
     capabilities: DestinationCapabilitiesContext,
     destination_scope_placeholders: Sequence[str],
 ) -> List[Exception]:
-    root_table = get_root_table(schema.tables, table["name"])
-    merge_strategy = resolve_merge_strategy(schema.tables, root_table, capabilities)
+    merge_strategy = resolve_merge_strategy(
+        schema.tables, root_table, capabilities, is_prepared=True
+    )
     if merge_strategy is None:
-        # the root table reports that the destination does not merge, ie. a staging filesystem
+        # the prepared root table does not merge, ie. on a staging filesystem
         return []
     if merge_strategy != "delete-insert" or "x-merge-destination-scope" not in root_table:
         return [
@@ -222,16 +226,26 @@ def verify_schema_merge_disposition(
     log = logger.warning if warnings else logger.info
     # collect all exceptions to show all problems in the schema
     exception_log: List[Exception] = []
+    prepared_tables = {table["name"]: table for table in load_tables}
 
     # verifies schema settings specific to sql job client
     for table in load_tables:
         if is_nested_table(table):
             if "x-merge-destination-scope" in table:
-                exception_log.extend(
-                    _verify_nested_destination_scope(
-                        schema, table, capabilities, destination_scope_placeholders
+                root_name = get_root_table(schema.tables, table["name"])["name"]
+                # a nested table has data only with its root table, so the root is loaded too
+                if root_table := prepared_tables.get(root_name):
+                    exception_log.extend(
+                        _verify_nested_destination_scope(
+                            schema, table, root_table, capabilities, destination_scope_placeholders
+                        )
                     )
-                )
+                else:
+                    logger.warning(
+                        "dlt did not verify the `destination_scope` of nested table"
+                        f" `{table['name']}`. Its root table `{root_name}` has no data in this"
+                        " load."
+                    )
             continue
 
         table_name = table["name"]
@@ -245,7 +259,9 @@ def verify_schema_merge_disposition(
                     )
                 )
 
-            merge_strategy = resolve_merge_strategy(schema.tables, table, capabilities)
+            merge_strategy = resolve_merge_strategy(
+                schema.tables, table, capabilities, is_prepared=True
+            )
             if merge_strategy is None:
                 table_format_info = ""
                 if capabilities.supported_table_formats:

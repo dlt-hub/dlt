@@ -1159,6 +1159,24 @@ def test_trace_backward_compat() -> None:
             # use trace loading which ignores all errors
             trace = load_trace(trace_dir)
             assert_trace_serializable(trace)
+            # traces older than 1.32 store neither the files count nor the size of load jobs
+            stores_file_metrics = folder not in ("dlt.1.15", "dlt.1.18.2")
+            for step in trace.steps:
+                if isinstance(step.step_info, (ExtractInfo, NormalizeInfo)):
+                    for metrics_list in step.step_info.metrics.values():
+                        for metrics in metrics_list:
+                            # fixtures write one file per table
+                            for writer_metrics in metrics["table_metrics"].values():
+                                assert writer_metrics.files_count == (
+                                    1 if stores_file_metrics else None
+                                )
+                if isinstance(step.step_info, LoadInfo):
+                    for load_metrics in step.step_info.metrics.values():
+                        for job_metrics in load_metrics[0]["job_metrics"].values():
+                            if stores_file_metrics:
+                                assert job_metrics.file_size > 0
+                            else:
+                                assert job_metrics.file_size is None
 
 
 def test_ignore_load_broken_trace() -> None:

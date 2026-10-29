@@ -35,7 +35,11 @@ from dlt.pipeline.exceptions import PipelineStepFailed
 
 from tests.utils import preserve_environ, skipifwindows
 from tests.workspace.cases.runtime_workspace import batch_jobs
-from tests.workspace.utils import isolated_workspace
+from tests.workspace.utils import (
+    importable_workspace,
+    isolated_workspace,
+    restore_clean_workspace,
+)
 
 WORKSPACE = "tests.workspace.cases.runtime_workspace"
 _DLT_SPEC: TInstallSpec = {"name": "dlt", "extras": [], "version": dlt.__version__, "mode": "pypi"}
@@ -442,34 +446,121 @@ def test_job_launcher_auto_refresh_import_time_pipeline(tmp_path: Any, source: s
     assert "refresh=drop_sources" in result.stdout
 
 
-def test_job_launcher_profile_injection() -> None:
-    """Job launcher sets WORKSPACE__PROFILE env var from entry_point.profile."""
-    old = os.environ.pop("WORKSPACE__PROFILE", None)
-    try:
-        ep = _entry(f"{WORKSPACE}.batch_jobs", "profile_aware")
-        ep["profile"] = "staging"
-        result = job_run(ep, run_id="profile-1", trigger="manual:")
-        assert "profile=staging" in result
-    finally:
-        if old is not None:
-            os.environ["WORKSPACE__PROFILE"] = old
-        else:
-            os.environ.pop("WORKSPACE__PROFILE", None)
+PROFILE_VALUES: Dict[str, Dict[str, Any]] = {
+    "dev": {"bucket_url": "memory:///dev_bucket", "days": 1, "incremental_mode": "interval"},
+    "prod": {"bucket_url": "memory:///prod_bucket", "days": 7, "incremental_mode": "pipeline"},
+}
+"""Values that `profiles_workspace` configures in `dev.config.toml` and `prod.config.toml`."""
 
 
-def test_job_launcher_no_profile() -> None:
-    """Job without profile in entry_point does not set WORKSPACE__PROFILE."""
-    old = os.environ.pop("WORKSPACE__PROFILE", None)
-    try:
+def _profile_entry(function: str, profile: str) -> TRuntimeEntryPoint:
+    ep = _entry("profile_jobs", function)
+    ep["profile"] = profile
+    return ep
+
+
+@pytest.mark.parametrize("profile", ["dev", "prod"])
+@pytest.mark.parametrize("function", ["module_pipeline_probe", "job_pipeline_probe"])
+def test_job_launcher_pipeline_uses_profile(profile: str, function: str) -> None:
+    """A pipeline declared in the job module or in the job body runs with the profile of the
+    entry point: its working dir and its destination settings come from that profile."""
+    with importable_workspace("profiles_workspace", "profile_jobs"):
+        result = job_run(_profile_entry(function, profile), run_id=function, trigger="manual:")
+        ctx = dlt.current.run_context()
+        assert ctx.profile == profile  # type: ignore[attr-defined]
+        assert result["profile"] == profile
+        assert result["pipelines_dir"] == ctx.get_data_entity("pipelines")
+        assert result["bucket_url"] == PROFILE_VALUES[profile]["bucket_url"]
+
+
+@pytest.mark.parametrize("profile", ["dev", "prod"])
+def test_job_launcher_job_config_uses_profile(profile: str) -> None:
+    """The job inputs and the job settings in `JobConfiguration` resolve from the profile of the
+    entry point."""
+    with importable_workspace("profiles_workspace", "profile_jobs"):
+        ep = _profile_entry("config_probe", profile)
+        result = job_run(ep, run_id="config_probe", trigger="manual:")
+        assert result == {"profile": profile, "days": PROFILE_VALUES[profile]["days"]}
+        assert ep["incremental_mode"] == PROFILE_VALUES[profile]["incremental_mode"]
+
+
+def test_job_launcher_keeps_active_profile() -> None:
+    """Without a profile in the entry point, the job runs with the profile that is active."""
+    os.environ.pop("WORKSPACE__PROFILE", None)
+    with importable_workspace("profiles_workspace", "profile_jobs"):
+        dlt.current.run_context().switch_profile("prod")  # type: ignore[attr-defined]
         result = job_run(
-            _entry(f"{WORKSPACE}.batch_jobs", "profile_aware"),
-            run_id="profile-2",
-            trigger="manual:",
+            _entry("profile_jobs", "module_pipeline_probe"), run_id="no_profile", trigger="manual:"
         )
-        assert "profile=" in result  # empty — no profile set
-    finally:
-        if old is not None:
-            os.environ["WORKSPACE__PROFILE"] = old
+        assert result["profile"] == "prod"
+        assert result["bucket_url"] == PROFILE_VALUES["prod"]["bucket_url"]
+        assert "WORKSPACE__PROFILE" not in os.environ
+
+
+@pytest.mark.parametrize(
+    "function,expected",
+    [
+        ("module_pipeline_probe", "'bucket_url': 'memory:///prod_bucket'"),
+        ("config_probe", "'days': 7"),
+    ],
+    ids=["module_pipeline", "job_config"],
+)
+def test_job_launcher_profile_fresh_process(function: str, expected: str) -> None:
+    """In a fresh process the first config lookup creates the run context, so the launcher
+    activates the profile before it resolves any configuration."""
+    run_dir = restore_clean_workspace("profiles_workspace")
+    env = dict(os.environ)
+    env.pop("WORKSPACE__PROFILE", None)
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "dlt._workspace.deployment.launchers.job",
+            "--run-id",
+            "fresh-profile",
+            "--trigger",
+            "manual:",
+            "--entry-point",
+            json.dumps(_profile_entry(function, "prod")),
+        ],
+        cwd=run_dir,
+        capture_output=True,
+        encoding="utf-8",
+        timeout=120,
+        env=env,
+    )
+    assert result.returncode == 0, result.stderr
+    assert "'profile': 'prod'" in result.stdout
+    assert expected in result.stdout
+
+
+@pytest.mark.parametrize(
+    "launcher", ["job", "agent", "mcp", "marimo", "streamlit", "module", "dashboard"]
+)
+def test_launcher_activates_profile_first(launcher: str) -> None:
+    """Every launcher activates the profile before it resolves any configuration."""
+    module = pytest.importorskip(f"dlt._workspace.deployment.launchers.{launcher}")
+    calls: List[str] = []
+
+    class StopLauncher(Exception):
+        pass
+
+    def apply_job_configuration(entry_point: TRuntimeEntryPoint) -> None:
+        calls.append("apply_job_configuration")
+        raise StopLauncher()
+
+    ep = _entry(f"{WORKSPACE}.batch_jobs", "backfill")
+    ep["profile"] = "prod"
+    with (
+        patch.object(module, "activate_profile", lambda _: calls.append("activate_profile")),
+        patch.object(module, "apply_job_configuration", apply_job_configuration),
+        pytest.raises(StopLauncher),
+    ):
+        if launcher in ("job", "agent"):
+            module.run(ep, run_id="order", trigger="manual:")
+        else:
+            module.run(ep)
+    assert calls == ["activate_profile", "apply_job_configuration"]
 
 
 def test_job_launcher_with_config() -> None:

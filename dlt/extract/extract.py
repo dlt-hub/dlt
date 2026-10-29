@@ -1,12 +1,13 @@
 import contextlib
 from collections.abc import Sequence as C_Sequence
 from copy import copy
-from typing import Iterator, List, Dict, Any, Mapping, Optional, cast
+from typing import Iterator, List, Dict, Any, Mapping, Optional, Tuple, cast
 import yaml
 
 from dlt.common import logger
 from dlt.common.configuration.container import Container
-from dlt.common.configuration.resolve import inject_section
+from dlt.common.configuration.exceptions import ConfigurationException
+from dlt.common.configuration.resolve import inject_section, resolve_configuration
 from dlt.common.configuration.specs import ConfigSectionContext, known_sections
 from dlt.common.data_writers.writers import TDataItemFormat
 from dlt.common.metrics import (
@@ -24,6 +25,7 @@ from dlt.common.pipeline import (
 )
 from dlt.common.normalizers.json import helpers as normalize_helpers
 from dlt.common.typing import TColumnNames, TLoaderFileFormat, TTableHintTemplate
+from dlt.common.runners.configuration import PoolRunnerConfiguration
 from dlt.common.runtime import signals
 from dlt.common.runtime.collector import Collector, NULL_COLLECTOR
 from dlt.common.schema import Schema, utils
@@ -36,8 +38,8 @@ from dlt.common.schema.typing import (
     TWriteDispositionConfig,
 )
 from dlt.common.storages import NormalizeStorageConfiguration, LoadPackageInfo, SchemaStorage
+from dlt.common.storages.job_metrics import merge_metrics, metrics_by_job, metrics_by_table
 from dlt.common.storages.load_package import (
-    ParsedLoadJobFileName,
     LoadPackageStateInjectableContext,
     TLoadPackageState,
     commit_load_package_state,
@@ -46,6 +48,7 @@ from dlt.common.utils import (
     get_callable_name,
     get_full_obj_class_name,
     group_dict_of_lists,
+    is_interactive,
     update_dict_nested,
 )
 
@@ -69,7 +72,11 @@ from dlt.extract.resource import DltResource
 from dlt.extract.storage import ExtractStorage
 from dlt.extract.extractors import ObjectExtractor, ArrowExtractor, Extractor, ModelExtractor
 from dlt.extract.state import reset_resource_state
-from dlt.extract.utils import get_data_item_format, make_schema_with_default_name
+from dlt.extract.utils import (
+    get_data_item_format,
+    get_unbalanced_files_warning,
+    make_schema_with_default_name,
+)
 
 
 def select_schema(pipeline: SupportsPipeline) -> Schema:
@@ -386,13 +393,8 @@ class Extract(WithStepInfo[ExtractMetrics, ExtractInfo]):
         super().__init__()
 
     def _compute_metrics(self, load_id: str, source: DltSource) -> ExtractMetrics:
-        # map by job id
-        job_metrics = {
-            ParsedLoadJobFileName.parse(m.file_path): m
-            for m in self.extract_storage.closed_files(load_id)
-        }
-        # aggregate by table name
-        table_metrics = aggregate_job_metrics(job_metrics, lambda job: job.table_name)
+        job_metrics = metrics_by_job(self.extract_storage.closed_files(load_id))
+        table_metrics = metrics_by_table(job_metrics)
 
         # aggregate by resource name
         def _get_all_resource_custom_metrics(resource_name: str) -> Dict[str, Any]:
@@ -709,6 +711,49 @@ class Extract(WithStepInfo[ExtractMetrics, ExtractInfo]):
             )
         # all load ids got processed, cleanup empty folder
         self.extract_storage.delete_empty_extract_folder()
+
+    def warn_on_unbalanced_files(self, pipeline_name: str) -> None:
+        """Warns for each extracted load package whose files leave normalize workers mostly idle"""
+        try:
+            self._warn_on_unbalanced_files(pipeline_name)
+        except Exception as ex:
+            # a diagnostic must not fail the extract step
+            logger.warning(f"Could not check the balance of extracted files: {ex}")
+
+    def _warn_on_unbalanced_files(self, pipeline_name: str) -> None:
+        # `Pipeline.normalize` runs a single worker in interactive sessions
+        if is_interactive():
+            return
+        try:
+            # resolve only the workers of the normalize pool, other fields belong to normalize
+            normalize_workers = resolve_configuration(
+                PoolRunnerConfiguration(workers=1),
+                sections=(known_sections.NORMALIZE,),
+                accept_partial=True,
+            ).workers
+        except ConfigurationException:
+            return
+        if not normalize_workers:
+            return
+        object_storage = self.extract_storage.item_storages["object"]
+        for load_id, metrics in self._load_id_metrics.items():
+            schema = self.schema_storage[metrics[0]["schema_name"]]
+            files = [m for step in metrics for m in step["job_metrics"].values()]
+            file_limits: Dict[str, Tuple[Optional[int], Optional[int]]] = {}
+            for table_name in merge_metrics(step["table_metrics"] for step in metrics):
+                _, writer = object_storage.get_active_writer(load_id, schema.name, table_name)
+                if writer:
+                    file_limits[table_name] = (writer.file_max_items, writer.file_max_bytes)
+            message = get_unbalanced_files_warning(
+                pipeline_name,
+                load_id,
+                files,
+                file_limits,
+                schema.dlt_table_names(),
+                normalize_workers,
+            )
+            if message:
+                logger.warning(message)
 
     def get_step_info(self, pipeline: SupportsPipeline) -> ExtractInfo:
         load_ids = list(self._load_id_metrics.keys())

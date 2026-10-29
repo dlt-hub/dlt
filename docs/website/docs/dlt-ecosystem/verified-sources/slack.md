@@ -206,7 +206,6 @@ def get_messages_resource(
         "ts",
         initial_value=START_DATE,
         end_value=END_DATE,
-        allow_external_schedulers=True,
     ),
 ) -> Iterable[TDataItem]:
    ...
@@ -222,7 +221,9 @@ def get_messages_resource(
 
    - `end_value`: Timestamp range end, defaulting to end_dt in slack_source.
 
-   - `allow_external_schedulers`: A boolean that, if true, permits [external schedulers](../../general-usage/incremental/cursor.md#using-airflow-schedule-for-backfill-and-incremental-loading) to manage incremental loading.
+This source does not set `allow_external_schedulers`. To load the data interval of each Airflow run,
+set `allow_external_schedulers=True` on the incrementals of the source. For an example, see
+[Using Airflow schedule for backfill and incremental loading](../../general-usage/incremental/cursor.md#using-airflow-schedule-for-backfill-and-incremental-loading).
 
 ### Resource `access_logs`
 

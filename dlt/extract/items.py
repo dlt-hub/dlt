@@ -30,6 +30,8 @@ TPipedDataItems = Union[TDataItems, TDeferredDataItems, TAwaitableDataItems]
 
 
 if TYPE_CHECKING:
+    from dlt.extract.hints import TResourceHints
+
     TItemFuture = Future[TPipedDataItems]
 else:
     TItemFuture = Future
@@ -95,6 +97,18 @@ class TableNameMeta:
 
     def __repr__(self) -> str:
         return f"TableNameMeta('{self.table_name}')"
+
+
+class HintsMeta:
+    __slots__ = ("hints", "create_table_variant")
+
+    def __init__(
+        self,
+        hints: "TResourceHints",
+        create_table_variant: bool,
+    ) -> None:
+        self.hints = hints
+        self.create_table_variant = create_table_variant
 
 
 class SupportsPipe(Protocol):

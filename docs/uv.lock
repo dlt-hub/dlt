@@ -800,7 +800,7 @@ wheels = [
 
 [[package]]
 name = "dlt"
-version = "1.31.0"
+version = "1.32.0"
 source = { editable = "../" }
 dependencies = [
     { name = "click" },
@@ -897,7 +897,7 @@ requires-dist = [
     { name = "db-dtypes", marker = "extra == 'bigquery'", specifier = ">=1.2.0" },
     { name = "db-dtypes", marker = "extra == 'gcp'", specifier = ">=1.2.0" },
     { name = "deltalake", marker = "extra == 'deltalake'", specifier = ">=0.25.1" },
-    { name = "dlthub", marker = "extra == 'hub'", specifier = ">=0.30.0a1,<0.32" },
+    { name = "dlthub", marker = "extra == 'hub'", specifier = ">=0.31.0,<0.33" },
     { name = "dlthub-client", marker = "extra == 'hub'", specifier = ">=0.28.3" },
     { name = "duckdb", marker = "extra == 'duckdb'", specifier = ">=0.9,<2" },
     { name = "duckdb", marker = "extra == 'ducklake'", specifier = ">=1.2.0,<2" },
@@ -1204,11 +1204,11 @@ hub = [{ name = "dlt", extras = ["hub"], editable = "../" }]
 
 [[package]]
 name = "dlthub"
-version = "0.30.0"
+version = "0.31.0"
 source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/11/16/7ba6ca3b3be3212cd13225f614fba9b654719a858a40e6dd6824a346e072/dlthub-0.30.0.tar.gz", hash = "sha256:6b13c732ad81fc2e96d629a0e7f45f9d1cb4b8a5f230256cb1ef6d5b6b2bec1a", size = 173007, upload-time = "2026-08-11T12:20:33.682Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/93/22/90c16d459f3ab3809a0093595539e3fab6316bf1185a4724e94992db068b/dlthub-0.31.0.tar.gz", hash = "sha256:89618eaf0dbc452aba4849e11e24f84ebe1d0c8bbf8e8b5c9c9edf185423d7f2", size = 175239, upload-time = "2026-10-09T10:09:53.851Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/c7/b2/ac1c1cea00bc7808d1a05649207d126d5e4694595327c2e685fda26ae110/dlthub-0.30.0-py3-none-any.whl", hash = "sha256:205d52ef8b10e8b613b90df9c6c73911a2eff3cb5f5f07747d7f140db83747e0", size = 230487, upload-time = "2026-08-11T12:20:34.948Z" },
+    { url = "https://files.pythonhosted.org/packages/4d/b9/a75954bfb5ed36ce277b27dd32983fcb06f4cd3d816449be9c0976da1b80/dlthub-0.31.0-py3-none-any.whl", hash = "sha256:16b0219f55fb15a60af25b3d0a9d68d98417ed36d99aedf6a973e91cfe13292c", size = 233063, upload-time = "2026-10-09T10:09:51.826Z" },
 ]
 
 [[package]]

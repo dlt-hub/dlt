@@ -283,9 +283,26 @@ Displays the trace of the last pipeline run containing the start date of the run
 same information for all the steps (`extract`, `normalize`, and `load`). If any of the steps failed,
 you'll see the message of the exceptions that caused that problem. Successful `load` and `run` steps
 will display the load info instead.
+
+With `metrics`, displays the files, rows and sizes of each step by table, and by resource for
+`extract`. With the verbose flag set (`-v`), it displays each file instead. Use `--steps` to
+select the steps.
 """,
         )
         _pre(trace_cmd, "trace")
+        trace_cmd.add_argument(
+            "action",
+            nargs="?",
+            choices=["metrics"],
+            metavar="action",
+            help="`metrics`: files, rows and sizes of each step.",
+        )
+        trace_cmd.add_argument(
+            "--steps",
+            nargs="+",
+            choices=["extract", "normalize", "load"],
+            help="Steps to display metrics for. Defaults to all.",
+        )
         pipe_cmd_schema = pipeline_subparsers.add_parser(
             "schema",
             help="Displays default schema",

@@ -3,7 +3,7 @@ from typing import List, Dict, NamedTuple, Sequence, Set, Optional, Callable
 from concurrent.futures import Future, Executor
 
 from dlt.common import logger
-from dlt.common.metrics import DataWriterMetrics, aggregate_job_metrics
+from dlt.common.metrics import DataWriterMetrics
 from dlt.common.runtime.signals import sleep
 from dlt.common.configuration import with_config, known_sections
 from dlt.common.configuration.accessors import config
@@ -13,10 +13,10 @@ from dlt.common.runtime.collector import Collector, NULL_COLLECTOR
 from dlt.common.schema.typing import TSchemaUpdate, TStoredSchema, TTableSchema
 from dlt.common.schema.utils import merge_schema_updates
 from dlt.common.storages import (
+    FileStorage,
     NormalizeStorage,
     SchemaStorage,
     LoadStorage,
-    ParsedLoadJobFileName,
 )
 from dlt.common.schema import Schema
 from dlt.common.schema.exceptions import CannotCoerceColumnException
@@ -27,11 +27,13 @@ from dlt.common.pipeline import (
     WithStepInfo,
 )
 from dlt.common.storages.exceptions import LoadPackageNotFound
+from dlt.common.storages.job_metrics import metrics_by_job, metrics_by_table
 from dlt.common.storages.load_package import LoadPackageInfo
+from dlt.common.storages.normalize_storage import group_worker_files
 
 from dlt.normalize.configuration import NormalizeConfiguration
 from dlt.normalize.exceptions import NormalizeJobFailed
-from dlt.normalize.worker import w_normalize_files, group_worker_files, TWorkerRV
+from dlt.normalize.worker import w_normalize_files, TWorkerRV
 from dlt.normalize.validate import (
     validate_and_update_schema,
     verify_normalized_table,
@@ -105,9 +107,7 @@ class Normalize(Runnable[Executor], WithStepInfo[NormalizeMetrics, NormalizeInfo
 
     def map_parallel(self, schema: Schema, load_id: str, files: Sequence[str]) -> SubmitRV:
         workers: int = getattr(self.pool, "_max_workers", 1)
-        # group files to process into as many groups as there are workers. prefer to send same tables
-        # to the same worker
-        chunk_files = group_worker_files(files, workers)
+        chunk_files = group_worker_files(files, workers, self._file_sizes(files))
         schema_dict: TStoredSchema = schema.to_dict()
         # create progress directory for worker IPC
         self.load_storage.new_packages.create_progress_dir(load_id)
@@ -190,6 +190,18 @@ class Normalize(Runnable[Executor], WithStepInfo[NormalizeMetrics, NormalizeInfo
             summary.schema_updates, summary.file_metrics, pending_exc, summary.null_only_columns
         )
 
+    def _file_sizes(self, files: Sequence[str]) -> Dict[str, int]:
+        """Uncompressed sizes of extracted `files`, 0 for a file that cannot be read"""
+        storage = self.normalize_storage.extracted_packages.storage
+        sizes: Dict[str, int] = {}
+        for file_name in files:
+            try:
+                sizes[file_name] = FileStorage.uncompressed_size(storage.make_full_path(file_name))
+            except OSError:
+                # the worker that gets the file reports the actual error
+                sizes[file_name] = 0
+        return sizes
+
     def map_single(self, schema: Schema, load_id: str, files: Sequence[str]) -> SubmitRV:
         pending_exc: Exception = None
         try:
@@ -230,8 +242,8 @@ class Normalize(Runnable[Executor], WithStepInfo[NormalizeMetrics, NormalizeInfo
             schema, load_id, files
         )
         # compute metrics
-        job_metrics = {ParsedLoadJobFileName.parse(m.file_path): m for m in writer_metrics}
-        table_metrics = aggregate_job_metrics(job_metrics, lambda job: job.table_name)
+        job_metrics = metrics_by_job(writer_metrics)
+        table_metrics = metrics_by_table(job_metrics)
         self._step_info_update_metrics(
             load_id,
             {

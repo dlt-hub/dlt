@@ -535,7 +535,7 @@ class DltSource(Iterable[TDataItem]):
         max_time: Optional[float] = None,
         count_rows: Optional[bool] = False,
     ) -> "DltSource":  # noqa: A003
-        """Limits the items processed in all selected resources in the source that are not transformers: by count or time.
+        """Limits the items processed in all selected resources in the source: by count or time.
 
         This is useful for testing, debugging and generating sample datasets for experimentation. You can easily get your test dataset in a few minutes, when otherwise
         you'd need to wait hours for the full loading to complete.
@@ -544,7 +544,7 @@ class DltSource(Iterable[TDataItem]):
         in batches.
 
         Notes:
-            1. Transformers resources won't be limited. They should process all the data they receive fully to avoid inconsistencies in generated datasets.
+            1. A transformer sets its limit on the resource at the top of its chain, so resources that are not selected but feed selected transformers are limited too. Transformers process all the data they receive.
             2. Each yielded item may contain several records. `add_limit` only limits the "number of yields", not the total number of records.
             3. Empty pages/yields are also counted. Use `count_rows` to skip empty pages.
 

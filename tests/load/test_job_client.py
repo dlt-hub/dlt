@@ -837,7 +837,7 @@ def test_write_dispositions(
 
     if write_disposition == "merge":
         available_merge_strategy = resolve_merge_strategy(
-            client.schema.tables, prepared_root_table, client.capabilities
+            client.schema.tables, prepared_root_table, client.capabilities, is_prepared=True
         )
         if not available_merge_strategy:
             pytest.skip("destination does not support merge")

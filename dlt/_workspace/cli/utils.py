@@ -13,12 +13,22 @@ from typing import (
     FrozenSet,
     List,
     Optional,
+    Sequence,
     Set,
     Tuple,
+    Union,
 )
 
 import dlt
-from dlt.common.pipeline import get_dlt_pipelines_dir
+from dlt.common.metrics import DataWriterMetrics, ExtractMetrics, NormalizeMetrics
+from dlt.common.pipeline import (
+    ExtractInfo,
+    LoadInfo,
+    NormalizeInfo,
+    StepInfo,
+    get_dlt_pipelines_dir,
+)
+from dlt.common.storages.job_metrics import merge_metrics
 from dlt.common.schema import Schema
 from dlt.common.storages.configuration import TSchemaFileFormat
 from dlt.common.pendulum import ensure_pendulum_dt
@@ -38,7 +48,8 @@ from dlt.common.storages.file_storage import FileStorage
 from dlt.common.versioned_state import json_decode_state
 
 from dlt.pipeline.pipeline import Pipeline
-from dlt.pipeline.trace import get_trace_file_path
+from dlt.pipeline.trace import PipelineTrace, get_trace_file_path
+from dlt.pipeline.typing import TPipelineStep
 from dlt.reflection.script_visitor import PipelineScriptVisitor
 
 from dlt._workspace.cli.exceptions import CliCommandInnerException
@@ -50,6 +61,7 @@ from dlt._workspace.typing import (
     ProviderLocationInfo,
     TLocationScope,
     TSchemaExport,
+    TTraceStepMetrics,
     TWorkspaceAccess,
 )
 from dlt._workspace.profile import is_local_profile
@@ -474,3 +486,72 @@ def fetch_schema_export(
         format_=format_,
         content=content,
     )
+
+
+TRACE_METRICS_STEPS: Sequence[TPipelineStep] = ("extract", "normalize", "load")
+"""Pipeline steps that write or load files and keep their metrics in the trace."""
+
+
+def fetch_trace_metrics(
+    trace: PipelineTrace, steps: Optional[Sequence[TPipelineStep]] = None
+) -> List[TTraceStepMetrics]:
+    """Collects files, rows and sizes of the `steps` in `trace`, of all `TRACE_METRICS_STEPS` if
+    not given."""
+    selected = set(steps or TRACE_METRICS_STEPS)
+    result: List[TTraceStepMetrics] = []
+    for step_trace in trace.steps:
+        if step_trace.step not in selected:
+            continue
+        step_metrics = TTraceStepMetrics(
+            step=step_trace.step, started_at=step_trace.started_at, load_ids=[]
+        )
+        if step_trace.finished_at:
+            step_metrics["finished_at"] = step_trace.finished_at
+        if step_trace.step_exception:
+            step_metrics["step_exception"] = step_trace.step_exception
+        info = step_trace.step_info
+        if info is not None:
+            step_metrics["load_ids"] = list(info.loads_ids)
+        if isinstance(info, LoadInfo):
+            step_metrics["jobs"] = sorted(
+                (
+                    job_metrics._asdict()
+                    for metrics in info.metrics.values()
+                    for m in metrics
+                    for job_metrics in m["job_metrics"].values()
+                ),
+                key=lambda job: (job["table_name"], job["job_id"]),
+            )
+        elif isinstance(info, (ExtractInfo, NormalizeInfo)):
+            metrics_list: List[Union[ExtractMetrics, NormalizeMetrics]] = [
+                m for metrics in info.metrics.values() for m in metrics
+            ]
+            step_metrics["files"] = sorted(
+                (
+                    row
+                    for m in metrics_list
+                    for row in StepInfo.writer_metrics_asdict(m["job_metrics"])
+                ),
+                key=lambda row: (row["table_name"], row["job_id"]),
+            )
+            step_metrics["tables"] = StepInfo.writer_metrics_asdict(
+                _largest_first(merge_metrics(m["table_metrics"] for m in metrics_list)),
+                key_name="table_name",
+            )
+            if isinstance(info, ExtractInfo):
+                resources = _largest_first(
+                    merge_metrics(
+                        m["resource_metrics"] for metrics in info.metrics.values() for m in metrics
+                    )
+                )
+                step_metrics["resources"] = StepInfo.writer_metrics_asdict(
+                    # resources that wrote no files may still carry custom metrics
+                    {name: m for name, m in resources.items() if m.files_count != 0},
+                    key_name="resource_name",
+                )
+        result.append(step_metrics)
+    return result
+
+
+def _largest_first(metrics: Dict[str, DataWriterMetrics]) -> Dict[str, DataWriterMetrics]:
+    return dict(sorted(metrics.items(), key=lambda item: -item[1].file_size))

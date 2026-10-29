@@ -23,7 +23,7 @@ from dlt.extract.utils import (
     wrap_iterator,
 )
 
-from dlt.extract.items import SupportsPipe
+from dlt.extract.items import HintsMeta, SupportsPipe
 
 
 ItemTransformFunctionWithMeta = Callable[[TDataItem, str], TAny]
@@ -182,6 +182,19 @@ class LimitItem(ItemTransform[TDataItem, Dict[str, Any]]):
         self.max_time = max_time
         self.count_rows = count_rows
 
+    def __eq__(self, other: object) -> bool:
+        """Compares limit settings, ignores the iteration state."""
+        if not isinstance(other, LimitItem):
+            return NotImplemented
+        return (self.max_items, self.max_time, self.count_rows) == (
+            other.max_items,
+            other.max_time,
+            other.count_rows,
+        )
+
+    def __hash__(self) -> int:
+        return hash((self.max_items, self.max_time, self.count_rows))
+
     def bind(self, pipe: SupportsPipe) -> "LimitItem":
         # we also wrap iterators to make them stoppable
         if isinstance(pipe.gen, Iterator):
@@ -213,6 +226,10 @@ class LimitItem(ItemTransform[TDataItem, Dict[str, Any]]):
         # do not return any late arriving items
         if self.exhausted:
             return None
+
+        # an empty list that carries hints is not a page
+        if isinstance(meta, HintsMeta) and isinstance(item, list) and not item:
+            return item
 
         if self.count_rows:
             self.count += count_rows_in_items(item)

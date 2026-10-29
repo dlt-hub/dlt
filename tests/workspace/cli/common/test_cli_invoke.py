@@ -71,6 +71,10 @@ def test_cli_cmd_formats_with_active_host() -> None:
     assert fmt.cli_cmd("pipeline info") == "dlthub local pipeline info"
     assert fmt.cli_cmd("pipeline my_pipe trace") == "dlthub local pipeline trace my_pipe"
     assert (
+        fmt.cli_cmd("pipeline my_pipe trace metrics --steps extract -v")
+        == "dlthub local pipeline trace my_pipe metrics --steps extract -v"
+    )
+    assert (
         fmt.cli_cmd("pipeline my_pipe load-package 123 row-counts")
         == "dlthub local pipeline load-package my_pipe 123 row-counts"
     )
