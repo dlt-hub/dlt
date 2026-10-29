@@ -16,36 +16,44 @@ This Salesforce `dlt` verified source and
 [pipeline example](https://github.com/dlt-hub/verified-sources/blob/master/sources/salesforce_pipeline.py)
 load Salesforce sObjects, standard and custom, to the destination of your choice:
 
-- **Bulk loading**: data is read with [Bulk API 2.0](https://developer.salesforce.com/docs/atlas.en-us.api_asynch.meta/api_asynch/queries.htm)
-  query jobs, which return CSV. sObjects that the Bulk API does not support are read with the REST API.
-- **Typed columns**: field types come from the sObject description, before any data is loaded.
-- **Incremental loading**: by default, only records changed since the last run are loaded and merged
-  on `Id`. Records deleted in Salesforce are deleted from the destination.
-- **Fast with `pyarrow`**: when `pyarrow` is installed, data is parsed and loaded as Arrow tables. It
-  is optional: without it, data is loaded as Python dicts.
+- **Bulk loading**: dlt reads data with [Bulk API 2.0](https://developer.salesforce.com/docs/atlas.en-us.api_asynch.meta/api_asynch/queries.htm)
+  query jobs, which return CSV. For sObjects that the Bulk API does not support, dlt uses the REST API.
+- **Typed columns**: field types come from the sObject description, before dlt loads any data.
+- **Incremental loading**: by default, dlt loads only the records that changed since the last run and
+  merges them on `Id`. `start_date` sets where the first run starts. When a record is deleted in
+  Salesforce, dlt deletes it from the destination.
+- **Fast with `pyarrow`**: when `pyarrow` is installed, dlt parses the data into Arrow tables.
+  `pyarrow` is optional. Without it, dlt loads the data as Python dicts.
 
 ## Setup guide
 
 ### Grab credentials
 
-We recommend the OAuth 2.0 client credentials flow, which needs a client id and secret instead of a
-password:
+We recommend the OAuth 2.0 client credentials flow. This flow needs a client id and a client secret
+instead of a password:
 
-1. In Salesforce Setup, create an **External Client App** and enable OAuth.
-1. Enter any URL as the callback URL, e.g., `https://login.salesforce.com/services/oauth2/success`.
-   The client credentials flow does not use it.
-1. Add the OAuth scope **Manage user data via APIs (api)** and select **Enable Client Credentials Flow**.
-1. In the app policies, select the **Run As** user. The source reads data with the permissions of this user.
+1. In Salesforce Setup, create an **External Client App**. Then enable OAuth for this app.
+1. Enter any URL as the callback URL, for example `https://login.salesforce.com/services/oauth2/success`.
+   The client credentials flow does not use this URL.
+1. Add the OAuth scope **Manage user data via APIs (api)**. Then select **Enable Client Credentials Flow**.
+1. In the app policies, select the **Run As** user. dlt reads data with the permissions of this user.
 1. Copy the **Consumer Key** and **Consumer Secret** from the OAuth settings.
-1. Note your org's **My Domain**, e.g., `mycompany.my.salesforce.com`. The client credentials flow
-   does not work with `login.salesforce.com`.
+1. Note your org's **My Domain**, for example `mycompany.my.salesforce.com`. The client credentials
+   flow does not work with `login.salesforce.com`.
 
-The source also supports user name, password and security token, an IP allowlist with organization
-id, the JWT bearer flow, a connected app with a user name, and an existing session id. Salesforce
-retires the SOAP `login()` call used for user name and password in Summer '27, and it is disabled by
-default in orgs created since Winter '26, so prefer one of the OAuth flows.
+dlt also supports these authentication methods:
 
-> The Salesforce UI might change. The full guide is available at
+- user name, password and security token
+- an IP allowlist with organization id
+- the JWT bearer flow
+- a connected app with a user name
+- an existing session id
+
+The security token and IP allowlist methods use the SOAP `login()` call. Salesforce will retire this
+call in Summer '27. Salesforce disables this call by default in orgs created since Winter '26. For
+this reason, the OAuth flows are a better choice.
+
+> The Salesforce UI can change. The full guide is available at
 > [this link.](https://developer.salesforce.com/docs/atlas.en-us.api_rest.meta/api_rest/quickstart_oauth.htm)
 
 ### Initialize the verified source
@@ -100,8 +108,8 @@ To get started with your data pipeline, follow these steps:
    version = "59.0" # Salesforce API version
    ```
 
-1. Next, follow the [destination documentation](../destinations/index.md) instructions to
-   add credentials for your chosen destination.
+1. Next, add the credentials for your destination. The
+   [destination documentation](../destinations/index.md) shows how.
 
 For more information, read the [General Usage: Credentials.](../../general-usage/credentials/index.md)
 
@@ -138,19 +146,22 @@ The defaults below apply to every resource, from `salesforce_source` and from `s
 
 ### Bulk loading
 
-Each resource runs one SOQL query. With `api="auto"` (default), the query runs as a Bulk API 2.0 job:
-Salesforce splits large sObjects into chunks on its side, and the source downloads the CSV results page
-by page, `chunk_size` records at a time. When the Bulk API does not support an sObject (e.g.,
-`TaskStatus`) or is not enabled in the org, the source reads the query results with the REST API
-instead. Set `api="bulk"` or `api="rest"` to force one API.
+Each resource runs one SOQL query. With `api="auto"` (default), the query runs as a Bulk API 2.0 job.
+Salesforce splits the job for a large sObject with PK chunking. dlt downloads the CSV results page by
+page, with `chunk_size` records in each page.
 
-All fields that the API can return are selected. Compound fields such as addresses are loaded as their
-individual fields, e.g., `billing_street` and `billing_city`, which hold the same data. Base64 fields
-such as attachment bodies are not loaded.
+If the Bulk API does not support an sObject (for example, `TaskStatus`), dlt reads the query results
+with the REST API. dlt also uses the REST API when the Bulk API is not enabled in the org. With
+`api="bulk"` or `api="rest"`, dlt uses only that API.
+
+dlt selects all fields that the API can return. dlt loads compound fields, such as addresses, as their
+individual fields, for example `billing_street` and `billing_city`. These fields hold the same data as
+the compound field. dlt does not load base64 fields, such as attachment bodies.
 
 ### Data types
 
-Column types come from the sObject description, so they are known before any data is loaded:
+Column types come from the sObject description. As a result, dlt knows the column types before it
+loads any data:
 
 | Salesforce type                                                                                          | dlt type                                             |
 | -------------------------------------------------------------------------------------------------------- | ---------------------------------------------------- |
@@ -164,11 +175,11 @@ Column types come from the sObject description, so they are known before any dat
 | `json`                                                                                                   | `json`                                               |
 | `id`, `reference`, `string`, `picklist`, `multipicklist`, `textarea`, `email`, `phone`, `url` and others | `text`                                               |
 
-Only the primary key is created as `NOT NULL`. Fields that Salesforce declares as not nillable stay
-nullable, so a single blank value cannot fail the load.
+dlt creates only the primary key as `NOT NULL`. Fields that Salesforce declares as not nillable stay
+nullable. As a result, a single blank value cannot fail the load.
 
-Change the type of a column with [`apply_hints`](../../general-usage/resource.md#set-table-name-and-adjust-schema),
-using the original Salesforce field name:
+[`apply_hints`](../../general-usage/resource.md#set-table-name-and-adjust-schema) can change the type
+of a column. The column name in the hint is the original Salesforce field name:
 
 ```py notype
 account = salesforce_table(sobject="Account")
@@ -177,54 +188,72 @@ account.apply_hints(columns={"AnnualRevenue": {"data_type": "double"}})
 
 ### Incremental loading and write disposition
 
-With `incremental="auto"` (default), the source picks the first of these fields that the sObject has
-and sets up the [incremental loading](../../general-usage/incremental-loading.md) for you:
+By default, dlt picks the first of these fields that the sObject has. Then dlt configures
+[incremental loading](../../general-usage/incremental-loading.md) on this field:
 
-| Cursor field       | Write disposition | Typical sObjects                       |
-| ------------------ | ----------------- | -------------------------------------- |
-| `SystemModstamp`   | `merge`           | almost all, it changes on every update |
-| `LastModifiedDate` | `merge`           | sObjects without `SystemModstamp`      |
-| `CreatedDate`      | `append`          | insert-only, e.g., field history       |
-| `LoginTime`        | `append`          | login history                          |
-| none               | `replace`         | settings and metadata sObjects         |
+| Cursor field       | Write disposition | Typical sObjects                               |
+| ------------------ | ----------------- | ---------------------------------------------- |
+| `SystemModstamp`   | `merge`           | almost all (the field changes on every update) |
+| `LastModifiedDate` | `merge`           | sObjects without `SystemModstamp`              |
+| `CreatedDate`      | `append`          | insert-only, for example field history         |
+| `LoginTime`        | `append`          | login history                                  |
+| none               | `replace`         | settings and metadata sObjects                 |
 
-- The cursor condition is added to the SOQL query, so each run reads only the records changed since
-  the previous run.
-- The primary key is `Id`, so merged records are updated in place.
-- Merging re-reads the last 10 minutes on each run (`lag=600`) to catch records committed late. Set
-  `lag` to change it.
-- Salesforce timestamps have a precision of seconds, so many records may share the last cursor value.
-  When merging on a timestamp cursor, the incremental does not
-  [deduplicate](../../general-usage/incremental-loading.md) these records: they are loaded again and
-  merged on `Id`.
-- `write_disposition="replace"` reloads all records on each run, without incremental loading.
-  Since dlt 1.32, `write_disposition={"disposition": "replace"}` keeps the incremental state, so the
-  table is replaced with the records changed since the previous run.
-- `incremental=None` loads all records on each run, and any `dlt.sources.incremental` on any field
-  can be passed to `salesforce_table` instead.
+- dlt adds the cursor condition to the SOQL query. As a result, each run reads only the records that
+  changed since the previous run. The cursor range of the query ends at the time that the query
+  starts. The next run loads the records that change while a long query job runs.
+- The primary key is `Id`. dlt updates existing records in place.
+- With the `merge` write disposition, dlt re-reads the last 10 minutes on each run (`lag=600`). This
+  catches records that Salesforce commits late. The `lag` argument changes this interval.
+- Salesforce timestamps have a precision of seconds. As a result, many records can share the last
+  cursor value. With the `merge` write disposition and a timestamp cursor, the incremental does not
+  [deduplicate](../../general-usage/incremental-loading.md) these records. dlt loads them again and
+  merges them on `Id`.
+- On the first run, `start_date` loads only the records that changed since this date, for example
+  `salesforce_source(start_date="2024-01-01")`. Without `start_date`, the first run loads all records.
+- `write_disposition="replace"` reloads all records on each run, without incremental state. If
+  `start_date` is set, each run reloads only the records that changed since `start_date`. Since dlt
+  1.32, `write_disposition={"disposition": "replace"}` keeps the incremental state. dlt then replaces
+  the table with the records that changed since the previous run.
+- You can pass your own `dlt.sources.incremental` on any field to `salesforce_table`. On a resource of
+  `salesforce_source`, you can set it with `apply_hints`. Your incremental replaces the default one.
+  dlt uses it as is, without lag.
+
+You can also set `start_date` in `config.toml`. The `[sources.salesforce]` section applies to
+`salesforce_source` and to all `salesforce_table` resources. The section of an sObject applies only
+to the `salesforce_table` of this sObject:
+
+```toml
+[sources.salesforce]
+start_date = "2024-01-01"
+
+[sources.salesforce.Account]
+start_date = "2023-01-01"
+```
 
 ### Deleted records
 
-With `include_deleted=True` (default), queries also return deleted records that are still in the
-Salesforce recycle bin and archived activities. When merging, `IsDeleted` is the
-[hard delete](../../general-usage/merge-loading.md#delete-records) column, so records deleted in
-Salesforce are deleted from the destination. Set `include_deleted=False` to skip deleted and archived
+With `include_deleted=True` (default), queries also return archived activities and the deleted records
+that are still in the Salesforce recycle bin. With the `merge` write disposition, `IsDeleted` is the
+[hard delete](../../general-usage/merge-loading.md#delete-records) column. When a record is deleted in
+Salesforce, dlt deletes it from the destination. `include_deleted=False` skips deleted and archived
 records.
 
 ### Backends
 
 `backend="auto"` (default) uses `pyarrow` when it is installed:
 
-- `"pyarrow"` parses the CSV results with `pyarrow` and yields Arrow tables, which are loaded as
-  Parquet. It is much faster on large sObjects.
+- `"pyarrow"` parses the CSV results with `pyarrow` and yields Arrow tables. dlt loads these tables as
+  Parquet. This backend is much faster on large sObjects.
 - `"python"` reads the CSV results with the Python standard library and yields dicts of strings. dlt
-  converts them to the column types when it normalizes the data. It does not import `pyarrow`.
+  converts them to the column types when it normalizes the data. This backend does not import
+  `pyarrow`.
 
 Both backends load the same values and types.
 
-Switching an existing table from `"python"` to `"pyarrow"`, e.g., by installing `pyarrow` with
-`backend="auto"`, needs these settings, because Arrow tables do not get the `_dlt_load_id` and
-`_dlt_id` columns by default:
+By default, Arrow tables do not get the `_dlt_load_id` and `_dlt_id` columns. The backend of a
+resource can change from `"python"` to `"pyarrow"`, for example when you install `pyarrow` with
+`backend="auto"`. After this change, an existing table needs these settings:
 
 ```toml
 [normalize.parquet_normalizer]
@@ -264,7 +293,7 @@ Loads the most common sObjects. The queries of all resources run in parallel.
 def salesforce_source(
     credentials: SalesforceAuth = dlt.secrets.value,
     session: Optional[Session] = None,
-    incremental: Optional[Literal["auto"]] = "auto",
+    start_date: Optional[TAnyDateTime] = None,
     write_disposition: Optional[TWriteDispositionConfig] = None,
     soql_filters: Optional[Dict[str, str]] = None,
     include_deleted: bool = True,
@@ -272,15 +301,18 @@ def salesforce_source(
     backend: Literal["auto", "python", "pyarrow"] = "auto",
     api: Literal["auto", "bulk", "rest"] = "auto",
     chunk_size: int = 50000,
+    defer_table_reflect: bool = False,
 ) -> Iterable[DltResource]:
     ...
 ```
 
 - `credentials`: Salesforce credentials, see [Add credentials](#add-credentials).
-- `session`: requests session used to call Salesforce. By default, HTTP 429 and 5xx responses are retried.
-- `incremental`: `"auto"` loads records changed since the last run, `None` loads all records.
-- `write_disposition`: write disposition of all resources. Derived per sObject if not set.
-- `soql_filters`: SOQL conditions by resource name, e.g., `{"opportunity": "IsClosed = false"}`.
+- `session`: requests session used to call Salesforce. By default, dlt retries HTTP 429 and 5xx
+  responses and the requests that Salesforce refuses over the limit of concurrent long requests.
+- `start_date`: loads the records changed since this date on the first run, all records if not set.
+- `write_disposition`: write disposition of all resources, for example `"replace"`. Derived per
+  sObject if not set.
+- `soql_filters`: SOQL conditions by resource name, for example `{"opportunity": "IsClosed = false"}`.
 - `include_deleted`, `double_as_decimal`, `backend`, `api`, `chunk_size`: see [How data is loaded](#how-data-is-loaded).
 
 ### Resource `salesforce_table`
@@ -296,23 +328,25 @@ invoices = salesforce_table(
 pipeline.run(invoices)
 ```
 
-It takes the same arguments as `salesforce_source`, applied to one sObject, plus:
+It takes the arguments of `salesforce_source`, except `soql_filters`, for one sObject. It also takes
+these arguments:
 
-- `sobject`: API name of the sObject, e.g., `Account` or `Invoice__c`.
-- `incremental`: `"auto"`, `None` or a [`dlt.sources.incremental`](../../general-usage/incremental-loading.md)
-  on any field. Its range becomes the `WHERE` clause of the query, and `row_order` its `ORDER BY`.
-- `lag`: seconds re-read on each run by the `"auto"` incremental.
+- `sobject`: API name of the sObject, for example `Account` or `Invoice__c`.
+- `incremental`: your own [`dlt.sources.incremental`](../../general-usage/incremental-loading.md) on
+  any field instead of the default one. Its range becomes the `WHERE` clause of the query. Its
+  `row_order` becomes the `ORDER BY` clause. Pass `start_date` or `incremental`, not both.
+- `lag`: seconds re-read on each run by the default incremental.
 - `soql_filter`: SOQL condition added to the `WHERE` clause of the query.
-- `included_columns`, `excluded_columns`: fields to load or to skip. Names that are not queryable
-  fields of the sObject are logged as a warning.
+- `included_columns`, `excluded_columns`: fields to load or to skip. dlt logs a warning for names that
+  are not queryable fields of the sObject.
 - `primary_key`, `merge_key`: by default, the primary key is `Id`.
-- `defer_table_reflect`: logs in and describes the sObject only when extracting, see
+- `defer_table_reflect`: logs in and describes the sObject only in the extract step, see
   [Deploy on Airflow](#deploy-on-airflow). Also available on `salesforce_source`.
 
-[`add_limit`](../../general-usage/resource.md#sample-from-large-data) is added to the query as
+dlt adds [`add_limit`](../../general-usage/resource.md#sample-from-large-data) to the query as
 `LIMIT`, in multiples of `chunk_size`.
 
-In config files, set the write disposition of `salesforce_table` as a table, in the section of its
+In config files, the write disposition of `salesforce_table` is a TOML table in the section of its
 sObject:
 
 ```toml
@@ -324,7 +358,7 @@ write_disposition = { disposition = "replace" }
 
 ### Create your own pipeline
 
-1. Configure the pipeline by specifying the pipeline name, destination, and dataset:
+1. Configure the pipeline with a pipeline name, a destination, and a dataset:
 
    ```py notype
    pipeline = dlt.pipeline(
@@ -334,14 +368,20 @@ write_disposition = { disposition = "replace" }
    )
    ```
 
-1. Load all resources, merging the records changed since the last run:
+1. Load all resources. dlt merges the records that changed since the last run:
 
    ```py notype
    load_info = pipeline.run(salesforce_source())
    print(load_info)
    ```
 
-1. Reload open opportunities and their accounts in full on each run:
+1. On the first run, skip the records that did not change since 2024:
+
+   ```py notype
+   load_info = pipeline.run(salesforce_source(start_date="2024-01-01"))
+   ```
+
+1. On each run, reload all accounts and the open opportunities in full:
 
    ```py notype
    source = salesforce_source(
@@ -351,7 +391,7 @@ write_disposition = { disposition = "replace" }
    load_info = pipeline.run(source)
    ```
 
-1. Change the incremental of a single resource, e.g., load tasks created since 2024:
+1. Change the incremental of a single resource. For example, load the tasks created since 2024:
 
    ```py notype
    source = salesforce_source()
@@ -362,7 +402,7 @@ write_disposition = { disposition = "replace" }
    ```
 
 1. Backfill a large sObject in date windows. With an `end_value`, the incremental does not change the
-   pipeline state, and each window runs as a separate query:
+   pipeline state. Each window runs as a separate query:
 
    ```py notype
    for start, end in [("2023-01-01", "2023-07-01"), ("2023-07-01", "2024-01-01")]:
@@ -377,10 +417,11 @@ write_disposition = { disposition = "replace" }
 
 ### Load in chunks
 
-To load a large sObject over several runs, limit the records of each run with `add_limit` and order
-them by the cursor with `row_order="asc"`, so each run continues where the previous one stopped. On a
-field with unique values, such as an auto number or a sequence, use an open range so no record is
-loaded twice, and stop when a run loads nothing:
+To load a large sObject over several runs, limit the records of each run with `add_limit`. Then
+order the records by the cursor with `row_order="asc"`. As a result, each run continues where the
+previous run stopped. If the cursor field has unique values, such as an auto number or a sequence,
+use an open range. With an open range, dlt does not load a record twice. When a run loads no
+records, stop the loop:
 
 ```py notype
 invoices = salesforce_table(
@@ -393,9 +434,9 @@ while not pipeline.run(invoices.add_limit(1)).is_empty:
     pass
 ```
 
-On a timestamp such as `SystemModstamp`, keep the default closed range: records that share the last
-timestamp are loaded again by the next run and merged on `Id`. Stop when a run loads less than a full
-page:
+If the cursor is a timestamp such as `SystemModstamp`, keep the default closed range. The next run
+loads the records that share the last timestamp again, and dlt merges them on `Id`. When a run loads
+less than a full page, stop the loop:
 
 ```py notype
 accounts = salesforce_table(
@@ -409,17 +450,17 @@ while True:
         break
 ```
 
-The limit must be larger than the number of records that share a timestamp, e.g., records updated by
-one mass update. Otherwise the cursor cannot move and the source logs a warning.
+The limit must be larger than the number of records that share a timestamp, for example the records
+of one mass update. Otherwise the cursor cannot move and dlt logs a warning.
 
 ### Deploy on Airflow
 
 [Airflow](../../walkthroughs/deploy-a-pipeline/deploy-with-airflow-composer.md) parses DAG files
-every 30 seconds, and creating a resource logs in and describes its sObject. Pass
-`defer_table_reflect=True` to do that only when extracting. To load the
+every 30 seconds. When you create a resource, dlt logs in and describes its sObject. To do this only
+in the extract step, pass `defer_table_reflect=True`. To load the
 [data interval](../../general-usage/incremental/cursor.md#using-airflow-schedule-for-backfill-and-incremental-loading)
-of each Airflow run, pass an incremental with `allow_external_schedulers=True`, which raises an
-error when no interval is available:
+of each Airflow run, pass an incremental with `allow_external_schedulers=True`. If no interval is
+available, this incremental raises an error:
 
 ```py notype
 tasks = salesforce_table(
@@ -429,14 +470,14 @@ tasks = salesforce_table(
 )
 ```
 
-With `defer_table_reflect`, the `"auto"` incremental expects `SystemModstamp`, and `add_limit`
-does not work yet.
+With `defer_table_reflect`, the default incremental expects `SystemModstamp`. Also, `add_limit` does
+not work yet.
 
 ## Performance and troubleshooting
 
 ### Throughput
 
-Salesforce runs each Bulk API query as a job, which usually takes 5-30 seconds to start returning
+Salesforce runs each Bulk API query as a job. A job usually needs 5-30 seconds before it returns
 data, even for small sObjects. `salesforce_source` runs the jobs of all resources in parallel, five at
 a time by default. To run more at once, set the number of extract workers:
 
@@ -445,79 +486,93 @@ a time by default. To run more at once, set the number of extract workers:
 workers = 15
 ```
 
-On large sObjects, parsing dominates. In our tests on a laptop, loading to the local filesystem:
+On large sObjects, parsing takes most of the time. These are the results of our tests on a laptop,
+with the local filesystem as the destination:
 
 | Backend   | 50,000 rows, 36 fields | 200,000 rows, 6 fields |
 | --------- | ---------------------- | ---------------------- |
 | `pyarrow` | 0.15 s                 | 0.12 s                 |
 | `python`  | 2.1 s                  | 3.1 s                  |
 
-Install `pyarrow` when you load large sObjects. With the `python` backend, the
-[file format](../file-formats.md) of the destination matters as well: e.g., `insert_values` into
-DuckDB took several times longer than the parsing itself.
+If you load large sObjects, install `pyarrow`. With the `python` backend, the
+[file format](../file-formats.md) of the destination also has an effect. For example, `insert_values`
+into DuckDB took several times longer than the parsing.
 
 ### Large sObjects
 
-- Ordering the results with `row_order` and `add_limit` add `ORDER BY` and `LIMIT` to the query, which
-  disable chunking of Bulk API jobs. Use them on indexed fields, such as `SystemModstamp` or `Id`.
-- Lower `chunk_size` if a result page needs too much memory.
-- Use `soql_filter` or `included_columns` to read less data, and
-  [backfill in windows](#create-your-own-pipeline) or [load in chunks](#load-in-chunks) when the first
-  load is too large for a single run.
+- `row_order` adds `ORDER BY` to the query, and `add_limit` adds `LIMIT`. These clauses disable PK
+  chunking of Bulk API jobs. Use them with a cursor on an indexed field, such as `SystemModstamp` or
+  `Id`.
+- If a result page needs too much memory, decrease `chunk_size`.
+- A Bulk API query job that does not complete in 24 hours is aborted and fails the load.
+- To read less data, use `soql_filter` or `included_columns`. If the first load is too large for a
+  single run, [backfill in windows](#create-your-own-pipeline) or [load in chunks](#load-in-chunks).
 
 ### Warnings about LIMIT
 
-- `LIMIT ... is applied ... without ORDER BY`: the query returns any records up to the limit, and the
-  next run starts after the largest cursor value among them, so records may be skipped. Set
-  `row_order="asc"` on the incremental.
-- `Could not move the cursor`: all records returned by the limit have the cursor value the run started
-  from, so the next run reads them again. Increase `add_limit` or `chunk_size`. When the incremental
+- `LIMIT ... is applied ... without ORDER BY`: the query returns records in no specific order, up to
+  the limit. The next run starts after the largest cursor value among them. As a result, the pipeline
+  can skip records. Set `row_order="asc"` on the incremental.
+- `Could not move the cursor`: all records that the limit returns have the cursor value that the run
+  started from. As a result, the next run reads them again. Increase `add_limit` or `chunk_size`. When the incremental
   has a `lag`, the limit must also cover the records within the lag.
 
 ### API limits and sessions
 
-- HTTP 429 and 5xx responses are retried. Salesforce reports most limits as `REQUEST_LIMIT_EXCEEDED`
-  with HTTP 403, which is not retried: check the daily API requests and Bulk API 2.0 query jobs of your
-  org in Setup or with the `/limits` REST endpoint.
-- The REST API returns at most 2,000 records per request, and each request counts against the daily API
-  limit. Prefer the Bulk API for large sObjects.
-- Long jobs may outlive the session. When the session expires, the source logs in again and continues
-  with the next result page. This does not work for credentials with a `session_id` only.
+- dlt retries HTTP 429 and 5xx responses. Salesforce reports most limits as `REQUEST_LIMIT_EXCEEDED`
+  with HTTP 403. dlt also retries the requests that Salesforce refuses because the org runs too many
+  long requests at once. Other limits, for example the daily API requests, fail the load. If a load
+  fails on a limit, examine the API usage of your org. Setup and the `/limits` REST endpoint show the
+  daily API requests and the Bulk API 2.0 query jobs.
+- The REST API returns a maximum of 2,000 records for each request. Each request counts against the
+  daily API limit. For large sObjects, use the Bulk API.
+- A long job can run longer than the session. When the session expires, dlt logs in again and
+  continues with the next result page. This new login does not work for credentials that have only a
+  `session_id`.
 
 ### sObjects the Bulk API does not support
 
-Some sObjects, e.g., status sObjects like `TaskStatus` and `CaseStatus`, cannot be read with the Bulk
-API, and `api="auto"` reads them with the REST API. The REST API sends the query in the URL, so a query
-selecting very many fields may be too long: select fewer fields with `included_columns`. Some sObjects
-can only be queried with specific filters, e.g., `UserRecordAccess`, which you can pass with
-`soql_filter`. Others, e.g., `OpenActivity`, can only be queried as part of their parent record and
-cannot be loaded.
+Some sObjects need a different query:
+
+- The Bulk API cannot read some sObjects, for example the status sObjects `TaskStatus` and
+  `CaseStatus`. With `api="auto"`, dlt reads them with the REST API.
+- With `api="auto"`, dlt also uses the REST API when the Bulk API rejects a compound field of the
+  sObject.
+- The REST API sends the query in the URL. If a query selects very many fields, the URL can be too
+  long. In this case, select fewer fields with `included_columns`.
+- Some sObjects, for example `UserRecordAccess`, can only be queried with specific filters. Pass these
+  filters with `soql_filter`.
+- Other sObjects, for example `OpenActivity`, can only be queried as part of their parent record. dlt
+  cannot load these sObjects.
 
 ### How Salesforce stores values
 
-Loaded values may differ from what was entered in Salesforce:
+Loaded values can be different from the values that were entered in Salesforce:
 
-- Salesforce stores numbers, including currency, as doubles. Values with more than 15 significant
-  digits are rounded by Salesforce, also with `double_as_decimal=True`.
+- Salesforce stores numbers, including currency, as doubles. Salesforce rounds values with more than
+  15 significant digits. This rounding also occurs with `double_as_decimal=True`.
 - `datetime` fields have a precision of seconds. `time` fields keep milliseconds.
-- Leading and trailing whitespace of text fields is trimmed, and rich text fields are HTML-escaped.
-- Strings like `NA`, `N/A` or `NULL` are loaded as strings. Blank fields are loaded as nulls.
-- Formula fields are computed when the record is read. When only the formula definition or a related
-  record changes, the record's `SystemModstamp` does not change and incremental loading does not pick up
-  the new value. Reload these sObjects or reproduce the calculation from the base fields.
+- Salesforce trims the leading and trailing whitespace of text fields. Salesforce returns rich text
+  fields HTML-escaped.
+- dlt loads strings such as `NA`, `N/A` or `NULL` as strings. dlt loads blank fields as nulls.
+- Salesforce computes formula fields when a query reads the record. Salesforce rounds the result to
+  the scale of the field. If only the formula definition, a related record or the date of `TODAY()`
+  changes, the `SystemModstamp` of the record does not change. As a result, incremental loading does
+  not get the new value. Reload these sObjects or reproduce the calculation from the base fields.
+- Sharing changes, for example changes to account and opportunity team members, do not change
+  `SystemModstamp` either.
 
-### Deleted records are not removed
+### Deleted records stay in the destination
 
-- Salesforce keeps deleted records in the recycle bin for 15 days. Records deleted and purged between
-  two runs are not removed from the destination: run the pipeline more often or reload in full.
-- Deleted `OpportunityLineItem` records and some other line item sObjects do not go to the recycle
-  bin, so their deletes are never returned. Load these sObjects with `write_disposition="replace"`.
+Salesforce keeps deleted records in the recycle bin for 15 days. If records are deleted and purged
+between two runs, dlt does not delete them from the destination. Run the pipeline more often, or
+reload in full.
 
-### Upgrading from an earlier version
+### Upgrade from an earlier version
 
 Earlier versions of this source used the Bulk API 1.0 and loaded most fields as text, without primary
-keys. This version changes column types (e.g., dates and currencies), adds `Id` as the primary key, and
-merges all sObjects. Reload the data after upgrading:
+keys. This version changes column types (for example, dates and currencies), adds `Id` as the primary
+key, and merges all sObjects. After the upgrade, reload the data:
 
 ```py notype
 pipeline.run(salesforce_source(), refresh="drop_sources")
