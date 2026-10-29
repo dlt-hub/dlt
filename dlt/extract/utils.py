@@ -70,6 +70,8 @@ if TYPE_CHECKING:
 
 NORMALIZE_PARALLEL_MIN_BYTES = 32 * 1024 * 1024
 """Data to normalize below this size takes seconds, so idle normalize workers are not reported"""
+NORMALIZE_PARALLEL_MIN_USAGE = 0.5
+"""Files are reported as unbalanced when normalize would use at most this share of its workers"""
 
 
 def get_data_item_format(items: TDataItems) -> TDataItemFormat:
@@ -404,7 +406,7 @@ def get_unbalanced_files_warning(
     dlt_tables: Collection[str],
     workers: int,
 ) -> Optional[str]:
-    """Returns a warning if `files` leave some of normalize `workers` mostly idle.
+    """Returns a warning if `files` leave at least half of the normalize `workers` capacity idle.
 
     `file_limits` maps table names to `file_max_items` and `file_max_bytes` of their writers.
     """
@@ -428,21 +430,17 @@ def get_unbalanced_files_warning(
     groups = group_worker_files(list(sizes), workers, sizes)
     loads = [sum(costs[file_name] for file_name in group) for group in groups]
     busiest = max(loads)
-    idle = sum(load < busiest / 2 for load in loads) + workers - len(groups)
-    if idle == 0:
+    # the busiest worker sets the run time, the others idle once they are done
+    usage = total / (workers * busiest)
+    if usage > NORMALIZE_PARALLEL_MIN_USAGE:
         return None
 
     message = (
         f"dlt extracted {len(costs)} {'file' if len(costs) == 1 else 'files'}"
         f" ({humanize.naturalsize(total, binary=True)}) into load package {load_id}."
+        f" Normalize would use {usage:.0%} of {workers} workers, the busiest one gets"
+        f" {humanize.naturalsize(busiest, binary=True)}."
     )
-    if len(groups) < workers:
-        message += f" Normalize will give files to only {len(groups)} of {workers} workers."
-    else:
-        message += (
-            f" Normalize will give {idle} of {workers} workers less than half the data of the"
-            " busiest worker."
-        )
     # the table with most data on the busiest worker is the one to split
     busiest_costs: Dict[str, int] = {}
     for file_name in groups[loads.index(busiest)]:

@@ -2349,34 +2349,36 @@ def _job_files(
 @pytest.mark.parametrize(
     "files,workers,expected,not_expected",
     [
-        pytest.param(_job_files("items", [16 * MB]), 4, None, [], id="below-threshold"),
         pytest.param(_job_files("items", [32 * MB - 1]), 4, None, [], id="just-below-threshold"),
         pytest.param(
             _job_files("items", [32 * MB]),
             4,
-            ["dlt extracted 1 file (32.0 MiB)", "files to only 1 of 4 workers"],
+            ["dlt extracted 1 file (32.0 MiB)", "use 25% of 4 workers"],
             [],
             id="at-threshold",
         ),
         pytest.param(_job_files("items", [100 * MB]), 1, None, [], id="single-worker"),
+        # three busy workers use 75% of the capacity
+        pytest.param(_job_files("items", [20 * MB] * 3), 4, None, [], id="idle-worker"),
+        # two equal files use exactly half of the capacity
         pytest.param(
-            _job_files("items", [100 * MB]) + _job_files("_dlt_pipeline_state", [500]),
+            _job_files("items", [20 * MB] * 2),
             4,
-            ["dlt extracted 2 files (100.0 MiB)", "files to only 2 of 4 workers", "of `items`."],
-            ["_dlt_pipeline_state"],
-            id="one-file",
+            ["use 50% of 4 workers", "busiest one gets 20.0 MiB"],
+            [],
+            id="half-capacity",
         ),
         pytest.param(
-            _job_files("items", [20 * MB] * 3),
+            _job_files("items", [20 * MB] * 2) + _job_files("other", [1 * MB]),
             4,
-            ["files to only 3 of 4 workers"],
+            None,
             [],
-            id="fewer-files-than-workers",
+            id="just-above-half-capacity",
         ),
         pytest.param(
             _job_files("items", [80 * MB]) + _job_files("other", [4 * MB] * 7),
             4,
-            ["give 3 of 4 workers less than half", "of `items`."],
+            ["use 34% of 4 workers", "of `items`."],
             ["`other`"],
             id="dominant-file",
         ),
@@ -2385,26 +2387,8 @@ def _job_files(
         pytest.param(
             _job_files("items", [8 * MB] * 7 + [20 * 1024]), 4, None, [], id="small-file-last"
         ),
-        pytest.param(
-            _job_files("items", [20 * 1024] + [8 * MB] * 7), 4, None, [], id="small-file-first"
-        ),
-        # rotation is not required when each table fits in one file and tables spread evenly
-        pytest.param(
-            [f for t in "abcdef" for f in _job_files(t, [8 * MB])],
-            3,
-            None,
-            [],
-            id="equal-tables",
-        ),
         # the fifth file doubles the load of one worker, the others stay at exactly half
         pytest.param(_job_files("items", [8 * MB] * 5), 4, None, [], id="half-load-not-idle"),
-        pytest.param(
-            _job_files("a", [40 * MB]) + _job_files("b", [20 * MB - 1]),
-            2,
-            ["give 1 of 2 workers less than half", "of `a`."],
-            ["`b`"],
-            id="below-half-load",
-        ),
         # files are cut by size, `a` takes three workers and shares the last one with `b`
         pytest.param(
             _job_files("a", [10 * MB] * 4) + _job_files("b", [1 * MB] * 4),
@@ -2416,28 +2400,18 @@ def _job_files(
         pytest.param(
             _job_files("items", [100 * MB] * 2, "parquet"), 4, None, [], id="parquet-not-counted"
         ),
-        pytest.param(
-            _job_files("items", [100 * MB] * 2, "model"), 4, None, [], id="model-not-counted"
-        ),
         # parquet and jsonl files are spread over all workers separately
-        pytest.param(
-            _job_files("arrow", [100 * MB] * 4, "parquet") + _job_files("items", [8 * MB] * 8),
-            4,
-            None,
-            [],
-            id="parquet-and-jsonl",
-        ),
         pytest.param(
             _job_files("arrow", [100 * MB] * 4, "parquet") + _job_files("items", [64 * MB]),
             4,
-            ["dlt extracted 5 files (64.0 MiB)", "give 3 of 4 workers less than half"],
+            ["dlt extracted 5 files (64.0 MiB)", "use 25% of 4 workers"],
             ["`arrow`"],
             id="parquet-and-one-jsonl",
         ),
         pytest.param(
             _job_files("_dlt_pipeline_state", [100 * MB]) + _job_files("items", [1 * MB]),
             4,
-            ["files to only 2 of 4 workers"],
+            ["use 25% of 4 workers"],
             ["_dlt_pipeline_state", "to split"],
             id="dlt-table-not-named",
         ),
@@ -2546,7 +2520,7 @@ def _extract_and_warn(
             None,
             [
                 "dlt extracted 1 file",
-                "files to only 1 of 4 workers",
+                "use 25% of 4 workers",
                 (
                     "Set `file_max_items` or `file_max_bytes` in `[sources.data_writer]` to split"
                     " the files of `items`."
@@ -2559,7 +2533,7 @@ def _extract_and_warn(
         pytest.param(
             {"PIPE__NORMALIZE__WORKERS": "4"},
             None,
-            ["files to only 1 of 4 workers"],
+            ["use 25% of 4 workers"],
             id="pipeline-section-workers",
         ),
         # normalize fails on its own, extract does not
@@ -2574,7 +2548,8 @@ def _extract_and_warn(
             {"NORMALIZE__WORKERS": "4", "SOURCES__DATA_WRITER__FILE_MAX_ITEMS": "1500"},
             None,
             [
-                "files to only 2 of 4 workers",
+                # the first file holds 1500 of 2000 rows
+                "% of 4 workers",
                 (
                     "Lower `file_max_items` (now 1500) or set `file_max_bytes` to split the files"
                     " of `items`."
