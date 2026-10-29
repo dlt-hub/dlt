@@ -3,7 +3,45 @@
 const fs = require("node:fs");
 require("dotenv").config();
 
-const codeTheme = require("prism-react-renderer/themes/synthwave84");
+const synthwave84 = require("prism-react-renderer/themes/synthwave84");
+
+// synthwave84 without the neon glow (text shadows)
+const { textShadow: _plainShadow, ...darkPlain } = synthwave84.plain;
+const darkCodeTheme = {
+  plain: darkPlain,
+  styles: [
+    ...synthwave84.styles.map(({ types, style }) => {
+      const { textShadow: _shadow, ...rest } = style;
+      return { types, style: rest };
+    }),
+    { types: ["tree-line"], style: { color: "#5c5c80" } },
+  ],
+};
+
+// same token groups as synthwave84, with colors readable on a light background
+const lightCodeTheme = {
+  plain: { color: "#24292f", backgroundColor: "#f6f8fa" },
+  styles: [
+    {
+      types: ["comment", "block-comment", "prolog", "doctype", "cdata"],
+      style: { color: "#6e7781", fontStyle: "italic" },
+    },
+    { types: ["punctuation", "operator"], style: { color: "#57606a" } },
+    { types: ["tag", "attr-name", "namespace", "number", "unit", "hexcode", "deleted"], style: { color: "#b4372f" } },
+    { types: ["property", "selector"], style: { color: "#11795c" } },
+    { types: ["function-name"], style: { color: "#2563a8" } },
+    { types: ["boolean", "selector-id", "function"], style: { color: "#0e6a85" } },
+    { types: ["class-name", "maybe-class-name", "builtin"], style: { color: "#9d174d" } },
+    { types: ["constant", "symbol"], style: { color: "#a21caf" } },
+    { types: ["important", "atrule", "keyword", "selector-class"], style: { color: "#4c4898" } },
+    { types: ["string", "char", "attr-value", "regex", "variable"], style: { color: "#b45309" } },
+    { types: ["parameter", "italic"], style: { fontStyle: "italic" } },
+    { types: ["entity", "url"], style: { color: "#0f766e" } },
+    { types: ["important", "bold"], style: { fontWeight: "bold" } },
+    { types: ["inserted"], style: { color: "#116329" } },
+    { types: ["tree-line"], style: { color: "#afb8c1" } },
+  ],
+};
 
 // create versions config
 const versions = {
@@ -265,8 +303,8 @@ const config = {
         copyright: `Copyright © ${new Date().getFullYear()} dltHub, Inc.`,
       },
       prism: {
-        theme: codeTheme,
-        darkTheme: codeTheme,
+        theme: lightCodeTheme,
+        darkTheme: darkCodeTheme,
         additionalLanguages: ["powershell", "bash", "python", "toml", "yaml", "log"],
       },
       metadata: [
