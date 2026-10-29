@@ -3,6 +3,7 @@ from copy import copy
 from functools import partial
 import inspect
 from typing import (
+    TYPE_CHECKING,
     ClassVar,
     Dict,
     Iterable,
@@ -52,6 +53,10 @@ from dlt.extract.exceptions import (
     DeletingResourcesNotSupported,
     InvalidParallelResourceDataType,
 )
+
+
+if TYPE_CHECKING:
+    from dlt.extract.reference import SourceFactory
 
 
 class DltResourceDict(Dict[str, DltResource]):
@@ -367,6 +372,7 @@ class DltSource(Iterable[TDataItem]):
         """Tells if iterator associated with a source is exhausted"""
         self._schema = schema
         self._resources: DltResourceDict = DltResourceDict(self.name, self.section)
+        self._factory: Optional["SourceFactory[Any, Any]"] = None
 
         if resources:
             self.resources.add(*resources)
@@ -586,9 +592,11 @@ class DltSource(Iterable[TDataItem]):
         If `with_name` is provided, a schema is cloned with a changed name
         """
         # mind that resources and pipes are cloned when added to the DltResourcesDict in the source constructor
-        return DltSource(
+        source = DltSource(
             self.schema.clone(with_name=with_name), self.section, list(self._resources.values())
         )
+        source._factory = self._factory
+        return source
 
     def __iter__(self) -> Generator[TDataItem, None, None]:
         """Opens iterator that yields the data items from all the resources within the source in the same order as in Pipeline class.

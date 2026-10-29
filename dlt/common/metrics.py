@@ -110,11 +110,12 @@ class TDataLocation(TypedDict):
     """
 
     kind: str
-    """Location type: `dataset`, `sql_database`, `filesystem`, `rest_api`, or a custom value."""
+    """Location type: `dataset`, `sql_database`, `filesystem`, `rest_api`, `code`, or a custom value."""
     resource_name: str
     """Resource that read from or wrote to this location, authoritative when metrics are collected."""
     location: NotRequired[str]
-    """Non-secret scope of the location, e.g. `postgresql://example.com:5432`, `s3://bucket`.
+    """Non-secret scope of the location, e.g. `postgresql://example.com:5432`, `s3://bucket`, or
+    `module.source_function` for `code`.
 
     The key is absent when the location has no public address, for example a reverse ETL sink.
     """

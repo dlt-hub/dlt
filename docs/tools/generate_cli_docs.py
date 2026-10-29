@@ -4,7 +4,7 @@
 # requires-python = ">=3.10"
 # dependencies = [
 #   "dlt[cli]",
-#   "duckdb>=0.9",
+#   "duckdb>=0.9,<2",
 #   "ibis-framework>=12.0.0",
 #   "pyarrow>=16.0.0",
 #   "marimo>=0.14.5",

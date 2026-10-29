@@ -434,10 +434,17 @@ class Extract(WithStepInfo[ExtractMetrics, ExtractInfo]):
             clean_hints[resource.name] = _hints_for_trace(resource_hints)
 
         inputs: List[TDataLocation] = []
+        source_ref = source._factory.ref.ref if source._factory and source._factory.ref else None
         for resource in {r._pipe.instance_id: r for r in source.resources.extracted}.values():
-            inputs.extend(
-                {**location, "resource_name": resource.name} for location in resource.inputs
-            )
+            if resource.inputs:
+                inputs.extend(
+                    {**location, "resource_name": resource.name} for location in resource.inputs
+                )
+            # a transformer reads from its parent, which is an edge in the dag, not a location
+            elif not resource.is_transformer and (code_ref := source_ref or resource._code_ref):
+                inputs.append(
+                    {"kind": "code", "location": code_ref, "resource_name": resource.name}
+                )
 
         return {
             "started_at": None,

@@ -19,9 +19,22 @@ class DummyModule(ModuleType):
             return SimpleNamespace
         else:
             # otherwise import instance
-            return SimpleNamespace()
+            return DummyObject()
 
     __all__: List[Any] = []  # support wildcard imports
+
+
+class DummyObject(SimpleNamespace):
+    """An instance imported from a `DummyModule`, module level code may call it and take attributes"""
+
+    def __call__(self, *args: Any, **kwargs: Any) -> "DummyObject":
+        return DummyObject()
+
+    def __getattr__(self, key: str) -> Any:
+        # keep protocol lookups like `__deepcopy__` or `__wrapped__` failing as on a plain namespace
+        if key.startswith("__"):
+            raise AttributeError(key)
+        return SimpleNamespace if key[0].isupper() else DummyObject()
 
 
 def import_folder_module(

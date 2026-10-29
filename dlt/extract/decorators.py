@@ -231,9 +231,6 @@ class DltSourceFactoryWrapper(SourceFactory[TSourceFunParams, TDltSourceImpl]):
                 resource.apply_hints(schema_contract=self.schema_contract)
         else:
             source = self._deco_f(*args, **kwargs)
-        if not inspect.iscoroutine(source):
-            # store back-reference to the factory on the source instance
-            source._factory = self
         return self._apply_postprocessors(source)
 
     def bind(self, f: AnyFun) -> Self:
@@ -302,6 +299,7 @@ class DltSourceFactoryWrapper(SourceFactory[TSourceFunParams, TDltSourceImpl]):
             # parallelize resources
             if self.parallelized:
                 s.parallelize()
+            s._factory = self
             return s
 
         def _make_schema() -> Schema:
@@ -799,7 +797,7 @@ def resource(
 
         # associate source factory with the decorated function for the standalone=True resource
         # this provides access to standalone resources in the same way as to sources via SourceReference
-        r_._factory = factory  # type: ignore[attr-defined]
+        r_._factory = factory
 
         return r_
 

@@ -1,6 +1,7 @@
 from functools import update_wrapper
 import inspect
 from typing import (
+    TYPE_CHECKING,
     AsyncIterable,
     cast,
     ClassVar,
@@ -55,6 +56,7 @@ from dlt.extract.utils import (
     make_schema_with_default_name,
     wrap_parallel_iterator,
     dynstr,
+    get_code_ref,
 )
 from dlt.extract.items import (
     DataItemWithMeta,
@@ -92,6 +94,10 @@ from dlt.extract.exceptions import (
     ResourceNotATransformer,
 )
 from dlt.extract.wrappers import wrap_additional_type
+
+
+if TYPE_CHECKING:
+    from dlt.extract.reference import SourceFactory
 
 
 def with_table_name(item: TDataItems, table_name: str) -> DataItemWithMeta:
@@ -146,6 +152,10 @@ class DltResource(Iterable[TDataItem], DltResourceHints):
         self._parent: DltResource = None
         self._custom_metrics: Dict[str, Any] = {}
         self._inputs: List[TDataLocation] = []
+        self._code_ref: str = None
+        """Fully qualified name of the function the resource was created from"""
+        self._factory: Optional["SourceFactory[Any, Any]"] = None
+        """Single resource source factory of a standalone resource"""
         super().__init__(hints)
         self._update_wrapper()
 
@@ -178,6 +188,7 @@ class DltResource(Iterable[TDataItem], DltResourceHints):
             if inject_config:
                 r_._inject_config()
         else:
+            code_ref = get_code_ref(data)
             if callable(data):
                 name = name or get_callable_name(data)
 
@@ -213,6 +224,7 @@ class DltResource(Iterable[TDataItem], DltResourceHints):
                     section=section,
                     args_bound=not callable(data),
                 )
+                r_._code_ref = code_ref
                 if inject_config:
                     r_._inject_config()
             else:
@@ -801,6 +813,8 @@ class DltResource(Iterable[TDataItem], DltResourceHints):
             args_bound=self._args_bound,
         )
 
+        cloned_r._code_ref = self._code_ref
+        cloned_r._inputs = list(self._inputs)
         # keep the parent
         cloned_r._parent = self._parent
         # also clone parent if requested
