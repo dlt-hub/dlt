@@ -104,7 +104,7 @@ The dltHub AI Harness is also available as a **Claude Code marketplace plugin**.
 In Claude Code, run:
 
 ```text
-/plugin marketplace add dlt-hub/dlthub-ai-workbench
+/plugin marketplace add dlt-hub/dlthub-ai-harness
 /plugin install bootstrap@dlthub-ai-workbench --scope project
 ```
 
