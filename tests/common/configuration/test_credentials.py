@@ -279,7 +279,8 @@ def test_connection_string_data_location_ignores_credentials() -> None:
     assert loader.data_location() == admin.data_location()
 
 
-def test_gcp_service_credentials_native_representation(environment) -> None:
+@pytest.mark.parametrize("prefix", ["", "\ufeff"])
+def test_gcp_service_credentials_native_representation(environment, prefix: str) -> None:
     with pytest.raises(InvalidGoogleNativeCredentialsType):
         GcpServiceAccountCredentials().parse_native_representation(1)
 
@@ -290,7 +291,8 @@ def test_gcp_service_credentials_native_representation(environment) -> None:
 
     gcpc = GcpServiceAccountCredentials()
     gcpc.parse_native_representation(
-        SERVICE_JSON
+        prefix
+        + SERVICE_JSON
         % '"private_key": "-----BEGIN PRIVATE KEY-----\\n\\n-----END PRIVATE KEY-----\\n",'
     )
     assert gcpc.private_key == "-----BEGIN PRIVATE KEY-----\n\n-----END PRIVATE KEY-----\n"
@@ -325,7 +327,8 @@ def test_gcp_service_credentials_resolved_from_native_representation(environment
     resolve_configuration(gcpc, accept_partial=False)
 
 
-def test_gcp_oauth_credentials_native_representation(environment) -> None:
+@pytest.mark.parametrize("prefix", ["", "\ufeff"])
+def test_gcp_oauth_credentials_native_representation(environment, prefix: str) -> None:
     with pytest.raises(InvalidGoogleNativeCredentialsType):
         GcpOAuthCredentials().parse_native_representation(1)
 
@@ -333,7 +336,9 @@ def test_gcp_oauth_credentials_native_representation(environment) -> None:
         GcpOAuthCredentials().parse_native_representation("notjson")
 
     gcoauth = GcpOAuthCredentials()
-    gcoauth.parse_native_representation(OAUTH_APP_USER_INFO % '"refresh_token": "refresh_token",')
+    gcoauth.parse_native_representation(
+        prefix + OAUTH_APP_USER_INFO % '"refresh_token": "refresh_token",'
+    )
     # is not resolved, we resolve only when default credentials are present
     assert gcoauth.is_resolved() is False
     # but is not partial - all required fields are present
@@ -363,7 +368,9 @@ def test_gcp_oauth_credentials_native_representation(environment) -> None:
 
     # use OAUTH_USER_INFO without "installed"
     gcpc_3 = GcpOAuthCredentials()
-    gcpc_3.parse_native_representation(OAUTH_USER_INFO % '"refresh_token": "refresh_token",')
+    gcpc_3.parse_native_representation(
+        prefix + OAUTH_USER_INFO % '"refresh_token": "refresh_token",'
+    )
     assert dict(gcpc_3) == dict(gcpc_2)
 
 
