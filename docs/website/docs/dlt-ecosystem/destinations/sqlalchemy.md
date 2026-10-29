@@ -515,7 +515,7 @@ for `mssql` dialect:
 
 ```py
 import sqlalchemy as sa
-from dlt.common.schema.typing import PreparedTableSchema
+from dlt.common.destination.typing import PreparedTableSchema
 from dlt.destinations.impl.sqlalchemy.type_mapper import SqlalchemyTypeMapper
 
 class CustomMssqlTypeMapper(SqlalchemyTypeMapper):

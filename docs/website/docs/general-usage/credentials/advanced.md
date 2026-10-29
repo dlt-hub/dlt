@@ -265,7 +265,8 @@ In this example:
 In fact, `dlt` synthesizes a unique spec for each decorated function. For example, in the case of `google_sheets`, the following class is created:
 
 ```py notype
-from dlt.common.configuration import configspec, with_config, BaseConfiguration
+from dlt.common.configuration import configspec, with_config
+from dlt.common.configuration.specs import BaseConfiguration
 
 @configspec
 class GoogleSheetsConfiguration(BaseConfiguration):

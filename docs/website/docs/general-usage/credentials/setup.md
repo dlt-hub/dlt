@@ -477,7 +477,7 @@ export DESTINATION__FILESYSTEM__CREDENTIALS__AWS_SECRET_ACCESS_KEY="1234567890_a
 import os
 import dlt
 import botocore.session
-from dlt.common.credentials import AwsCredentials
+from dlt.common.configuration.specs import AwsCredentials
 
 # Set configuration values directly in code
 # Via environment variables
