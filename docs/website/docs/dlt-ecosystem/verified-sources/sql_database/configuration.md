@@ -24,7 +24,7 @@ Read more about sources and resources here: [General usage: source](../../../gen
 We intend our sources to be fully hackable. `dlt init` command allows you to eject the source code of the core source and modify it
 according to your needs. For example
 
-```sh
+```cli
  dlt init sql_database duckdb --eject
  ```
 
@@ -451,7 +451,7 @@ The `PyArrow` backend yields data as `Arrow` tables. It uses `SQLAlchemy` to rea
 To use the `backend="arrow"` configuration, you will need `numpy` installed. You can get another 20-30% speed increase by having `pandas` installed.
 The library `numpy` is a required dependency of `pandas` and `pyarrow<18.0.0`. To have all required dependencies, we suggest using this command:
 
-```sh
+```cli
 pip install dlt[sql_database] pyarrow numpy pandas
 ```
 

@@ -15,13 +15,13 @@ The Delta destination is based on the [filesystem destination](../../dlt-ecosyst
 
 Make sure you have installed the necessary dependencies:
 
-```sh
+```cli
 pip install deltalake
 ```
 
 If you don't have a dltHub workspace yet, scaffold one with `uvx dlthub-init@latest` (see the [installation guide](../getting-started/installation.md)). Then, from inside the workspace, add a Delta pipeline:
 
-```sh
+```cli
 dlthub pipeline init sql_database delta
 ```
 

@@ -24,7 +24,7 @@ Both toolkits work with **Claude Code**, **Cursor**, and **Codex** and are desig
 
 If you have already run `dlthub ai init` (as part of the [REST API pipeline guide](../ingestion/rest-api-source.md#setup)), you only need to install the toolkits:
 
-```sh
+```cli
 uv run dlthub ai toolkit install data-exploration
 uv run dlthub ai toolkit install transformations
 ```
@@ -56,7 +56,7 @@ The skill uses the dlt MCP tools (`list_pipelines`, `list_tables`, `get_table_sc
 
 Reads the `analysis_plan.md` and assembles a marimo Python notebook with all planned charts, then validates and launches it:
 
-```sh
+```cli
 uv run marimo edit <pipeline_name>_dashboard.py --no-token
 ```
 

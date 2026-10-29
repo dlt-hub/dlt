@@ -35,7 +35,7 @@ You can also customize the dashboard and create a personalized version tailored 
 
 Install additional dependencies:
 
-```sh
+```cli
 pip install "dlt[hub]" pyarrow marimo ibis-framework
 ```
 
@@ -43,7 +43,7 @@ pip install "dlt[hub]" pyarrow marimo ibis-framework
 
 You can start the dashboard with:
 
-```sh
+```cli
 dlthub local show
 ```
 
@@ -52,7 +52,7 @@ The dashboard opens on your most recently used pipeline and shows its dataset br
 You can use the `show` [CLI command](../command-line-interface.md#dlthub-local-pipeline-show)
 with your pipeline name to directly jump to the dashboard page of this pipeline:
 
-```sh
+```cli
 dlthub local pipeline show {pipeline_name}
 ```
 
@@ -347,7 +347,7 @@ By selecting a specific load, you can:
 
 You can eject the code for the workspace dashboard into your current working directory and start editing it to create a custom version that fits your needs. To do this, run the `show` command with the `--edit` flag:
 
-```sh
+```cli
 dlthub local pipeline show {pipeline_name} --edit
 # or for the overview
 dlthub local show --edit

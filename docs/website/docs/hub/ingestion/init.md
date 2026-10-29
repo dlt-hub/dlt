@@ -23,7 +23,7 @@ Outside of a workspace (plain OSS `dlt`), the same scaffold is reachable as `dlt
 
 Before you start, make sure you followed the [installation instructions](../getting-started/installation.md) and have a dltHub workspace initialized. The fastest way is:
 
-```sh
+```cli
 uvx dlthub-init@latest
 ```
 
@@ -39,13 +39,13 @@ This scaffolds a workspace with `.dlt/.workspace` already set, the AI toolkits v
 
 A lightweight, code-first approach ideal for developers comfortable with Python.
 
-```sh
+```cli
 dlthub pipeline init {source_name} duckdb
 ````
 
 for example:
 
-```sh
+```cli
 dlthub pipeline init my_github_pipeline duckdb
 ```
 

@@ -16,7 +16,7 @@ To get started with your data pipeline, follow these steps:
 
 1. Enter the following command:
 
-   ```sh
+   ```cli
    dlt init scraping duckdb
    ```
 
@@ -71,7 +71,7 @@ scrape data from "[https://quotes.toscrape.com/page/1/](https://quotes.toscrape.
 1. Before running the pipeline, ensure that you have installed all the necessary dependencies by
    running the command:
 
-   ```sh
+   ```cli
    pip install -r requirements.txt
    ```
 

@@ -19,7 +19,7 @@ You declare an agent job for it, as for any other agent definition. [Background 
 
 Make sure that you meet the [prerequisites](index.md#prerequisites) for agent jobs. Then install the toolkit:
 
-```sh
+```cli
 dlthub ai toolkit install dlthub-platform
 ```
 
@@ -43,7 +43,7 @@ __all__ = ["load_commits", "inspector"]
 
 The agent job is named after the agent definition: `job_inspector`. On the platform, `require={"profile": "access"}` keeps the production credentials out of the job environment. `dlthub local run` uses the active profile, or the profile you pass with `--profile`. See [Profile of an agent job](index.md#profile-of-an-agent-job). Run the agent job locally on a job run that failed. Then deploy:
 
-```sh
+```cli
 # a single manual run, on a failed run id from `dlthub job runs list`
 dlthub local run job_inspector -c failed_run_id=<run-id>
 
@@ -75,7 +75,7 @@ Only `job.fail:` resolves in step 3. An agent run that a `job.success:` trigger 
 
 If you give the agent job a run id, the agent reads that job run, whatever its status. To inspect a job run that succeeded:
 
-```sh
+```cli
 dlthub local run job_inspector -c failed_run_id=<run-id>
 ```
 
@@ -150,7 +150,7 @@ inspector = run.agent(
 
 To change a setting for one agent run, pass it with `-c`:
 
-```sh
+```cli
 dlthub local run job_inspector -c failed_run_id=<run-id> -c agent.model=sonnet
 ```
 

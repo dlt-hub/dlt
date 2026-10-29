@@ -16,7 +16,7 @@ Deploy the pipeline using Google Cloud Run jobs. First, navigate to the director
 
 1. Run the following command to initialize the verified source with Notion and create a pipeline example with BigQuery as the target.
 
-     ```sh
+     ```cli
      dlt init notion bigquery
      ```
 

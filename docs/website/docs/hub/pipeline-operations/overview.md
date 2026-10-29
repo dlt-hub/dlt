@@ -107,7 +107,7 @@ For monitoring runs, streaming logs, and diagnosing failures, see [Monitoring an
 
 Notebooks and dashboards can be shared via public links. Manage them either from the dashboard — open the job's context menu (or its detail page) and click **Manage Public Link** to toggle the link — or from the CLI:
 
-```sh
+```cli
 # Generate a public link
 dlthub job publish fruitshop_notebook.py
 

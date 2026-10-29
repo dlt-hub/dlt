@@ -20,7 +20,7 @@ Databricks supports both **Delta** (default) and **Apache Iceberg** table format
 
 To install the dlt library with Databricks dependencies:
 
-```sh
+```cli
 pip install "dlt[databricks]"
 ```
 
@@ -222,13 +222,13 @@ os.environ["DESTINATION__DATABRICKS__CREDENTIALS__ACCESS_TOKEN"]=os.environ.get(
 
 1. Initialize a project with a pipeline that loads to Databricks by running
 
-```sh
+```cli
 dlt init chess databricks
 ```
 
 2. Install the necessary dependencies for Databricks by running
 
-```sh
+```cli
 pip install -r requirements.txt
 ```
 
@@ -474,7 +474,7 @@ Refer to the [Azure Blob Storage filesystem documentation](./filesystem.md#azure
 
 To enable support for Azure Blob Storage with dlt, make sure to install the necessary dependencies by running:
 
-```sh
+```cli
 pip install "dlt[az]"
 ```
 

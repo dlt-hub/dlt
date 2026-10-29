@@ -128,13 +128,13 @@ Only the relationships that the pipeline is not aware of need to be explicitly p
 
 Ensure that your dlt pipeline has been run at least once locally or restored from the destination. Then, navigate to the directory where your pipeline is located and, using its name, execute the following command to create a baseline dbt project with dimensional tables for all existing pipeline tables:
 
-```sh
+```cli
 dlthub dbt generate <pipeline-name>
 ```
 
 This command generates a new folder named `dbt_<pipeline-name>`, which contains the project with the following structure:
 
-```sh
+```tree
 dbt_<pipeline-name>/
 ├── analysis/
 ├── macros/
@@ -161,7 +161,7 @@ Additionally, in the directory where you ran the generator, you will find a new 
 
 After creating the base project with dimensional tables, you can create fact tables that will use the previously added relationship hints by running:
 
-```sh
+```cli
 dlthub dbt generate <pipeline-name> --fact <fact_table_name>
 ```
 
@@ -169,13 +169,13 @@ The `<fact_table_name>` you provide should be the name of the base table in whic
 
 For the example above, we can run this for the `orders` table:
 
-```sh
+```cli
 dlthub dbt generate example_shop --fact orders
 ```
 
 This will generate the `fact_<pipeline-name>__orders.sql` model in the `marts` folder of the dbt project:
 
-```sh
+```tree
 dbt_<pipeline-name>/
 ├── analysis/
 ├── macros/

@@ -28,7 +28,7 @@ Destinations are implemented in Python packages under: `dlt.destinations.impl.<d
 
 Initialize a new project with [dlt init](../reference/command-line-interface.md#dlt-init):
 
-```sh
+```cli
 dlt init github postgres
 ```
 

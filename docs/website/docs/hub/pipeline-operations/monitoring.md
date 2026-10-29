@@ -11,7 +11,7 @@ Use the dltHub CLI and the Web UI at [app.dlthub.com](https://app.dlthub.com) to
 
 Retrieve a workspace summary from the CLI:
 
-```sh
+```cli
 dlthub workspace info
 ```
 
@@ -19,7 +19,7 @@ The command returns the workspace name, job count, latest run status, and the la
 
 ## Inspect jobs
 
-```sh
+```cli
 dlthub job list                    # all jobs
 dlthub job list "tag:ingest"       # jobs matching selector
 dlthub job list batch              # only batch jobs
@@ -31,7 +31,7 @@ dlthub job show <name>             # open the job page in the dashboard
 
 List, inspect, and open runs from the CLI:
 
-```sh
+```cli
 # list runs (optionally filter by job name or selector)
 dlthub job runs list [name_or_selector] [--running]
 
@@ -48,13 +48,13 @@ dlthub job runs show <name> [run#]
 
 Display logs for the latest run of a job:
 
-```sh
+```cli
 dlthub job logs my_pipeline.py
 ```
 
 Display logs for a specific run number:
 
-```sh
+```cli
 dlthub job logs my_pipeline.py 3
 ```
 
@@ -108,19 +108,19 @@ Common causes of failures:
 
 Cancel the latest active run of a job:
 
-```sh
+```cli
 dlthub job runs cancel my_pipeline.py
 ```
 
 Cancel a specific run number:
 
-```sh
+```cli
 dlthub job runs cancel my_pipeline.py 5
 ```
 
 Cancel active runs across multiple matching jobs (for example everything tagged `ingest`):
 
-```sh
+```cli
 dlthub job cancel "tag:ingest"
 
 # preview without cancelling
@@ -166,7 +166,7 @@ The CLI does not yet detect whether local code differs from remote. Run `dlthub 
 
 Logs typically lag a few seconds during execution and are guaranteed complete after the run finishes. Wait for the run to complete, or stream them in real time:
 
-```sh
+```cli
 dlthub job logs my_pipeline.py --follow
 ```
 

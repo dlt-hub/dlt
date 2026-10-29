@@ -29,7 +29,7 @@ Flags and positional commands are inherited from the parent command. Position wi
 is important. For example if you want to enable debug mode on the pipeline command, you need to add the
 debug flag to the base dlt command:
 
-```sh
+```cli
 dlt --debug pipeline
 ```
 

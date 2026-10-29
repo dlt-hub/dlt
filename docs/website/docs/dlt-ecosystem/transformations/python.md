@@ -51,7 +51,7 @@ Not all destinations supported by `dlt` have an equivalent Ibis backend. Nativel
 
 To use the Ibis backend, you will need to have the `ibis-framework` package with the correct Ibis extra installed. The following example will install the DuckDB backend:
 
-```sh
+```cli
 pip install ibis-framework[duckdb]
 ```
 

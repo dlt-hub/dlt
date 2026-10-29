@@ -103,7 +103,7 @@ Benefits:
 
 This hierarchical structure efficiently handles simple cases while supporting more complex scenarios, such as multiple sources with different credentials or multiple pipelines sharing configuration in the same project.
 
-```text
+```tree
 pipeline_name
     |
     |-sources

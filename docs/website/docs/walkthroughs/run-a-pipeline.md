@@ -57,7 +57,7 @@ data = chess_source(['magnuscarlsen', 'rpragchess'], start_month="2021/11", end_
 Install [enlighten](https://github.com/Rockhopper-Technologies/enlighten). Enlighten displays
 progress bars that can be mixed with log messages:
 
-```sh
+```cli
 pip install enlighten
 ```
 
@@ -82,7 +82,7 @@ PROGRESS=log python chess_pipeline.py
 You can quickly inspect the generated tables, the data, see how many rows were loaded to which
 table, do SQL queries, etc., by executing the following command from the same folder as your script:
 
-```sh
+```cli
 dlt pipeline chess_pipeline show
 ```
 
@@ -106,7 +106,7 @@ Collecting usage statistics. To deactivate, set browser.gatherUsageStats to Fals
 particular tables. The packages are identified by **load_id**, which you can see in the printout
 above or obtain by running the following command:
 
-```sh
+```cli
 dlt pipeline chess_pipeline info
 ```
 
@@ -114,26 +114,26 @@ You can inspect the package, get a list of jobs, and in the case of failed ones,
 messages.
 - See the most recent load package info:
 
-  ```sh
+  ```cli
   dlt pipeline chess_pipeline load-package
   ```
 
 - See package info with a given load id:
 
-  ```sh
+  ```cli
   dlt pipeline chess_pipeline load-package 1679931001.985323
   ```
 
 - Also, see the schema changes introduced in the package:
 
-  ```sh
+  ```cli
   dlt pipeline -v chess_pipeline load-package
   ```
 
 `dlt` stores the trace of the most recent data load. The trace contains information on the pipeline
 processing steps: `extract`, `normalize`, and `load`. It also shows the last `load_info`:
 
-```sh
+```cli
 dlt pipeline chess_pipeline trace
 ```
 
@@ -236,7 +236,7 @@ except PipelineStepFailed as step_failed:
 
 Or use the `trace` command to review the last exception. Here we provided a wrong PostgreSQL password:
 
-```sh
+```cli
 dlt pipeline chess_pipeline trace
 ```
 
@@ -267,7 +267,7 @@ What now?
 
 Investigate further with the following command:
 
-```sh
+```cli
 dlt pipeline chess_pipeline failed-jobs
 ```
 

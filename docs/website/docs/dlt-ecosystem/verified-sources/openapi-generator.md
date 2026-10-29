@@ -35,13 +35,13 @@ We will create a simple example pipeline from a [PokeAPI spec](https://pokeapi.c
 
 1. Run the generator with a URL:
 
-    ```sh
+    ```cli
     dlt-init-openapi pokemon --url https://raw.githubusercontent.com/dlt-hub/dlt-init-openapi/devel/tests/cases/e2e_specs/pokeapi.yml --global-limit 2
     ```
 
 2. Alternatively, if you have a local file, you can use the --path flag:
 
-    ```sh
+    ```cli
     dlt-init-openapi pokemon --path ./my_specs/pokeapi.yml
     ```
 
@@ -60,13 +60,13 @@ We will create a simple example pipeline from a [PokeAPI spec](https://pokeapi.c
 
 7. Print the pipeline info to the console to see what got loaded.
 
-    ```sh
+    ```cli
     dlt pipeline pokemon_pipeline info
     ```
 
 8. You can now also install marimo to see a preview of the data in the workspace dashboard; you should have loaded 40 Pokemons and their details.
 
-    ```sh
+    ```cli
     pip install pandas marimo
     dlt pipeline pokemon_pipeline show
     ```
@@ -83,7 +83,7 @@ twice, resulting in 2 x 20 Pokemon details being rendered.
 
 When you run the `dlt-init-openapi` command above, the following files will be generated:
 
-```text
+```tree
 pokemon_pipeline/
 ├── .dlt/
 │   ├── config.toml     # dlt config, learn more at dlthub.com/docs
@@ -162,13 +162,13 @@ You can edit this file to adapt the behavior of the dlt rest_api accordingly. Pl
 
 ## CLI command
 
-```sh
+```cli
 dlt-init-openapi <source_name> [OPTIONS]
 ```
 
 ### Example
 
-```sh
+```cli
 dlt-init-openapi pokemon --path ./path/to/my_spec.yml --no-interactive --output-path ./my_pipeline
 ```
 
@@ -201,7 +201,7 @@ package_name: "other_package_name"
 
 And use it with the config argument:
 
-```sh
+```cli
 dlt-init-openapi pokemon --url ... --config config.yml
 ```
 

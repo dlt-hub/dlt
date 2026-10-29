@@ -13,7 +13,7 @@ Because this destination extends `filesystem`, most filesystem concepts (file la
 
 ## Install dlt with Hugging Face support
 
-```sh
+```cli
 pip install "dlt[hf]"
 ```
 
@@ -21,7 +21,7 @@ This installs the `huggingface_hub` package alongside `dlt`.
 
 ## Initialize the dlt project
 
-```sh
+```cli
 dlt init chess filesystem
 ```
 

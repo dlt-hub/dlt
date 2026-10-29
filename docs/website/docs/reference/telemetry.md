@@ -13,19 +13,19 @@ You can disable telemetry by adding `--disable-telemetry` to any dlt [command](c
 
 This command will disable telemetry both in the current project and globally for the whole machine:
 
-```sh
+```cli
 dlt --disable-telemetry
 ```
 
 While this command will also permanently disable telemetry and then initialize the `chess` pipeline:
 
-```sh
+```cli
 dlt --disable-telemetry init chess duckdb
 ```
 
 You can check the current telemetry status with this command:
 
-```sh
+```cli
 dlt telemetry
 ```
 

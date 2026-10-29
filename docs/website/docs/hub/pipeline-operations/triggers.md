@@ -180,7 +180,7 @@ def backfill():
 
 Then trigger it from the CLI:
 
-```sh
+```cli
 dlthub job trigger "tag:backfill"
 dlthub run backfill --refresh    # explicit refresh on a single job
 ```
@@ -210,7 +210,7 @@ Tags are labels on jobs (set via `expose={"tags": [...]}`). They are used to:
 1. Group related jobs in the dashboard
 2. Run bulk operations from the CLI via **selectors**
 
-```sh
+```cli
 # trigger every job tagged "ingest"
 dlthub job trigger "tag:ingest"
 
