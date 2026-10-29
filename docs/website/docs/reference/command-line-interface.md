@@ -339,7 +339,7 @@ Inherits arguments from [`dlt pipeline`](#dlt-pipeline).
 Displays last run trace, use -v or -vv for more info.
 
 **Usage**
-```sh
+```cli
 dlt pipeline [pipeline_name] trace [-h] [--steps {extract,normalize,load}
     [{extract,normalize,load} ...]] [action]
 ```
