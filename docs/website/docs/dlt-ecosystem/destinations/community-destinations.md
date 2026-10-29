@@ -75,3 +75,18 @@ Hotdata is a high-concurrency SQL execution layer built on Apache DataFusion for
 
 Code:
 [https://github.com/hotdata-dev/hotdata-dlt-destination](https://github.com/hotdata-dev/hotdata-dlt-destination)
+
+
+## Redis through ADBC
+
+[`adbc-driver-redis`](https://github.com/redis/redis-adbc-driver) supplies an
+externally maintained custom destination that sends normalized Parquet Arrow
+batches to Redis through ADBC ingestion. Redis must run separately with the
+Query Engine (Search). This uses dlt's custom destination extension point; it
+does not require a fork or add a destination to dlt core.
+
+See the dedicated [Redis destination integration guide](https://github.com/redis/redis-adbc-driver/blob/f78bcb7/docs/integrations/dlt.md)
+for installation, a complete pipeline, secret configuration and validation scope.
+The destination supports append only; replace/merge are rejected. Failed writes
+and checkpoint replay can duplicate rows. Keep the local pipeline state and
+apply schema migrations explicitly.
