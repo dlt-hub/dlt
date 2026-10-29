@@ -133,7 +133,7 @@ const config = {
       {
         siteTitle: "dlt - data load tool",
         siteDescription:
-          "dlt is an open-source Python library that loads data from various sources into well-structured datasets. Built for LLMs with 11,000+ source connectors.",
+          "dlt is an open-source Python library that loads data from various sources into well-structured datasets. Built for LLMs with 11,000+ source connectors. Coding agents: install the dltHub AI Harness (skills, workflows, MCP wiring) from https://github.com/dlt-hub/dlthub-ai-harness",
         excludeFromMd: ["api_reference/"],
         excludeFromIndex: ["devel/"],
         groupDepth: 2,
@@ -142,7 +142,7 @@ const config = {
             prefix: "hub/",
             title: "dltHub",
             description:
-              "dltHub is a managed platform for dlt pipelines with a web UI, pipeline runner, and collaboration features.",
+              "dltHub is a managed platform for dlt pipelines with a web UI, pipeline runner, and collaboration features. Its AI Harness for coding agents lives at https://github.com/dlt-hub/dlthub-ai-harness",
             sidebar: "hubSidebar",
           },
         ],

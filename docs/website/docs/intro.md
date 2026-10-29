@@ -7,7 +7,7 @@ keywords: [introduction, who, what, how]
 # Getting started
 
 :::info
-Looking for the managed [dltHub platform](https://dlthub.com/products/dlthub), [dltHub AI Harness](https://dlthub.com/features/ai-harness), transformations, or data quality features? See the [dltHub docs](hub/getting-started/introduction.md).
+Looking for the managed [dltHub platform](https://dlthub.com/products/dlthub), [dltHub AI Harness](https://dlthub.com/features/ai-harness) ([GitHub](https://github.com/dlt-hub/dlthub-ai-harness)), transformations, or data quality features? See the [dltHub docs](hub/getting-started/introduction.md).
 :::
 
 ![dlt pacman](/img/dlt-pacman.gif)
