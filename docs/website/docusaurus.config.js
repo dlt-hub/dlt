@@ -5,10 +5,9 @@ require("dotenv").config();
 
 const synthwave84 = require("prism-react-renderer/themes/synthwave84");
 
-// synthwave84 without the neon glow (text shadows)
-const { textShadow: _plainShadow, ...darkPlain } = synthwave84.plain;
+// synthwave84 without the glow; its plain background is painted on every line, custom.css sets the block's
 const darkCodeTheme = {
-  plain: darkPlain,
+  plain: { color: synthwave84.plain.color },
   styles: [
     ...synthwave84.styles.map(({ types, style }) => {
       const { textShadow: _shadow, ...rest } = style;

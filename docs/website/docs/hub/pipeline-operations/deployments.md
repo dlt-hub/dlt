@@ -227,9 +227,9 @@ dlthub workspace configuration sync    # sync only configuration
 
 # List and inspect previous versions
 dlthub workspace deployment list
-dlthub workspace deployment info [version_number]
+dlthub workspace deployment [<deployment_version_no>] info
 dlthub workspace configuration list
-dlthub workspace configuration info [version]
+dlthub workspace configuration [<configuration_version_no>] info
 ```
 
 See the [CLI reference](../command-line-interface.md) for the full set of deployment and job commands.
