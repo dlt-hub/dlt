@@ -93,7 +93,7 @@ Note: The data in the table must be compatible with the destination database as 
 
 ### Load to many tables
 
-To send each table or frame to a table that depends on its data, pass a function as `table_name`. The function receives the item as an Arrow table, also when you yield a Pandas or Polars frame:
+To choose the destination table of each item from its data, pass a function as `table_name`. The function receives an Arrow table or record batch. dlt converts a Pandas or Polars frame to an Arrow table first:
 
 ```py
 import dlt
@@ -108,7 +108,7 @@ pipeline = dlt.pipeline("events_pipeline", destination="duckdb")
 pipeline.run(events)
 ```
 
-All rows of an item go to one table. To split the rows of one item, yield one item per table.
+dlt loads all rows of an item to one table. To split the rows of one item, yield one item per table.
 
 ## Destination support
 

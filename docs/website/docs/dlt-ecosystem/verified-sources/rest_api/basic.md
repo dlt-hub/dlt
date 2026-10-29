@@ -949,7 +949,7 @@ See [Per-resource parallelization](./advanced.md#per-resource-parallelization-fo
 
 #### Limit dependent resources
 
-Call `add_limit` on the source to fetch a few pages of each parent resource, for example during development. Dependent resources receive only the items from those pages. This also works when the parent resource has `"selected": False`:
+To fetch a few pages of each parent resource, for example during development, call `add_limit` on the source. Dependent resources receive only the items from those pages. The limit also applies when the parent resource has `"selected": False`:
 
 ```py
 import dlt
@@ -971,7 +971,7 @@ pipeline = dlt.pipeline(pipeline_name="github", destination="duckdb")
 pipeline.run(source.add_limit(10))
 ```
 
-A limit on a dependent resource is set on its parent: `source.resources["issue_comments"].add_limit(10)` limits `issues` to 10 pages, so `issues` and all its dependent resources load from the same pages. The limit counts pages of the parent resource, not requests of the dependent resource. One page of issues can produce many comment requests.
+dlt sets the limit of a dependent resource on its parent. For example, `source.resources["issue_comments"].add_limit(10)` limits `issues` to 10 pages. As a result, `issues` and all its dependent resources load from the same pages. The limit counts pages of the parent resource, not requests of the dependent resource. One page of issues can produce many comment requests.
 
 ### Define a resource which is not a REST endpoint
 

@@ -159,7 +159,7 @@ processing.
 
 ### Controlling intermediary file size and rotation
 
-`dlt` writes data to intermediary files. You can control the file size and the number of created files by setting the maximum number of data items stored in a single file or the maximum single file size. For the text formats that `dlt` compresses with gzip, such as `jsonl`, the file size counts the bytes before compression.
+`dlt` writes data to intermediary files. You can control the file size and the number of created files by setting the maximum number of data items stored in a single file or the maximum single file size. For the text formats that `dlt` compresses with gzip, such as `jsonl`, `dlt` measures the file size before compression.
 
 * `dlt` uses a custom version of the [JSON file format](../dlt-ecosystem/file-formats.md#jsonl) between the **extract** and **normalize** stages.
 * Files created between the **normalize** and **load** stages are the same files that will be loaded to the destination.
@@ -210,7 +210,7 @@ disable_compression=true
 
 ### Inspect the files of each step
 
-The last run trace keeps the files that each step wrote or loaded. To see their rows and sizes by table, run:
+The trace of the last run records the files that each step wrote or loaded. To see their rows and sizes by table, run:
 
 ```sh
 dlt pipeline <pipeline name> trace metrics
@@ -220,7 +220,9 @@ dlt pipeline <pipeline name> trace metrics
 * `normalize` shows rows, files and sizes by table, nested tables included.
 * `load` shows files, sizes, job time and failed jobs by table. It does not count rows.
 
-Use `--steps` to select steps, for example `--steps extract normalize`. Add `-v` to list each file instead of the tables. Extract and normalize show sizes before compression, the same bytes that `file_max_bytes` limits. Load shows the size of files on disk. Traces of dlt versions before 1.32 store neither file counts nor load sizes, so the output shows `files unknown` and load shows `size unknown`.
+To select steps, use `--steps`, for example `--steps extract normalize`. To list each file instead of the tables, add `-v`.
+
+Extract and normalize show sizes before compression, the same bytes that `file_max_bytes` limits. Load shows the size of files on disk. For a staged load, this is the size of the file that references the staged data. Traces of dlt versions before 1.32 do not store file counts or load sizes. For these traces, the output shows `files unknown` and `size unknown`.
 
 ### Freeing disk space after loading
 
@@ -456,7 +458,7 @@ The **normalize** stage uses a process pool to create load packages concurrently
 
 ```toml
 [sources.data_writer]
-# rotate extract files when they exceed 1MiB
+# rotate extract files when they exceed 1 MB
 file_max_bytes=1000000
 
 [normalize]
@@ -466,19 +468,19 @@ workers=3
 
 #### How normalize assigns files to workers
 
-Each worker gets a group of files and processes them one by one. `dlt` sorts the files by name, so the files of a table stay together. Then it cuts them into groups of similar uncompressed size, one group per worker. Files of each format are split separately: normalize parses `jsonl` files from Python objects row by row, but often only links `parquet` files from Arrow tables.
+Each worker gets a group of files and processes them one by one. `dlt` sorts the files by name, so the files of a table stay together. Then it cuts them into groups of similar uncompressed size, one group per worker. `dlt` splits the files of each format separately. Normalize parses the `jsonl` files of Python objects row by row. It often only links the `parquet` files of Arrow tables.
 
 A worker cannot share a file with other workers. One large file keeps one worker busy while the other workers wait. With fewer files than workers, some workers get no files.
 
 #### Choose the size of extract files
 
-Aim for about 8 to 10 extract files per worker for your largest tables. As a starting point, set `file_max_bytes` to the extracted size divided by 8 times the number of workers. For example, use about 50 MB for 1.6 GB of data and 4 workers. Prefer `file_max_bytes` to `file_max_items` when your tables have rows of different sizes, because files of equal size split evenly.
+Use about 8 to 10 extract files per worker for your largest tables. As a starting point, divide the extracted size by the number of workers, then by 8. Set `file_max_bytes` to the result. For example, use about 50 MB for 1.6 GB of data and 4 workers. If your tables have rows of different sizes, use `file_max_bytes` instead of `file_max_items`. Files of equal size split evenly.
 
-Small extract files do not create more load jobs. Each worker writes one normalized file per table, unless you also rotate the normalize output.
+Small `jsonl` extract files do not create more load jobs. Each worker writes one normalized file per table, unless you also rotate the normalize output. Normalize imports each `parquet` file that it does not rewrite as a load job of its own.
 
 #### Warning on unbalanced files
 
-The extract stage logs a warning when its files would leave at least half of the normalize workers' capacity idle, for example a single file that was never rotated, or one large file that holds most of the data. The warning names the table to split and tells you whether to set or lower `file_max_items` and `file_max_bytes`. It also shows the command that lists the extracted files, see [Inspect the files of each step](#inspect-the-files-of-each-step). `dlt` skips this check when less than 32 MiB of data needs normalization.
+The extract stage logs a warning if normalize can use only half of its workers or less. The usual cause is a single file that dlt did not rotate, or one large file that holds most of the data. The warning names the table to split and tells you whether to set or lower `file_max_items` and `file_max_bytes`. It also shows the command that lists the extracted files (see [Inspect the files of each step](#inspect-the-files-of-each-step)). `dlt` skips this check when less than 32 MiB of `jsonl` data needs normalization.
 
 :::note
 The default is to not parallelize normalization and to perform it in the main process.

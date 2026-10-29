@@ -203,8 +203,8 @@ def products(
 
 `updated_at`: The saved [state](../../general-usage/state) of the last 'updated_at' value.
 
-This source does not set `allow_external_schedulers`. Set it on the incrementals only to load the
-data interval of each Airflow run, see
+This source does not set `allow_external_schedulers`. To load the data interval of each Airflow run,
+set `allow_external_schedulers=True` on the incrementals of the source. For an example, see
 [Using Airflow schedule for backfill and incremental loading](../../general-usage/incremental/cursor.md#using-airflow-schedule-for-backfill-and-incremental-loading).
 
 Similar to the mentioned resource, there are two more resources "orders" and "customers", both support incremental loading and pagination.

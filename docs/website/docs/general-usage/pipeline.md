@@ -159,7 +159,7 @@ The preceding example instructs `dlt` to wipe the pipeline state belonging to th
 which data was loaded. The `airtable_emojis` source had two resources named "📆 Schedule" and "💰 Budget" loading to tables "_schedule" and "_budget". Here's
 what `dlt` does step by step:
 
-1. Collects a list of tables to drop: all the tables in the schema that belong to the source. Tables that don't exist in the destination are skipped.
+1. Collects a list of tables to drop: all the tables in the schema that belong to the source. `dlt` skips the tables that do not exist in the destination.
 2. Removes existing pipeline state associated with the `airtable_emojis` source.
 3. Resets the schema associated with the `airtable_emojis` source.
 4. Executes `extract` and `normalize` steps. These create fresh pipeline state and a schema.

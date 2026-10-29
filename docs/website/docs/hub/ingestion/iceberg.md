@@ -541,7 +541,9 @@ def my_resource():
 
 #### Replace partitions
 
-Partition the table by a day or an hour column. Then make sure that each load contains all records of the partitions that it loads. Each load replaces these partitions: dlt deletes all records of these partitions and inserts the loaded records. As a result, if a record of a replaced partition is absent from the loaded data, dlt deletes it.
+Partition the table by a day or an hour column. Then make sure that each load contains all records of the partitions that it loads.
+
+Each load replaces these partitions: dlt deletes all records of these partitions and inserts the loaded records. As a result, if a record of a replaced partition is absent from the loaded data, dlt deletes it.
 
 If the loaded records show which partitions to replace, use a merge key. If you know the partitions before the load, use a destination scope.
 
@@ -576,7 +578,7 @@ Load a few partitions at a time, for example one day or a few hours. A merge key
 
 ##### With a destination scope
 
-Write the partitions to replace as a `destination_scope` that compares the partition column to a value. Take the value from a [value placeholder](../../general-usage/merge-loading.md#fill-placeholders-with-values-from-the-load), so the schema does not change with every load:
+Write the partitions to replace as a `destination_scope` that compares the partition column to a value. Take the value from a [value placeholder](../../general-usage/merge-loading.md#fill-placeholders-with-values-from-the-load). Then the schema does not change with every load:
 
 ```py
 from datetime import date
@@ -595,7 +597,9 @@ def events(day: date):
     ...
 ```
 
-The destination scope does not depend on the loaded records. With a destination scope, dlt ignores `merge_key` and does not delete by `primary_key`. If a load has no records for a partition, yield [`dlt.mark.materialize_table_schema()`](../../general-usage/resource.md#materialize-schema-without-rows) from the resource. dlt then runs an empty load job, and the merge deletes all records in the destination scope. Without this marker, dlt creates no load job for the table and deletes nothing.
+The destination scope does not depend on the loaded records. With a destination scope, dlt ignores `merge_key` and does not delete by `primary_key`.
+
+If a load has no records for a partition, yield [`dlt.mark.materialize_table_schema()`](../../general-usage/resource.md#materialize-schema-without-rows) from the resource. dlt then runs an empty load job, and the merge deletes all records in the destination scope. Without this marker, dlt creates no load job for the table and deletes nothing.
 
 Compare only partition columns in the destination scope. A condition on other columns reads and rewrites the data of the partition.
 
@@ -604,7 +608,7 @@ Compare only partition columns in the destination scope. A condition on other co
 The `delete-insert` strategy supports both [merge conditions](../../general-usage/merge-loading.md#merge-conditions). The `upsert` strategy supports only `source_filter`:
 
 - `source_filter` is a duckdb SQL condition on the loaded records. `{staging_table}` expands to the loaded records.
-- `destination_scope` is an Iceberg row filter on the destination table: comparisons, `IN`, `IS NULL`, `LIKE 'prefix%'`, `AND`, `OR` and `NOT` on columns of the table. Write the columns by name or as `{table}.column`. dlt does not support subqueries, functions or `{staging_table}`. To select a list of values, use a list in a value placeholder, for example `day IN {days}`.
+- `destination_scope` is an Iceberg row filter on the destination table: comparisons, `IN`, `IS NULL`, `LIKE 'prefix%'`, `AND`, `OR` and `NOT` on columns of the table. You can write the columns by name or as `{table}.column`. dlt does not support subqueries, functions or `{staging_table}`. A list in a value placeholder selects a list of values, for example `day IN {days}`.
 
 Both conditions accept [value placeholders](../../general-usage/merge-loading.md#fill-placeholders-with-values-from-the-load). In the destination scope, dlt writes a date or a timestamp as an ISO string. Iceberg converts this string to the type of the column.
 
@@ -630,7 +634,7 @@ The Iceberg destination does not support the `cdc` merge strategy. Use `delete-i
       ...
   ```
 
-  Each load reads the data files that can contain the changed keys. Load the changes often. Keep the table small, or use keys that increase with time.
+  Each load reads the data files that can contain the changed keys. Run the pipeline often, so that each load has few changed keys. Keep the table small, or use keys that increase with time.
 
 ### Upsert strategy
 
@@ -641,7 +645,7 @@ The `upsert` strategy is similar to delete-insert strategy but with key differen
 - Does not deduplicate records with duplicate primary keys in the incoming data
 - Upsert _does not_ support merge keys, `destination_scope` or `skip_unchanged_rows`
 
-Each load reads the data files that can contain the loaded keys. If the table is small, or if the keys increase with time, for example sequential ids, use `upsert`. For large tables, use `delete-insert` and [replace partitions](#replace-partitions).
+Each load reads the data files that can contain the loaded keys. If the table is small, or if the keys increase with time, for example sequential IDs, use `upsert`. For large tables, use `delete-insert` and [replace partitions](#replace-partitions).
 
 ```py
 @dlt.resource(

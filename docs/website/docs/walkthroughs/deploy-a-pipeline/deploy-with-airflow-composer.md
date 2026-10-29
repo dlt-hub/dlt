@@ -232,7 +232,7 @@ When you run the `load_data` DAG above, Airflow will call the `source` function 
 :::
 
 :::tip
-To load the data interval of each DAG run instead of using the dlt state, set `allow_external_schedulers=True` on the incrementals of your resources. See [Using Airflow schedule for backfill and incremental loading](../../general-usage/incremental/cursor.md#using-airflow-schedule-for-backfill-and-incremental-loading).
+To load the data interval of each DAG run, set `allow_external_schedulers=True` on the incrementals of your resources. Then the incrementals do not use the dlt state. See [Using Airflow schedule for backfill and incremental loading](../../general-usage/incremental/cursor.md#using-airflow-schedule-for-backfill-and-incremental-loading).
 :::
 
 :::caution

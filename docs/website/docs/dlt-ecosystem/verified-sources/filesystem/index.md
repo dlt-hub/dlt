@@ -620,7 +620,7 @@ while not pipeline.run(fs_.with_name("files").add_limit(1)).is_empty:
 
 **Note that you must set row_order on incremental to not miss a file**:
 
-You can also limit a reader or the `readers` source. dlt sets the limit on the `filesystem` resource, so each run reads one page of files:
+You can also limit a reader or the `readers` source. dlt sets the limit on the `filesystem` resource. As a result, each run reads one page of files:
 
 ```py
 import dlt
@@ -635,7 +635,7 @@ while not pipeline.run(reader.add_limit(1)).is_empty:
     print(pipeline.last_trace.last_load_info)  # ty: ignore[unresolved-attribute]
 ```
 
-The limit counts pages of files, not chunks of the reader. dlt reads each file to the end, so set the size of a run with `files_per_page`. The reader `chunksize` only controls memory use.
+The limit counts pages of files, not chunks of the reader. dlt reads each file to the end. To set the size of a run, use `files_per_page`. The `chunksize` of the reader controls only the memory use.
 
 ### 7. Filter files
 

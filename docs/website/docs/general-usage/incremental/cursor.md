@@ -369,8 +369,8 @@ def tickets(
 We opt-in to the Airflow scheduler by setting `allow_external_schedulers` to `True`:
 
 1. When running on Airflow, the start and end values are controlled by Airflow and the dlt [state](../state.md) is not used.
-2. In all other environments, `dlt` raises `ExternalSchedulerNotAvailable`, unless you
-   [provide an interval](#injecting-and-reading-the-current-interval) in another way.
+2. In all other environments, `dlt` raises `ExternalSchedulerNotAvailable`, unless your code
+   [injects the current interval](#injecting-and-reading-the-current-interval).
 
 Let's generate a deployment with `dlt deploy zendesk_pipeline.py airflow-composer` and customize the DAG:
 
@@ -413,7 +413,7 @@ What got customized:
 
 1. We use a weekly schedule and want to get the data from February 2023 (`start_date`) until the end of July (`end_date`).
 2. We make Airflow generate all weekly runs (`catchup` is True).
-3. We create `zendesk_support` resources where we select only the incremental resources we want to backfill, and opt them in to the Airflow schedule.
+3. We create `zendesk_support` resources and select only the incremental resources that we want to backfill. Then we set `allow_external_schedulers` on their incrementals.
 
 When you enable the DAG in Airflow, it will generate several runs and start executing them, starting in February and ending in August. Your resource will receive subsequent weekly intervals starting with `2023-02-12, 00:00:00 UTC` to `2023-02-19, 00:00:00 UTC`.
 
