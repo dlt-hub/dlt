@@ -1,5 +1,6 @@
 import contextlib
 import logging
+import sys
 import traceback
 from logging import LogRecord, Logger
 from typing import Any, Mapping, Iterator, Protocol, Callable
@@ -86,20 +87,52 @@ class _MetricsFormatter(logging.Formatter):
         return s
 
 
+class _DltStreamHandler(logging.StreamHandler):  # type: ignore[type-arg]
+    """Identify dlt-owned handlers when switching to propagation."""
+
+
 def _create_logger(
-    logger_name: str, level: str, fmt: str, component: str, version: Mapping[str, str]
+    logger_name: str,
+    level: str,
+    fmt: str,
+    component: str,
+    version: Mapping[str, str],
+    log_output: str = "stderr",
 ) -> Logger:
+    if log_output not in ("stderr", "stdout", "propagate"):
+        raise ValueError(f"Invalid log_output: {log_output!r}")
+
     if logger_name == "root":
         logging.basicConfig(level=level)
         handler = logging.getLogger().handlers[0]
         logger = logging.getLogger()
     else:
         logger = logging.getLogger(logger_name)
-        logger.propagate = False
         logger.setLevel(level)
-        # get or create logging handler, we log to stderr by default
-        handler = next(iter(logger.handlers), logging.StreamHandler())
-        logger.addHandler(handler)
+
+        owned = [handler for handler in logger.handlers if isinstance(handler, _DltStreamHandler)]
+
+        dlt_handler = None
+        if log_output == "propagate":
+            logger.propagate = True
+        else:
+            stream = sys.stdout if log_output == "stdout" else sys.stderr
+            # re-attach stream handler in case log_output changed
+            dlt_handler = next((h for h in owned if h.stream is stream), None)
+            if dlt_handler is None:
+                dlt_handler = _DltStreamHandler(stream)
+                logger.addHandler(dlt_handler)
+            logger.propagate = False
+
+        # remove old handlers only after the new output is attached so no record is dropped
+        for old in owned:
+            if old is not dlt_handler:
+                logger.removeHandler(old)
+                old.close()
+
+        if dlt_handler is None:
+            return logger
+        handler = dlt_handler
 
     # set right formatter
     if is_json_logging(fmt):

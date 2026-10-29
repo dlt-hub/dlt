@@ -8,6 +8,7 @@ import os
 from datetime import datetime
 
 from airflow import DAG
+from airflow.providers.standard.operators.python import PythonOperator
 
 import dlt
 from dlt.helpers.airflow_helper import PipelineTasksGroup
@@ -38,6 +39,30 @@ def smoke_source():
 DB_PATH = os.environ.get("DLT_SMOKE_DB_PATH", "/tmp/dlt_smoke/smoke.db")
 DATASET_NAME = "smoke_data"
 
+
+def run_plain_python_operator() -> None:
+    pipeline = dlt.pipeline(
+        pipeline_name="dlt_smoke_plain_operator",
+        dataset_name="plain_smoke_data",
+        destination=dlt.destinations.sqlalchemy(credentials=f"sqlite:///{DB_PATH}.plain"),
+    )
+
+    from dlt.common import logger
+
+    logger.info("PLAIN_PYTHON_OPERATOR_DLT_INFO")
+    logger.warning("PLAIN_PYTHON_OPERATOR_DLT_WARNING")
+    logger.error("PLAIN_PYTHON_OPERATOR_DLT_ERROR")
+    pipeline.run(smoke_source())
+
+
+def log_task_group_levels() -> None:
+    from dlt.common import logger
+
+    logger.info("TASK_GROUP_DLT_INFO")
+    logger.warning("TASK_GROUP_DLT_WARNING")
+    logger.error("TASK_GROUP_DLT_ERROR")
+
+
 with DAG(
     dag_id="dlt_smoke",
     schedule=None,
@@ -57,6 +82,7 @@ with DAG(
         pipeline,
         smoke_source(),
         decompose="none",
+        on_before_run=log_task_group_levels,
     )
 
     # test decompose="serialize" — sequential tasks per component
@@ -72,6 +98,11 @@ with DAG(
         smoke_source(),
         decompose="parallel",
         serialize_first_task=False,
+    )
+
+    PythonOperator(
+        task_id="plain_python_operator",
+        python_callable=run_plain_python_operator,
     )
 
     # make parallel to run after serialized - otherwise we have conflict on schema creation
