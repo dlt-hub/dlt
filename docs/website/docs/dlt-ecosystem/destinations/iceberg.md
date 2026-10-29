@@ -19,13 +19,13 @@ dlt leverages `pyiceberg`'s `load_catalog` function to be able to work with the 
 
 You need Python version 3.10 or higher and the `pyiceberg` package to use this format:
 
-```sh
+```cli
 pip install "dlt[pyiceberg]"
 ```
 
 You also need `sqlalchemy>=2.0.18`:
 
-```sh
+```cli
 pip install 'sqlalchemy>=2.0.18'
 ```
 

@@ -9,7 +9,7 @@ keywords: [redshift, destination, data warehouse]
 
 To install the dlt library with Redshift dependencies:
 
-```sh
+```cli
 pip install "dlt[redshift]"
 ```
 
@@ -21,7 +21,7 @@ pip install "dlt[redshift]"
 
 Let's start by initializing a new dlt project as follows:
 
-```sh
+```cli
 dlt init chess redshift
 ```
 
@@ -31,7 +31,7 @@ This command will initialize your pipeline with chess as the source and Redshift
 
 The above command generates several files and directories, including `.dlt/secrets.toml` and a requirements file for Redshift. You can install the necessary dependencies specified in the requirements file by executing it as follows:
 
-```sh
+```cli
 pip install -r requirements.txt
 ```
 

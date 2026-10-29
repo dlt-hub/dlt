@@ -15,13 +15,13 @@ dlt uses the [deltalake](https://pypi.org/project/deltalake/) library to write D
 
 You need the `deltalake` package to use this format:
 
-```sh
+```cli
 pip install "dlt[deltalake]"
 ```
 
 You also need `pyarrow>=17.0.0`:
 
-```sh
+```cli
 pip install 'pyarrow>=17.0.0'
 ```
 

@@ -69,7 +69,7 @@ Please make sure the `dlt` library is installed. Refer to the [installation guid
 
 Enter the following command in your terminal:
 
-```sh
+```cli
 dlt init rest_api duckdb
 ```
 
@@ -110,7 +110,7 @@ github_token = "your_github_token"
 
 1. Install the required dependencies by running the following command:
 
-   ```sh
+   ```cli
    pip install -r requirements.txt
    ```
 
@@ -122,7 +122,7 @@ github_token = "your_github_token"
 
 3. Verify that everything loaded correctly by using the following command:
 
-   ```sh
+   ```cli
    dlt pipeline rest_api show
    ```
 

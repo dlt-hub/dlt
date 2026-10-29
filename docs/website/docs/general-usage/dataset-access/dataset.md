@@ -576,7 +576,7 @@ arrow_table = customers_relation.select("id", "name").limit(50).arrow()
 
 If you install the [ibis](https://ibis-project.org/) library, you can use ibis expressions to modify your queries.
 
-```sh
+```cli
 pip install ibis-framework
 ```
 
@@ -1068,7 +1068,7 @@ Not every destination that `dlt` supports has an equivalent Ibis backend. Native
 
 Install the `ibis-framework` package with the Ibis extra for your destination. This example installs the DuckDB backend:
 
-```sh
+```cli
 pip install ibis-framework[duckdb]
 ```
 
@@ -1111,7 +1111,7 @@ This page shows how dlt, marimo, and [ibis](../../dlt-ecosystem/transformations/
 
 To install marimo and ibis with the duckdb extras, run the following command:
 
-```sh
+```cli
 pip install marimo "ibis-framework[duckdb]"
 ```
 

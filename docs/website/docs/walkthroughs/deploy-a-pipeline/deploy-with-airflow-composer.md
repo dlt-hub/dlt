@@ -34,14 +34,14 @@ This should successfully load data from the source to the destination once and a
 
 First, you need to add additional dependencies that the `deploy` command requires:
 
-```sh
+```cli
 pip install "dlt[cli]"
 ```
 
 then:
 
-```sh
-dlt deploy {pipeline_name}_pipeline.py airflow-composer
+```cli
+dlt deploy <pipeline_name>_pipeline.py airflow-composer
 ```
 
 This command checks if your pipeline has run successfully before and creates the following folders:
@@ -70,7 +70,7 @@ By default, the `dlt deploy` command shows you the deployment credentials in ENV
 
 ### 1. Run the deploy command
 
-```sh
+```cli
 dlt deploy pipedrive_pipeline.py airflow-composer
 ```
 
@@ -98,7 +98,7 @@ pipedrive_api_key = "c66..."
 
 The `deploy` command will use an [Airflow variable](#4-add-credentials) called `dlt_secrets_toml` to store all the required secrets as a TOML fragment. You can also use **environment variables** by passing the `--secrets-format env` option:
 
-```sh
+```cli
 dlt deploy pipedrive_pipeline.py airflow-composer --secrets-format env
 ```
 

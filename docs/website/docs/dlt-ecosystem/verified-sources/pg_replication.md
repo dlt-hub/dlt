@@ -92,7 +92,7 @@ The `initial_snapshot` modes that copy the tables also need `CREATE` on the sche
 
 1. Run the following command:
 
-    ```sh
+    ```cli
     dlt init pg_replication duckdb
     ```
 
@@ -100,7 +100,7 @@ The `initial_snapshot` modes that copy the tables also need `CREATE` on the sche
 
 2. Install the dependencies:
 
-    ```sh
+    ```cli
     pip install -r requirements.txt
     ```
 
@@ -520,7 +520,7 @@ If you run a full refresh, dlt drops the replicated tables in the destination. T
 
 Drop the replicated tables and the replication state. The replication resource has the name of the slot:
 
-```sh
+```cli
 dlt pipeline pg_replication drop my_slot
 ```
 

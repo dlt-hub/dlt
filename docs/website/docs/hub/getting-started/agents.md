@@ -68,13 +68,13 @@ If your workspace is not connected to dltHub yet, run `uv run dlthub workspace c
 
 Deploy the workspace:
 
-```sh
+```cli
 uv run dlthub deploy
 ```
 
 Then run the watched job, from the CLI:
 
-```sh
+```cli
 uv run dlthub run <job-name>
 ```
 

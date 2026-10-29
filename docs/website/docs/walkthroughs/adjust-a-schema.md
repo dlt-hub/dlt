@@ -29,7 +29,7 @@ dlt.pipeline(
 
 The following folder structure in the project root folder will be created:
 
-```text
+```tree
 schemas
     |---import/
     |---export/

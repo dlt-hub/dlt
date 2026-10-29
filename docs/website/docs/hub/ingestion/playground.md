@@ -35,14 +35,14 @@ Do not load sensitive or confidential data into the Playground.
 * A dltHub [workspace](../getting-started/installation.md). If you don't have one yet, scaffold it with `uvx dlthub-start@latest` (see [Deploy your first pipeline](../getting-started/onboarding.md)).
 * You must be logged in and connected to a workspace:
 
-  ```sh
+  ```cli
   uv run dlthub login
   uv run dlthub workspace connect <workspace-name>
   ```
 
 * The `deltalake` package must be installed in your project. The Playground writes Delta tables, and the runtime image installs your project dependencies, so add it to your `pyproject.toml`:
 
-  ```sh
+  ```cli
   uv add deltalake
   ```
 
@@ -76,7 +76,7 @@ __all__ = ["load_data"]
 
 Deploy the workspace, then run the job on the platform:
 
-```sh
+```cli
 uv run dlthub deploy
 uv run dlthub pipeline run pipeline -f
 ```
@@ -87,7 +87,7 @@ See [deployments](../pipeline-operations/deployments.md) for more on the `__depl
 
 Once a run completes, open the platform dashboard to explore the persisted data. It includes a SQL query editor against your dataset:
 
-```sh
+```cli
 uv run dlthub dashboard
 ```
 

@@ -13,7 +13,7 @@ The Athena destination stores data as Parquet files in S3 buckets and creates [e
 
 To install the dlt library with Athena dependencies:
 
-```sh
+```cli
 pip install "dlt[athena]"
 ```
 
@@ -23,7 +23,7 @@ pip install "dlt[athena]"
 
 Let's start by initializing a new `dlt` project as follows:
 
-   ```sh
+   ```cli
    dlt init chess athena
    ```
 
@@ -35,7 +35,7 @@ Let's start by initializing a new `dlt` project as follows:
 
 First, install dependencies by running:
 
-```sh
+```cli
 pip install -r requirements.txt
 ```
 
@@ -45,7 +45,7 @@ or with `pip install "dlt[athena]"`, which will install `s3fs`, `pyarrow`, `pyat
 
 You may also install the dependencies independently. Try
 
-```sh
+```cli
 pip install dlt
 pip install s3fs
 pip install pyarrow

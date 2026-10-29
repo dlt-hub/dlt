@@ -15,7 +15,7 @@ If you see that the incremental loading is not working as expected and the incre
 
 4. After the pipeline run, check the state of the pipeline. You can do this by running the following command:
 
-```sh
+```cli
 dlt pipeline -v <pipeline_name> info
 ```
 

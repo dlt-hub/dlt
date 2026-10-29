@@ -62,7 +62,7 @@ To get started with your data pipeline, follow these steps:
 
 1. Enter the following command:
 
-   ```sh
+   ```cli
    dlt init salesforce duckdb
    ```
 
@@ -117,7 +117,7 @@ For more information, read the [General Usage: Credentials.](../../general-usage
 
 1. Install the dependencies. Install `pyarrow` as well for the fastest loading:
 
-   ```sh
+   ```cli
    pip install -r requirements.txt
    pip install pyarrow
    ```
@@ -131,7 +131,7 @@ For more information, read the [General Usage: Credentials.](../../general-usage
 1. Once the pipeline has finished running, you can verify that everything loaded correctly by using
    the following command:
 
-   ```sh
+   ```cli
    dlt pipeline <pipeline_name> show
    ```
 

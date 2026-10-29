@@ -405,7 +405,7 @@ raises `LoadClientJobTerminalRetry`.
 
 Before deciding how to resolve an incident, inspect it:
 
-```sh
+```cli
 # pending packages and their load ids
 dlt pipeline <pipeline_name> info
 # jobs matching a name fragment, with the full exception history across retries
@@ -465,7 +465,7 @@ completes as loaded with the failed jobs recorded in it.
 
 List the jobs of the pending package first to pick the ones to fail:
 
-```sh
+```cli
 # all jobs of a package grouped by state, including those pending a retry
 dlt pipeline <pipeline_name> load-package <load_id>
 # jobs matching a name fragment, with the full exception history across retries
@@ -477,7 +477,7 @@ dlt pipeline <pipeline_name> failed-jobs
 Then fail a job by its job id or full file name — the exception and the retry count are shown
 before you confirm:
 
-```sh
+```cli
 dlt pipeline <pipeline_name> load-package <load_id> fail-job <job_id>
 ```
 
@@ -517,7 +517,7 @@ effectively aborted and move to [investigating partially loaded packages](#parti
 To discard pending packages, abort them with `pipeline.abort_packages()` or the
 [CLI command](../reference/command-line-interface.md#dlt-pipeline-abort-packages):
 
-```sh
+```cli
 dlt pipeline <pipeline_name> abort-packages
 ```
 
@@ -558,7 +558,7 @@ A load package is *partially loaded* when some of its jobs committed data to the
 
 To inspect a suspected package, count its rows in the destination and check whether it completed:
 
-```sh
+```cli
 dlt pipeline <pipeline_name> load-package <load_id> row-counts
 ```
 
@@ -566,8 +566,8 @@ dlt pipeline <pipeline_name> load-package <load_id> row-counts
 Load package does not need to be present locally - if you are investigating remore pipeline ie. running on Airflow, sync the newest
 destination state with
 
-```sh
-dlt pipeline <name> sync
+```cli
+dlt pipeline <pipeline_name> sync
 ```
 
 first.

@@ -110,7 +110,7 @@ To get started with your data pipeline, follow these steps:
 
 1. Enter the following command:
 
-   ```sh
+   ```cli
    dlt init filesystem duckdb
    ```
 

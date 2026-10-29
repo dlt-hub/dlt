@@ -165,7 +165,7 @@ Wrap the failure-path `send_email` in its own try/except: a broken alerting chan
 
 ### Deploy and trigger
 
-```sh
+```cli
 uv run dlthub deploy                            # syncs code + SMTP credentials
 uv run dlthub run my_job                        # triggers the job, email lands on completion
 ```

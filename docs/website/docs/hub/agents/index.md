@@ -33,7 +33,7 @@ The [dltHub AI Harness](../ai-harness/introduction.md) ships verified agent defi
 1. A dltHub workspace with `dlt[hub]` installed and connected to the platform. See [Workspace setup](../pipeline-operations/workspace-setup.md).
 2. An agent loop installed locally. dltHub ships two agent loops, `pydantic-ai` (default) and `claude-agent-sdk`:
 
-   ```sh
+   ```cli
    uv add "pydantic-ai-slim[anthropic,openai,google,mcp,spec]"   # pydantic-ai loop (default)
    uv add claude-agent-sdk                                        # claude-agent-sdk loop
    ```
@@ -175,8 +175,8 @@ Manifest validation refuses a local-only profile (`dev`, `tests`) and takes any 
 
 Each trigger of the agent job produces an agent run. You can also start a run manually, the way you run any job locally or on the platform:
 
-```sh
-dlthub local run job_inspector -c failed_run_id=<run-id>     # locally
+```cli
+dlthub local run job_inspector -c failed_run_id=<run_id>     # locally
 dlthub run job_inspector -f                                  # on the platform
 ```
 
@@ -255,7 +255,7 @@ printf '%s' '<key>' | dlthub variable set AGENT__API_KEY --secret --workspace
 
 `dlthub deploy` ships the job graph and the agent definitions with the rest of the workspace:
 
-```sh
+```cli
 dlthub deploy
 ```
 

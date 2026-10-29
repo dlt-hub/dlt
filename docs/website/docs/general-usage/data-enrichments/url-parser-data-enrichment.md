@@ -72,7 +72,7 @@ understanding, you may explore all three enrichments sequentially in the noteboo
 Alternatively, to create a data enrichment pipeline, you can start by creating the following
 directory structure:
 
-```text
+```tree
 url_parser_enrichment/
 ├── .dlt/
 │   └── secrets.toml
@@ -229,7 +229,7 @@ need to register to use this service nor get an API key.
 1. Install necessary dependencies for the preferred
    [destination](../../dlt-ecosystem/destinations/), for example, duckdb:
 
-   ```sh
+   ```cli
    pip install "dlt[duckdb]"
    ```
 
@@ -241,7 +241,7 @@ need to register to use this service nor get an API key.
 
 1. To ensure that everything loads as expected, use the command:
 
-   ```sh
+   ```cli
    dlt pipeline <pipeline_name> show
    ```
 
