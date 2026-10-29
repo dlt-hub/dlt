@@ -25,6 +25,9 @@ from dlt.common.storages import (
 from dlt.common.schema import TSchemaUpdate, Schema
 from dlt.common.normalizers.json import helpers as normalize_helpers
 
+# moved to `dlt.common.storages.normalize_storage`, imported for backward compatibility
+from dlt.common.storages.normalize_storage import group_worker_files
+
 from dlt.normalize.configuration import NormalizeConfiguration
 from dlt.normalize.exceptions import NormalizeJobFailed
 from dlt.normalize.items_normalizers import (
