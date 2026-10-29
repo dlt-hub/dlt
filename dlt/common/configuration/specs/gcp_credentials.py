@@ -136,7 +136,7 @@ class GcpServiceAccountCredentialsWithoutDefaults(GcpCredentials, WithPyicebergC
             GcpCredentials.parse_native_representation(self, native_value)
             # if not instance of service account credentials then check type and try to parse native value
             try:
-                service_dict = json.loads(native_value)
+                service_dict = json.loads(native_value.removeprefix("\ufeff"))
             except Exception:
                 raise InvalidGoogleServicesJson(self.__class__, native_value)
 
@@ -205,7 +205,7 @@ class GcpOAuthCredentialsWithoutDefaults(GcpCredentials, OAuth2Credentials, With
             GcpCredentials.parse_native_representation(self, native_value)
             # if not instance of oauth2 credentials try to parse native value
             try:
-                oauth_dict = json.loads(native_value)
+                oauth_dict = json.loads(native_value.removeprefix("\ufeff"))
                 # if there's single element in the dict, this is probably "installed" or "web" etc. (app type)
                 if len(oauth_dict) == 1:
                     oauth_dict = next(iter(oauth_dict.values()))
