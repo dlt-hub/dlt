@@ -9,7 +9,7 @@ keywords: ["dlthub", "data quality", "contracts", "check", "metrics"]
 This feature is in public preview
 :::
 
-dltHub data quality features include metrics for monitoring dataset properties over time, and checks to validate them against expectations. Together, they offer visibility and help catch data issues early. Metrics and checks are defined via Python code. The extensive configuration allows you to specify what to monitor and validate, when, how, and where to store results.
+[dltHub data quality](https://dlthub.com/products/data-quality) features include metrics for monitoring dataset properties over time, and checks to validate them against expectations. Together, they offer visibility and help catch data issues early. Metrics and checks are defined via Python code. The extensive configuration allows you to specify what to monitor and validate, when, how, and where to store results.
 
 This page covers the basics of metrics and checks. You should notice a lot of symmetry (for example, `with_metrics()` and `with_checks()`). The later parts of this page cover notions applicable to both.
 

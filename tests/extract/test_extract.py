@@ -2036,19 +2036,61 @@ def test_handle_empty_tables_pseudo_root_refreshed_then_truncated(extract_step: 
     assert metrics[pseudo].items_count == 0
 
 
-def test_resource_inputs_not_recorded(extract_step: Extract) -> None:
+def test_resource_inputs_default_to_code_location(extract_step: Extract) -> None:
+    """A resource that records no location reports the code it was created from"""
+
     @dlt.resource
     def no_inputs():
         yield [{"id": 1}]
 
     resource = no_inputs()
+    # the default is only added to the trace, the resource itself recorded nothing
     assert resource.inputs == []
 
+    # without a source function, the resource function is the location
     source = DltSource(dlt.Schema("no_inputs"), "module", [resource])
     load_id = extract_step.extract(source, 20, 1)
     step_info = extract_step.get_step_info(MockPipeline("buba", first_run=False))  # type: ignore[abstract]
-    assert step_info.metrics[load_id][0]["inputs"] == []
-    assert step_info.asdict()["inputs"] == []
+    resource_ref = "tests.extract.test_extract.test_resource_inputs_default_to_code_location"
+    assert step_info.metrics[load_id][0]["inputs"] == [
+        {
+            "kind": "code",
+            "location": resource_ref + ".<locals>.no_inputs",
+            "resource_name": "no_inputs",
+        }
+    ]
+    assert step_info.asdict()["inputs"] == [
+        {"load_id": load_id, "extract_idx": 0, **step_info.metrics[load_id][0]["inputs"][0]}
+    ]
+
+    @dlt.resource
+    def recorded():
+        resource = dlt.current.resource()
+        resource.add_input(
+            {"kind": "rest_api", "resource_name": resource.name, "location": "https://a.example"}
+        )
+        yield [{"id": 1}]
+
+    @dlt.transformer
+    def enrich(item):
+        yield item
+
+    @dlt.source
+    def shop():
+        return no_inputs, recorded, no_inputs | enrich, dlt.resource([{"id": 1}], name="static")
+
+    # in a source, all resources point at the source function, a recorded location is kept
+    # and a transformer has its parent as an upstream
+    load_id = extract_step.extract(shop(), 20, 1)
+    step_info = extract_step.get_step_info(MockPipeline("buba", first_run=False))  # type: ignore[abstract]
+    source_location = {"kind": "code", "location": resource_ref + ".<locals>.shop"}
+    assert sorted(
+        step_info.metrics[load_id][0]["inputs"], key=lambda location: location["resource_name"]
+    ) == [
+        {**source_location, "resource_name": "no_inputs"},
+        {"kind": "rest_api", "location": "https://a.example", "resource_name": "recorded"},
+        {**source_location, "resource_name": "static"},
+    ]
 
 
 def test_resource_inputs_recorded(extract_step: Extract) -> None:
@@ -2229,6 +2271,33 @@ def test_resource_inputs_are_recorded_as_added(extract_step: Extract) -> None:
         step_info.metrics[load_id][0]["inputs"]
         == [{"kind": "api", "location": "https://example.com", "resource_name": "repeats"}] * 3
     )
+
+
+def test_resource_inputs_survive_cloning(extract_step: Extract) -> None:
+    """Locations recorded on a resource are kept by its bound, renamed and sourced copies"""
+
+    @dlt.resource
+    def orders():
+        yield [{"id": 1}]
+
+    orders.add_input(
+        {"kind": "rest_api", "resource_name": "orders", "location": "https://a.example"}
+    )
+    bound = orders()
+    renamed = orders.with_name("orders_2")
+    assert bound.inputs == renamed.inputs == orders.inputs
+
+    # a copy is independent of the original
+    bound.add_input({"kind": "files", "resource_name": "orders", "location": "s3://bucket"})
+    assert len(orders.inputs) == 1
+
+    source = DltSource(dlt.Schema("cloned"), "module", [orders(), renamed])
+    load_id = extract_step.extract(source, 20, 1)
+    step_info = extract_step.get_step_info(MockPipeline("buba", first_run=False))  # type: ignore[abstract]
+    assert step_info.metrics[load_id][0]["inputs"] == [
+        {"kind": "rest_api", "location": "https://a.example", "resource_name": "orders"},
+        {"kind": "rest_api", "location": "https://a.example", "resource_name": "orders_2"},
+    ]
 
 
 def test_resource_inputs_replace_drops_all_previous() -> None:
