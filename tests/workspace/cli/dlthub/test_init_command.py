@@ -352,7 +352,7 @@ def test_init_renders_dlt_hub_with_correct_source_override(
         lines = _read(tmp_path / "requirements.txt").splitlines()
         assert lines[0] == expected_first_line
         # workspace tooling deps still follow
-        assert "duckdb>=0.9,<2" in lines
+        assert "duckdb>=0.9" in lines
 
 
 @pytest.mark.parametrize(
