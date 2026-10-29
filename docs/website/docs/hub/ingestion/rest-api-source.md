@@ -6,7 +6,7 @@ keywords: [cursor, claude, codex, llm, restapi, ai, workbench, toolkit]
 # REST API Source with dltHub AI Harness
 
 :::info
-The [dltHub AI Harness](../ai-harness/introduction.md) is a part of the dltHub platform. View the license [here](https://github.com/dlt-hub/dlthub-ai-workbench/blob/master/LICENSE).
+The [dltHub AI Harness](../ai-harness/introduction.md) is a part of the dltHub platform. View the license [here](https://github.com/dlt-hub/dlthub-ai-harness/blob/master/LICENSE).
 :::
 
 ## Overview

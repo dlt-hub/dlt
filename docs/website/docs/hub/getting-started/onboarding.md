@@ -82,7 +82,7 @@ The pipeline is decorated with `@run.pipeline` and registered as a deployable jo
 
 ## 2. Let the agent deploy and run the sample
 
-The agent now uses the dltHub [platform toolkit](https://github.com/dlt-hub/dlthub-ai-workbench/tree/master) to guide the deployment and run the sample pipeline. The toolkit provides the dltHub-specific instructions and commands, while the dltHub CLI and managed platform handle the deployment and execution. You can follow each command in the terminal.
+The agent now uses the dltHub [platform toolkit](https://github.com/dlt-hub/dlthub-ai-harness/tree/master) to guide the deployment and run the sample pipeline. The toolkit provides the dltHub-specific instructions and commands, while the dltHub CLI and managed platform handle the deployment and execution. You can follow each command in the terminal.
 
 First, it deploys the workspace by syncing your files and registering the jobs defined in `__deployment__.py`:
 
