@@ -803,17 +803,24 @@ def test_trace_metrics_of_stored_traces(trace_folder: str) -> None:
     trace = load_trace(os.path.join(STORED_TRACES_DIR, trace_folder), ignore_errors=False)
     steps = utils.fetch_trace_metrics(trace)
     assert {step["step"] for step in steps} == {"extract", "normalize", "load"}
+    # traces older than 1.32 do not store the files count
+    stores_file_metrics = trace_folder not in ("dlt.1.15", "dlt.1.18.2")
     for step in steps:
         if step["step"] == "load":
             assert all(job["state"] for job in step["jobs"])
         else:
-            # file counts of the tables add up to the listed files
-            assert sum(table["files_count"] for table in step["tables"]) == len(step["files"])
+            counts = [table["files_count"] for table in step["tables"]]
+            if stores_file_metrics:
+                # file counts of the tables add up to the listed files
+                assert sum(counts) == len(step["files"])
+            else:
+                assert counts == [None] * len(counts)
 
     with io.StringIO() as buf, contextlib.redirect_stdout(buf):
         _pipeline_command.print_trace_metrics(steps, 1)
         _out = buf.getvalue()
     assert "files:" in _out
+    assert ("files unknown" in _out) is not stores_file_metrics
 
 
 def test_invoke_list_pipelines(legacy_workspace_context, script_runner: ScriptRunner) -> None:

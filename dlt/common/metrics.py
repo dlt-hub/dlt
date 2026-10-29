@@ -23,9 +23,9 @@ class DataWriterMetrics(NamedTuple):
     file_size: int
     created: float
     last_modified: float
-    files_count: int = 1
-    """Number of files the metrics sum up. Metrics restored from traces of older dlt versions
-    count 1 file per table or resource."""
+    files_count: Optional[int] = None
+    """Number of files the metrics sum up. None in metrics restored from traces of dlt versions
+    before 1.32, which did not store it."""
 
     def __add__(self, other: Tuple[object, ...], /) -> "DataWriterMetrics":
         if isinstance(other, DataWriterMetrics):
@@ -36,7 +36,12 @@ class DataWriterMetrics(NamedTuple):
                 self.file_size + other.file_size,
                 min(self.created, other.created),
                 max(self.last_modified, other.last_modified),
-                self.files_count + other.files_count,
+                # a sum with an unknown count is unknown
+                (
+                    None
+                    if self.files_count is None or other.files_count is None
+                    else self.files_count + other.files_count
+                ),
             )
         return NotImplemented
 
@@ -66,7 +71,7 @@ class DataWriterAndCustomMetrics(DataWriterMetrics):
         file_size: int,
         created: float,
         last_modified: float,
-        files_count: int = 1,
+        files_count: Optional[int] = None,
         custom_metrics: Dict[str, Any] = None,
     ) -> "DataWriterAndCustomMetrics":
         self = super(DataWriterAndCustomMetrics, cls).__new__(

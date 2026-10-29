@@ -2,6 +2,7 @@ import pickle
 from typing import List
 
 from dlt.common.metrics import (
+    EMPTY_DATA_WRITER_METRICS,
     DataWriterAndCustomMetrics,
     DataWriterMetrics,
     TSchemaReference,
@@ -21,7 +22,9 @@ def _job(
     last_modified: float = 2.0,
 ) -> tuple[ParsedLoadJobFileName, DataWriterMetrics]:
     job = ParsedLoadJobFileName(table_name, file_id, 0, "typed-jsonl")
-    metrics = DataWriterMetrics(job.file_name(), items_count, file_size, created, last_modified)
+    metrics = DataWriterMetrics(
+        job.file_name(), items_count, file_size, created, last_modified, files_count=1
+    )
     return job, metrics
 
 
@@ -59,9 +62,9 @@ def test_aggregate_job_metrics_sums_interleaved_tables() -> None:
 
 def test_aggregate_job_metrics_sums_interleaved_resources() -> None:
     table_metrics = {
-        "alpha": DataWriterMetrics("a", 3, 1, 1.0, 2.0),
-        "beta": DataWriterMetrics("b", 4, 1, 1.0, 2.0),
-        "gamma": DataWriterMetrics("c", 5, 1, 1.0, 2.0),
+        "alpha": DataWriterMetrics("a", 3, 1, 1.0, 2.0, files_count=1),
+        "beta": DataWriterMetrics("b", 4, 1, 1.0, 2.0, files_count=1),
+        "gamma": DataWriterMetrics("c", 5, 1, 1.0, 2.0, files_count=1),
     }
     resource_to_table = {"alpha": "res_a", "beta": "res_b", "gamma": "res_a"}
     resource_metrics = aggregate_job_metrics(
@@ -94,14 +97,22 @@ def test_job_metrics_by_job_and_table() -> None:
     assert merged["child"] == table_metrics["child"]
 
 
-def test_metrics_of_older_traces_count_one_file() -> None:
-    # unpickling passes the stored fields to __new__, older traces did not store the files count
+def test_metrics_of_older_traces_have_no_files_count() -> None:
+    # unpickling passes the stored fields to __new__, traces before 1.32 have no files count
     restored = DataWriterMetrics.__new__(DataWriterMetrics, "", 10, 100, 1.0, 2.0)
-    assert restored.files_count == 1
-    custom = DataWriterAndCustomMetrics("", 1, 2, 1.0, 2.0, custom_metrics={"a": 1})
+    assert restored.files_count is None
+    # a sum with an unknown count is unknown
+    assert (EMPTY_DATA_WRITER_METRICS + restored).files_count is None
+    assert (restored + DataWriterMetrics("", 1, 2, 1.0, 2.0, files_count=1)).files_count is None
+    custom = DataWriterAndCustomMetrics.__new__(
+        DataWriterAndCustomMetrics, "", 1, 2, 1.0, 2.0, custom_metrics={"a": 1}
+    )
     restored_custom = pickle.loads(pickle.dumps(custom))
-    assert restored_custom.files_count == 1
+    assert restored_custom.files_count is None
     assert restored_custom.custom_metrics == {"a": 1}
+    # the stored count survives a round trip
+    custom = DataWriterAndCustomMetrics("", 1, 2, 1.0, 2.0, files_count=3, custom_metrics={"a": 1})
+    assert pickle.loads(pickle.dumps(custom)).files_count == 3
 
 
 def test_data_location_version_is_order_independent() -> None:

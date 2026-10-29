@@ -134,8 +134,9 @@ def _step_metrics_header(step: TTraceStepMetrics) -> str:
         timing = "did not finish"
     tables = step.get("tables") or _jobs_by_table(step.get("jobs", []))
     sizes = [table["file_size"] for table in tables]
+    counts = [table["files_count"] for table in tables]
     totals: Dict[str, Any] = {
-        "files_count": sum(table["files_count"] for table in tables),
+        "files_count": None if None in counts else sum(counts),
         "file_size": None if None in sizes else sum(sizes),
     }
     if "tables" in step:
@@ -158,7 +159,10 @@ def _metrics_str(row: Mapping[str, Any]) -> str:
         parts.append(_count_str(row["items_count"], "row"))
     # a row of a single job file counts 1 file
     if "files_count" in row and "job_id" not in row:
-        parts.append(_count_str(row["files_count"], "file"))
+        if row["files_count"] is None:
+            parts.append("files unknown")
+        else:
+            parts.append(_count_str(row["files_count"], "file"))
     if row["file_size"] is None:
         parts.append("size unknown")
     else:

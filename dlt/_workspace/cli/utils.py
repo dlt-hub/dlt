@@ -546,7 +546,7 @@ def fetch_trace_metrics(
                 )
                 step_metrics["resources"] = StepInfo.writer_metrics_asdict(
                     # resources that wrote no files may still carry custom metrics
-                    {name: m for name, m in resources.items() if m.files_count},
+                    {name: m for name, m in resources.items() if m.files_count != 0},
                     key_name="resource_name",
                 )
         result.append(step_metrics)

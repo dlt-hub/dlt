@@ -109,8 +109,8 @@ def test_unicode_insert_writer(insert_writer: _StringIOWriter) -> None:
 
 def test_data_writer_metrics_add() -> None:
     now = time.time()
-    metrics = DataWriterMetrics("file", 10, 100, now, now + 10)
-    # a single file counts 1, the empty metrics count no files
+    metrics = DataWriterMetrics("file", 10, 100, now, now + 10, files_count=1)
+    # the empty metrics count no files
     assert metrics.files_count == 1
     assert EMPTY_DATA_WRITER_METRICS.files_count == 0
     add_m: DataWriterMetrics = metrics + EMPTY_DATA_WRITER_METRICS
@@ -121,7 +121,7 @@ def test_data_writer_metrics_add() -> None:
         "", 30, 300, now, now + 10, 3
     )
     # time range extends when added
-    add_m = metrics + DataWriterMetrics("fileX", 99, 120, now - 10, now + 20)
+    add_m = metrics + DataWriterMetrics("fileX", 99, 120, now - 10, now + 20, files_count=1)
     assert add_m == DataWriterMetrics("", 109, 220, now - 10, now + 20, 2)
 
 
