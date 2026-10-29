@@ -899,11 +899,11 @@ requires-dist = [
     { name = "deltalake", marker = "extra == 'deltalake'", specifier = ">=0.25.1" },
     { name = "dlthub", marker = "extra == 'hub'", specifier = ">=0.30.0a1,<0.32" },
     { name = "dlthub-client", marker = "extra == 'hub'", specifier = ">=0.28.3" },
-    { name = "duckdb", marker = "extra == 'duckdb'", specifier = ">=0.9,<2" },
-    { name = "duckdb", marker = "extra == 'ducklake'", specifier = ">=1.2.0,<2" },
-    { name = "duckdb", marker = "extra == 'lance'", specifier = ">=1.4.3,<2" },
-    { name = "duckdb", marker = "extra == 'lancedb'", specifier = ">=1.4.3,<2" },
-    { name = "duckdb", marker = "extra == 'motherduck'", specifier = ">=0.9,<2" },
+    { name = "duckdb", marker = "extra == 'duckdb'", specifier = ">=0.9" },
+    { name = "duckdb", marker = "extra == 'ducklake'", specifier = ">=1.2.0" },
+    { name = "duckdb", marker = "extra == 'lance'", specifier = ">=1.4.3" },
+    { name = "duckdb", marker = "extra == 'lancedb'", specifier = ">=1.4.3" },
+    { name = "duckdb", marker = "extra == 'motherduck'", specifier = ">=0.9" },
     { name = "fsspec", specifier = ">=2022.4.0" },
     { name = "gcsfs", marker = "extra == 'bigquery'", specifier = ">=2022.4.0" },
     { name = "gcsfs", marker = "extra == 'clickhouse'", specifier = ">=2022.4.0" },
@@ -1095,7 +1095,7 @@ sources = [
 ]
 streamlit = [{ name = "streamlit", specifier = ">1.50" }]
 workspace-deps = [
-    { name = "duckdb", specifier = ">=0.9,<2" },
+    { name = "duckdb", specifier = ">=0.9" },
     { name = "fastmcp", specifier = ">=3.1.0" },
     { name = "ibis-framework", specifier = ">=12.0.0" },
     { name = "marimo", specifier = ">=0.14.5" },
@@ -1717,8 +1717,8 @@ resolution-markers = [
     "python_full_version < '3.11'",
 ]
 dependencies = [
-    { name = "griffecli", version = "2.3.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
-    { name = "griffelib", version = "2.3.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
+    { name = "griffecli", version = "2.3.0", source = { registry = "https://pypi.org/simple" } },
+    { name = "griffelib", version = "2.3.0", source = { registry = "https://pypi.org/simple" } },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/d5/03/75ca4d08a7eff164292d42cf72c7c510423b3414e66205f0ba5b35ad3034/griffe-2.3.0.tar.gz", hash = "sha256:aa5634c0d7802583ecd29a7fe335c02d462ffdf5ce8f51426a3d326f374e6d93", size = 247493, upload-time = "2026-09-04T15:08:15.364Z" }
 wheels = [
@@ -1734,8 +1734,8 @@ resolution-markers = [
     "python_full_version == '3.11.*'",
 ]
 dependencies = [
-    { name = "griffecli", version = "2.4.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11'" },
-    { name = "griffelib", version = "2.4.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11'" },
+    { name = "griffecli", version = "2.4.1", source = { registry = "https://pypi.org/simple" } },
+    { name = "griffelib", version = "2.4.1", source = { registry = "https://pypi.org/simple" } },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/33/a4/be055b9ced02e39ac0ab85960e0ed3d8c6017c03e90965e77ff276684418/griffe-2.4.1.tar.gz", hash = "sha256:766123e26ec35b2ead63202e9e43ec309d876085d571b7df288256cd6fe4a3ef", size = 450805, upload-time = "2026-10-22T11:20:02.532Z" }
 wheels = [
@@ -1750,8 +1750,8 @@ resolution-markers = [
     "python_full_version < '3.11'",
 ]
 dependencies = [
-    { name = "colorama", marker = "python_full_version < '3.11'" },
-    { name = "griffelib", version = "2.3.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
+    { name = "colorama" },
+    { name = "griffelib", version = "2.3.0", source = { registry = "https://pypi.org/simple" } },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/5c/15/f70539f7efb44f27d209b43e386b1a5397bd476879ff19a206b75454f58e/griffecli-2.3.0.tar.gz", hash = "sha256:916fdc851cf51d38e9b5ab82550305df45e5981d5dfe65d346544464abedb3ec", size = 59676, upload-time = "2026-09-04T15:08:16.426Z" }
 wheels = [
@@ -1767,8 +1767,8 @@ resolution-markers = [
     "python_full_version == '3.11.*'",
 ]
 dependencies = [
-    { name = "colorama", marker = "python_full_version >= '3.11'" },
-    { name = "griffelib", version = "2.4.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11'" },
+    { name = "colorama" },
+    { name = "griffelib", version = "2.4.1", source = { registry = "https://pypi.org/simple" } },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/c9/8e/d3130e17ae27c900f8f76c96ceb2f02edfe0c7db0366b49e033f81ff81d7/griffecli-2.4.1.tar.gz", hash = "sha256:6db9acad984990b08c833ab5ec73d5a604e317b2290074d04c91ca9e52d35a7b", size = 61762, upload-time = "2026-10-22T11:20:01.054Z" }
 wheels = [
