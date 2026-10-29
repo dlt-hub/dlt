@@ -520,9 +520,9 @@ class Pipeline(SupportsPipeline):
                     extract_step,
                     schema=last_schema if not self.config.use_single_dataset else None,
                 )
-                extract_step.warn_on_unbalanced_files(self.pipeline_name)
                 # commit load packages with state
                 extract_step.commit_packages()
+                extract_step.warn_on_unbalanced_files(self.pipeline_name)
                 return self._get_step_info(extract_step)
         except (Exception, KeyboardInterrupt) as exc:
             # emit step info

@@ -714,6 +714,13 @@ class Extract(WithStepInfo[ExtractMetrics, ExtractInfo]):
 
     def warn_on_unbalanced_files(self, pipeline_name: str) -> None:
         """Warns for each extracted load package whose files leave normalize workers mostly idle"""
+        try:
+            self._warn_on_unbalanced_files(pipeline_name)
+        except Exception as ex:
+            # a diagnostic must not fail the extract step
+            logger.warning(f"Could not check the balance of extracted files: {ex}")
+
+    def _warn_on_unbalanced_files(self, pipeline_name: str) -> None:
         # `Pipeline.normalize` runs a single worker in interactive sessions
         if is_interactive():
             return
