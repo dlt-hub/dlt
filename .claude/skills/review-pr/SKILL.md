@@ -156,7 +156,7 @@ Write a structured analysis covering:
 - **Dependency Changes**: If `pyproject.toml` was modified, include the warnings and listings from step 3. Main and optional dependency changes must appear as yellow WARNING blocks. Omit this section if no dependency changes were found.
 - **CI Lint & Mypy**: Status of lint checks across Python versions. If any failed, list the specific errors.
 - **Observations & Potential Issues**: Bugs, edge cases, missing error handling, performance concerns, memory issues, security issues, backward compatibility.
-- **Breaking Changes and Public API**: Follow the rules on breaking changes and Public API and report issues.
+- **Breaking Changes and Public API**: If there are breaking changes: section  must answer a library user asks first: can I upgrade safely? List what's breaking and mitigations. Follow the rules on breaking changes and Public API and report issues.
 - **Test Coverage**: Required scenarios checklist with pass/fail status, misplaced tests, duplication issues, parametrization opportunities.
 - **Documentation**: Whether doc updates are needed and if they were provided.
 - **Reviewer Instructions**: If reviewer instructions were provided, include a dedicated section addressing each point raised. If no instructions were provided, omit this section.
