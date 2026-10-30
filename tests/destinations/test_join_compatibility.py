@@ -960,8 +960,8 @@ def test_filesystem_can_read_from_any_duckdb_engine(url1: str, url2: str, expect
         pytest.param("az://c/p", True, id="az"),
         pytest.param("abfss://c@a.dfs.core.windows.net/p", True, id="abfss"),
         pytest.param("hf://datasets/d", True, id="hf"),
-        pytest.param("gs://b/p", False, id="gs"),
-        pytest.param("gcs://b/p", False, id="gcs"),
+        pytest.param("gs://b/p", True, id="gs"),
+        pytest.param("gcs://b/p", True, id="gcs"),
         pytest.param("memory://m", False, id="memory"),
         pytest.param("sftp://h/p", False, id="sftp"),
         pytest.param("gdrive://f", False, id="gdrive"),
@@ -1357,9 +1357,9 @@ def test_can_read_from_is_asymmetric() -> None:
     attachable = FilesystemDestinationClientConfiguration(
         bucket_url=os.path.join(root, "bucket")
     )._bind_dataset_name("ds")
-    # only fsspec registers gs in this process, so no query engine can attach it
+    # only fsspec registers sftp in this process, so no query engine can attach it
     not_attachable = FilesystemDestinationClientConfiguration(
-        bucket_url="gs://bucket/path"
+        bucket_url="sftp://host/path"
     )._bind_dataset_name("ds")
 
     assert attachable.attach_type() == "duckdb"
