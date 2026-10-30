@@ -120,7 +120,7 @@ Double check that your Motherduck token is in your environment!
 
 - Local files: file:///path or a plain relative path
 - S3: s3://bucket/prefix
-- GCS: gs://bucket/prefix or gcs://bucket/prefix
+- GCS: gs://bucket/prefix or gcs://bucket/prefix (**uses fsspec fallback** with duckdb < 1.4.0)
 - Azure ADLS Gen2: abfss://container@account.dfs.core.windows.net/prefix (**uses fsspec fallback**)
 
 Example s3 configuration:

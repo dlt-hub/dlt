@@ -983,6 +983,21 @@ def test_filesystem_attachable_only_for_protocols_with_duckdb_secrets(
     assert fs.can_read_from(FilesystemDestinationClientConfiguration(bucket_url=bucket_url))
 
 
+@pytest.mark.parametrize(
+    "version,attachable",
+    [pytest.param("1.3.2", False, id="duckdb-1.3"), pytest.param("1.4.0", True, id="duckdb-1.4")],
+)
+def test_filesystem_gs_attachable_since_duckdb_1_4(
+    monkeypatch: pytest.MonkeyPatch, version: str, attachable: bool
+) -> None:
+    """duckdb < 1.4.0 reads gs with fsspec, so a foreign engine cannot attach it."""
+    import duckdb
+
+    monkeypatch.setattr(duckdb, "__version__", version)
+    fs = FilesystemDestinationClientConfiguration(bucket_url="gs://b/p")
+    assert (fs.attach_type() is not None) is attachable
+
+
 def test_filesystem_can_never_write() -> None:
     """dlt is the only engine that writes to filesystem, so SQL write is never possible."""
     c1 = FilesystemDestinationClientConfiguration(bucket_url="s3://b/p")

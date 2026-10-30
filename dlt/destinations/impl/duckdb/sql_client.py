@@ -541,8 +541,12 @@ class DuckDbSqlClient(SqlClientBase[duckdb.DuckDBPyConnection], DBTransaction, W
                 TOKEN '{credentials.hf_token}'
             )""")
 
-        elif protocol in ["gs", "gcs"] and not persist_secrets:
-            # DuckDB has no google credential chain, so freeze a bearer
+        elif (
+            protocol in ["gs", "gcs"]
+            and not persist_secrets
+            and Version(duckdb.__version__) >= Version("1.4.0")
+        ):
+            # DuckDB has no google credential chain, so freeze a bearer token
             token, expires_at = cast(GcpCredentials, credentials).to_gcs_bearer_token()
             sql.append(f"""
             CREATE OR REPLACE SECRET {secret_name} (

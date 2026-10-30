@@ -4,6 +4,8 @@ import os
 from typing import ClassVar, Dict, Final, Optional, Tuple, Type
 from urllib.parse import urlparse
 
+from packaging.version import Version
+
 from dlt.common.typing import DictStrAny, DictStrOptionalStr
 
 from dlt.common import logger
@@ -66,9 +68,9 @@ class FilesystemDestinationClientConfiguration(  # type: ignore[misc]
         "gcs",
     )
     """Protocols a foreign DuckDB engine reads with SQL alone. These protocols mirror the
-    `CREATE SECRET` statements that `DuckDbSqlClient` builds. The other protocols (`sftp`,
-    `gdrive`) access their data through an fsspec filesystem that only the process which
-    registered it holds."""
+    `CREATE SECRET` statements that `DuckDbSqlClient` builds, `gs` and `gcs` need duckdb >= 1.4.0.
+    The other protocols (`sftp`, `gdrive`) access their data through an fsspec filesystem that
+    only the process which registered it holds."""
 
     @resolve_type("credentials")
     def resolve_credentials_type(self) -> Type[CredentialsConfiguration]:
@@ -78,6 +80,15 @@ class FilesystemDestinationClientConfiguration(  # type: ignore[misc]
         """Returns None for a protocol a foreign DuckDB engine cannot access with SQL."""
         if self.protocol not in self.ATTACHABLE_PROTOCOLS:
             return None
+        if self.protocol in ("gs", "gcs"):
+            # older duckdb has no gcs bearer token secret and reads gs with fsspec
+            try:
+                import duckdb
+
+                if Version(duckdb.__version__) < Version("1.4.0"):
+                    return None
+            except ImportError:
+                return None
         return super().attach_type()
 
     def data_location(self) -> str:

@@ -387,6 +387,8 @@ After a load, you can read and write the data with `with pipeline.sql_client() a
 | `gs`, `gcs`   | frozen bearer token                             | frozen bearer token                               | frozen bearer token        |
 | `hf`          |                                                 | token                                             |                            |
 
+The `gs` secret requires DuckDB 1.4.0 or later. With an older DuckDB, `dlt` reads `gs` buckets through `fsspec`, which is slower, and cannot attach them in cross-destination joins.
+
 DuckDB refreshes a `credential_chain` secret itself. A frozen bearer token expires, typically within an hour, and DuckDB cannot refresh it. `dlt` creates such a secret again with a new token shortly before the token expires: when it opens a connection and before each query. A connection that you keep open, for example with `with dataset:`, keeps working.
 
 Limitations:
