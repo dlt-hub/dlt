@@ -81,18 +81,38 @@ class GcpCredentials(CredentialsConfiguration, WithObjectStoreRsCredentials):
             return {}
         return {"service_account_key": json.dumps(dict(self))}
 
-    def to_gcs_bearer_token(self) -> Tuple[str, Optional[datetime]]:
-        """Returns an OAuth2 access token for GCS and its expiry."""
+    def to_gcs_bearer_token(self, cached: bool = True) -> Tuple[str, Optional[datetime]]:
+        """Returns an OAuth2 access token for GCS and its expiry.
+
+        Args:
+            cached (bool): If `True`, returns the cached token while it is valid, if `False`,
+                always gets a new token and caches it.
+
+        Returns:
+            Tuple[str, Optional[datetime]]: The token and its UTC expiry, `None` when unknown.
+        """
         from google.auth.credentials import with_scopes_if_required
         from google.auth.transport.requests import Request
 
-        credentials = with_scopes_if_required(self.to_native_credentials(), [GCS_SCOPE])
-        if not credentials.valid:
+        # not a config field: `dict(self)` serializes the credentials
+        credentials = getattr(self, "_gcs_credentials", None)
+        if credentials is None:
+            credentials = with_scopes_if_required(self.to_native_credentials(), [GCS_SCOPE])
+            self._gcs_credentials = credentials
+        if not cached or not credentials.valid:
             credentials.refresh(Request())
         if not credentials.expiry:
             return credentials.token, None
         # google-auth keeps the expiry as naive utc
         return credentials.token, ensure_datetime_in_tz(credentials.expiry, timezone.utc)
+
+    def _to_pyiceberg_token_config(self) -> Dict[str, Any]:
+        # pyiceberg keeps the token for the life of the catalog
+        token, expires_at = self.to_gcs_bearer_token(cached=False)
+        config: Dict[str, Any] = {"gcs.project-id": self.project_id, "gcs.oauth2.token": token}
+        if expires_at:
+            config["gcs.oauth2.token-expires-at"] = str(int(expires_at.timestamp() * 1000))
+        return config
 
 
 @configspec
@@ -148,11 +168,7 @@ class GcpServiceAccountCredentialsWithoutDefaults(GcpCredentials, WithPyicebergC
             return ServiceAccountCredentials.from_service_account_info(self)
 
     def to_pyiceberg_fileio_config(self) -> Dict[str, Any]:
-        token, expires_at = self.to_gcs_bearer_token()
-        config: Dict[str, Any] = {"gcs.project-id": self.project_id, "gcs.oauth2.token": token}
-        if expires_at:
-            config["gcs.oauth2.token-expires-at"] = str(int(expires_at.timestamp() * 1000))
-        return config
+        return self._to_pyiceberg_token_config()
 
     @classmethod
     def from_pyiceberg_fileio_config(cls, file_io: Dict[str, Any]) -> Self:
@@ -216,15 +232,22 @@ class GcpOAuthCredentialsWithoutDefaults(GcpCredentials, OAuth2Credentials, With
             " Application Default Credentials authentication instead."
         )
 
+    def to_gcs_bearer_token(self, cached: bool = True) -> Tuple[str, Optional[datetime]]:
+        if not self.refresh_token:
+            # a token passed without a refresh token cannot be refreshed
+            return self.token, None
+        return super().to_gcs_bearer_token(cached)
+
     def to_pyiceberg_fileio_config(self) -> Dict[str, Any]:
-        # do auth only if token is not yet present
-        if not self.token:
+        if not self.refresh_token and not self.token:
+            # the web flow gets a refresh token
             self.auth()
-        return {
-            "gcs.project-id": self.project_id,
-            "gcs.oauth2.token": self.token,
-            "gcs.oauth2.token-expires-at": (pendulum.now().timestamp() + 60) * 1000,
-        }
+        config = self._to_pyiceberg_token_config()
+        if "gcs.oauth2.token-expires-at" not in config:
+            # pyarrow requires an expiry with a token, a passed token has an unknown one
+            expires_at = datetime.now(timezone.utc).timestamp() + 60
+            config["gcs.oauth2.token-expires-at"] = str(int(expires_at * 1000))
+        return config
 
     @classmethod
     def from_pyiceberg_fileio_config(cls, file_io: Dict[str, Any]) -> Self:
@@ -386,8 +409,7 @@ class GcpServiceAccountCredentials(
 
     def to_pyiceberg_fileio_config(self) -> Dict[str, Any]:
         if self.has_default_credentials():
-            # hand over to pyarrow's GcsFileSystem, which resolves and refreshes via Google ADC.
-            # freezing a token here would pin it and expire
+            # pyarrow's GcsFileSystem resolves and refreshes via Google ADC, a token would expire
             return {"gcs.project-id": self.project_id}
         else:
             return GcpServiceAccountCredentialsWithoutDefaults.to_pyiceberg_fileio_config(self)
@@ -404,8 +426,7 @@ class GcpOAuthCredentials(GcpDefaultCredentials, GcpOAuthCredentialsWithoutDefau
 
     def to_pyiceberg_fileio_config(self) -> Dict[str, Any]:
         if self.has_default_credentials():
-            # hand over to pyarrow's GcsFileSystem, which resolves and refreshes via Google ADC.
-            # freezing a token here would pin it and expire
+            # pyarrow's GcsFileSystem resolves and refreshes via Google ADC, a token would expire
             return {"gcs.project-id": self.project_id}
         else:
             return GcpOAuthCredentialsWithoutDefaults.to_pyiceberg_fileio_config(self)

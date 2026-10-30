@@ -1,10 +1,12 @@
 from datetime import datetime, timezone
-from typing import Any, Dict
+from functools import partial
+from typing import Any, Callable, Dict
 from unittest.mock import MagicMock, patch
 import pytest
 
 import dlt
 from dlt.common.configuration.specs.exceptions import UnsupportedAuthenticationMethodException
+from dlt.common.configuration.specs.mixins import WithPyicebergConfig
 from dlt.common.configuration.specs.gcp_credentials import (
     GcpOAuthCredentialsWithoutDefaults,
     GcpServiceAccountCredentials,
@@ -59,17 +61,14 @@ def test_gcp_oauth_credentials_pyiceberg_export_import() -> None:
         refresh_token=oauth_config.get("refresh_token"),
     )
 
-    # set a test token value to bypass auth flow in tests
-    original_creds.token = "test-token"
-
-    # export to PyIceberg config
+    # export to PyIceberg config, the refresh token mints the access token
     pyiceberg_config = original_creds.to_pyiceberg_fileio_config()
 
     # config should contain required fields with correct values
     assert "gcs.project-id" in pyiceberg_config
     assert pyiceberg_config["gcs.project-id"] == original_creds.project_id
-    assert "gcs.oauth2.token" in pyiceberg_config
-    assert pyiceberg_config["gcs.oauth2.token"] == original_creds.token
+    token = pyiceberg_config["gcs.oauth2.token"]
+    assert token
     assert "gcs.oauth2.token-expires-at" in pyiceberg_config
 
     # import back from PyIceberg config
@@ -79,7 +78,12 @@ def test_gcp_oauth_credentials_pyiceberg_export_import() -> None:
 
     # verify credentials were restored correctly
     assert imported_creds.project_id == original_creds.project_id
-    assert imported_creds.token == original_creds.token
+    assert imported_creds.token == token
+    # the imported token has no refresh token, so it is passed on as is
+    assert imported_creds.to_gcs_bearer_token(cached=False) == (token, None)
+    imported_config = imported_creds.to_pyiceberg_fileio_config()
+    assert imported_config["gcs.oauth2.token"] == token
+    assert "gcs.oauth2.token-expires-at" in imported_config
 
 
 def test_gcp_service_account_credentials_pyiceberg_export() -> None:
@@ -113,17 +117,26 @@ def test_gcp_service_account_credentials_pyiceberg_export() -> None:
         GcpServiceAccountCredentialsWithoutDefaults.from_pyiceberg_fileio_config({})
 
 
-def test_gcp_service_account_pyiceberg_token_expiry() -> None:
-    """The token expiry passed to pyiceberg does not depend on the local timezone."""
+@pytest.mark.parametrize(
+    "creds_factory",
+    [
+        partial(GcpServiceAccountCredentialsWithoutDefaults, project_id="project"),
+        partial(GcpOAuthCredentialsWithoutDefaults, project_id="project", refresh_token="refresh"),
+    ],
+    ids=["service_account", "oauth"],
+)
+def test_gcp_pyiceberg_token(creds_factory: Callable[[], WithPyicebergConfig]) -> None:
+    """pyiceberg keeps the token, so it gets a new one. The token expiry does not depend on the
+    local timezone."""
+    creds = creds_factory()
     # google-auth keeps the expiry as naive utc
     native = MagicMock(valid=True, token="tok", expiry=datetime(2030, 1, 1, 12))
-    creds = GcpServiceAccountCredentialsWithoutDefaults(project_id="project")
-    with patch.object(
-        GcpServiceAccountCredentialsWithoutDefaults, "to_native_credentials", return_value=native
-    ):
+    with patch.object(type(creds), "to_native_credentials", return_value=native):
         with local_timezone("Europe/Berlin"):
             config = creds.to_pyiceberg_fileio_config()
 
+    # the token was valid, still pyiceberg gets a new one
+    native.refresh.assert_called_once()
     assert config["gcs.oauth2.token"] == "tok"
     expires_at = datetime(2030, 1, 1, 12, tzinfo=timezone.utc)
     assert config["gcs.oauth2.token-expires-at"] == str(int(expires_at.timestamp() * 1000))

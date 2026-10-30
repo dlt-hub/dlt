@@ -1132,16 +1132,19 @@ def test_duckdb_secret_azure_external_session() -> None:
 @pytest.mark.no_load
 def test_duckdb_secret_gcs_bearer_token() -> None:
     """GCS credentials are frozen into a bearer token secret that expires with the token."""
-    creds = _gcp_default(timedelta(hours=1))
-    sql = _secret_sql("gs://bucket", creds)
-    assert "TYPE GCS" in sql
-    assert "BEARER_TOKEN 'tok-1'" in sql
-    assert "SCOPE 'gs://bucket'" in sql
+    creds = _gcp_default(timedelta(hours=1), timedelta(hours=1))
     minting = creds.default_credentials()
-    _, expires_at = DuckDbSqlClient._build_secret("gs://bucket", creds, "ds_secret", "", False)
+    sql, expires_at = DuckDbSqlClient._build_secret("gs://bucket", creds, "ds_secret", "", False)
+    assert "TYPE GCS" in sql[0]
+    assert "BEARER_TOKEN 'tok-1'" in sql[0]
+    assert "SCOPE 'gs://bucket'" in sql[0]
     assert expires_at == minting.expiry.replace(tzinfo=timezone.utc)
-    # the token is reused until it expires
+    # the client creates the secret again before the token expires, so it reuses the token
+    DuckDbSqlClient._build_secret("gs://bucket", creds, "ds_secret", "", False)
     assert minting.minted == 1
+    # attach statements are kept, so they get a new token
+    assert "BEARER_TOKEN 'tok-2'" in _secret_sql("gs://bucket", creds)
+    assert minting.minted == 2
 
     # a persisted secret would outlive its token
     with pytest.raises(ValueError):

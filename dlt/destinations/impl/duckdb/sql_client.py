@@ -132,8 +132,9 @@ class DuckDbSqlClient(SqlClientBase[duckdb.DuckDBPyConnection], DBTransaction, W
     attach_type: ClassVar[TAttachType] = "duckdb"
     RESERVED_CATALOGS: ClassVar[Tuple[str, ...]] = ("memory", "system", "temp")
     SECRET_REFRESH_MARGIN: ClassVar[timedelta] = timedelta(minutes=3)
-    """Token lifetime left when a secret with a frozen token is created again. Shorter than the
-    refresh windows of google-auth and azure-identity so that the secret gets a new token"""
+    """Token lifetime left when the client creates a secret with a frozen token again. Shorter
+    than the refresh windows of google-auth and azure-identity, otherwise they return the same
+    token."""
 
     def __init__(
         self,
@@ -402,9 +403,10 @@ class DuckDbSqlClient(SqlClientBase[duckdb.DuckDBPyConnection], DBTransaction, W
         persistent_stmt: str,
         persist_secrets: bool,
     ) -> List[str]:
-        """Builds `CREATE SECRET` statements for `scope`/`credentials`, see `_build_secret`."""
+        """Builds `CREATE SECRET` statements that the caller keeps, with a new frozen token, see
+        `_build_secret`."""
         sql, _ = DuckDbSqlClient._build_secret(
-            scope, credentials, secret_name, persistent_stmt, persist_secrets
+            scope, credentials, secret_name, persistent_stmt, persist_secrets, cached=False
         )
         return sql
 
@@ -415,9 +417,11 @@ class DuckDbSqlClient(SqlClientBase[duckdb.DuckDBPyConnection], DBTransaction, W
         secret_name: str,
         persistent_stmt: str,
         persist_secrets: bool,
+        cached: bool = True,
     ) -> Tuple[List[str], Optional[datetime]]:
         """Builds `CREATE SECRET` statements for `scope`/`credentials`, empty when none apply.
-        Returns the statements and the expiry of the token they freeze, if any.
+        Returns the statements and the expiry of the token they freeze, if any. With `cached`, a
+        frozen gcs token may come from an earlier call.
 
         Default credentials hand over to DuckDB's `credential_chain` (which refreshes); static
         and external-session credentials are frozen.
@@ -547,7 +551,7 @@ class DuckDbSqlClient(SqlClientBase[duckdb.DuckDBPyConnection], DBTransaction, W
             and Version(duckdb.__version__) >= Version("1.4.0")
         ):
             # DuckDB has no google credential chain, so freeze a bearer token
-            token, expires_at = cast(GcpCredentials, credentials).to_gcs_bearer_token()
+            token, expires_at = cast(GcpCredentials, credentials).to_gcs_bearer_token(cached)
             sql.append(f"""
             CREATE OR REPLACE SECRET {secret_name} (
                 TYPE GCS,
