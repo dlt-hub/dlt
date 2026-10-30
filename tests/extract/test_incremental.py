@@ -5315,6 +5315,56 @@ def test_incremental_and_limit(offset_by_last_value: bool):
     assert p.dataset().items.df().id.tolist() == list(range(30))
 
 
+@pytest.mark.parametrize("item_mode", ["async", "deferred"])
+def test_incremental_and_limit_items_in_flight(item_mode: str) -> None:
+    """Items still resolving in the pool when the limit is reached do not advance the cursor"""
+
+    @dlt.resource(table_name="items")
+    def resource(cursor=dlt.sources.incremental("id", initial_value=-1)):
+        for n in range(20):
+            i = cursor.start_value + 1 + n
+            # later items resolve later so the limit is reached on the lowest ids
+            delay = 0.05 + n * 0.01
+            if item_mode == "async":
+
+                async def _get_async(i: int = i, delay: float = delay) -> TDataItem:
+                    await asyncio.sleep(delay)
+                    return {"id": i}
+
+                yield _get_async()
+            else:
+
+                @dlt.defer
+                def _get_deferred(i: int = i, delay: float = delay) -> TDataItem:
+                    sleep(delay)
+                    return {"id": i}
+
+                yield _get_deferred()
+
+    p = dlt.pipeline(
+        pipeline_name="incremental_limit_" + uniq_id(), destination="duckdb", dev_mode=True
+    )
+    for _ in range(2):
+        p.run(resource().add_limit(5))
+        loaded = sorted(row[0] for row in p.dataset().items.select("id").fetchall())
+        state = p.state["sources"][p.default_schema_name]["resources"]["resource"]["incremental"][
+            "id"
+        ]
+        assert state["last_value"] == max(loaded)
+    assert loaded == list(range(10))
+
+
+def test_incremental_and_limit_zero() -> None:
+    @dlt.resource
+    def resource(cursor=dlt.sources.incremental("id", initial_value=-1)):
+        yield from ({"id": i} for i in range(cursor.start_value + 1, 10))
+
+    p = dlt.pipeline(pipeline_name="incremental_limit_" + uniq_id())
+    p.extract(resource().add_limit(0))
+    state = p.state["sources"][p.default_schema_name]["resources"]["resource"]["incremental"]["id"]
+    assert state["last_value"] == -1
+
+
 def test_custom_metrics_in_incremental() -> None:
     """Ensure that custom metrics from the incremental transform are correctly
     collected along with the custom metrics from the resource itself"""

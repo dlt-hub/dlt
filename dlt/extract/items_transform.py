@@ -200,12 +200,29 @@ class LimitItem(ItemTransform[TDataItem, Dict[str, Any]]):
         if isinstance(pipe.gen, Iterator):
             pipe.replace_gen(wrap_iterator(pipe.gen))
 
+        self.pipe = pipe
         self.gen = pipe.gen
         self.count = 0
         self.exhausted = False
         self.start_time = time.monotonic()
+        if self.max_items == 0:
+            self._stop_incrementals()
 
         return self
+
+    def _stop_incrementals(self) -> None:
+        """Stops incrementals placed before the limit from advancing the cursor"""
+        # incremental module imports this module
+        from dlt.extract.incremental import Incremental, IncrementalResourceWrapper
+
+        for i in range(len(self.pipe)):
+            step = self.pipe[i]
+            if step is self:
+                break
+            if isinstance(step, IncrementalResourceWrapper):
+                step = step.incremental
+            if isinstance(step, Incremental):
+                step.advance(None)
 
     def limit(self, chunk_size: int) -> Optional[int]:
         """Calculate the maximum number of rows to which result is limited. Limit works in chunks
@@ -246,6 +263,8 @@ class LimitItem(ItemTransform[TDataItem, Dict[str, Any]]):
             self.exhausted = True
             if inspect.isgenerator(self.gen):
                 self.gen.close()
+            # items already in flight still pass the incremental before they are dropped here
+            self._stop_incrementals()
 
             # if max items is not 0, we return the last item
             # otherwise never return anything
