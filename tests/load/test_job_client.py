@@ -528,7 +528,7 @@ def test_get_storage_table_with_all_types(
         ):
             continue
         # mssql, clickhouse, synapse and fabric have no native data type for the nested type.
-        if client.config.destination_type in ("clickhouse", "synapse", "fabric") and c[
+        if client.config.destination_type in ("mssql", "clickhouse", "synapse", "fabric") and c[
             "data_type"
         ] in ("json"):
             continue
