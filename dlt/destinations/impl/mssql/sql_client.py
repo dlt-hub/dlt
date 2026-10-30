@@ -202,6 +202,9 @@ class MsSqlClient(SqlClientBase[mssql_python.Connection], DBTransaction):
                 msg = str(ex)
                 if "(15151)" in msg or "does not exist" in msg:
                     return DatabaseUndefinedRelation(ex)
+                # concurrent DDL or writes abort a snapshot transaction, a retry can succeed
+                if "Snapshot isolation transaction" in msg:
+                    return DatabaseTransientException(ex)
                 return DatabaseTerminalException(ex)
             if driver_error == "COUNT field incorrect":  # SQLSTATE 07002, wrong parameter count
                 return DatabaseTransientException(ex)
