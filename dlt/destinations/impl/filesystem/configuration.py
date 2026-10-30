@@ -56,9 +56,17 @@ class FilesystemDestinationClientConfiguration(  # type: ignore[misc]
     files in place (e.g. rejected purge, deferred GC). When false, the table is dropped from
     the catalog and dlt deletes the table files itself."""
 
-    ATTACHABLE_PROTOCOLS: ClassVar[Tuple[str, ...]] = ("file", "s3", "az", "abfss", "hf")
+    ATTACHABLE_PROTOCOLS: ClassVar[Tuple[str, ...]] = (
+        "file",
+        "s3",
+        "az",
+        "abfss",
+        "hf",
+        "gs",
+        "gcs",
+    )
     """Protocols a foreign DuckDB engine reads with SQL alone. These protocols mirror the
-    `CREATE SECRET` statements that `DuckDbSqlClient` builds. The other protocols (`gs`, `sftp`,
+    `CREATE SECRET` statements that `DuckDbSqlClient` builds. The other protocols (`sftp`,
     `gdrive`) access their data through an fsspec filesystem that only the process which
     registered it holds."""
 

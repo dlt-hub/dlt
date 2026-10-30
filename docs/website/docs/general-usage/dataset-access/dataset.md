@@ -500,7 +500,7 @@ Cross-dataset joins:
 - require an explicit `on` condition: the auto mode does not span datasets
 - are rejected when the two relations live in different data locations. DuckDB query engines are the exception — see [Cross-destination joins with DuckDB](#cross-destination-joins-with-duckdb)
 - are not supported on SQLite (via the `sqlalchemy` destination)
-- work on filesystem destinations only for protocols DuckDB can authenticate with SQL: `file`, `s3`, `az`, `abfss`, and `hf`
+- work on filesystem destinations only for protocols DuckDB can authenticate with SQL: `file`, `s3`, `az`, `abfss`, `gs`, `gcs` and `hf`
 
 Two datasets can share a table name, for example a `users` table in each. Then give one side a stable alias, with `dataset.query("SELECT * FROM users AS alias_name")`. Refer to that alias in `on`. Without an alias, `join()` cannot tell the two tables apart and raises.
 
