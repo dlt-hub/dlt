@@ -376,6 +376,26 @@ The code above installs **spatial** with `duckdb` directly, because `dlt` only l
 
 After a load, you can read and write the data with `with pipeline.sql_client() as con:`. This client wraps `DuckDBPyConnection`. See [duckdb docs](https://duckdb.org/docs/api/python/overview#persistent-storage) for details. If you want to **read** data, use [pipeline.dataset()](../../general-usage/dataset-access/dataset) instead of `sql_client`.
 
+## Cloud storage secrets
+
+`dlt` uses DuckDB as the query engine when you read data from [filesystem](filesystem.md#data-access), [ducklake](ducklake.md#data-access) and [iceberg](iceberg.md#data-access) tables in a bucket. On each connection it opens, `dlt` creates a [DuckDB secret](https://duckdb.org/docs/stable/configuration/secrets_manager) from your [storage credentials](../../general-usage/credentials/complex_types.md):
+
+| bucket        | default credentials                             | static credentials                                | external session           |
+| ------------- | ----------------------------------------------- | ------------------------------------------------- | -------------------------- |
+| `s3`          | `PROVIDER credential_chain` with `REFRESH auto` | key, secret and session token                     | frozen session credentials |
+| `az`, `abfss` | `PROVIDER credential_chain`                     | connection string or `PROVIDER service_principal` | frozen bearer token        |
+| `gs`, `gcs`   | frozen bearer token                             | frozen bearer token                               | frozen bearer token        |
+| `hf`          |                                                 | token                                             |                            |
+
+DuckDB refreshes a `credential_chain` secret itself. A frozen bearer token expires, typically within an hour, and DuckDB cannot refresh it. `dlt` creates such a secret again with a new token shortly before the token expires: when it opens a connection and before each query. A connection that you keep open, for example with `with dataset:`, keeps working.
+
+Limitations:
+
+- A single query that runs longer than the remaining lifetime of its token fails.
+- `dlt` cannot refresh a connection that you take out of it, for example `dataset.ibis()` or `sql_client.native_connection`.
+- [Cross-destination joins](../../general-usage/dataset-access/dataset.md#cross-destination-joins-with-duckdb) and lazy materialization copy the secret into the query engine and into the model job. A model job that runs after the token expired fails.
+- A secret with a frozen bearer token cannot be persistent. For persistent `gs` secrets, use HMAC keys with the [S3-compatible](filesystem.md#using-s3-compatible-storage) interface.
+
 ## dbt support
 
 This destination [integrates with dbt](../transformations/dbt/dbt.md) via [dbt-duckdb](https://github.com/jwills/dbt-duckdb), which is a community-supported package. `dlt` shares the `duckdb` database with `dbt`. In rare cases, `dbt-duckdb` reports that the binary database format does not match the format it expects. To avoid this error, update the `duckdb` package in your `dlt` project with `pip install -U`.
