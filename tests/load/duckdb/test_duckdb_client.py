@@ -1,6 +1,7 @@
 import os
 import pytest
 from datetime import datetime, timedelta, timezone
+from types import SimpleNamespace
 from typing import Any, Iterator, List, Union, cast
 
 import dlt
@@ -1005,15 +1006,17 @@ def _gcp_default(*lifetimes: timedelta) -> GcpServiceAccountCredentials:
 def _azure_external_session(*lifetimes: timedelta) -> AzureServicePrincipalCredentials:
     """Azure credentials with a user-passed credential that mints `tok-1`, `tok-2`... living
     `lifetimes`. `minted` on the default credentials counts the tokens."""
-    from azure.core.credentials import AccessToken
 
     class _MintingCredential:
         minted = 0
 
-        def get_token(self, *scopes: str, **kwargs: Any) -> AccessToken:
+        def get_token(self, *scopes: str, **kwargs: Any) -> Any:
             self.minted += 1
             expires_on = datetime.now(timezone.utc) + lifetimes[self.minted - 1]
-            return AccessToken(f"tok-{self.minted}", int(expires_on.timestamp()))
+            # the fields of azure `AccessToken`, azure packages are not installed with duckdb
+            return SimpleNamespace(
+                token=f"tok-{self.minted}", expires_on=int(expires_on.timestamp())
+            )
 
     creds = AzureServicePrincipalCredentials.from_credential(_MintingCredential())
     creds.azure_storage_account_name = "acc"
