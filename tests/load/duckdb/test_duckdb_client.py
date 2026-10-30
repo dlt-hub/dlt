@@ -1,5 +1,6 @@
 import os
 import pytest
+from datetime import datetime, timedelta, timezone
 from typing import Any, Iterator, List, Union, cast
 
 import dlt
@@ -10,6 +11,7 @@ from dlt.common.configuration.specs import (
     AzureCredentialsWithoutDefaults,
     AzureServicePrincipalCredentials,
     AzureServicePrincipalCredentialsWithoutDefaults,
+    GcpServiceAccountCredentials,
 )
 from dlt.common.configuration.exceptions import ValueNotSecretException
 from dlt.common.configuration.providers.toml import CONFIG_TOML, SECRETS_TOML
@@ -979,6 +981,45 @@ def _azure_default(
     return creds
 
 
+def _gcp_default(*lifetimes: timedelta) -> GcpServiceAccountCredentials:
+    """GCP credentials whose default google credentials mint `tok-1`, `tok-2`... living
+    `lifetimes`. `minted` on the default credentials counts the tokens."""
+    from google.auth.credentials import Credentials
+
+    class _MintingCredentials(Credentials):
+        minted = 0
+
+        def refresh(self, request: Any) -> None:
+            self.minted += 1
+            self.token = f"tok-{self.minted}"
+            # google-auth keeps the expiry as naive utc
+            expiry = datetime.now(timezone.utc) + lifetimes[self.minted - 1]
+            self.expiry = expiry.replace(tzinfo=None)
+
+    creds = GcpServiceAccountCredentials()
+    creds.project_id = "project"
+    creds._set_default_credentials(_MintingCredentials())
+    return creds
+
+
+def _azure_external_session(*lifetimes: timedelta) -> AzureServicePrincipalCredentials:
+    """Azure credentials with a user-passed credential that mints `tok-1`, `tok-2`... living
+    `lifetimes`. `minted` on the default credentials counts the tokens."""
+    from azure.core.credentials import AccessToken
+
+    class _MintingCredential:
+        minted = 0
+
+        def get_token(self, *scopes: str, **kwargs: Any) -> AccessToken:
+            self.minted += 1
+            expires_on = datetime.now(timezone.utc) + lifetimes[self.minted - 1]
+            return AccessToken(f"tok-{self.minted}", int(expires_on.timestamp()))
+
+    creds = AzureServicePrincipalCredentials.from_credential(_MintingCredential())
+    creds.azure_storage_account_name = "acc"
+    return creds
+
+
 def _secret_sql(
     scope: str, credentials: Any, persistent_stmt: str = "", persist_secrets: bool = False
 ) -> str:
@@ -1068,6 +1109,7 @@ def test_duckdb_secret_azure_external_session() -> None:
 
     class _Tok:
         token = "bearer.jwt"
+        expires_on = 1893456000
 
     class _Cred:
         def get_token(self, *args: Any, **kwargs: Any) -> Any:
@@ -1079,21 +1121,59 @@ def test_duckdb_secret_azure_external_session() -> None:
     assert "credential_chain" not in sql
     assert "PROVIDER access_token" in sql
     assert "ACCESS_TOKEN 'bearer.jwt'" in sql
+    # the client creates the secret again before the token expires
+    _, expires_at = DuckDbSqlClient._build_secret("az://container", creds, "ds_secret", "", False)
+    assert expires_at == datetime(2030, 1, 1, tzinfo=timezone.utc)
 
 
 @pytest.mark.no_load
-def test_duckdb_secret_gcs_has_no_native_secret() -> None:
-    """DuckDB has no GCS credential chain; statements are empty so the client uses fsspec."""
-    assert (
-        DuckDbSqlClient._build_secret_statements(
-            "gs://bucket", _aws_explicit(), "ds_secret", "", False
-        )
-        == []
-    )
+def test_duckdb_secret_gcs_bearer_token() -> None:
+    """GCS credentials are frozen into a bearer token secret that expires with the token."""
+    creds = _gcp_default(timedelta(hours=1))
+    sql = _secret_sql("gs://bucket", creds)
+    assert "TYPE GCS" in sql
+    assert "BEARER_TOKEN 'tok-1'" in sql
+    assert "SCOPE 'gs://bucket'" in sql
+    minting = creds.default_credentials()
+    _, expires_at = DuckDbSqlClient._build_secret("gs://bucket", creds, "ds_secret", "", False)
+    assert expires_at == minting.expiry.replace(tzinfo=timezone.utc)
+    # the token is reused until it expires
+    assert minting.minted == 1
+
+    # a persisted secret would outlive its token
     with pytest.raises(ValueError):
-        DuckDbSqlClient._build_secret_statements(
-            "gs://bucket", _aws_explicit(), "ds_secret", " PERSISTENT ", True
-        )
+        _secret_sql("gs://bucket", creds, " PERSISTENT ", True)
+
+
+@pytest.mark.parametrize(
+    "scope, credentials_factory",
+    [("gs://bucket", _gcp_default), ("az://container", _azure_external_session)],
+    ids=["gcs", "azure-external-session"],
+)
+def test_duckdb_secret_recreated_before_token_expires(scope: str, credentials_factory: Any) -> None:
+    """The client creates a secret with a frozen token again before a statement when the token
+    is about to expire."""
+    suffix = uniq_id()
+    pipeline = dlt.pipeline(
+        "secret_refresh_" + suffix,
+        destination=duckdb(os.path.join(get_test_storage_root(), f"refresh_{suffix}.duckdb")),
+        dataset_name="ds",
+    )
+    pipeline.run([{"id": 1}], table_name="t")
+    # the first token expires within the refresh margin
+    creds = credentials_factory(timedelta(minutes=2), timedelta(hours=1))
+    minting = creds.default_credentials()
+
+    with pipeline.sql_client() as client:
+        client = cast(DuckDbSqlClient, client)
+        client.create_secret(scope, creds)
+        assert minting.minted == 1
+        assert client.create_secret_name(scope) in client.list_secrets()
+        client.execute_sql("SELECT 1")
+        assert minting.minted == 2
+        # the new token lives long enough
+        client.execute_sql("SELECT 1")
+        assert minting.minted == 2
 
 
 def test_with_attach_interface() -> None:

@@ -155,15 +155,7 @@ class DuckLakeSqlClient(DuckDbSqlClient):
             secret_name=secret_name,
             persist_secrets=persist_secrets,
         ):
-            if protocol in ["gs", "gcs"]:
-                logger.warning(
-                    "For gs/gcs access via duckdb please use the gs/gcs s3 compatibility"
-                    "layer if possible. "
-                    "Falling back to fsspec which degrades scanning performance."
-                )
-                self._register_filesystem(fsspec_from_config(self.credentials.storage)[0], "gcs")
-            else:
-                raise ValueError(f"Cannot create secret or register filesystem for `{protocol=}`")
+            raise ValueError(f"Cannot create secret or register filesystem for `{protocol=}`")
 
     @staticmethod
     def build_attach_statement(

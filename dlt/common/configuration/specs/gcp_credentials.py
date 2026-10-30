@@ -1,9 +1,11 @@
 import dataclasses
 import sys
+from datetime import datetime, timezone
 from typing import Any, ClassVar, Final, List, Tuple, Union, Dict, Optional
 
 from dlt.common.json import json
 from dlt.common.pendulum import pendulum
+from dlt.common.time import ensure_datetime_in_tz
 from dlt.common.configuration.specs.api_credentials import OAuth2Credentials
 from dlt.common.configuration.specs.exceptions import (
     InvalidGoogleNativeCredentialsType,
@@ -26,31 +28,6 @@ from dlt.common.utils import is_interactive
 
 # GCS scope required for OAuth2 token requests
 GCS_SCOPE = "https://www.googleapis.com/auth/devstorage.read_write"
-
-
-def _get_pyiceberg_fileio_config(credentials: Any, project_id: Optional[str]) -> Dict[str, Any]:
-    """Get pyiceberg FileIO config from Google credentials.
-
-    This refreshes the credentials to get a valid OAuth2 token and returns
-    the configuration dict that pyiceberg expects for GCS access.
-    """
-    from google.auth.transport.requests import Request
-
-    if not credentials.token:
-        # For service account credentials, we need to add scopes before refresh
-        # The credentials.requires_scopes check handles both service account and OAuth credentials
-        if credentials.requires_scopes:
-            credentials = credentials.with_scopes([GCS_SCOPE])
-        credentials.refresh(Request())
-
-    config: Dict[str, Any] = {}
-    config["gcs.project-id"] = project_id
-    config["gcs.oauth2.token"] = credentials.token
-    if credentials.expiry:
-        expiry_ms = int(credentials.expiry.timestamp() * 1000)
-        config["gcs.oauth2.token-expires-at"] = str(expiry_ms)
-
-    return config
 
 
 @configspec
@@ -103,6 +80,19 @@ class GcpCredentials(CredentialsConfiguration, WithObjectStoreRsCredentials):
         if isinstance(self, CredentialsWithDefault) and self.has_default_credentials():
             return {}
         return {"service_account_key": json.dumps(dict(self))}
+
+    def to_gcs_bearer_token(self) -> Tuple[str, Optional[datetime]]:
+        """Returns an OAuth2 access token for GCS and its expiry."""
+        from google.auth.credentials import with_scopes_if_required
+        from google.auth.transport.requests import Request
+
+        credentials = with_scopes_if_required(self.to_native_credentials(), [GCS_SCOPE])
+        if not credentials.valid:
+            credentials.refresh(Request())
+        if not credentials.expiry:
+            return credentials.token, None
+        # google-auth keeps the expiry as naive utc
+        return credentials.token, ensure_datetime_in_tz(credentials.expiry, timezone.utc)
 
 
 @configspec
@@ -158,7 +148,11 @@ class GcpServiceAccountCredentialsWithoutDefaults(GcpCredentials, WithPyicebergC
             return ServiceAccountCredentials.from_service_account_info(self)
 
     def to_pyiceberg_fileio_config(self) -> Dict[str, Any]:
-        return _get_pyiceberg_fileio_config(self.to_native_credentials(), self.project_id)
+        token, expires_at = self.to_gcs_bearer_token()
+        config: Dict[str, Any] = {"gcs.project-id": self.project_id, "gcs.oauth2.token": token}
+        if expires_at:
+            config["gcs.oauth2.token-expires-at"] = str(int(expires_at.timestamp() * 1000))
+        return config
 
     @classmethod
     def from_pyiceberg_fileio_config(cls, file_io: Dict[str, Any]) -> Self:
@@ -393,7 +387,7 @@ class GcpServiceAccountCredentials(
     def to_pyiceberg_fileio_config(self) -> Dict[str, Any]:
         if self.has_default_credentials():
             # hand over to pyarrow's GcsFileSystem, which resolves and refreshes via Google ADC.
-            # freezing a token here (via _get_pyiceberg_fileio_config) would pin it and expire
+            # freezing a token here would pin it and expire
             return {"gcs.project-id": self.project_id}
         else:
             return GcpServiceAccountCredentialsWithoutDefaults.to_pyiceberg_fileio_config(self)
@@ -411,7 +405,7 @@ class GcpOAuthCredentials(GcpDefaultCredentials, GcpOAuthCredentialsWithoutDefau
     def to_pyiceberg_fileio_config(self) -> Dict[str, Any]:
         if self.has_default_credentials():
             # hand over to pyarrow's GcsFileSystem, which resolves and refreshes via Google ADC.
-            # freezing a token here (via _get_pyiceberg_fileio_config) would pin it and expire
+            # freezing a token here would pin it and expire
             return {"gcs.project-id": self.project_id}
         else:
             return GcpOAuthCredentialsWithoutDefaults.to_pyiceberg_fileio_config(self)

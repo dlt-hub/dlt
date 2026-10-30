@@ -2,7 +2,6 @@ from typing import Any, ClassVar, Optional, TYPE_CHECKING, Tuple, List
 from packaging.version import Version
 import duckdb
 
-from dlt.common import logger
 from dlt.common.destination.exceptions import DestinationUndefinedEntity
 from dlt.common.destination.typing import PreparedTableSchema
 from dlt.common.schema import Schema
@@ -83,18 +82,10 @@ class FilesystemSqlClient(WithTableScanners):
         if not super().create_secret(
             scope, credentials, secret_name=secret_name, persist_secrets=persist_secrets
         ):
-            # native google storage implementation is not supported..
-            if protocol in ["gs", "gcs"]:
-                logger.warn(
-                    "For gs/gcs access via duckdb please use the gs/gcs s3 compatibility layer if"
-                    " possible (not supported when using `iceberg` table format). Falling back to"
-                    " fsspec."
-                )
+            # for memory we also need to register filesystem
+            if protocol == "memory":
                 # `_register_filesystem` unregisters first: duckdb >= 1.5 errors on re-registering an
                 # already-registered filesystem, and our setup re-runs on every borrow/return cycle
-                self._register_filesystem(self.remote_client.fs_client, protocol)
-            # for memory we also need to register filesystem
-            elif protocol == "memory":
                 self._register_filesystem(self.remote_client.fs_client, protocol)
             elif protocol == "file":
                 # authentication for local filesystem not needed

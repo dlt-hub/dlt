@@ -1,3 +1,4 @@
+from datetime import datetime, timezone
 from typing import Any, Dict
 from unittest.mock import MagicMock, patch
 import pytest
@@ -8,11 +9,11 @@ from dlt.common.configuration.specs.gcp_credentials import (
     GcpOAuthCredentialsWithoutDefaults,
     GcpServiceAccountCredentials,
     GcpServiceAccountCredentialsWithoutDefaults,
-    _get_pyiceberg_fileio_config,
 )
 from dlt.destinations import filesystem
 from dlt.sources.credentials import GcpOAuthCredentials
 from tests.load.utils import ALL_FILESYSTEM_DRIVERS
+from tests.utils import local_timezone
 
 # mark all tests as essential, do not remove
 pytestmark = pytest.mark.essential
@@ -110,6 +111,22 @@ def test_gcp_service_account_credentials_pyiceberg_export() -> None:
     # from_pyiceberg_fileio_config should still raise exception for service account
     with pytest.raises(UnsupportedAuthenticationMethodException):
         GcpServiceAccountCredentialsWithoutDefaults.from_pyiceberg_fileio_config({})
+
+
+def test_gcp_service_account_pyiceberg_token_expiry() -> None:
+    """The token expiry passed to pyiceberg does not depend on the local timezone."""
+    # google-auth keeps the expiry as naive utc
+    native = MagicMock(valid=True, token="tok", expiry=datetime(2030, 1, 1, 12))
+    creds = GcpServiceAccountCredentialsWithoutDefaults(project_id="project")
+    with patch.object(
+        GcpServiceAccountCredentialsWithoutDefaults, "to_native_credentials", return_value=native
+    ):
+        with local_timezone("Europe/Berlin"):
+            config = creds.to_pyiceberg_fileio_config()
+
+    assert config["gcs.oauth2.token"] == "tok"
+    expires_at = datetime(2030, 1, 1, 12, tzinfo=timezone.utc)
+    assert config["gcs.oauth2.token-expires-at"] == str(int(expires_at.timestamp() * 1000))
 
 
 @pytest.mark.parametrize(
