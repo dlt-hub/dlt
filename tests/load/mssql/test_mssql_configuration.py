@@ -729,6 +729,34 @@ def test_mssql_token_provider_failure_keeps_credential_error_as_cause() -> None:
     assert isinstance(db_ex, DatabaseTransientException)
 
 
+@pytest.mark.parametrize(
+    "driver_error,ddbc_error,expected",
+    [
+        ("Base table or view not found", "Invalid object name 'tab'.", DatabaseUndefinedRelation),
+        (
+            "Syntax error or access violation",
+            "Incorrect syntax near '*'.",
+            DatabaseTerminalException,
+        ),
+        (
+            "Syntax error or access violation",
+            (
+                "Snapshot isolation transaction failed in database 'db' because the object accessed"
+                " by the statement has been modified by a DDL statement in another concurrent"
+                " transaction"
+            ),
+            DatabaseTransientException,
+        ),
+    ],
+    ids=["missing_table", "syntax_error", "snapshot_conflict"],
+)
+def test_mssql_programming_error_classification(
+    driver_error: str, ddbc_error: str, expected: type
+) -> None:
+    ex = mssql_python.ProgrammingError(driver_error, ddbc_error)
+    assert type(MsSqlClient._make_database_exception(ex)) is expected
+
+
 def test_mssql_token_provider_rejected_alongside_other_token_sources() -> None:
     """The exclusivity dlt upholds is enforced by the driver, not merely assumed.
 
