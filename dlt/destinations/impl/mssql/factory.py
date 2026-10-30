@@ -19,6 +19,9 @@ if TYPE_CHECKING:
     from dlt.common.schema import Schema
     from dlt.destinations.impl.mssql.mssql import MsSqlJobClient
 
+# ODBC drivers the pyodbc-based ibis backend can connect with, newest first
+ODBC_DRIVERS = ("ODBC Driver 18 for SQL Server", "ODBC Driver 17 for SQL Server")
+
 
 class MsSqlTypeMapper(TypeMapperImpl):
     sct_to_unbound_dbt = {
@@ -179,10 +182,20 @@ class mssql(Destination[MsSqlClientConfiguration, "MsSqlJobClient"]):
         ms_credentials = client.config.credentials.to_native_representation()
         ms_credentials = ms_credentials.replace("synapse://", "mssql://")
         try:
-            return ibis.connect(ms_credentials, driver=client.config.credentials.driver)
+            import pyodbc
         except ImportError as e:
             # ibis mssql backend requires pyodbc; mssql-python does not provide it
             raise NotImplementedError("ibis mssql backend requires pyodbc") from e
+        # pyodbc also needs an ODBC driver, which mssql-python does not ship
+        driver = client.config.credentials.driver or next(
+            (d for d in ODBC_DRIVERS if d in pyodbc.drivers()), None
+        )
+        if driver is None:
+            raise NotImplementedError(
+                "ibis mssql backend requires an ODBC driver, install one of:"
+                f" {', '.join(ODBC_DRIVERS)}"
+            )
+        return ibis.connect(ms_credentials, driver=driver)
 
     def __init__(
         self,
