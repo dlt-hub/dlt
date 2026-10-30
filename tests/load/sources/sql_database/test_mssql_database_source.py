@@ -66,6 +66,10 @@ def backend_credentials(
         return mssql_db.credentials
     url = sa.engine.make_url(mssql_db.credentials.to_native_representation())
     url = url.set(drivername="mssql+mssqlpython").difference_update_query(["driver"])
+    try:
+        url.get_dialect()
+    except sa.exc.NoSuchModuleError:
+        pytest.skip("mssql_arrow needs the mssql+mssqlpython dialect from SQLAlchemy 2.1")
     return ConnectionStringCredentials(url.render_as_string(hide_password=False))
 
 
