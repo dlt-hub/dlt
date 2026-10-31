@@ -267,6 +267,9 @@ class SqlalchemyJobClient(SqlJobClientWithStagingDataset):
         return schema_update
 
     def _delete_schema_in_storage(self, schema: Schema) -> None:
+        # nothing to delete if the versions table does not exist
+        if not self.get_storage_table(schema.version_table_name)[0]:
+            return
         version_table = schema.tables[schema.version_table_name]
         table_obj = self._to_table_object(version_table)  # type: ignore[arg-type]
         schema_name_col = schema.naming.normalize_identifier("schema_name")

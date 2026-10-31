@@ -533,6 +533,29 @@ def test_refresh_argument_to_extract(destination_config: DestinationTestConfigur
 
 @pytest.mark.parametrize(
     "destination_config",
+    destinations_configs(default_sql_configs=True, subset=["duckdb", "sqlalchemy"]),
+    ids=lambda x: x.name,
+)
+def test_refresh_drop_resources_empty_staging_dataset(
+    destination_config: DestinationTestConfiguration,
+) -> None:
+    # truncating the staging dataset leaves it created but without a version table
+    os.environ["LOAD__TRUNCATE_STAGING_DATASET"] = "true"
+
+    @dlt.resource(name="items", write_disposition="replace")
+    def items():
+        yield [{"id": 1}]
+
+    pipeline = destination_config.setup_pipeline("test_refresh_empty_staging" + uniq_id())
+    assert_load_info(pipeline.run(items(), **destination_config.run_kwargs))
+
+    info = pipeline.run(items(), refresh="drop_resources", **destination_config.run_kwargs)
+    assert_load_info(info)
+    assert load_table_counts(pipeline, "items") == {"items": 1}
+
+
+@pytest.mark.parametrize(
+    "destination_config",
     destinations_configs(
         default_sql_configs=True, default_staging_configs=True, all_buckets_filesystem_configs=True
     ),
