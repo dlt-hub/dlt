@@ -699,6 +699,106 @@ def test_explicit_close_pipe() -> None:
     assert inspect.getgeneratorstate(gen_pipe.gen) == "GEN_CLOSED"  # type: ignore[arg-type]
 
 
+def test_pipe_cut_off() -> None:
+    started = []
+
+    def gen():
+        started.append(True)
+        yield from [1, 2, 3]
+
+    pipe = Pipe.from_data("data", gen)
+    # cutoff never moves back
+    pipe.cut_off(2)
+    pipe.cut_off(1)
+    assert pipe.cutoff_idx == 2
+    # each iteration runs on a clone without a cutoff
+    assert pipe._clone().cutoff_idx is None
+    assert _f_items(list(PipeIterator.from_pipe(pipe))) == [1, 2, 3]
+
+    # cutoff at the gen closes the source before the generator starts
+    started.clear()
+    pit = PipeIterator.from_pipe(pipe)
+    source_pipe = pit._sources[0].pipe
+    source_pipe.cut_off(source_pipe.gen_idx)
+    assert list(pit) == []
+    assert started == []
+    assert pit._sources == []
+
+
+def test_cut_off_transformer() -> None:
+    closed = []
+
+    def child_gen(item, meta):
+        try:
+            yield item * 10
+            yield item * 100
+        finally:
+            closed.append(item)
+
+    parent = Pipe.from_data("parent", [1, 2, 3])
+    child = Pipe("child", [child_gen], parent=parent)
+    sibling = Pipe("sibling", [lambda item: -item], parent=parent)
+
+    items = []
+    for pi in PipeIterator.from_pipes([parent, child, sibling]):
+        items.append((pi.pipe.name, pi.item))
+        if pi.pipe.name == "child":
+            pi.pipe.cut_off(pi.pipe.gen_idx)
+
+    # parent and sibling transformer still get all the items
+    assert [i for name, i in items if name == "parent"] == [1, 2, 3]
+    assert [i for name, i in items if name == "sibling"] == [-1, -2, -3]
+    # the running transformer generator is closed and no more items enter the transformer
+    assert [i for name, i in items if name == "child"] == [10]
+    assert closed == [1]
+
+
+def test_cut_off_parent_keeps_forked_items() -> None:
+    def deferred(item, meta):
+        def _resolve():
+            time.sleep(0.05)
+            return item * 10
+
+        return _resolve
+
+    parent = Pipe.from_data("parent", [1, 2, 3])
+    child = Pipe("child", [deferred], parent=parent)
+
+    items = []
+    for pi in PipeIterator.from_pipes([parent, child], next_item_mode="fifo"):
+        items.append((pi.pipe.name, pi.item))
+        if pi.pipe.name == "parent":
+            pi.pipe.cut_off(pi.pipe.gen_idx)
+
+    # parent stops but the item already forked to the transformer is resolved in the pool
+    assert items == [("parent", 1), ("child", 10)]
+
+
+@pytest.mark.parametrize(
+    "cutoff_idx,expected_count",
+    [(1, 5), (2, 1)],
+    ids=["moved_past_cutoff", "moving_into_cutoff"],
+)
+def test_cut_off_items_in_pool(cutoff_idx: int, expected_count: int) -> None:
+    def deferred(item, meta):
+        def _resolve():
+            time.sleep(0.05)
+            return item
+
+        return _resolve
+
+    # gen (0) -> deferred (1) -> map (2), items resolved in the pool are at step 1
+    pipe = Pipe("data", [[0, 1, 2, 3, 4], deferred, lambda item: item * 10])
+
+    items = []
+    for pi in PipeIterator.from_pipe(pipe):
+        items.append(pi.item)
+        pi.pipe.cut_off(cutoff_idx)
+
+    assert len(items) == expected_count
+    assert set(items) <= {0, 10, 20, 30, 40}
+
+
 close_pipe_got_exit = False
 close_pipe_yielding = False
 
