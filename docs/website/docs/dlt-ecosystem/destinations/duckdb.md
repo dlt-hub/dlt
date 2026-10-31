@@ -393,10 +393,9 @@ DuckDB refreshes a `credential_chain` secret itself. A frozen bearer token expir
 
 Limitations:
 
-- A single query that runs longer than the remaining lifetime of its token fails.
+- Do not use bearer tokens, which cannot be refreshed, for long operations. For example, if a merge on ducklake takes more than 1h on a `gs` bucket, the token may expire during one of its parquet reads or writes.
+- For persistent, refreshable `gs` secrets, use HMAC keys with the [S3-compatible](filesystem.md#using-s3-compatible-storage) interface.
 - `dlt` cannot refresh a connection that you take out of it, for example `dataset.ibis()` or `sql_client.native_connection`.
-- [Cross-destination joins](../../general-usage/dataset-access/dataset.md#cross-destination-joins-with-duckdb) and lazy materialization copy the secret into the query engine and into the model job. A model job that runs after the token expired fails.
-- A secret with a frozen bearer token cannot be persistent. For persistent `gs` secrets, use HMAC keys with the [S3-compatible](filesystem.md#using-s3-compatible-storage) interface.
 
 ## dbt support
 
