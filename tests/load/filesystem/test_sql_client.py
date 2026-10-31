@@ -513,8 +513,10 @@ def test_frozen_token_secret_recreated_before_expiry(
     expirations: List[Optional[datetime]] = []
     build_secret = DuckDbSqlClient._build_secret
 
-    def _first_token_expires_soon(*args: Any) -> Tuple[List[str], Optional[datetime]]:
-        sql, expires_at = build_secret(*args)
+    def _first_token_expires_soon(
+        *args: Any, **kwargs: Any
+    ) -> Tuple[List[str], Optional[datetime]]:
+        sql, expires_at = build_secret(*args, **kwargs)
         expirations.append(expires_at)
         if len(expirations) == 1:
             expires_at = datetime.now(timezone.utc) + timedelta(minutes=1)
