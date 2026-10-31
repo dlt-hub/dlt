@@ -63,6 +63,7 @@ from dlt.extract.exceptions import IncrementalUnboundError
 from dlt.extract.incremental.exceptions import (
     ExternalSchedulerNotAvailable,
     IncrementalCursorPathMissing,
+    IncrementalCursorThresholdExceeded,
     IncrementalPrimaryKeyMissing,
     JoinSchedulerError,
 )
@@ -157,6 +158,10 @@ class Incremental(
     on_cursor_value_missing: OnCursorValueMissing = "raise"
     lag: Optional[float] = None
     duplicate_cursor_warning_threshold: ClassVar[int] = 200
+    duplicate_cursor_error_threshold: ClassVar[Optional[int]] = None
+    """Maximum boundary deduplication hash count per incremental cursor, checked after each batch.
+    Raises `IncrementalCursorThresholdExceeded` when exceeded. Disabled (`None`) by default.
+    """
     range_start: TIncrementalRange = "closed"
     range_end: TIncrementalRange = "open"
 
@@ -883,13 +888,22 @@ class Incremental(
     def _check_duplicate_cursor_threshold(
         self, initial_hash_count: int, final_hash_count: int
     ) -> None:
+        error_threshold = Incremental.duplicate_cursor_error_threshold
+        if error_threshold is not None and final_hash_count > error_threshold:
+            raise IncrementalCursorThresholdExceeded(
+                self.resource_name, self.cursor_path, final_hash_count, error_threshold
+            )
         if initial_hash_count <= Incremental.duplicate_cursor_warning_threshold < final_hash_count:
             logger.warning(
                 f"Large number of records ({final_hash_count}) sharing the same value of cursor"
-                f" field '{self.cursor_path}' on resource '{self.resource_name}'. This can happen"
-                " if the cursor field has a low resolution (e.g., only stores dates without"
-                " times), causing many records to share the same cursor value. Consider using a"
-                " cursor column with higher resolution to reduce the deduplication state size."
+                f" field '{self.cursor_path}' on resource '{self.resource_name}'. dlt keeps one"
+                " deduplication hash per record at the boundary cursor value in the pipeline state"
+                " and persists it on every run. Use a cursor column with higher resolution."
+                " If a destination primary-key merge handles replayed rows, keep the start range"
+                " closed and set `primary_key=()` on the incremental object to disable extractor"
+                " deduplication. Append loads still need deduplication to avoid replayed rows."
+                " Set `Incremental.duplicate_cursor_error_threshold` to fail when the boundary"
+                " hash count exceeds an application-wide limit."
             )
 
 
@@ -1125,6 +1139,7 @@ __all__ = [
     "IncrementalResourceWrapper",
     "IncrementalColumnState",
     "IncrementalCursorPathMissing",
+    "IncrementalCursorThresholdExceeded",
     "IncrementalPrimaryKeyMissing",
     "IncrementalUnboundError",
     "TIncrementalconfig",
