@@ -364,13 +364,13 @@ class Incremental(
         return new
 
     def advance(self, last_value: TCursorValue) -> Self:
-        """Pins the range end to `last_value` and passes rows through unfiltered.
+        """Set the range end to `last_value` and passes rows through unfiltered.
 
         Use when the range was already applied elsewhere, ie. pushed down to SQL. A `None`
         value leaves the range as is and only disables filtering.
 
         Args:
-            last_value (TCursorValue): The value to pin the range end to.
+            last_value (TCursorValue): The value to set the range end to.
 
         Returns:
             Incremental[TCursorValue]: This instance, so calls can be chained.

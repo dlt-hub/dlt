@@ -200,10 +200,13 @@ class LimitItem(ItemTransform[TDataItem, Dict[str, Any]]):
         if isinstance(pipe.gen, Iterator):
             pipe.replace_gen(wrap_iterator(pipe.gen))
 
+        self.pipe = pipe
         self.gen = pipe.gen
         self.count = 0
         self.exhausted = False
         self.start_time = time.monotonic()
+        if self.max_items == 0:
+            pipe.cut_off(pipe.gen_idx)
 
         return self
 
@@ -246,6 +249,8 @@ class LimitItem(ItemTransform[TDataItem, Dict[str, Any]]):
             self.exhausted = True
             if inspect.isgenerator(self.gen):
                 self.gen.close()
+            # items still in flight must not pass the steps before the limit, ie. incremental
+            self.pipe.cut_off(next(i for i in range(len(self.pipe)) if self.pipe[i] is self))
 
             # if max items is not 0, we return the last item
             # otherwise never return anything

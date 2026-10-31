@@ -85,6 +85,7 @@ class Pipe(SupportsPipe):
         self._steps: List[TPipeStep] = []
         self.parent = parent
         self.instance_id = uniq_id()
+        self.cutoff_idx: Optional[int] = None
         # add the steps, this will check and mod transformations
         if steps:
             for index, step in enumerate(steps):
@@ -120,6 +121,11 @@ class Pipe(SupportsPipe):
     def gen(self) -> TPipeStep:
         """A data generating step"""
         return self._steps[self._gen_idx]
+
+    @property
+    def gen_idx(self) -> int:
+        """Index of the data generating step"""
+        return self._gen_idx
 
     @property
     def tail(self) -> TPipeStep:
@@ -234,6 +240,11 @@ class Pipe(SupportsPipe):
             gen.close()
         else:
             raise UnclosablePipe(self.name, gen)
+
+    def cut_off(self, idx: int) -> None:
+        """Drops items moving into steps up to `idx`, never moves the cutoff back"""
+        if self.cutoff_idx is None or self.cutoff_idx < idx:
+            self.cutoff_idx = idx
 
     def full_pipe(self) -> "Pipe":
         """Creates a pipe that from the current and all the parent pipes."""

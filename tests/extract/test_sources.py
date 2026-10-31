@@ -1364,6 +1364,66 @@ def test_limit_yield_cleanup() -> None:
     print(state)
 
 
+@pytest.mark.parametrize("item_mode", ["async", "deferred", "nested_source"])
+def test_limit_drops_items_in_flight(item_mode: str) -> None:
+    """Items arriving after the limit is reached do not pass the steps before the limit"""
+    mapped = []
+
+    @dlt.resource
+    def r():
+        if item_mode == "nested_source":
+            yield iter(range(20))
+            return
+        for i in range(20):
+            if item_mode == "async":
+
+                async def _get_async(i: int = i) -> int:
+                    await asyncio.sleep(0.05)
+                    return i
+
+                yield _get_async()
+            else:
+
+                @dlt.defer
+                def _get_deferred(i: int = i) -> int:
+                    time.sleep(0.05)
+                    return i
+
+                yield _get_deferred()
+
+    def _record(i: int) -> int:
+        mapped.append(i)
+        return i
+
+    items = list(r().add_limit(5).add_map(_record))
+    assert len(items) == 5
+    assert mapped == items
+
+
+@pytest.mark.parametrize("limit_on", ["resource", "transformer"])
+def test_limit_zero_does_not_start_generator(limit_on: str) -> None:
+    calls = []
+
+    @dlt.resource
+    def parent():
+        calls.append("parent")
+        yield from range(3)
+
+    @dlt.transformer
+    def child(item: int):
+        calls.append("child")
+        yield item
+
+    if limit_on == "resource":
+        assert list(parent().add_limit(0)) == []
+        assert calls == []
+    else:
+        # add_limit moves the limit to the parent so we place it in the transformer pipe
+        chain = (parent() | child).add_step(LimitItem(0, None, False))
+        assert list(chain) == []
+        assert calls == ["parent"]
+
+
 def test_source_state() -> None:
     @dlt.source
     def test_source(expected_state):
