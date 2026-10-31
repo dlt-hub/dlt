@@ -131,10 +131,8 @@ class DuckDbSqlClient(SqlClientBase[duckdb.DuckDBPyConnection], DBTransaction, W
     cursor_impl: ClassVar[Type[DuckDBDBApiCursorImpl]] = DuckDBDBApiCursorImpl
     attach_type: ClassVar[TAttachType] = "duckdb"
     RESERVED_CATALOGS: ClassVar[Tuple[str, ...]] = ("memory", "system", "temp")
-    SECRET_REFRESH_MARGIN: ClassVar[timedelta] = timedelta(minutes=3)
-    """Token lifetime left when the client creates a secret with a frozen token again. Shorter
-    than the refresh windows of google-auth and azure-identity, otherwise they return the same
-    token."""
+    SECRET_REFRESH_MARGIN: ClassVar[timedelta] = timedelta(minutes=30)
+    """Token lifetime left when the client creates a secret with a frozen token again."""
 
     def __init__(
         self,
