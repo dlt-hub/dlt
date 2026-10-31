@@ -12,6 +12,7 @@ from dlt.destinations.sql_client import DBApiCursor
 from dlt.extract.source import DltSource
 from dlt.extract.resource import DltResource
 from dlt.extract.state import resource_state
+from dlt.pipeline.helpers import pipeline_drop
 from dlt.pipeline.state_sync import load_pipeline_state_from_destination
 
 from tests.pipeline.utils import (
@@ -595,6 +596,35 @@ def test_refresh_staging_dataset(destination_config: DestinationTestConfiguratio
     # tables got dropped
     with pytest.raises(DestinationUndefinedEntity):
         load_table_counts(pipeline, "data_1", "data_2")
+
+
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(default_sql_configs=True, default_staging_configs=True),
+    ids=lambda x: x.name,
+)
+@pytest.mark.parametrize("drop_mode", ("refresh", "pipeline_drop"))
+def test_drop_with_staging_dataset_without_version_table(
+    destination_config: DestinationTestConfiguration, drop_mode: str
+) -> None:
+    """Dropping tables must not fail when the staging dataset exists but was never written to."""
+    os.environ["LOAD__TRUNCATE_STAGING_DATASET"] = "true"
+    data = [{"id": 1}, {"id": 2}]
+
+    pipeline = destination_config.setup_pipeline(
+        "test_drop_without_version_table" + uniq_id(), dev_mode=True
+    )
+    resource = dlt.resource(data, name="items", write_disposition="replace")
+    assert_load_info(pipeline.run(resource, **destination_config.run_kwargs))
+
+    if drop_mode == "refresh":
+        info = pipeline.run(resource, refresh="drop_resources", **destination_config.run_kwargs)
+        assert_load_info(info)
+        assert load_table_counts(pipeline, "items") == {"items": 2}
+    else:
+        pipeline_drop(pipeline, resources=["items"])()
+        with pytest.raises(DestinationUndefinedEntity):
+            load_table_counts(pipeline, "items")
 
 
 @pytest.mark.parametrize(
