@@ -120,7 +120,7 @@ Double check that your Motherduck token is in your environment!
 
 - Local files: file:///path or a plain relative path
 - S3: s3://bucket/prefix
-- GCS: gs://bucket/prefix or gcs://bucket/prefix (**uses fsspec fallback**)
+- GCS: gs://bucket/prefix or gcs://bucket/prefix (**uses fsspec fallback** with duckdb < 1.4.0)
 - Azure ADLS Gen2: abfss://container@account.dfs.core.windows.net/prefix (**uses fsspec fallback**)
 
 Example s3 configuration:
@@ -292,7 +292,9 @@ destination = dlt.destinations.ducklake(
 You have read and write access to the data in ducklake. You can take native duckdb connection with attached catalog and authenticated
 storage using `sql_client`. This is demonstrated in examples below.
 
-[`pipeline.dataset()`](../../general-usage/dataset-access/dataset) and **ibis** handover are fully supported, giving you Python-native access to loaded data as Pandas DataFrames, PyArrow tables, or Python tuples.
+[`pipeline.dataset()`](../../general-usage/dataset-access/dataset) and **ibis** handover are fully supported, giving you Python-native access to loaded data as Pandas DataFrames, PyArrow tables, or Python tuples. You can [join](../../general-usage/dataset-access/dataset.md#join-related-tables) relations, also with [datasets on other destinations](../../general-usage/dataset-access/dataset.md#cross-destination-joins-with-duckdb).
+
+`dlt` authenticates the storage of the lake with a DuckDB secret. Read how `dlt` [refreshes a secret with an expiring token](duckdb.md#cloud-storage-secrets), for example on `gs` buckets.
 
 ### Set catalog options
 

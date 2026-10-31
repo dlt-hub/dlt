@@ -359,6 +359,18 @@ iceberg_tables = get_iceberg_tables(pipeline)
 # etc.
 ```
 
+## Data access
+
+[`pipeline.dataset()`](../../general-usage/dataset-access/dataset) reads iceberg tables with DuckDB. You get the data as Pandas DataFrames, PyArrow tables, or Python tuples, and you can [join](../../general-usage/dataset-access/dataset.md#join-related-tables) relations, also with [datasets on other destinations](../../general-usage/dataset-access/dataset.md#cross-destination-joins-with-duckdb):
+
+```py
+dataset = pipeline.dataset()
+# read an iceberg table as a PyArrow table
+items = dataset.table("items").arrow()
+```
+
+DuckDB reads the bucket with a secret that `dlt` creates from your credentials. Read how `dlt` [refreshes a secret with an expiring token](duckdb.md#cloud-storage-secrets), for example on `gs` buckets.
+
 ## Google Cloud Storage authentication
 
 Note that not all authentication methods are supported when using Iceberg on Google Cloud Storage:

@@ -416,7 +416,7 @@ dlt can join datasets that live on **different** destinations, when both use Duc
 - `lance`, `lancedb`
 - `filesystem`, including Hugging Face `hf://` buckets and the `delta` and `iceberg` open table formats
 
-`filesystem` qualifies for the `file`, `s3`, `az`, `abfss`, and `hf` protocols. dlt cannot attach `gs`, `sftp`, or `gdrive`, because those protocols read their data through an fsspec filesystem that only the local process holds.
+`filesystem` qualifies for the `file`, `s3`, `az`, `abfss`, `gs`, `gcs` (DuckDB 1.4.0 or later), and `hf` protocols. dlt cannot attach `sftp` or `gdrive`, because those protocols read their data through an fsspec filesystem that only the local process holds.
 
 How the join runs depends on whether the **output** engine can write:
 
