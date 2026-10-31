@@ -377,8 +377,14 @@ class DuckDbSqlClient(SqlClientBase[duckdb.DuckDBPyConnection], DBTransaction, W
         if "@" in scope:
             scope = scope.split("@")[0]
 
+        # a cached token may live shorter than the refresh margin
         sql, expires_at = self._build_secret(
-            scope, credentials, secret_name, persistent_stmt, persist_secrets
+            scope,
+            credentials,
+            secret_name,
+            persistent_stmt,
+            persist_secrets,
+            cached=not self._secret_expires_soon(),
         )
         if not sql:
             # could not create secret - the filesystem client falls back to fsspec
@@ -388,9 +394,14 @@ class DuckDbSqlClient(SqlClientBase[duckdb.DuckDBPyConnection], DBTransaction, W
         self._recreate_secret = recreate_secret
         return True
 
+    def _secret_expires_soon(self) -> bool:
+        """Tells if the frozen token of the secret lives shorter than the refresh margin."""
+        refresh_at = self._secret_refresh_at
+        return refresh_at is not None and datetime.now(timezone.utc) >= refresh_at
+
     def _refresh_expiring_secret(self) -> None:
         """Creates the secret again with a new token when its frozen token is about to expire."""
-        if self._secret_refresh_at and datetime.now(timezone.utc) >= self._secret_refresh_at:
+        if self._secret_expires_soon():
             self._recreate_secret()
 
     @staticmethod

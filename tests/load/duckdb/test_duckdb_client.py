@@ -1166,8 +1166,8 @@ def test_duckdb_secret_recreated_before_token_expires(scope: str, credentials_fa
         dataset_name="ds",
     )
     pipeline.run([{"id": 1}], table_name="t")
-    # the first token expires within the refresh margin
-    creds = credentials_factory(timedelta(minutes=2), timedelta(hours=1))
+    # the first token is valid but lives shorter than the refresh margin
+    creds = credentials_factory(timedelta(minutes=20), timedelta(hours=1))
     minting = creds.default_credentials()
 
     with pipeline.sql_client() as client:
