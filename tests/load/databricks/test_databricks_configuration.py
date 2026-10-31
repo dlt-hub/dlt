@@ -104,6 +104,54 @@ def test_databricks_configuration() -> None:
     assert config.is_staging_external_location is None
 
 
+@pytest.mark.parametrize(
+    "staging_volume_name",
+    [
+        pytest.param("grp_raw", id="single-part"),
+        pytest.param("catalog.volume", id="two-parts"),
+        pytest.param("catalog.database.volume.extra", id="four-parts"),
+        pytest.param("catalog..volume", id="empty-middle-part"),
+        pytest.param(".database.volume", id="empty-catalog"),
+        pytest.param("catalog.database.", id="empty-volume"),
+        pytest.param("catalog. database.volume", id="leading-whitespace"),
+        pytest.param("catalog.database.volume ", id="trailing-whitespace"),
+    ],
+)
+def test_databricks_invalid_staging_volume_name(staging_volume_name: str) -> None:
+    # a non fully qualified `staging_volume_name` must fail at config time with a clear error
+    # instead of an unpack ValueError raised later inside the load job
+    with pytest.raises(
+        ConfigurationValueError,
+        match="must be a fully qualified name in the form `catalog.database.volume`",
+    ):
+        resolve_configuration(
+            DatabricksClientConfiguration(
+                credentials=DatabricksCredentials(
+                    catalog="foo",
+                    server_hostname="foo",
+                    http_path="foo",
+                    access_token="foo",
+                ),
+                staging_volume_name=staging_volume_name,
+            )._bind_dataset_name(dataset_name="foo")
+        )
+
+
+def test_databricks_valid_staging_volume_name() -> None:
+    config = resolve_configuration(
+        DatabricksClientConfiguration(
+            credentials=DatabricksCredentials(
+                catalog="foo",
+                server_hostname="foo",
+                http_path="foo",
+                access_token="foo",
+            ),
+            staging_volume_name="catalog.database.volume",
+        )._bind_dataset_name(dataset_name="foo")
+    )
+    assert config.staging_volume_name == "catalog.database.volume"
+
+
 def test_databricks_abfss_converter() -> None:
     with pytest.raises(TerminalValueError):
         DatabricksLoadJob.ensure_databricks_abfss_url("az://dlt-ci-test-bucket")
