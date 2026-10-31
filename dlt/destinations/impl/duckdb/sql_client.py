@@ -9,9 +9,12 @@ import sqlglot.expressions as exp
 from urllib.parse import urlparse
 import math
 from contextlib import contextmanager
+from datetime import datetime, timedelta, timezone
+from functools import partial
 from typing import (
     Any,
     AnyStr,
+    Callable,
     ClassVar,
     Collection,
     Dict,
@@ -36,6 +39,7 @@ from dlt.common.configuration.specs import (
     AzureServicePrincipalCredentials,
     AzureServicePrincipalCredentialsWithoutDefaults,
     AzureCredentialsWithoutDefaults,
+    GcpCredentials,
 )
 from dlt.common.destination.client import JobClientBase
 from dlt.common.destination.utils import prepare_load_table as _prepare_load_table
@@ -127,6 +131,8 @@ class DuckDbSqlClient(SqlClientBase[duckdb.DuckDBPyConnection], DBTransaction, W
     cursor_impl: ClassVar[Type[DuckDBDBApiCursorImpl]] = DuckDBDBApiCursorImpl
     attach_type: ClassVar[TAttachType] = "duckdb"
     RESERVED_CATALOGS: ClassVar[Tuple[str, ...]] = ("memory", "system", "temp")
+    SECRET_REFRESH_MARGIN: ClassVar[timedelta] = timedelta(minutes=30)
+    """Token lifetime left when the client creates a secret with a frozen token again."""
 
     def __init__(
         self,
@@ -147,6 +153,9 @@ class DuckDbSqlClient(SqlClientBase[duckdb.DuckDBPyConnection], DBTransaction, W
         if credentials.session_timezone:
             # the database default, which each cloned session inherits and may override
             self._global_config["TimeZone"] = credentials.session_timezone
+        # duckdb cannot refresh a token frozen in a secret, so the client creates the secret again
+        self._secret_refresh_at: Optional[datetime] = None
+        self._recreate_secret: Optional[Callable[[], Any]] = None
 
     @raise_open_connection_error
     def open_connection(self) -> duckdb.DuckDBPyConnection:
@@ -255,6 +264,7 @@ class DuckDbSqlClient(SqlClientBase[duckdb.DuckDBPyConnection], DBTransaction, W
             # TODO: must provide much better refactoring of params
             query = query.replace("%s", "?")
 
+        self._refresh_expiring_secret()
         # we can't duplicate connection because local settings (ie. search path) are lost
         cur = self._conn
         try:
@@ -361,17 +371,38 @@ class DuckDbSqlClient(SqlClientBase[duckdb.DuckDBPyConnection], DBTransaction, W
         if persist_secrets:
             persistent_stmt = " PERSISTENT "
 
+        recreate_secret = partial(
+            self.create_secret, scope, credentials, secret_name, persist_secrets
+        )
         if "@" in scope:
             scope = scope.split("@")[0]
 
-        sql = self._build_secret_statements(
-            scope, credentials, secret_name, persistent_stmt, persist_secrets
+        # a cached token may live shorter than the refresh margin
+        sql, expires_at = self._build_secret(
+            scope,
+            credentials,
+            secret_name,
+            persistent_stmt,
+            persist_secrets,
+            cached=not self._secret_expires_soon(),
         )
         if not sql:
             # could not create secret - the filesystem client falls back to fsspec
             return False
         self._conn.sql(";\n".join(sql))
+        self._secret_refresh_at = expires_at - self.SECRET_REFRESH_MARGIN if expires_at else None
+        self._recreate_secret = recreate_secret
         return True
+
+    def _secret_expires_soon(self) -> bool:
+        """Tells if the frozen token of the secret lives shorter than the refresh margin."""
+        refresh_at = self._secret_refresh_at
+        return refresh_at is not None and datetime.now(timezone.utc) >= refresh_at
+
+    def _refresh_expiring_secret(self) -> None:
+        """Creates the secret again with a new token when its frozen token is about to expire."""
+        if self._secret_expires_soon():
+            self._recreate_secret()
 
     @staticmethod
     def _build_secret_statements(
@@ -381,13 +412,32 @@ class DuckDbSqlClient(SqlClientBase[duckdb.DuckDBPyConnection], DBTransaction, W
         persistent_stmt: str,
         persist_secrets: bool,
     ) -> List[str]:
+        """Builds `CREATE SECRET` statements that the caller keeps, with a new frozen token, see
+        `_build_secret`."""
+        sql, _ = DuckDbSqlClient._build_secret(
+            scope, credentials, secret_name, persistent_stmt, persist_secrets, cached=False
+        )
+        return sql
+
+    @staticmethod
+    def _build_secret(
+        scope: str,
+        credentials: FileSystemCredentials,
+        secret_name: str,
+        persistent_stmt: str,
+        persist_secrets: bool,
+        cached: bool = True,
+    ) -> Tuple[List[str], Optional[datetime]]:
         """Builds `CREATE SECRET` statements for `scope`/`credentials`, empty when none apply.
+        Returns the statements and the expiry of the token they freeze, if any. With `cached`, a
+        frozen gcs token may come from an earlier call.
 
         Default credentials hand over to DuckDB's `credential_chain` (which refreshes); static
         and external-session credentials are frozen.
         """
         protocol = urlparse(scope).scheme
         sql: List[str] = []
+        expires_at: Optional[datetime] = None
 
         # add secrets required for creating views
         if protocol == "s3":
@@ -452,16 +502,15 @@ class DuckDbSqlClient(SqlClientBase[duckdb.DuckDBPyConnection], DBTransaction, W
             ):
                 if credentials.is_external_session():
                     # DuckDB's chain cannot resolve a user-passed credential, so freeze a bearer
-                    access_token = (
-                        credentials.default_credentials()
-                        .get_token("https://storage.azure.com/.default")
-                        .token
+                    access_token = credentials.default_credentials().get_token(
+                        "https://storage.azure.com/.default"
                     )
+                    expires_at = datetime.fromtimestamp(access_token.expires_on, timezone.utc)
                     sql.append(f"""
                     CREATE OR REPLACE {persistent_stmt} SECRET {secret_name} (
                         TYPE AZURE,
                         PROVIDER access_token,
-                        ACCESS_TOKEN '{access_token}',
+                        ACCESS_TOKEN '{access_token.token}',
                         ACCOUNT_NAME '{credentials.azure_storage_account_name}',
                         SCOPE '{scope}'
                     )""")
@@ -505,6 +554,20 @@ class DuckDbSqlClient(SqlClientBase[duckdb.DuckDBPyConnection], DBTransaction, W
                 TOKEN '{credentials.hf_token}'
             )""")
 
+        elif (
+            protocol in ["gs", "gcs"]
+            and not persist_secrets
+            and Version(duckdb.__version__) >= Version("1.4.0")
+        ):
+            # DuckDB has no google credential chain, so freeze a bearer token
+            token, expires_at = cast(GcpCredentials, credentials).to_gcs_bearer_token(cached)
+            sql.append(f"""
+            CREATE OR REPLACE SECRET {secret_name} (
+                TYPE GCS,
+                BEARER_TOKEN '{token}',
+                SCOPE '{scope}'
+            )""")
+
         elif persist_secrets:
             raise ValueError(
                 "Cannot create persistent secret for filesystem protocol"
@@ -512,7 +575,7 @@ class DuckDbSqlClient(SqlClientBase[duckdb.DuckDBPyConnection], DBTransaction, W
                 " with gs/gcs, please use the s3 compatibility layer."
             )
 
-        return sql
+        return sql, expires_at
 
     def use_dataset(self) -> None:
         """Makes duckdb schema corresponding to dataset_name the default"""
@@ -830,6 +893,8 @@ class WithTableScanners(DuckDbSqlClient, WithSchemas):
     @contextmanager
     @raise_database_error
     def execute_query(self, query: AnyStr, *args: Any, **kwargs: Any) -> Iterator[DBApiCursor]:
+        # views below read the data, so they need a valid token too
+        self._refresh_expiring_secret()
         # skip parametrized queries, we could also render them but currently user is not able to
         # do parametrized queries via dataset interface
         if args or kwargs:
