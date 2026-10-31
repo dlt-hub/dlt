@@ -102,18 +102,17 @@ class DuckDBDBApiCursorImpl(DBApiCursorImpl):
             yield df
 
     def iter_arrow(self, chunk_size: int) -> Generator["ArrowTable", None, None]:
+        # duckdb 1.5 introduces `to_arrow_table` which become mandatory from 2.0 onward
+        new_api = Version(duckdb.__version__) >= Version("1.5.0")
         if not chunk_size:
-            yield self.native_cursor.fetch_arrow_table()
+            method = "to_arrow_table" if new_api else "fetch_arrow_table"
+            yield getattr(self.native_cursor, method)()
             return
         # resolve pa at runtime; `ArrowTable` is a TYPE_CHECKING-only alias above
         from dlt.common.libs.pyarrow import pyarrow as pa
 
         # iterate
-        method = (
-            "to_arrow_reader"
-            if Version(duckdb.__version__) >= Version("1.5.0")
-            else "fetch_record_batch"
-        )
+        method = "to_arrow_reader" if new_api else "fetch_record_batch"
         for item in getattr(self.native_cursor, method)(chunk_size):
             yield pa.Table.from_batches([item])
 
@@ -306,7 +305,7 @@ class DuckDbSqlClient(SqlClientBase[duckdb.DuckDBPyConnection], DBTransaction, W
     @raise_database_error
     def list_secrets(self) -> Sequence[str]:
         """List secrets that belong to this dataset"""
-        secrets = self._conn.sql(
+        secrets = self._conn.execute(
             f"SELECT name FROM duckdb_secrets() WHERE name LIKE '{self.dataset_name}%'"
         ).fetchall()
         return [s[0] for s in secrets]
@@ -319,7 +318,7 @@ class DuckDbSqlClient(SqlClientBase[duckdb.DuckDBPyConnection], DBTransaction, W
                 f" `{secret_name}`."
             )
 
-        self._conn.sql(f"DROP SECRET {secret_name}")
+        self._conn.execute(f"DROP SECRET {secret_name}")
 
     @raise_database_error
     def create_secret(
@@ -339,7 +338,7 @@ class DuckDbSqlClient(SqlClientBase[duckdb.DuckDBPyConnection], DBTransaction, W
             )
 
         secrets_path = Path(
-            self._conn.sql(
+            self._conn.execute(
                 "SELECT current_setting('secret_directory') AS secret_directory"
             ).fetchone()[0]
         )
@@ -370,7 +369,7 @@ class DuckDbSqlClient(SqlClientBase[duckdb.DuckDBPyConnection], DBTransaction, W
         if not sql:
             # could not create secret - the filesystem client falls back to fsspec
             return False
-        self._conn.sql(";\n".join(sql))
+        self._conn.execute(";\n".join(sql))
         return True
 
     @staticmethod
@@ -517,7 +516,7 @@ class DuckDbSqlClient(SqlClientBase[duckdb.DuckDBPyConnection], DBTransaction, W
     def use_dataset(self) -> None:
         """Makes duckdb schema corresponding to dataset_name the default"""
         fq_name = self.fully_qualified_dataset_name()
-        self._conn.sql(f"SET search_path = '{fq_name}'")
+        self._conn.execute(f"SET search_path = '{fq_name}'")
 
     def _register_filesystem(self, fs: AbstractFileSystem, scheme: str) -> None:
         protocols = [fs.protocol] if isinstance(fs.protocol, str) else fs.protocol

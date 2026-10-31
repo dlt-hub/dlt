@@ -135,6 +135,8 @@ The `Dataset` and `Relation` objects read no data when you create them. The read
 
 To handle large datasets efficiently, you can process data in smaller chunks.
 
+`chunk_size` is a target and not an exact size: depending on the destination, data frame and Arrow chunks may contain more or fewer rows.
+
 ### Iterate as Pandas DataFrames
 
 ```py notype

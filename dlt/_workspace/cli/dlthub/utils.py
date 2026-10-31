@@ -61,7 +61,7 @@ def workspace_deps() -> List[str]:
     """Deps `dlthub init` seeds into the scaffolded project, mirrored in `[dependency-groups] workspace-deps`."""
     # packages the launchers also add carry the launcher floors and dlt's extra bounds
     return [
-        "duckdb>=0.9,<2",
+        "duckdb>=0.9",
         floored_spec("ibis-framework"),
         dlt_extra_specs("parquet")["pyarrow"],
         floored_spec("marimo"),
