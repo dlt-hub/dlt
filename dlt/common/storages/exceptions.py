@@ -124,6 +124,12 @@ class LoadPackageNotCompleted(LoadStorageException):
         )
 
 
+class LoadPackageInconsistent(LoadStorageException):
+    def __init__(self, load_id: str, msg: str) -> None:
+        self.load_id = load_id
+        super().__init__(f"Package with `{load_id=:}` is in an inconsistent state: {msg}")
+
+
 class SchemaStorageException(StorageException):
     pass
 

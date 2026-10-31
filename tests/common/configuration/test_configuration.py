@@ -851,7 +851,7 @@ def test_raises_on_unresolved_field(environment: Any, env_provider: ConfigProvid
     # has only one trace
     trace = cf_missing_exc.value.traces["NoneConfigVar"]
     assert len(trace) == 1
-    assert trace[0] == LookupTrace("Environment Variables", [], "NONECONFIGVAR", None)
+    assert trace[0] == LookupTrace("Environment Variables", [], "NONECONFIGVAR", None, "")
 
     # check the exception trace
     exception_traces = get_exception_trace_chain(cf_missing_exc.value)
@@ -897,6 +897,7 @@ def test_raises_on_many_unresolved_fields(
             [],
             environ_provider.EnvironProvider.get_key_name(exp_field),
             None,
+            "",
         )
         # field must be in exception trace
         assert tr_field in exception_trace["exception_attrs"]["fields"]
@@ -940,7 +941,7 @@ def test_raises_on_unresolved_embedded_configuration(
     trace = nested_traces[0].traces["secret_value"]
     assert len(trace) == 1
     assert trace[0] == LookupTrace(
-        "Environment Variables", ["secret"], "SECRET__SECRET_VALUE", None
+        "Environment Variables", ["secret"], "SECRET__SECRET_VALUE", None, ""
     )
 
     # check the exception trace
@@ -1376,24 +1377,32 @@ def test_resolved_trace(environment: Any) -> None:
         return tracer._get_log_as_dict(tracer.resolved_traces)
 
     prov_name = environ_provider.EnvironProvider().name
+    # env provider does not know exact locations of values
     assert _resolved_traces()[".default"] == ResolvedValueTrace(
-        "default", "DEF", "_DEFF", str, [], prov_name, c
+        "default", "DEF", "_DEFF", str, [], prov_name, c, ""
     )
     assert _resolved_traces()["instrumented.head"] == ResolvedValueTrace(
-        "head", "h", None, str, ["instrumented"], prov_name, c.instrumented
+        "head", "h", None, str, ["instrumented"], prov_name, c.instrumented, ""
     )
     # value is before casting
     assert _resolved_traces()["instrumented.tube"] == ResolvedValueTrace(
-        "tube", '["tu", "u", "be"]', None, List[str], ["instrumented"], prov_name, c.instrumented
+        "tube",
+        '["tu", "u", "be"]',
+        None,
+        List[str],
+        ["instrumented"],
+        prov_name,
+        c.instrumented,
+        "",
     )
     assert deserialize_value(
         "tube", _resolved_traces()["instrumented.tube"].value, resolve.extract_inner_hint(List[str])
     ) == ["tu", "u", "be"]
     assert _resolved_traces()["instrumented.heels"] == ResolvedValueTrace(
-        "heels", "xhe", None, str, ["instrumented"], prov_name, c.instrumented
+        "heels", "xhe", None, str, ["instrumented"], prov_name, c.instrumented, ""
     )
     assert _resolved_traces()["sectioned.password"] == ResolvedValueTrace(
-        "password", "passwd", None, str, ["sectioned"], prov_name, c.sectioned
+        "password", "passwd", None, str, ["sectioned"], prov_name, c.sectioned, ""
     )
     assert len(_resolved_traces()) == 5
 
@@ -1411,14 +1420,14 @@ def test_resolved_trace(environment: Any) -> None:
             resolve.resolve_configuration(InstrumentedConfiguration())
 
     assert _resolved_traces()[".default"] == ResolvedValueTrace(
-        "default", "UNDEF", None, str, [], prov_name, c
+        "default", "UNDEF", None, str, [], prov_name, c, ""
     )
     assert _resolved_traces()[".instrumented"] == ResolvedValueTrace(
-        "instrumented", "h>t>t>t>he", None, InstrumentedConfiguration, [], prov_name, c
+        "instrumented", "h>t>t>t>he", None, InstrumentedConfiguration, [], prov_name, c, ""
     )
 
     assert _resolved_traces()[".snake"] == ResolvedValueTrace(
-        "snake", "h>t>t>t>he", None, InstrumentedConfiguration, [], prov_name, None
+        "snake", "h>t>t>t>he", None, InstrumentedConfiguration, [], prov_name, None, ""
     )
 
 

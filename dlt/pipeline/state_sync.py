@@ -92,6 +92,13 @@ def migrate_pipeline_state(
     return cast(TPipelineState, state)
 
 
+def migrate_state_to_current(pipeline_name: str, state: DictStrAny) -> TPipelineState:
+    """Migrates a decoded state dict from its own engine version to the current one."""
+    return migrate_pipeline_state(
+        pipeline_name, state, state["_state_engine_version"], PIPELINE_STATE_ENGINE_VERSION
+    )
+
+
 def state_doc(state: TPipelineState, load_id: str = None) -> TPipelineStateDoc:
     state = copy(state)
     state.pop("_local")
@@ -131,9 +138,7 @@ def load_pipeline_state_from_destination(
     if not state:
         return None
     s = decompress_state(state.state)
-    return migrate_pipeline_state(
-        pipeline_name, s, s["_state_engine_version"], PIPELINE_STATE_ENGINE_VERSION
-    )
+    return migrate_state_to_current(pipeline_name, s)
 
 
 def default_pipeline_state() -> TPipelineState:

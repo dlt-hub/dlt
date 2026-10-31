@@ -1,7 +1,10 @@
+from decimal import Decimal
 from typing import List, Any, Dict
 import dlt, os
 import pytest
 
+from dlt.common.schema.utils import has_table_seen_data
+from dlt.common.typing import TRefreshMode
 from dlt.common.utils import uniq_id
 
 from tests.pipeline.utils import assert_load_info
@@ -139,6 +142,106 @@ def test_import_schema_is_respected() -> None:
     assert export_schema.tables["person"]["columns"]["name"]["data_type"] == "text"
 
 
+@pytest.mark.parametrize(
+    "edit_in_refresh_run",
+    [False, True],
+    ids=["import_applied_before", "import_edited_in_refresh_run"],
+)
+@pytest.mark.parametrize("refresh", ["drop_sources", "drop_resources"])
+def test_refresh_recreates_tables_from_import_schema(
+    refresh: TRefreshMode, edit_in_refresh_run: bool
+) -> None:
+    """Tables dropped by refresh are recreated from the import schema and the resource hints,
+    for tables inside and outside of the import schema."""
+
+    @dlt.resource
+    def runs():
+        yield {"id": 1}
+
+    @dlt.resource(
+        columns={"rate": {"data_type": "decimal", "precision": 18, "scale": 6, "nullable": False}}
+    )
+    def prices():
+        yield {"label": "a", "rate": Decimal("0.004")}
+
+    @dlt.source
+    def actions(with_prices: bool):
+        return [runs, prices] if with_prices else [runs]
+
+    p = dlt.pipeline(
+        pipeline_name="schema_test" + uniq_id(),
+        destination="duckdb",
+        import_schema_path=IMPORT_SCHEMA_PATH,
+        export_schema_path=EXPORT_SCHEMA_PATH,
+    )
+    # the first run writes the import schema, so `prices` stays outside of it
+    p.run(actions(with_prices=False))
+    p.run(actions(with_prices=True))
+    import_schema = _get_import_schema("actions")
+    assert "prices" not in import_schema.tables
+    runs_table = import_schema.tables["runs"]
+    runs_table["description"] = "workflow runs"
+    runs_table["columns"]["id"] = {"name": "id", "data_type": "text", "description": "run id"}
+    with open(os.path.join(IMPORT_SCHEMA_PATH, "actions.schema.yaml"), "w", encoding="utf-8") as f:
+        f.write(import_schema.to_pretty_yaml())
+
+    def assert_schema_hints() -> None:
+        schema = p.default_schema
+        assert schema.tables["runs"]["description"] == "workflow runs"
+        assert schema.tables["runs"]["columns"]["id"]["data_type"] == "text"
+        assert schema.tables["runs"]["columns"]["id"]["description"] == "run id"
+        rate = schema.tables["prices"]["columns"]["rate"]
+        assert (rate["precision"], rate["scale"], rate["nullable"]) == (18, 6, False)
+        assert schema._imported_version_hash == _get_import_schema("actions").version_hash
+
+    if not edit_in_refresh_run:
+        # applies the edited import schema
+        p.run(actions(with_prices=True))
+        assert_schema_hints()
+
+    p.run(actions(with_prices=True), refresh=refresh)
+    assert_schema_hints()
+    # both tables were recreated in the destination
+    with p.sql_client() as client:
+        rows = client.execute_sql(
+            "SELECT table_name, column_name, data_type, is_nullable FROM information_schema.columns"
+            " WHERE table_schema = %s AND column_name IN ('id', 'rate') ORDER BY table_name",
+            p.dataset_name,
+        )
+    assert rows == [("prices", "rate", "DECIMAL(18,6)", "NO"), ("runs", "id", "VARCHAR", "YES")]
+
+
+def test_import_schema_seen_data_after_dataset_dropped() -> None:
+    """A changed import schema keeps that a table seen data. When the dataset is dropped, the
+    pipeline sync wipes the pipeline and the schema is imported again without that hint."""
+    name = "schema_test" + uniq_id()
+    p = dlt.pipeline(
+        pipeline_name=name,
+        destination="duckdb",
+        import_schema_path=IMPORT_SCHEMA_PATH,
+        export_schema_path=EXPORT_SCHEMA_PATH,
+    )
+    p.run(EXAMPLE_DATA, table_name="person")
+    import_schema = _get_import_schema(name)
+    import_schema.tables["person"]["description"] = "people"
+    with open(os.path.join(IMPORT_SCHEMA_PATH, name + ".schema.yaml"), "w", encoding="utf-8") as f:
+        f.write(import_schema.to_pretty_yaml())
+    person = p.default_schema.tables["person"]
+    assert person["description"] == "people"
+    assert has_table_seen_data(person)
+
+    with p.destination_client() as client:
+        client.drop_storage()
+    p.sync_destination()
+    assert p.default_schema_name is None
+    person = p.schemas[name].tables["person"]
+    assert person["description"] == "people"
+    assert not has_table_seen_data(person)
+
+    assert_load_info(p.run(EXAMPLE_DATA, table_name="person"))
+    assert has_table_seen_data(p.default_schema.tables["person"])
+
+
 def test_only_explicit_hints_in_import_schema() -> None:
     @dlt.source(schema_contract={"columns": "evolve"})
     def source():
@@ -231,7 +334,7 @@ def test_import_schema_preserves_max_nesting(table_nesting: int) -> None:
     # Add nested field
     @dlt.resource(max_table_nesting=table_nesting, table_name="my_table")
     def nested_data():
-        nested_example_data = EXAMPLE_DATA[0]
+        nested_example_data = dict(EXAMPLE_DATA[0])
         nested_example_data["children"] = [{"id": 2, "name": "Max"}, {"id": 3, "name": "Julia"}]
         yield nested_example_data
 
@@ -268,7 +371,7 @@ def test_empty_column_later_becoming_child_table_removed() -> None:
 
     @dlt.resource(table_name="my_table")
     def nested_data(with_grandchild: bool):
-        nested_example_data = EXAMPLE_DATA[0]
+        nested_example_data = dict(EXAMPLE_DATA[0])
         children_list: List[Dict[str, Any]] = [{"id": 2, "name": "Max"}]
         nested_example_data[col_a] = children_list
         if with_grandchild:

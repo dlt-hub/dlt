@@ -123,6 +123,17 @@ class ResourceNameMissing(DltResourceException):
         )
 
 
+class DataLocationKindRequired(DltResourceException):
+    def __init__(self, resource_name: str) -> None:
+        super().__init__(
+            resource_name,
+            f"Resource `{resource_name}` does not belong to a source, so `kind` of a recorded data"
+            " location cannot default to the source name. Pass `kind` explicitly. Note that a"
+            " resource joins its source only after the source function returns, so the default is"
+            " not available to code recording inputs while the source is still being created.",
+        )
+
+
 class ResourceNotFoundError(DltResourceException, KeyError):
     def __init__(self, resource_name: str, context: str) -> None:
         self.resource_name = resource_name
@@ -264,7 +275,7 @@ class InvalidParentResourceIsAFunction(DltResourceException):
 class DeletingResourcesNotSupported(DltResourceException):
     def __init__(self, source_name: str, resource_name: str) -> None:
         super().__init__(
-            resource_name, f"Resource cannot be removed the the source `{source_name}`"
+            resource_name, f"Resource cannot be removed from the source `{source_name}`"
         )
 
 
@@ -303,6 +314,20 @@ class DataItemRequiredForDynamicTableHints(DltResourceException):
             " the `@dlt.resource` decorator is set by a function), but the data to generate the"
             " hint is missing. Make sure that each data item contains the necessary field to"
             " compute the dynamic hint value.",
+        )
+
+
+class ExtraPlaceholderError(DltResourceException):
+    def __init__(
+        self, resource_name: str, table_name: str, placeholder: str, error: Exception
+    ) -> None:
+        self.table_name = table_name
+        self.placeholder = placeholder
+        super().__init__(
+            resource_name,
+            f"The function of the merge placeholder `{placeholder}` of resource `{resource_name}`"
+            f" raised for table `{table_name}`: {type(error).__name__}: {error}. Fix this function"
+            " in `write_disposition['extra_placeholders']`.",
         )
 
 

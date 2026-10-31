@@ -2,8 +2,11 @@ from copy import deepcopy
 import itertools
 import inspect
 import binascii
+import sys
+from importlib.machinery import ModuleSpec
+from types import FunctionType, ModuleType
 import pytest
-from typing import Any, Dict
+from typing import Any, Callable, Dict, List, Tuple
 from dlt.common.exceptions import PipelineException, TerminalValueError
 
 from dlt.common.runners import Venv
@@ -17,13 +20,17 @@ from dlt.common.utils import (
     is_typeerror_due_to_wrong_call,
     map_nested_values_in_place,
     map_nested_keys_in_place,
+    map_nested_dicts_in_place,
     reveal_pseudo_secret,
     obfuscate_pseudo_secret,
     get_module_name,
+    get_full_callable_name,
+    get_main_module_name,
     concat_strings_with_limit,
     increase_row_count,
     merge_row_counts,
     extend_list_deduplicated,
+    merge_keyed_groups,
     get_exception_trace,
     get_exception_trace_chain,
     update_dict_nested,
@@ -88,6 +95,36 @@ def test_map_dicts_in_place() -> None:
         map_nested_keys_in_place(lambda k: k * 2, "a")
 
 
+@pytest.mark.parametrize(
+    "max_nesting,expected_order",
+    [(None, [1, 2, 3, 1]), (2, [1, 2, 1]), (0, [])],
+    ids=["all-levels", "two-levels", "no-levels"],
+)
+def test_map_nested_dicts_in_place(max_nesting: int, expected_order: List[int]) -> None:
+    """Maps the dicts in lists, recursing through dicts without counting a level. A list in a
+    list counts a level. A dict is mapped after its nested dicts and replaced by the result."""
+    _nested: Dict[str, Any] = {
+        "a": 1,
+        "d": {"l": [{"lvl": 1}]},
+        "l": [{"lvl": 1, "l": [{"lvl": 2}, "s", [{"lvl": 3}]]}],
+    }
+    order: List[int] = []
+
+    def _tag(d: Dict[str, Any], tag: str) -> Dict[str, Any]:
+        order.append(d["lvl"])
+        return {**d, "tag": tag}
+
+    assert map_nested_dicts_in_place(_tag, _nested, "x", max_nesting=max_nesting) is _nested
+    assert order == expected_order
+    # a dict in a dict is not mapped
+    assert "tag" not in _nested["d"]
+    tagged = {1: _nested["l"][0], 2: _nested["l"][0]["l"][0], 3: _nested["l"][0]["l"][2][0]}
+    assert {lvl for lvl, d in tagged.items() if d.get("tag") == "x"} == set(expected_order)
+
+    with pytest.raises(ValueError):
+        map_nested_dicts_in_place(_tag, "a")
+
+
 def test_pseudo_obfuscation() -> None:
     pseudo_key = b"test-key"
     value = "test test test"
@@ -109,9 +146,69 @@ def test_get_module_name() -> None:
     assert get_module_name(m) == "uniq_mod_121"
 
     # use exec to get __main__ exception
-    mod_name = Venv.restore_current().run_script("tests/common/cases/modules/uniq_mod_121.py")
-    # take last non-empty line: dep warnings may appear on stderr (merged into stdout)
-    assert mod_name.strip().splitlines()[-1] == "uniq_mod_121"
+    output = Venv.restore_current().run_script("tests/common/cases/modules/uniq_mod_121.py")
+    # take last non-empty lines: dep warnings may appear on stderr (merged into stdout)
+    lines = output.strip().splitlines()
+    assert lines[-1] == "uniq_mod_121"
+    # a script has no module spec to recover the module name from
+    assert lines[-2] == "__main__.find_my_module"
+
+
+def test_get_full_callable_name() -> None:
+    from tests.common.cases.modules.uniq_mod_121 import find_my_module
+
+    assert (
+        get_full_callable_name(find_my_module)
+        == "tests.common.cases.modules.uniq_mod_121.find_my_module"
+    )
+    assert get_full_callable_name(len) == "len"
+
+    def inner() -> None:
+        pass
+
+    assert (
+        get_full_callable_name(inner)
+        == "tests.common.test_utils.test_get_full_callable_name.<locals>.inner"
+    )
+
+    # run with -m: named after the module it was run as
+    output = Venv.restore_current().run_module("tests.common.cases.modules.uniq_mod_121")
+    assert (
+        output.strip().splitlines()[-2] == "tests.common.cases.modules.uniq_mod_121.find_my_module"
+    )
+
+
+def _gen_in_main() -> Any:
+    yield 1
+
+
+@pytest.mark.parametrize(
+    "spec,expected",
+    [
+        (ModuleSpec("pkg.mod", None), "pkg.mod"),
+        (ModuleSpec("pkg.__main__", None), "pkg.__main__"),
+        (None, "__main__"),
+        (ModuleSpec("__main__", None), "__main__"),
+    ],
+    ids=["python_m_module", "python_m_package", "script_or_notebook", "pool_runner_spec"],
+)
+def test_get_main_module_name(
+    monkeypatch: pytest.MonkeyPatch, spec: ModuleSpec, expected: str
+) -> None:
+    main = ModuleType("__main__")
+    main.__spec__ = spec
+    monkeypatch.setitem(sys.modules, "__main__", main)
+    assert get_main_module_name() == expected
+
+    # a function defined in __main__ is named after it
+    in_main = FunctionType(_gen_in_main.__code__, {"__name__": "__main__"}, "in_main")
+    assert in_main.__module__ == "__main__"
+    assert get_full_callable_name(in_main) == f"{expected}.{in_main.__qualname__}"
+
+
+def test_get_main_module_name_without_main(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delitem(sys.modules, "__main__")
+    assert get_main_module_name() == "__main__"
 
 
 def test_concat_strings_with_limit() -> None:
@@ -238,6 +335,44 @@ def test_merge_row_counts() -> None:
     assert rc1 == {"table1": 3, "table2": 8, "table3": 20}
     merge_row_counts(rc1, {"table2": 5, "table3": 20, "table4": 2})
     assert rc1 == {"table1": 3, "table2": 13, "table3": 40, "table4": 2}
+
+
+def test_merge_keyed_groups_keeps_the_position_of_a_replaced_group() -> None:
+    """Order carries meaning for the callers (attach statements run in sequence). A replaced
+    group takes the place of the group that it supersedes. Only genuinely new keys go to the
+    end."""
+    key_f: Callable[[Tuple[str, str]], str] = lambda item: item[0]
+    original = [("ext", "load"), ("secret", "s1"), ("secret", "s2"), ("attach", "a"), ("v1", "v")]
+
+    # `merge_keyed_groups` swaps the whole group in place, however many items it had
+    merged, changed = merge_keyed_groups(original, [("secret", "rotated")], key_f)
+    assert merged == [("ext", "load"), ("secret", "rotated"), ("attach", "a"), ("v1", "v")]
+    assert changed == [("secret", "rotated")]
+
+    # a new key lands at the end, behind everything that was already there
+    merged, changed = merge_keyed_groups(original, [("v2", "w")], key_f)
+    assert merged == original + [("v2", "w")]
+    assert changed == [("v2", "w")]
+
+    # one call that replaces and adds keeps both rules
+    merged, _ = merge_keyed_groups(original, [("secret", "rotated"), ("v2", "w")], key_f)
+    assert merged == [
+        ("ext", "load"),
+        ("secret", "rotated"),
+        ("attach", "a"),
+        ("v1", "v"),
+        ("v2", "w"),
+    ]
+
+    # `merge_keyed_groups` does not move an unchanged group and reports no change
+    merged, changed = merge_keyed_groups(original, [("attach", "a")], key_f)
+    assert merged == original
+    assert changed == []
+
+    # a group scattered through the list collapses onto its first position
+    scattered = [("k1", "a"), ("k2", "b"), ("k1", "c")]
+    merged, _ = merge_keyed_groups(scattered, [("k1", "new")], key_f)
+    assert merged == [("k1", "new"), ("k2", "b")]
 
 
 def test_extend_list_deduplicated() -> None:

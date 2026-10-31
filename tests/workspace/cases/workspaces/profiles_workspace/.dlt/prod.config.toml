@@ -1,0 +1,6 @@
+[destination.filesystem]
+bucket_url="memory:///prod_bucket"
+
+[jobs.profile_jobs.config_probe]
+days=7
+incremental_mode="pipeline"

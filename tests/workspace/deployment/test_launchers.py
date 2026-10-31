@@ -14,19 +14,35 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 import dlt
+from dlt.common import known_env
+from dlt.common.time import InvalidTimezoneName
 from dlt._workspace.deployment._run_helpers import build_runtime_entry_point
+from dlt._workspace.deployment.launchers._launcher import (
+    apply_job_configuration,
+    prepare_run_env,
+)
 from dlt._workspace.deployment.exceptions import JobResolutionError
 from dlt._workspace.deployment.launchers.job import run as job_run
-from dlt._workspace.deployment.typing import TJobDefinition, TRuntimeEntryPoint
+from dlt._workspace.deployment.typing import (
+    MANIFEST_ENGINE_VERSION,
+    TInstallSpec,
+    TJobDefinition,
+    TRuntimeEntryPoint,
+)
 from dlt.common.exceptions import SignalReceivedException
 from dlt.common.runtime import signals
 from dlt.pipeline.exceptions import PipelineStepFailed
 
-from tests.utils import skipifwindows
+from tests.utils import preserve_environ, skipifwindows
 from tests.workspace.cases.runtime_workspace import batch_jobs
-from tests.workspace.utils import isolated_workspace
+from tests.workspace.utils import (
+    importable_workspace,
+    isolated_workspace,
+    restore_clean_workspace,
+)
 
 WORKSPACE = "tests.workspace.cases.runtime_workspace"
+_DLT_SPEC: TInstallSpec = {"name": "dlt", "extras": [], "version": dlt.__version__, "mode": "pypi"}
 
 
 def _entry(
@@ -36,7 +52,8 @@ def _entry(
     **run_args: object,
 ) -> TRuntimeEntryPoint:
     """Helper to build TRuntimeEntryPoint dicts for tests."""
-    ep: TRuntimeEntryPoint = {"module": module, "function": function, "job_type": job_type}  # type: ignore[typeddict-item]
+    job_ref = f"jobs.{module.rsplit('.', 1)[-1]}" + (f".{function}" if function else "")
+    ep: TRuntimeEntryPoint = {"module": module, "function": function, "job_type": job_type, "job_ref": job_ref}  # type: ignore[typeddict-item]
     if run_args:
         ep["run_args"] = run_args  # type: ignore[typeddict-item]
     return ep
@@ -127,12 +144,62 @@ def test_job_launcher_no_interval() -> None:
     assert result == "no_interval"
 
 
+@pytest.mark.parametrize(
+    "iv_tz,expected_stored",
+    [
+        ("Europe/Berlin", "2024-01-15T23:30:00+01:00"),
+        ("America/New_York", "2024-01-15T23:30:00-05:00"),
+        ("UTC", "2024-01-15T23:30:00+00:00"),
+    ],
+    ids=["berlin-cet", "new-york-est", "utc"],
+)
+def test_job_launcher_stores_values_in_declared_timezone(iv_tz: str, expected_stored: str) -> None:
+    """`require.timezone` decides the context timezone for the job."""
+    ep = _entry(f"{WORKSPACE}.batch_jobs", "timezone_aware")
+    ep["interval_start"] = "2024-01-15T00:00:00Z"
+    ep["interval_end"] = "2024-01-16T00:00:00Z"
+    ep["interval_timezone"] = iv_tz
+    result = job_run(ep, run_id=f"tz-job-{iv_tz}", trigger="schedule:0 0 * * *")
+    assert f"stored={expected_stored}" in result
+    # the launcher injects the context, it does not only rely on env
+    assert "tz_ctx=True" in result
+
+
+@pytest.mark.parametrize("with_interval", [True, False], ids=["interval", "no-interval"])
+def test_job_launcher_rejects_invalid_timezone(with_interval: bool) -> None:
+    """A bad `require.timezone` fails in the launcher, before the job body runs."""
+    ep = _entry(f"{WORKSPACE}.batch_jobs", "timezone_aware")
+    ep["interval_timezone"] = "Nowhere/Bogus"
+    if with_interval:
+        ep["interval_start"] = "2024-01-15T00:00:00Z"
+        ep["interval_end"] = "2024-01-16T00:00:00Z"
+    with pytest.raises(InvalidTimezoneName) as exc:
+        job_run(ep, run_id="tz-bad", trigger="manual:")
+    assert exc.value.timezone == "Nowhere/Bogus"
+
+
+@pytest.mark.parametrize(
+    "trigger", ["manual:", "job:some_other_job.success"], ids=["manual", "on-success"]
+)
+def test_job_launcher_timezone_without_interval(trigger: str) -> None:
+    """A trigger that generates no interval must still carry `require.timezone` into the job."""
+    ep = _entry(f"{WORKSPACE}.batch_jobs", "timezone_aware")
+    ep["interval_timezone"] = "Europe/Berlin"
+    result = job_run(ep, run_id=f"tz-no-iv-{trigger}", trigger=trigger)
+
+    assert "tz=Europe/Berlin" in result
+    assert "stored=2024-01-15T23:30:00+01:00" in result
+    assert "tz_ctx=True" in result
+    assert os.environ["DLT_INTERVAL_TIMEZONE"] == "Europe/Berlin"
+    assert known_env.DLT_INTERVAL_START not in os.environ
+
+
 def test_job_launcher_interval_forces_incremental_join() -> None:
-    """Launcher honors `entry_point["allow_external_schedulers"]` so incrementals join."""
+    """Launcher honors interval incremental mode in entry point so incrementals join."""
     ep = _entry(f"{WORKSPACE}.batch_jobs", "incremental_interval_job")
     ep["interval_start"] = "2024-01-15T00:00:00Z"
     ep["interval_end"] = "2024-01-16T00:00:00Z"
-    ep["allow_external_schedulers"] = True
+    ep["incremental_mode"] = "interval"
     result = job_run(ep, run_id="inc-iv-1", trigger="schedule:0 0 * * *")
     # incremental joined the scheduler: initial_value and end_value come from the interval
     assert "iv=2024-01-15" in result
@@ -140,23 +207,35 @@ def test_job_launcher_interval_forces_incremental_join() -> None:
     assert "items=1" in result
 
 
-def test_job_launcher_interval_without_allow_external_schedulers_does_not_force_join() -> None:
-    """Without `allow_external_schedulers`, incrementals do NOT auto-join the runner interval."""
+@pytest.mark.parametrize(
+    "ep_patch",
+    [
+        {},
+        {"incremental_mode": "pipeline", "allow_external_schedulers": True},
+    ],
+    ids=["unset", "stale-legacy-flag-ignored"],
+)
+def test_job_launcher_interval_pipeline_mode_does_not_force_join(ep_patch: Dict[str, Any]) -> None:
+    """In `pipeline` mode (also the default), incrementals do NOT auto-join the runner interval.
+
+    `allow_external_schedulers` is written for older launchers only and never read here.
+    """
     ep = _entry(f"{WORKSPACE}.batch_jobs", "incremental_interval_job")
     ep["interval_start"] = "2024-01-15T00:00:00Z"
     ep["interval_end"] = "2024-01-16T00:00:00Z"
-    # allow_external_schedulers omitted — defaults to False
+    ep.update(ep_patch)  # type: ignore[typeddict-item]
     result = job_run(ep, run_id="inc-iv-2", trigger="schedule:0 0 * * *")
     # incremental did NOT join: initial_value/end_value are not the interval bounds
     assert "iv=2024-01-15" not in result
     assert "end=2024-01-16" not in result
 
 
-def test_decorator_to_launcher_e2e_allow_external_schedulers() -> None:
-    """End-to-end: `@job(allow_external_schedulers=True)` on the decorator reaches the
+def test_decorator_to_launcher_e2e_incremental_mode() -> None:
+    """End-to-end: `@job(incremental_mode="interval")` on the decorator reaches the
     launcher's `TimeIntervalContext` and the incremental auto-joins."""
     job_def = batch_jobs.incremental_interval_job.to_job_definition()
-    assert job_def["allow_external_schedulers"] is True
+    assert job_def["incremental_mode"] == "interval"
+    assert "allow_external_schedulers" not in job_def
     assert job_def["interval"] == {"start": "2024-01-15T00:00:00Z"}
 
     ep = build_runtime_entry_point(
@@ -166,9 +245,12 @@ def test_decorator_to_launcher_e2e_allow_external_schedulers() -> None:
         refresh=False,
         interval_start=datetime(2024, 1, 15, tzinfo=timezone.utc),
         interval_end=datetime(2024, 1, 16, tzinfo=timezone.utc),
+        dlt_version=_DLT_SPEC,
         tz="UTC",
     )
-    assert ep["allow_external_schedulers"] is True
+    # this dlt's launcher reads the mode itself; the flag is for launchers before 1.30.1
+    assert ep["incremental_mode"] == "interval"
+    assert "allow_external_schedulers" not in ep
 
     result = job_run(ep, run_id="inc-iv-e2e", trigger="schedule:0 0 * * *")
     # context flag was injected and observed by the job
@@ -179,34 +261,306 @@ def test_decorator_to_launcher_e2e_allow_external_schedulers() -> None:
     assert "items=1" in result
 
 
-def test_job_launcher_profile_injection() -> None:
-    """Job launcher sets WORKSPACE__PROFILE env var from entry_point.profile."""
-    old = os.environ.pop("WORKSPACE__PROFILE", None)
-    try:
-        ep = _entry(f"{WORKSPACE}.batch_jobs", "profile_aware")
-        ep["profile"] = "staging"
-        result = job_run(ep, run_id="profile-1", trigger="manual:")
-        assert "profile=staging" in result
-    finally:
-        if old is not None:
-            os.environ["WORKSPACE__PROFILE"] = old
-        else:
-            os.environ.pop("WORKSPACE__PROFILE", None)
+def test_decorator_to_launcher_e2e_epoch_override() -> None:
+    """`dlt.current.interval.update(start=epoch)` inside the job overrides the launcher-injected
+    start; the bound incremental picks up the override at bind time."""
+    job_def = batch_jobs.epoch_override_job.to_job_definition()
+    ep = build_runtime_entry_point(
+        job_def,
+        cli_config={},
+        profile="dev",
+        refresh=False,
+        interval_start=datetime(2024, 1, 15, tzinfo=timezone.utc),
+        interval_end=datetime(2024, 1, 16, tzinfo=timezone.utc),
+        dlt_version=_DLT_SPEC,
+        tz="UTC",
+    )
+    result = job_run(ep, run_id="epoch-override-1", trigger="schedule:0 0 * * *")
+    # initial_value is the override (2023-06-01), end_value is the launcher's end (2024-01-16)
+    assert "iv=2023-06-01" in result
+    assert "end=2024-01-16" in result
 
 
-def test_job_launcher_no_profile() -> None:
-    """Job without profile in entry_point does not set WORKSPACE__PROFILE."""
-    old = os.environ.pop("WORKSPACE__PROFILE", None)
-    try:
+@pytest.mark.parametrize(
+    "function,refresh_signal,mode,expected",
+    [
+        ("auto_refresh_pipeline", True, "drop_sources", "drop_sources"),
+        ("auto_refresh_pipeline", False, "drop_sources", "None"),
+        ("auto_refresh_pipeline", True, None, "None"),
+        ("explicit_refresh_pipeline", True, "drop_sources", "drop_data"),
+    ],
+    ids=["signal-applies-mode", "no-signal", "no-mode", "explicit-arg-wins"],
+)
+def test_job_launcher_auto_refresh_pipeline_mode(
+    function: str, refresh_signal: bool, mode: Any, expected: str
+) -> None:
+    """Refresh signal + auto_refresh_pipeline_mode set `pipelines.refresh` for created pipelines."""
+    ep = _entry(f"{WORKSPACE}.batch_jobs", function)
+    ep["refresh"] = refresh_signal
+    if mode:
+        ep["auto_refresh_pipeline_mode"] = mode
+    result = job_run(ep, run_id="apr-1", trigger="manual:")
+    assert result == f"refresh={expected}"
+
+
+@pytest.mark.parametrize(
+    "ep_patch,env_patch,expected_mode,expected_refresh",
+    [
+        ({}, {"JOBS__INCREMENTAL_MODE": "interval"}, "interval", None),
+        ({}, {"JOBS__AUTO_REFRESH_PIPELINE_MODE": "drop_data"}, None, "drop_data"),
+        (
+            {"incremental_mode": "pipeline"},
+            {"JOBS__INCREMENTAL_MODE": "interval"},
+            "pipeline",
+            None,
+        ),
+        (
+            {"auto_refresh_pipeline_mode": "drop_sources"},
+            {"JOBS__AUTO_REFRESH_PIPELINE_MODE": "drop_data"},
+            None,
+            "drop_sources",
+        ),
+        (
+            {},
+            {
+                "JOBS__INCREMENTAL_MODE": "pipeline",
+                "JOBS__BATCH_JOBS__MY_JOB__INCREMENTAL_MODE": "interval",
+            },
+            "interval",
+            None,
+        ),
+        (
+            {"job_ref": "jobs.clean_sec.daily"},
+            {
+                "JOBS__CLEAN_SEC__DAILY__INCREMENTAL_MODE": "interval",
+                "JOBS__BATCH_JOBS__MY_JOB__INCREMENTAL_MODE": "pipeline",
+            },
+            "interval",
+            None,
+        ),
+        (
+            {"job_ref": "jobs.batch_jobs", "function": None},
+            {"JOBS__BATCH_JOBS__AUTO_REFRESH_PIPELINE_MODE": "drop_data"},
+            None,
+            "drop_data",
+        ),
+        ({}, {}, None, None),
+    ],
+    ids=[
+        "config-fills-mode",
+        "config-fills-refresh",
+        "explicit-mode-wins",
+        "explicit-refresh-wins",
+        "per-job-section-wins",
+        "named-section-ref",
+        "module-level-ref",
+        "nothing-set",
+    ],
+)
+def test_apply_job_configuration(
+    ep_patch: Dict[str, Any],
+    env_patch: Dict[str, str],
+    expected_mode: Any,
+    expected_refresh: Any,
+) -> None:
+    """Config fills unset entry point settings; explicit entry point values win. Sections come
+    from `job_ref`."""
+    os.environ.update(env_patch)
+    ep = _entry(f"{WORKSPACE}.batch_jobs", "my_job")
+    ep.update(ep_patch)  # type: ignore[typeddict-item]
+    apply_job_configuration(ep)
+    assert ep.get("incremental_mode") == expected_mode
+    assert ep.get("auto_refresh_pipeline_mode") == expected_refresh
+
+
+def test_job_launcher_config_driven_modes() -> None:
+    """`[jobs]` config fills incremental_mode and auto_refresh_pipeline_mode on launched
+    jobs; explicit entry point values win."""
+    # incremental_mode from config makes incrementals join the interval
+    os.environ["JOBS__INCREMENTAL_MODE"] = "interval"
+    ep = _entry(f"{WORKSPACE}.batch_jobs", "incremental_interval_job")
+    ep["interval_start"] = "2024-01-15T00:00:00Z"
+    ep["interval_end"] = "2024-01-16T00:00:00Z"
+    result = job_run(ep, run_id="cfg-iv-1", trigger="schedule:0 0 * * *")
+    assert "iv=2024-01-15" in result
+    assert "end=2024-01-16" in result
+
+    # auto_refresh_pipeline_mode from config applies on refresh runs
+    os.environ["JOBS__AUTO_REFRESH_PIPELINE_MODE"] = "drop_data"
+    ep = _entry(f"{WORKSPACE}.batch_jobs", "auto_refresh_pipeline")
+    ep["refresh"] = True
+    assert job_run(ep, run_id="cfg-apr-1", trigger="manual:") == "refresh=drop_data"
+
+    # explicit entry point setting wins over config
+    ep = _entry(f"{WORKSPACE}.batch_jobs", "auto_refresh_pipeline")
+    ep["refresh"] = True
+    ep["auto_refresh_pipeline_mode"] = "drop_sources"
+    assert job_run(ep, run_id="cfg-apr-2", trigger="manual:") == "refresh=drop_sources"
+
+    # a job with `section=` and `name=` reads `[jobs.<section>.<name>]`, not module and function
+    os.environ["JOBS__INCREMENTAL_MODE"] = "pipeline"
+    os.environ["JOBS__BATCH_JOBS__NAMED_SECTION_JOB__INCREMENTAL_MODE"] = "pipeline"
+    os.environ["JOBS__CLEAN_SEC__DAILY__INCREMENTAL_MODE"] = "interval"
+    ep = _entry(f"{WORKSPACE}.batch_jobs", "named_section_job")
+    ep["job_ref"] = "jobs.clean_sec.daily"  # type: ignore[typeddict-item]
+    ep["interval_start"] = "2024-01-15T00:00:00Z"
+    ep["interval_end"] = "2024-01-16T00:00:00Z"
+    assert job_run(ep, run_id="cfg-iv-2", trigger="schedule:0 0 * * *") == "allow_ext=True"
+
+
+@pytest.mark.parametrize("source", ["entry-point", "jobs-config"])
+def test_job_launcher_auto_refresh_import_time_pipeline(tmp_path: Any, source: str) -> None:
+    """The refresh env var is set before user module import, so module-level pipelines see it."""
+    ep: Dict[str, Any] = {
+        "module": f"{WORKSPACE}.import_time_pipeline",
+        "function": "report_module_pipeline_refresh",
+        "job_type": "batch",
+        "job_ref": "jobs.import_time_pipeline.report_module_pipeline_refresh",
+        "refresh": True,
+    }
+    env = dict(os.environ)
+    env["DLT_DATA_DIR"] = str(tmp_path)
+    if source == "entry-point":
+        ep["auto_refresh_pipeline_mode"] = "drop_sources"
+    else:
+        env["JOBS__AUTO_REFRESH_PIPELINE_MODE"] = "drop_sources"
+    entry_point = json.dumps(ep)
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "dlt._workspace.deployment.launchers.job",
+            "--run-id",
+            "apr-import",
+            "--trigger",
+            "manual:",
+            "--entry-point",
+            entry_point,
+        ],
+        capture_output=True,
+        encoding="utf-8",
+        timeout=60,
+        env=env,
+    )
+    assert result.returncode == 0, result.stderr
+    assert "refresh=drop_sources" in result.stdout
+
+
+PROFILE_VALUES: Dict[str, Dict[str, Any]] = {
+    "dev": {"bucket_url": "memory:///dev_bucket", "days": 1, "incremental_mode": "interval"},
+    "prod": {"bucket_url": "memory:///prod_bucket", "days": 7, "incremental_mode": "pipeline"},
+}
+"""Values that `profiles_workspace` configures in `dev.config.toml` and `prod.config.toml`."""
+
+
+def _profile_entry(function: str, profile: str) -> TRuntimeEntryPoint:
+    ep = _entry("profile_jobs", function)
+    ep["profile"] = profile
+    return ep
+
+
+@pytest.mark.parametrize("profile", ["dev", "prod"])
+@pytest.mark.parametrize("function", ["module_pipeline_probe", "job_pipeline_probe"])
+def test_job_launcher_pipeline_uses_profile(profile: str, function: str) -> None:
+    """A pipeline declared in the job module or in the job body runs with the profile of the
+    entry point: its working dir and its destination settings come from that profile."""
+    with importable_workspace("profiles_workspace", "profile_jobs"):
+        result = job_run(_profile_entry(function, profile), run_id=function, trigger="manual:")
+        ctx = dlt.current.run_context()
+        assert ctx.profile == profile  # type: ignore[attr-defined]
+        assert result["profile"] == profile
+        assert result["pipelines_dir"] == ctx.get_data_entity("pipelines")
+        assert result["bucket_url"] == PROFILE_VALUES[profile]["bucket_url"]
+
+
+@pytest.mark.parametrize("profile", ["dev", "prod"])
+def test_job_launcher_job_config_uses_profile(profile: str) -> None:
+    """The job inputs and the job settings in `JobConfiguration` resolve from the profile of the
+    entry point."""
+    with importable_workspace("profiles_workspace", "profile_jobs"):
+        ep = _profile_entry("config_probe", profile)
+        result = job_run(ep, run_id="config_probe", trigger="manual:")
+        assert result == {"profile": profile, "days": PROFILE_VALUES[profile]["days"]}
+        assert ep["incremental_mode"] == PROFILE_VALUES[profile]["incremental_mode"]
+
+
+def test_job_launcher_keeps_active_profile() -> None:
+    """Without a profile in the entry point, the job runs with the profile that is active."""
+    os.environ.pop("WORKSPACE__PROFILE", None)
+    with importable_workspace("profiles_workspace", "profile_jobs"):
+        dlt.current.run_context().switch_profile("prod")  # type: ignore[attr-defined]
         result = job_run(
-            _entry(f"{WORKSPACE}.batch_jobs", "profile_aware"),
-            run_id="profile-2",
-            trigger="manual:",
+            _entry("profile_jobs", "module_pipeline_probe"), run_id="no_profile", trigger="manual:"
         )
-        assert "profile=" in result  # empty — no profile set
-    finally:
-        if old is not None:
-            os.environ["WORKSPACE__PROFILE"] = old
+        assert result["profile"] == "prod"
+        assert result["bucket_url"] == PROFILE_VALUES["prod"]["bucket_url"]
+        assert "WORKSPACE__PROFILE" not in os.environ
+
+
+@pytest.mark.parametrize(
+    "function,expected",
+    [
+        ("module_pipeline_probe", "'bucket_url': 'memory:///prod_bucket'"),
+        ("config_probe", "'days': 7"),
+    ],
+    ids=["module_pipeline", "job_config"],
+)
+def test_job_launcher_profile_fresh_process(function: str, expected: str) -> None:
+    """In a fresh process the first config lookup creates the run context, so the launcher
+    activates the profile before it resolves any configuration."""
+    run_dir = restore_clean_workspace("profiles_workspace")
+    env = dict(os.environ)
+    env.pop("WORKSPACE__PROFILE", None)
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "dlt._workspace.deployment.launchers.job",
+            "--run-id",
+            "fresh-profile",
+            "--trigger",
+            "manual:",
+            "--entry-point",
+            json.dumps(_profile_entry(function, "prod")),
+        ],
+        cwd=run_dir,
+        capture_output=True,
+        encoding="utf-8",
+        timeout=120,
+        env=env,
+    )
+    assert result.returncode == 0, result.stderr
+    assert "'profile': 'prod'" in result.stdout
+    assert expected in result.stdout
+
+
+@pytest.mark.parametrize(
+    "launcher", ["job", "agent", "mcp", "marimo", "streamlit", "module", "dashboard"]
+)
+def test_launcher_activates_profile_first(launcher: str) -> None:
+    """Every launcher activates the profile before it resolves any configuration."""
+    module = pytest.importorskip(f"dlt._workspace.deployment.launchers.{launcher}")
+    calls: List[str] = []
+
+    class StopLauncher(Exception):
+        pass
+
+    def apply_job_configuration(entry_point: TRuntimeEntryPoint) -> None:
+        calls.append("apply_job_configuration")
+        raise StopLauncher()
+
+    ep = _entry(f"{WORKSPACE}.batch_jobs", "backfill")
+    ep["profile"] = "prod"
+    with (
+        patch.object(module, "activate_profile", lambda _: calls.append("activate_profile")),
+        patch.object(module, "apply_job_configuration", apply_job_configuration),
+        pytest.raises(StopLauncher),
+    ):
+        if launcher in ("job", "agent"):
+            module.run(ep, run_id="order", trigger="manual:")
+        else:
+            module.run(ep)
+    assert calls == ["activate_profile", "apply_job_configuration"]
 
 
 def test_job_launcher_with_config() -> None:
@@ -459,6 +813,7 @@ def test_job_launcher_via_cli() -> None:
             "module": f"{WORKSPACE}.batch_jobs",
             "function": "backfill",
             "job_type": "batch",
+            "job_ref": "jobs.batch_jobs.backfill",
         }
     )
     result = subprocess.run(
@@ -474,7 +829,7 @@ def test_job_launcher_via_cli() -> None:
             entry_point,
         ],
         capture_output=True,
-        text=True,
+        encoding="utf-8",
         timeout=30,
     )
     assert result.returncode == 0
@@ -488,6 +843,7 @@ def test_module_launcher_via_cli() -> None:
             "module": f"{WORKSPACE}.hello_module",
             "function": None,
             "job_type": "batch",
+            "job_ref": "jobs.hello_module",
         }
     )
     result = subprocess.run(
@@ -503,11 +859,89 @@ def test_module_launcher_via_cli() -> None:
             entry_point,
         ],
         capture_output=True,
-        text=True,
+        encoding="utf-8",
         timeout=30,
     )
     assert result.returncode == 0
     assert "hello_module_ok" in result.stdout
+
+
+def _run_module_launcher(entry_point: Dict[str, Any], run_id: str, trigger: str) -> str:
+    """Runs the module launcher in a fresh interpreter and returns its stdout."""
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "dlt._workspace.deployment.launchers.module",
+            "--run-id",
+            run_id,
+            "--trigger",
+            trigger,
+            "--entry-point",
+            json.dumps(entry_point),
+        ],
+        capture_output=True,
+        encoding="utf-8",
+        timeout=60,
+    )
+    assert result.returncode == 0, result.stderr
+    return result.stdout
+
+
+def test_module_launcher_applies_interval_and_timezone() -> None:
+    """A module runs in its own interpreter, so it takes both from the environment."""
+    stdout = _run_module_launcher(
+        {
+            "module": f"{WORKSPACE}.timezone_module",
+            "function": None,
+            "job_type": "batch",
+            "job_ref": "jobs.timezone_module",
+            "interval_start": "2024-01-15T00:00:00Z",
+            "interval_end": "2024-01-16T00:00:00Z",
+            "interval_timezone": "Europe/Berlin",
+        },
+        run_id="mod-tz-iv",
+        trigger="schedule:0 0 * * *",
+    )
+    assert "tz=Europe/Berlin" in stdout
+    assert "stored=2024-01-15T23:30:00+01:00" in stdout
+    # the interval arrives in UTC and is re-applied in the declared timezone
+    assert "interval=2024-01-15T01:00:00+01:00" in stdout
+
+
+def test_module_launcher_timezone_without_interval() -> None:
+    """The timezone reaches a module with no interval, and without a `TimezoneContext`."""
+    stdout = _run_module_launcher(
+        {
+            "module": f"{WORKSPACE}.timezone_module",
+            "function": None,
+            "job_type": "batch",
+            "job_ref": "jobs.timezone_module",
+            "interval_timezone": "Europe/Berlin",
+        },
+        run_id="mod-tz-no-iv",
+        trigger="manual:",
+    )
+    assert "tz=Europe/Berlin" in stdout
+    assert "stored=2024-01-15T23:30:00+01:00" in stdout
+    assert "tz_ctx=False" in stdout
+    assert "interval=none" in stdout
+
+
+def test_module_launcher_defaults_to_utc() -> None:
+    """No declared timezone keeps dlt storing values in UTC."""
+    stdout = _run_module_launcher(
+        {
+            "module": f"{WORKSPACE}.timezone_module",
+            "function": None,
+            "job_type": "batch",
+            "job_ref": "jobs.timezone_module",
+        },
+        run_id="mod-tz-utc",
+        trigger="manual:",
+    )
+    assert "tz=UTC" in stdout
+    assert "stored=2024-01-15T23:30:00+00:00" in stdout
 
 
 def test_module_launcher_cli_error_exit_code() -> None:
@@ -517,6 +951,7 @@ def test_module_launcher_cli_error_exit_code() -> None:
             "module": "nonexistent.module",
             "function": None,
             "job_type": "batch",
+            "job_ref": "jobs.module",
         }
     )
     result = subprocess.run(
@@ -532,7 +967,7 @@ def test_module_launcher_cli_error_exit_code() -> None:
             entry_point,
         ],
         capture_output=True,
-        text=True,
+        encoding="utf-8",
         timeout=30,
     )
     assert result.returncode != 0
@@ -545,6 +980,7 @@ def test_job_launcher_cli_error_exit_code() -> None:
             "module": "nonexistent.module",
             "function": "foo",
             "job_type": "batch",
+            "job_ref": "jobs.module.foo",
         }
     )
     result = subprocess.run(
@@ -560,7 +996,7 @@ def test_job_launcher_cli_error_exit_code() -> None:
             entry_point,
         ],
         capture_output=True,
-        text=True,
+        encoding="utf-8",
         timeout=30,
     )
     assert result.returncode != 0
@@ -610,6 +1046,7 @@ def test_isolated_job_launcher_via_cli(launcher_workspace: object, python_cmd: L
             "module": module,
             "function": "backfill",
             "job_type": "batch",
+            "job_ref": f"jobs.{module.rsplit('.', 1)[-1]}.backfill",
             "launcher": "dlt._workspace.deployment.launchers.job",
         }
     )
@@ -626,11 +1063,46 @@ def test_isolated_job_launcher_via_cli(launcher_workspace: object, python_cmd: L
             entry_point,
         ],
         capture_output=True,
-        text=True,
+        encoding="utf-8",
         timeout=30,
     )
     assert result.returncode == 0, f"stderr: {result.stderr}"
     assert "backfill_done" in result.stdout
+
+
+def test_isolated_job_launcher_config_toml_auto_refresh() -> None:
+    """End to end: `[jobs] auto_refresh_pipeline_mode` in workspace config.toml is picked
+    up by a fresh launcher process on a refresh run. Refresh-signal gating is covered
+    in-process by `test_job_launcher_auto_refresh_pipeline_mode`."""
+    with isolated_workspace("launcher_flat"):
+        entry_point = json.dumps(
+            {
+                "module": "batch_jobs",
+                "function": "auto_refresh_probe",
+                "job_type": "batch",
+                "job_ref": "jobs.batch_jobs.auto_refresh_probe",
+                "launcher": "dlt._workspace.deployment.launchers.job",
+                "refresh": True,
+            }
+        )
+        result = subprocess.run(
+            [
+                sys.executable,
+                "-m",
+                "dlt._workspace.deployment.launchers.job",
+                "--run-id",
+                "cfg-toml-1",
+                "--trigger",
+                "manual:",
+                "--entry-point",
+                entry_point,
+            ],
+            capture_output=True,
+            encoding="utf-8",
+            timeout=60,
+        )
+        assert result.returncode == 0, f"stderr: {result.stderr}"
+        assert "refresh=drop_data" in result.stdout
 
 
 def test_isolated_module_launcher_via_cli(
@@ -644,6 +1116,7 @@ def test_isolated_module_launcher_via_cli(
             "module": module,
             "function": None,
             "job_type": "batch",
+            "job_ref": f"jobs.{module.rsplit('.', 1)[-1]}",
             "launcher": "dlt._workspace.deployment.launchers.module",
         }
     )
@@ -660,7 +1133,7 @@ def test_isolated_module_launcher_via_cli(
             entry_point,
         ],
         capture_output=True,
-        text=True,
+        encoding="utf-8",
         timeout=30,
     )
     assert result.returncode == 0, f"stderr: {result.stderr}"
@@ -711,6 +1184,7 @@ def test_build_runtime_entry_point_propagates_execute_intercept_signals() -> Non
 
     def _job_def(**extra: Any) -> TJobDefinition:
         jd: Dict[str, Any] = {
+            "engine_version": MANIFEST_ENGINE_VERSION,
             "job_ref": "jobs.test",
             "entry_point": dict(base_ep),
             "triggers": [],
@@ -720,18 +1194,34 @@ def test_build_runtime_entry_point_propagates_execute_intercept_signals() -> Non
         return jd  # type: ignore[return-value,unused-ignore]
 
     # absent: launcher default (True) applies, flag not copied
-    ep_absent = build_runtime_entry_point(_job_def(), {}, "default", False, now, now, "UTC")
+    ep_absent = build_runtime_entry_point(
+        _job_def(), {}, "default", False, now, now, _DLT_SPEC, "UTC"
+    )
     assert "intercept_signals" not in ep_absent
 
     # explicit False opts out
     ep_off = build_runtime_entry_point(
-        _job_def(execute={"intercept_signals": False}), {}, "default", False, now, now, "UTC"
+        _job_def(execute={"intercept_signals": False}),
+        {},
+        "default",
+        False,
+        now,
+        now,
+        _DLT_SPEC,
+        "UTC",
     )
     assert ep_off["intercept_signals"] is False
 
     # explicit True copied through
     ep_on = build_runtime_entry_point(
-        _job_def(execute={"intercept_signals": True}), {}, "default", False, now, now, "UTC"
+        _job_def(execute={"intercept_signals": True}),
+        {},
+        "default",
+        False,
+        now,
+        now,
+        _DLT_SPEC,
+        "UTC",
     )
     assert ep_on["intercept_signals"] is True
 
@@ -755,3 +1245,31 @@ def test_job_launcher_opt_out_of_signal_interception() -> None:
     with pytest.raises(KeyboardInterrupt) as exc_info:
         job_run(ep, run_id="test-no-intercept", trigger="manual:")
     assert type(exc_info.value) is KeyboardInterrupt
+
+
+@pytest.mark.parametrize(
+    "ep_patch,expected",
+    [
+        ({"incremental_mode": "interval"}, "True"),
+        ({"incremental_mode": "pipeline"}, "False"),
+        ({"allow_external_schedulers": True}, None),
+        ({}, None),
+    ],
+    ids=["interval", "pipeline", "legacy-flag-alone-ignored", "unset"],
+)
+def test_prepare_run_env_carries_allow_external_schedulers(
+    ep_patch: Dict[str, Any], expected: str
+) -> None:
+    """Subprocess launchers exec the user module, so the flag must travel in the environment."""
+    os.environ.pop(known_env.DLT_ALLOW_EXTERNAL_SCHEDULERS, None)
+    ep = _entry(f"{WORKSPACE}.batch_jobs", "incremental_interval_job")
+    ep.update(ep_patch)  # type: ignore[typeddict-item]
+    prepare_run_env(ep)
+    assert os.environ.get(known_env.DLT_ALLOW_EXTERNAL_SCHEDULERS) == expected
+
+
+def test_prepare_run_env_clears_stale_allow_external_schedulers() -> None:
+    """A launcher process must not inherit the flag from an unrelated earlier run."""
+    os.environ[known_env.DLT_ALLOW_EXTERNAL_SCHEDULERS] = "True"
+    prepare_run_env(_entry(f"{WORKSPACE}.batch_jobs", "incremental_interval_job"))
+    assert known_env.DLT_ALLOW_EXTERNAL_SCHEDULERS not in os.environ

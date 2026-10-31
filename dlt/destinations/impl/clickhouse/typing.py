@@ -1,4 +1,4 @@
-from typing import Literal, Dict, Set, Union
+from typing import Literal, Dict, Set, Tuple, Union
 
 from dlt.common.schema import TColumnHint
 from dlt.common.typing import get_args
@@ -43,3 +43,4 @@ SORT_HINT: Literal["x-clickhouse-sort"] = "x-clickhouse-sort"
 PARTITION_HINT: Literal["x-clickhouse-partition"] = "x-clickhouse-partition"
 SETTINGS_HINT: Literal["x-clickhouse-settings"] = "x-clickhouse-settings"
 CODEC_HINT: Literal["x-clickhouse-codec"] = "x-clickhouse-codec"
+EXCHANGE_CAPABLE_DATABASE_ENGINES: Tuple[str, ...] = ("Atomic", "Replicated", "Shared")

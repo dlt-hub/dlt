@@ -177,6 +177,12 @@ class PipeIterator(Iterator[PipeItem]):
                     else:
                         continue
 
+                # drop items that move into steps cut off by the pipe, ie. after a limit
+                cutoff_idx = pipe_item.pipe.cutoff_idx
+                if cutoff_idx is not None and pipe_item.step < cutoff_idx:
+                    pipe_item = None
+                    continue
+
             item = pipe_item.item
             # if item is iterator, then add it as a new source
             if isinstance(item, Iterator):
@@ -212,7 +218,7 @@ class PipeIterator(Iterator[PipeItem]):
                             pipe_item.pipe.name,
                             f"Pipe item of type `{type(pipe_item.item).__name__}` was not fully"
                             f" evaluated at step `{pipe_item.step}`. This is an internal error or"
-                            " you're yielding unexpected object from resources (e.g., fucntions,"
+                            " you're yielding unexpected object from resources (e.g., functions,"
                             " awaitables).",
                         )
                     # mypy not able to figure out that item was resolved
@@ -270,6 +276,11 @@ class PipeIterator(Iterator[PipeItem]):
                     return None
                 # get next item from the current source
                 gen, step, pipe, meta = self._sources[self._current_source_index]
+                # sources that run cut off steps are closed and removed
+                if pipe.cutoff_idx is not None and step <= pipe.cutoff_idx:
+                    if inspect.isgenerator(gen):
+                        gen.close()
+                    raise StopIteration()
                 with pipe_context(pipe):
                     pipe_item = next(gen)
                 if pipe_item is not None:

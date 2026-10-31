@@ -1,0 +1,6 @@
+name: dlt_microbatch
+version: "1.0.0"
+config-version: 2
+profile: postgres
+
+model-paths: ["models"]

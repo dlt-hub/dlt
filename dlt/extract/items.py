@@ -30,6 +30,8 @@ TPipedDataItems = Union[TDataItems, TDeferredDataItems, TAwaitableDataItems]
 
 
 if TYPE_CHECKING:
+    from dlt.extract.hints import TResourceHints
+
     TItemFuture = Future[TPipedDataItems]
 else:
     TItemFuture = Future
@@ -97,6 +99,18 @@ class TableNameMeta:
         return f"TableNameMeta('{self.table_name}')"
 
 
+class HintsMeta:
+    __slots__ = ("hints", "create_table_variant")
+
+    def __init__(
+        self,
+        hints: "TResourceHints",
+        create_table_variant: bool,
+    ) -> None:
+        self.hints = hints
+        self.create_table_variant = create_table_variant
+
+
 class SupportsPipe(Protocol):
     """A protocol with the core Pipe properties and operations"""
 
@@ -106,10 +120,17 @@ class SupportsPipe(Protocol):
     """A parent of the current pipe"""
     instance_id: str
     """Unique id of the pipe assigned when instance is created and preserved when cloning"""
+    cutoff_idx: Optional[int]
+    """Items moving into steps up to this index are dropped during extraction"""
 
     @property
     def gen(self) -> TPipeStep:
         """A data generating step"""
+        ...
+
+    @property
+    def gen_idx(self) -> int:
+        """Index of the data generating step"""
         ...
 
     def replace_gen(self, gen: TPipeStep) -> None:
@@ -131,4 +152,8 @@ class SupportsPipe(Protocol):
 
     def close(self) -> None:
         """Closes pipe generator"""
+        ...
+
+    def cut_off(self, idx: int) -> None:
+        """Drops items moving into steps up to `idx`, never moves the cutoff back"""
         ...

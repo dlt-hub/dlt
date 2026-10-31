@@ -1,9 +1,11 @@
+from functools import partial
 from typing import Any, Dict, Type, Union, TYPE_CHECKING, Optional, Sequence
 
 from dlt.common.data_types.typing import TDataType
 from dlt.common.destination import Destination, DestinationCapabilitiesContext
 from dlt.common.configuration.specs import AwsCredentials
 from dlt.common.data_writers.escape import (
+    escape_ansi_literal,
     escape_athena_identifier,
     format_bigquery_datetime_literal,
 )
@@ -28,6 +30,8 @@ from dlt.destinations.impl.athena.configuration import (
 )
 
 if TYPE_CHECKING:
+    from dlt.common.libs.ibis import BaseBackend
+    from dlt.common.schema import Schema
     from dlt.destinations.impl.athena.athena import AthenaClient
 
 
@@ -162,13 +166,19 @@ class athena(Destination[AthenaClientConfiguration, "AthenaClient"]):
         caps.timestamp_precision = 3
         caps.max_timestamp_precision = 3
         caps.supports_truncate_command = False
-        caps.supported_merge_strategies = ["delete-insert", "upsert", "scd2", "insert-only"]
+        caps.supported_merge_strategies = ["delete-insert", "upsert", "scd2", "insert-only", "cdc"]
         caps.supported_replace_strategies = ["truncate-and-insert", "insert-from-staging"]
         caps.merge_strategies_selector = athena_merge_strategies_selector
         caps.replace_strategies_selector = athena_replace_strategies_selector
         caps.enforces_nulls_on_alter = False
         caps.sqlglot_dialect = "athena"
         caps.supports_tz_aware_datetime = False
+        caps.escape_literal = partial(
+            escape_ansi_literal,
+            datetime_literal=caps.format_datetime_literal,
+            precision=caps.timestamp_precision,
+            no_tz=True,
+        )
 
         return caps
 
@@ -177,6 +187,17 @@ class athena(Destination[AthenaClientConfiguration, "AthenaClient"]):
         from dlt.destinations.impl.athena.athena import AthenaClient
 
         return AthenaClient
+
+    def create_ibis_backend(
+        self, client: "AthenaClient", read_only: bool = False, schemas: "Sequence[Schema]" = ()
+    ) -> "BaseBackend":
+        """Create an ibis athena backend for the client's dataset."""
+        from dlt.helpers.ibis import ibis
+
+        return ibis.athena.connect(
+            schema_name=client.sql_client.dataset_name,
+            **client.config.to_connector_params(),
+        )
 
     @classmethod
     def adjust_capabilities(

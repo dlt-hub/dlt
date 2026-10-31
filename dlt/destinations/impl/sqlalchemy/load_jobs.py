@@ -13,7 +13,7 @@ from dlt.common.destination.client import (
     PreparedTableSchema,
 )
 from dlt.common.storages import FileStorage
-from dlt.common.json import json, PY_DATETIME_DECODERS
+from dlt.common.json import json
 
 from dlt.destinations._adbc_jobs import AdbcParquetCopyJob
 from dlt.destinations.sql_jobs import SqlFollowupJob
@@ -90,8 +90,8 @@ class SqlalchemyJsonLInsertJob(RunnableLoadJob, HasFollowupJobs):
         all_cols = {col.name: None for col in self.table.columns}
         with FileStorage.open_zipsafe_ro(self._file_path, "rb") as f:
             for line in f:
-                # Decode date/time to py datetime objects. Some drivers have issues with pendulum objects
-                for item in json.typed_loadb(line, decoders=PY_DATETIME_DECODERS):
+                # decodes date/time to stdlib objects: some drivers choke on pendulum ones
+                for item in json.typed_loadb(line):
                     # Fill any missing columns in item with None. Bulk insert fails when items have different keys
                     if item.keys() != all_cols.keys():
                         yield {**all_cols, **item}
@@ -121,11 +121,8 @@ class SqlalchemyJsonLInsertJob(RunnableLoadJob, HasFollowupJobs):
 
     def run(self) -> None:
         _sql_client = self._job_client.sql_client
-        # Copy the table to the current dataset (i.e. staging) if needed
-        # This is a no-op if the table is already in the correct schema
-        table = self.table.to_metadata(
-            self.table.metadata, schema=_sql_client.dataset_name  # type: ignore[attr-defined]
-        )
+        # copy the table to the current dataset (i.e. staging) if needed
+        table = _sql_client.to_dataset_table(self.table)
 
         with _sql_client.begin_transaction():
             for chunk in self._iter_data_item_chunks():
@@ -248,9 +245,7 @@ class SqlalchemyReplaceJob(SqlFollowupJob):
         for table in table_chain:
             # Tables must have already been created in metadata
             table_obj = sql_client.get_existing_table(table["name"])
-            staging_table_obj = table_obj.to_metadata(
-                sql_client.metadata, schema=sql_client.staging_dataset_name
-            )
+            staging_table_obj = sql_client.to_dataset_table(table_obj, staging=True)
             stmt = str(table_obj.delete().compile(dialect=sql_client.dialect))
             statements.append(stmt)
 

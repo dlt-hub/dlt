@@ -4,6 +4,7 @@ from typing import (
     Any,
     Callable,
     ClassVar,
+    Dict,
     Final,
     Generic,
     List,
@@ -13,11 +14,13 @@ from typing import (
     MutableSequence,
     NewType,
     Sequence,
+    Set,
+    Tuple,
     TypeVar,
     Optional,
     Union,
 )
-from typing_extensions import Annotated, get_args
+from typing_extensions import Annotated, NotRequired, get_args
 from uuid import UUID
 
 
@@ -40,6 +43,7 @@ from dlt.common.typing import (
     is_newtype_type,
     is_optional_type,
     is_subclass,
+    map_annotation,
     is_typeddict,
     is_union_type,
     is_annotated,
@@ -356,3 +360,23 @@ def test_get_type_globals() -> None:
 
     NoModule.__module__ = None
     assert get_type_globals(NoModule()) == {}
+
+
+def test_map_annotation_rebuilds_containers_bottom_up() -> None:
+    seen: List[Any] = []
+
+    def swap(hint: Any) -> Any:
+        seen.append(hint)
+        return float if hint is int else hint
+
+    assert map_annotation(int, swap) is float
+    assert map_annotation(List[int], swap) == list[float]
+    assert map_annotation(Dict[str, int], swap) == dict[str, float]
+    assert map_annotation(Set[int], swap) == set[float]
+    assert map_annotation(Tuple[int, ...], swap) == tuple[float, ...]
+    assert map_annotation(Tuple[int, str], swap) == tuple[float, str]
+    assert map_annotation(Optional[int], swap) == Optional[float]
+    assert map_annotation(Annotated[int, "m"], swap) == Annotated[float, "m"]
+    assert map_annotation(NotRequired[List[int]], swap) == NotRequired[list[float]]
+    # a container reaches the callback only after its arguments were rebuilt
+    assert list[float] in seen

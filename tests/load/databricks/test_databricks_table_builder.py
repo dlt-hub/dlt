@@ -23,7 +23,9 @@ from tests.load.utils import empty_schema
 pytestmark = pytest.mark.essential
 
 
-def create_client(schema: Schema, create_indexes: bool) -> DatabricksClient:
+def create_client(
+    schema: Schema, create_indexes: bool, create_comments: bool = True
+) -> DatabricksClient:
     # return a client without opening connection
     creds = DatabricksCredentials()
     creds.catalog = "test_catalog"
@@ -31,7 +33,7 @@ def create_client(schema: Schema, create_indexes: bool) -> DatabricksClient:
     creds.http_path = "/sql/1.0/endpoints/test"
     creds.access_token = "test-token"
     config = DatabricksClientConfiguration(
-        credentials=creds, create_indexes=create_indexes
+        credentials=creds, create_indexes=create_indexes, create_comments=create_comments
     )._bind_dataset_name(dataset_name="test_" + uniq_id())
     return databricks().client(schema, config)
 
@@ -83,3 +85,35 @@ def test_primary_key_constraint_conditional_on_create_indexes(
         assert "PRIMARY KEY (`id`)" in sql
     else:
         assert "PRIMARY KEY" not in sql
+
+
+@pytest.mark.parametrize("create_comments", [True, False], ids=["comments", "no_comments"])
+def test_comments_enabled_by_create_comments_config(
+    empty_schema: Schema, create_comments: bool
+) -> None:
+    columns: List[TColumnSchema] = [
+        {"name": "col_a", "data_type": "text", "description": "a column"}
+    ]
+    client = create_client(empty_schema, create_indexes=False, create_comments=create_comments)
+    client.schema.update_table(new_table("event_test_table", columns=columns))
+    client.schema.tables["event_test_table"]["description"] = "a table"
+
+    sql = "\n".join(client._get_table_update_sql("event_test_table", columns, generate_alter=False))
+
+    if create_comments:
+        assert "COMMENT ON TABLE" in sql
+        assert "COMMENT 'a column'" in sql
+    else:
+        assert "COMMENT" not in sql
+
+
+def test_no_comments_on_dlt_system_tables(empty_schema: Schema) -> None:
+    # dlt system tables carry a "Created by DLT..." description that must not be emitted
+    client = create_client(empty_schema, create_indexes=False)
+    loads_table = client.schema.loads_table_name
+    assert client.schema.tables[loads_table].get("description")
+    columns = list(client.schema.tables[loads_table]["columns"].values())
+
+    sql = "\n".join(client._get_table_update_sql(loads_table, columns, generate_alter=False))
+
+    assert "COMMENT" not in sql

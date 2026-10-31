@@ -153,7 +153,7 @@ def _get_graph_header(schema_name: str, include_dlt_tables: bool) -> str:
     ref for graph layout: https://graphviz.org/pdf/dot.1.pdf
     Good options:
     - `layout="twopi", ranksep=5, root="_dlt_loads"`
-        `ranksep` should be increased to accomodate large tables
+        `ranksep` should be increased to accommodate large tables
         `root` can be changed to a more central node
     - `layout=circo` is efficient, but will have edges overlapping
     - `layout=fdp` will minimize overlap while reducing sprawl, but odd layouts
@@ -342,7 +342,7 @@ def schema_to_graphviz(
     include_root_child_ref: bool = True,
     group_by_resource: bool = False,
 ) -> str:
-    """Convert a `dlt.Schema` to a a Graphviz DOT string and return its value.
+    """Convert a `dlt.Schema` to a Graphviz DOT string and return its value.
 
     Args:
         schema: dlt schema to convert

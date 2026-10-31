@@ -3,9 +3,9 @@ title: Strapi
 description: dlt verified source for Strapi API
 keywords: [strapi api, strapi verified source, strapi]
 ---
-import Header from './_source-info-header.md';
-
 # Strapi
+
+import Header from './_source-info-header.md';
 
 <Header/>
 
@@ -47,7 +47,7 @@ To get started with your data pipeline, follow these steps:
 
 1. Enter the following command:
 
-   ```sh
+   ```cli
    dlt init strapi duckdb
    ```
 
@@ -68,7 +68,7 @@ To get started with your data pipeline, follow these steps:
    information securely, like access tokens. Keep this file safe. Here's its format for service
    account authentication:
 
-   ```py
+   ```py notype
    # put your secret values and credentials here. do not share this file and do not push it to github
    [sources.strapi]
    api_secret_key = "api_secret_key" # please set me up!
@@ -91,7 +91,7 @@ For more information, read the [General usage: Credentials.](../../general-usage
 1. Before running the pipeline, ensure that you have installed all the necessary dependencies by
    running the command:
 
-   ```sh
+   ```cli
    pip install -r requirements.txt
    ```
 
@@ -108,7 +108,7 @@ For more information, read the [General usage: Credentials.](../../general-usage
 1. Once the pipeline has finished running, you can verify that everything loaded correctly by using
    the following command:
 
-   ```sh
+   ```cli
    dlt pipeline <pipeline_name> show
    ```
 
@@ -127,9 +127,12 @@ For more information, read the guide on [how to run a pipeline](../../walkthroug
 This function retrieves data from Strapi.
 
 ```py
+from typing import Iterable
+from dlt.extract import DltResource
+
 @dlt.source
 def strapi_source(
-    endpoints: List[str],
+    endpoints: list[str],
     api_secret_key: str = dlt.secrets.value,
     domain: str = dlt.secrets.value,
 ) -> Iterable[DltResource]:
@@ -142,8 +145,8 @@ def strapi_source(
 
 `domain`: Strapi API domain name, defaults to dlt secrets.
 
-
 ## Customization
+
 ### Create your own pipeline
 
 If you wish to create your own pipelines, you can leverage source and resource methods from this
@@ -161,7 +164,7 @@ verified source.
 
 1. To load the specified endpoints:
 
-   ```py
+   ```py notype
    endpoints = ["athletes"]
    load_data = strapi_source(endpoints=endpoints)
 

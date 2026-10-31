@@ -52,6 +52,7 @@ from dlt.common.destination.exceptions import (
 from dlt.common.exceptions import TerminalValueError
 from dlt.common.typing import TDataRecordBatch
 from dlt.common.schema import Schema, TColumnSchema, TTableSchema
+from dlt.common.time import get_context_timezone_name
 from dlt.common.schema.typing import TColumnType
 from dlt.common.schema.utils import get_columns_names_with_prop
 from dlt.common.storages import FilesystemConfiguration, fsspec_from_config
@@ -356,6 +357,74 @@ class DatabricksMergeJob(SqlMergeFollowupJob):
         WHEN MATCHED THEN DELETE
         """
 
+    @classmethod
+    def gen_delete_where_sql(
+        cls,
+        table_name: str,
+        condition: str,
+        key_columns: Sequence[str],
+        sql_client: SqlClientBase[Any],
+        *,
+        has_nested_subquery: bool,
+    ) -> List[str]:
+        if not has_nested_subquery:
+            return super().gen_delete_where_sql(
+                table_name,
+                condition,
+                key_columns,
+                sql_client,
+                has_nested_subquery=has_nested_subquery,
+            )
+        # Delta rejects nested subqueries in DELETE conditions, also through views, but accepts
+        # them in the MERGE source
+        return [
+            f"MERGE INTO {table_name} d USING"
+            f" {cls._gen_matched_keys_source(table_name, condition, key_columns)}"
+            " WHEN MATCHED THEN DELETE"
+        ]
+
+    @classmethod
+    def gen_update_where_sql(
+        cls,
+        table_name: str,
+        set_clause: str,
+        condition: str,
+        key_columns: Sequence[str],
+        sql_client: SqlClientBase[Any],
+        *,
+        has_nested_subquery: bool,
+        key_cond: Optional[str] = None,
+    ) -> List[str]:
+        if not has_nested_subquery:
+            return super().gen_update_where_sql(
+                table_name,
+                set_clause,
+                condition,
+                key_columns,
+                sql_client,
+                has_nested_subquery=has_nested_subquery,
+                key_cond=key_cond,
+            )
+        # Delta rejects nested subqueries in UPDATE conditions, also through views, but accepts
+        # them in the MERGE source
+        source = cls._gen_matched_keys_source(table_name, condition, key_columns)
+        if key_cond:
+            source += f" AND {key_cond}"
+        return [
+            f"MERGE INTO {table_name} d USING {source} WHEN MATCHED THEN UPDATE SET {set_clause}"
+        ]
+
+    @staticmethod
+    def _gen_matched_keys_source(
+        table_name: str, condition: str, key_columns: Sequence[str]
+    ) -> str:
+        """Returns the MERGE source with the distinct keys of rows that match `condition`,
+        and its ON clause."""
+        # distinct, because MERGE fails when several source rows match one target row
+        keys = ", ".join(key_columns)
+        on_str = " AND ".join(f"d.{c} = k.{c}" for c in key_columns)
+        return f"(SELECT DISTINCT {keys} FROM {table_name} WHERE {condition}) k ON {on_str}"
+
 
 class DatabricksZerobusLoadJob(BatchedFileLoadJob[TRecordBatch], ABC, Generic[TRecordBatch]):
     def __init__(
@@ -406,7 +475,7 @@ class DatabricksZerobusLoadJob(BatchedFileLoadJob[TRecordBatch], ABC, Generic[TR
             if column.get("data_type") == "time":
                 columns[column_name]["data_type"] = "text"
 
-        return columns_to_arrow(columns, self._job_client.capabilities)
+        return columns_to_arrow(columns, self._job_client.capabilities, get_context_timezone_name())
 
     def _create_stream(self) -> ZerobusArrowStream:
         table_name = self._job_client.sql_client.make_qualified_table_name(
@@ -507,10 +576,17 @@ class DatabricksClient(SqlJobClientWithStagingDataset, SupportsStagingDestinatio
         self.type_mapper = self.capabilities.get_type_mapper()
         # PK and FK are created in SQL fragments, not inline
 
+    def _should_add_comments(self, table_name: Optional[str]) -> bool:
+        # never annotate dlt system tables; `create_comments` disables comments/descriptions entirely
+        return self.config.create_comments and table_name not in self.schema.dlt_table_names()
+
     def _get_column_def_sql(self, column: TColumnSchema, table: PreparedTableSchema = None) -> str:
         column_def_sql = super()._get_column_def_sql(column, table)
 
-        if column.get(COLUMN_COMMENT_HINT) or column.get("description"):
+        table_name = table["name"] if table else None
+        if self._should_add_comments(table_name) and (
+            column.get(COLUMN_COMMENT_HINT) or column.get("description")
+        ):
             comment = column.get(COLUMN_COMMENT_HINT) or column.get("description")
             escaped_comment = escape_databricks_literal(comment)
             column_def_sql = f"{column_def_sql} COMMENT {escaped_comment}"
@@ -794,7 +870,9 @@ class DatabricksClient(SqlJobClientWithStagingDataset, SupportsStagingDestinatio
 
         qualified_name = self.sql_client.make_qualified_table_name(table_name)
 
-        if table.get(TABLE_COMMENT_HINT) or table.get("description"):
+        if self._should_add_comments(table_name) and (
+            table.get(TABLE_COMMENT_HINT) or table.get("description")
+        ):
             comment = table.get(TABLE_COMMENT_HINT) or table.get("description")
             escaped_comment = escape_databricks_literal(comment)
             sql_result.append(f"COMMENT ON TABLE {qualified_name} IS {escaped_comment}")

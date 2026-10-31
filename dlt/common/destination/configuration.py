@@ -5,6 +5,7 @@ from dlt.common.configuration.specs import BaseConfiguration
 from dlt.common.time import get_precision_from_datetime_unit
 
 CsvQuoting = Literal["quote_all", "quote_needed", "quote_minimal", "quote_none"]
+ParquetCompression = Literal["none", "snappy", "gzip", "brotli", "lz4", "zstd"]
 
 
 @configspec
@@ -28,8 +29,10 @@ class CsvFormatConfiguration(BaseConfiguration):
 class ParquetFormatConfiguration(BaseConfiguration):
     flavor: Optional[str] = None  # could be ie. "spark"
     version: Optional[str] = "2.4"
+    compression: Optional[ParquetCompression] = "snappy"
     data_page_size: Optional[int] = None
-    timestamp_timezone: str = "UTC"
+    timestamp_timezone: Optional[str] = None
+    """Deprecated as a way to pick a timezone, use the context timezone. `""` still asks for no UTC adjustment."""
     row_group_size: Optional[int] = None
     coerce_timestamps: Optional[Literal["s", "ms", "us", "ns"]] = None
     allow_truncated_timestamps: bool = False

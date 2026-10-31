@@ -54,6 +54,8 @@ def test_regular_keys(settings: VaultProviderConfiguration) -> None:
     assert provider.to_toml().strip() == DLT_SECRETS_TOML_CONTENT.strip()
     # check location
     assert "chat-analytics" in provider.locations[0]
+    # values are traced with the vault location
+    assert provider.get_value_location("secret_value", None) == provider.locations[0]
 
     assert provider.get_value("secret_value", AnyType, None) == (2137, "secret_value")
     assert provider.get_value("secret_key", AnyType, None, "api") == ("ABCD", "api-secret_key")

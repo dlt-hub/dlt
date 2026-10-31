@@ -5,11 +5,14 @@ and does not produce mixed normalized/non-normalized identifiers in the schema.
 """
 
 import os
+from typing import Any, List
 
 import pyarrow as pa
 import pytest
+from pytest_mock import MockerFixture
 
 import dlt
+from dlt.common import Decimal
 from dlt.common.storages import (
     SchemaStorage,
     SchemaStorageConfiguration,
@@ -22,6 +25,8 @@ from dlt.dataset.relation import Relation
 from dlt.extract.validation import PydanticValidator
 from dlt.extract import DltSource
 from dlt.extract.extract import Extract
+from dlt.extract.extractors import ArrowExtractor
+from dlt.extract.hints import make_hints
 
 from tests.utils import clean_test_storage, get_test_storage_root
 from tests.extract.utils import assert_written_tables_are_computed
@@ -80,13 +85,21 @@ def test_arrow_columns_merge_with_resource_hints(extract_step: Extract) -> None:
     with matching columns, the resulting schema should have only normalized column names
     and preserve the hint properties (like data_type).
     """
-    table = pa.table({"Numbers": [1, 2, 3], "Strings": ["a", "b", "c"]})
+    table = pa.table(
+        {
+            "Numbers": [1, 2, 3],
+            "Strings": ["a", "b", "c"],
+            "Amount": pa.array([Decimal("1.25")] * 3, type=pa.decimal128(10, 2)),
+        }
+    )
 
     @dlt.resource(
         name="with_hints",
         columns={
             "Numbers": {"data_type": "bigint"},
             "Strings": {"data_type": "text"},
+            # hint changes the arrow data type so arrow precision and scale must not survive
+            "Amount": {"data_type": "text", "precision": 50},
             # nullable hint-only column not present in arrow data
             "ExtraCol": {"data_type": "double", "nullable": True},
         },
@@ -113,6 +126,12 @@ def test_arrow_columns_merge_with_resource_hints(extract_step: Extract) -> None:
     # hint properties preserved through normalization
     assert schema_table["columns"]["numbers"]["data_type"] == "bigint"
     assert schema_table["columns"]["strings"]["data_type"] == "text"
+    assert schema_table["columns"]["amount"] == {
+        "name": "amount",
+        "nullable": True,
+        "data_type": "text",
+        "precision": 50,
+    }
     # hint-only column not in arrow data is still in the schema with normalized name
     assert "extra_col" in col_names
     assert schema_table["columns"]["extra_col"]["data_type"] == "double"
@@ -214,6 +233,95 @@ def test_arrow_empty_table_tracked_as_with_items(extract_step: Extract) -> None:
     assert arrow_extractor.tables_with_items == {"empty_arrow"}
     assert arrow_extractor.tables_with_empty == set()
     assert_written_tables_are_computed(arrow_extractor)
+
+
+def _computed_table_names(spy: Any) -> List[str]:
+    return [call.args[2] for call in spy.call_args_list]
+
+
+def test_arrow_table_computed_for_new_arrow_fields(
+    extract_step: Extract, mocker: MockerFixture
+) -> None:
+    # a changed arrow type is written to a new file
+    os.environ["DATA_WRITER__ARROW_CONCAT_PROMOTE_OPTIONS"] = "default"
+    spy = mocker.spy(ArrowExtractor, "_compute_and_update_tables")
+    narrow = pa.table({"Id": [1], "Value": ["a"]})
+    wide = pa.table({"Id": [2], "Value": ["b"], "Extra": [1.5]})
+
+    @dlt.resource(name="items")
+    def arrow_items():
+        yield narrow
+        # same fields in a new object, with other metadata or in a batch use the cached table
+        yield narrow.slice(0)
+        yield narrow.replace_schema_metadata({"source": "page 2"})
+        yield narrow.to_batches()[0]
+        # a new field computes the table again
+        yield wide
+        yield [wide, narrow]
+        # a subset of the last computed fields and null fields use the cached table
+        yield narrow
+        yield pa.table({"Extra": [2.5]})
+        yield pa.table({"Id": [3], "Value": pa.nulls(1)})
+        # a changed field type computes the table again
+        yield pa.table({"Id": [4], "Value": pa.array(["c"], pa.large_string())})
+        yield narrow
+
+    source = DltSource(dlt.Schema("arrow_test"), "module", [arrow_items])
+    extract_step.extract(source, 20, 1)
+
+    assert _computed_table_names(spy) == ["items"] * 4
+    assert list(source.schema.tables["items"]["columns"]) == ["id", "value", "extra"]
+    arrow_extractor = extract_step._last_extractors["arrow"]
+    assert arrow_extractor.tables_with_items == {"items"}
+    assert_written_tables_are_computed(arrow_extractor)
+
+
+def test_arrow_cached_table_applies_new_hints(extract_step: Extract, mocker: MockerFixture) -> None:
+    spy = mocker.spy(ArrowExtractor, "_compute_and_update_tables")
+    table = pa.table({"id": [1], "value": ["a"]})
+
+    # hints that depend on data compute the table for each item
+    @dlt.resource(
+        name="dynamic_hints",
+        table_name=lambda t: "dynamic_hints",
+        columns=lambda t: {"value": {"description": t["value"][0].as_py()}},
+    )
+    def dynamic_hints():
+        yield table
+        yield pa.table({"id": [2], "value": ["b"]})
+
+    # hints set while yielding compute the table again
+    @dlt.resource(name="marked_hints")
+    def marked_hints():
+        yield table
+        yield dlt.mark.with_hints(
+            table, make_hints(columns=[{"name": "value", "description": "marked"}])
+        )
+
+    # resources writing to the same table merge their hints
+    @dlt.resource(name="first", table_name="shared", columns={"id": {"description": "first"}})
+    def first():
+        yield table
+        yield table
+
+    @dlt.resource(name="second", table_name="shared", columns={"value": {"unique": True}})
+    def second():
+        yield table
+        yield table
+
+    source = DltSource(
+        dlt.Schema("arrow_test"), "module", [dynamic_hints, marked_hints, first, second]
+    )
+    extract_step.extract(source, 20, 1)
+
+    computed = _computed_table_names(spy)
+    assert computed.count("dynamic_hints") == 2
+    assert computed.count("marked_hints") == 2
+    tables = source.schema.tables
+    assert tables["dynamic_hints"]["columns"]["value"]["description"] == "b"
+    assert tables["marked_hints"]["columns"]["value"]["description"] == "marked"
+    assert tables["shared"]["columns"]["id"]["description"] == "first"
+    assert tables["shared"]["columns"]["value"]["unique"] is True
 
 
 def test_pydantic_validator_passes_through_non_object_items() -> None:

@@ -39,8 +39,13 @@ def init_dlthub_workspace(
         # uses the platform separator and matches paths built by callers via os.path.join
         dest_path = os.path.join(run_dir, *file_name.split("/"))
         if os.path.basename(file_name) == "config.toml":
+            # workspaces always emit _dlt_load_id for arrow/parquet data too (json data
+            # already gets it) so every row carries its load id regardless of source format
             body = (
                 templates.load(file_name)
+                + "\n[normalize.parquet_normalizer]\n"
+                + "# emit _dlt_load_id for arrow/parquet data\n"
+                + "add_dlt_load_id = true\n"
                 + f"\n[workspace.settings]\nname = {workspace_name_literal}\n"
             )
             # always preserve existing config.toml — even with --force

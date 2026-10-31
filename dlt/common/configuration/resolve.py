@@ -1,4 +1,5 @@
 from collections.abc import Mapping as C_Mapping
+import contextlib
 import os
 from typing import (
     Any,
@@ -431,10 +432,19 @@ def _resolve_config_field(
                     embedded_config = default_value
             else:
                 embedded_config = inner_hint()
+            # a mapping holds only the fields that the caller set. the other fields can come from an
+            # initial value. NOTE: BaseConfiguration is a Mapping, so this check excludes instances
+            explicit_mapping = isinstance(explicit_value, C_Mapping) and not isinstance(
+                explicit_value, BaseConfiguration
+            )
+            if explicit_mapping:
+                foreign_keys = set(explicit_value) - set(embedded_config.get_resolvable_fields())
+                # an empty mapping, or one that names fields of another spec in a union, is not an
+                # explicit value for this config. the code then handles the initial value as before
+                explicit_mapping = bool(explicit_value) and not foreign_keys
             # only config with sections may look for initial values
             # TODO: all this code can be moved into _resolve_configuration
-            # TODO: also allow when explicit_value is dict so we can parse initial value and merge with it
-            if embedded_config.__section__ and explicit_value is None:
+            if embedded_config.__section__ and (explicit_value is None or explicit_mapping):
                 # config section becomes the key if the key does not start with, otherwise it keeps its original value
                 initial_key, initial_embedded = _apply_embedded_sections_to_config_sections(
                     embedded_config.__section__, embedded_sections + (key,)
@@ -458,7 +468,15 @@ def _resolve_config_field(
                         default_value,
                         initial_traces,
                     )
-                    explicit_value = initial_value
+                    if explicit_mapping:
+                        # the initial value provides defaults for fields that the mapping omits.
+                        # the code ignores an initial value with credentials of another type
+                        with contextlib.suppress(InvalidNativeValue):
+                            _maybe_parse_native_value(
+                                embedded_config, initial_value, embedded_sections
+                            )
+                    else:
+                        explicit_value = initial_value
 
             # check if hint optional
             is_optional = is_optional_type(hint)
@@ -629,7 +647,10 @@ def resolve_single_provider_value(
 
         # create trace, ignore providers that cant_hold_it
         if not cant_hold_it:
-            traces.append(LookupTrace(provider.name, list(path), ns_key, value))
+            location = (
+                provider.get_value_location(key, pipeline_name, *path) if value is not None else ""
+            )
+            traces.append(LookupTrace(provider.name, list(path), ns_key, value, location))
 
         if value is not None:
             break

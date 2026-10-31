@@ -3,7 +3,6 @@ title: Deploy with dltHub
 description: Run dlt pipelines on the managed dltHub Platform
 keywords: [how to, deploy a pipeline, dlthub, managed platform]
 ---
-
 # Deploy with dltHub
 
 dltHub is the managed cloud platform built around `dlt`. It runs your existing dlt pipelines, transformations, and notebooks without you setting up orchestrators or infrastructure of your own.
@@ -21,3 +20,5 @@ Instead of deploying a `dlt` pipeline to your own runner (Airflow, GitHub Action
 ## Get started
 
 For installation, tutorials, and the full reference, see the [dltHub documentation](../../hub/getting-started/introduction.md).
+
+For a quick walkthrough, see [Deploy a pipeline with dltHub](orchestrate-with-dlthub.md).

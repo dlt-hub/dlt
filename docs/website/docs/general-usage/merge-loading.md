@@ -1,7 +1,7 @@
 ---
 title: Merge loading
 description: Merge loading with dlt
-keywords: [merge, incremental loading, delete-insert, scd2, upsert, insert-only]
+keywords: [merge, incremental loading, delete-insert, scd2, upsert, insert-only, cdc]
 ---
 # Merge loading
 
@@ -9,7 +9,7 @@ Merge loading allows you to update existing data in your destination tables, rat
 
 To perform a merge load, you need to specify the `write_disposition` as `merge` on your resource and provide a `primary_key` or `merge_key`.
 
-Depending on your use case, you can choose from four different merge strategies.
+Depending on your use case, you can choose from five merge strategies.
 
 ## Merge strategies
 
@@ -17,6 +17,7 @@ Depending on your use case, you can choose from four different merge strategies.
 2. [`scd2` strategy](#scd2-strategy)
 3. [`upsert` strategy](#upsert-strategy)
 4. [`insert-only` strategy](#insert-only-strategy)
+5. [`cdc` strategy](#cdc-strategy)
 
 ## `delete-insert` strategy
 
@@ -32,7 +33,7 @@ The example below loads all the GitHub events and updates them in the destinatio
 ```py
 @dlt.resource(primary_key="id", write_disposition="merge")
 def github_repo_events():
-    yield from _get_event_pages()
+    yield from _get_event_pages()  # ty: ignore[unresolved-reference]
 ```
 
 Since primary key is a [compound property](../general-usage/schema.md#compound-hints), you can define a composite primary key by providing multiple column names:
@@ -46,7 +47,7 @@ def resource():
 The example below merges on the `batch_day` column that holds the day for which the given record is valid.
 Merge keys also can be [compound](../general-usage/schema.md#compound-hints):
 
-```py
+```py notype
 @dlt.resource(merge_key="batch_day", write_disposition="merge")
 def get_daily_batch(day):
     yield _get_batch_from_bucket(day)
@@ -56,11 +57,14 @@ As with any other write disposition, you can use it to load data ad hoc. Below, 
 
 ```py
 p = dlt.pipeline(destination="bigquery", dataset_name="github")
+
 issues = []
 reactions = ["%2B1", "-1", "smile", "tada", "thinking_face", "heart", "rocket", "eyes"]
+headers: dict[str, str] = {}
+repo_name = "dlt-hub/dlt"
 for reaction in reactions:
     for page_no in range(1, 3):
-      page = requests.get(f"https://api.github.com/repos/{REPO_NAME}/issues?state=all&sort=reactions-{reaction}&per_page=100&page={page_no}", headers=headers)
+      page = requests.get(f"https://api.github.com/repos/{repo_name}/issues?state=all&sort=reactions-{reaction}&per_page=100&page={page_no}", headers=headers)
       print(f"got page for {reaction} page {page_no}, requests left", page.headers["x-ratelimit-remaining"])
       issues.extend(page.json())
 p.run(issues, write_disposition="merge", primary_key="id", table_name="issues")
@@ -72,13 +76,18 @@ The example below dispatches GitHub events to several tables by event type, keep
 @dlt.resource(primary_key="id", write_disposition="merge", table_name=lambda i: i['type'])
 def github_repo_events(last_created_at = dlt.sources.incremental("created_at", "1970-01-01T00:00:00Z")):
     """A resource taking a stream of github events and dispatching them to tables named by event type. Deduplicates by 'id'. Loads incrementally by 'created_at' """
-    yield from _get_rest_pages("events")
+    yield from _get_rest_pages("events")  # ty: ignore[unresolved-reference]
 ```
 
 :::note
 If you use the `merge` write disposition, but do not specify merge or primary keys, merge will fallback to `append`.
 The appended data will be inserted from a staging table in one transaction for most destinations in this case.
+If you set `destination_scope`, dlt replaces the records that the destination scope selects and does not append.
 :::
+
+### Replace a partition with a SQL condition
+
+A SQL condition can select the destination records to delete, instead of keys. Set `destination_scope` in the write disposition. dlt deletes the records that the condition selects and inserts the merge source. For details and examples, read [Replacing a partition with `delete-insert`](#replacing-a-partition-with-delete-insert).
 
 ### Control deduplication of staging data
 
@@ -117,34 +126,41 @@ def sample_data():
     for item in data:
         yield item
 ```
+
 Output:
+
 | id  | metadata_modified | value |
-|-----|------------------|-------|
-|  1  | 2024-01-02       | B     |
-|  2  | 2024-01-01       | C     |
+| --- | ----------------- | ----- |
+| 1   | 2024-01-02        | B     |
+| 2   | 2024-01-01        | C     |
 
 When this resource is executed, the following deduplication rules are applied:
 
 1. For records with different values in the `dedup_sort` column:
-   - The record with the highest value is kept when using `desc`.
-   - For example, among records with id=1, the one with `"metadata_modified"="2024-01-02"` is kept.
+
+  - The record with the highest value is kept when using `desc`.
+  - For example, among records with id=1, the one with `"metadata_modified"="2024-01-02"` is kept.
 
 2. For records with identical values in the `dedup_sort` column:
-   - The first occurrence encountered is kept.
-   - For example, among records with id=2 and identical `"metadata_modified"="2024-01-01"`, the first record (value="C") is kept.
+
+  - The first occurrence encountered is kept.
+  - For example, among records with id=2 and identical `"metadata_modified"="2024-01-01"`, the first record (value="C") is kept.
 
 ### Disable deduplication
+
 If staging data is already deduplicated (or was always clean) you can disable it. Deduplication is performed by the database backend so you
 may save some costs:
 
 ```py
 @dlt.resource(primary_key="id", write_disposition={"disposition": "merge", "strategy": "delete-insert", "deduplicated": True})
 def github_repo_events():
-    yield from _get_event_pages()
+    yield from _get_event_pages()  # ty: ignore[unresolved-reference]
 ```
 
 ### Delete records
+
 The `hard_delete` column hint can be used to delete records from the destination dataset. The behavior of the delete mechanism depends on the data type of the column marked with the hint:
+
 1) `bool` type: only `True` leads to a delete—`None` and `False` values are disregarded.
 2) Other types: each `not None` value leads to a delete.
 
@@ -153,6 +169,7 @@ If the incoming data contains a record marked as deleted, then any existing reco
 Deletes are propagated to any nested table that might exist. For each record that gets deleted in the root table, all corresponding records in the nested table(s) will also be deleted. Records in parent and nested tables are linked through the `root key` that is explained in the next section.
 
 #### Example: with primary key and boolean delete column
+
 ```py
 @dlt.resource(
     primary_key="id",
@@ -176,6 +193,7 @@ def resource():
 ```
 
 #### Example: with merge key and non-boolean delete column
+
 ```py
 @dlt.resource(
     merge_key="id",
@@ -194,6 +212,7 @@ def resource():
 ```
 
 #### Example: with primary key and "dedup_sort" hint
+
 ```py
 @dlt.resource(
     primary_key="id",
@@ -226,28 +245,29 @@ Root key propagation & merge apply only to nested tables. If your resource does 
 this chapter.
 :::
 
-Merge write disposition requires that the `_dlt_id` (`row_key`) of the root table be propagated to nested tables. This concept is similar to a foreign key but always references the root (top level) table, skipping any intermediate parents. We call it `root key`. The root key is automatically propagated for all tables that have the `merge` write disposition set. We do not enable it elsewhere because it takes up storage space.
+Merge write disposition requires that the `_dlt_id` (`row_key`) of the root table be propagated to nested tables. This concept is similar to a foreign key but always references the root (top level) table, skipping any intermediate parents. We call it `root key`. dlt propagates the root key for the `delete-insert`, `upsert`, `insert-only`, and `cdc` merge strategies. The `scd2` strategy does not need a root key, so dlt does not propagate it there. dlt does not propagate it for other write dispositions, because the root key uses storage space.
 
 If you plan for some of resources to do merges but your initial backfill is append (or replace / full refresh) you should:
+
 1. [Enable root key propagation right away](#forcing-root-key-propagation)
 2. or, if you are sure that nested tables are max 1 level deep: [Explicitly disable root key propagation](#disable-root-key-propagation)
 
-If you try to switch to merge after nested tables were already created you'll get a warning and NULL column violation from your
-destination. You can fix your pipeline by:
-1. Drop affected resources using `dlt pipeline ... drop` command or by using `refresh` argument on the pipeline. This will drop 
+If you switch to merge, or set `root_key=True`, after nested tables were already created, dlt logs a warning and adds `_dlt_root_id`
+to the nested tables as a NOT NULL column. Your destination rejects it if the tables contain data. You can fix your pipeline by:
+
+1. Drop affected resources using `dlt pipeline ... drop` command or by using `refresh` argument on the pipeline. This will drop
 data from related resources and reset the schema so NOT NULL columns can be created.
 2. If you have nested tables up to 1 nesting level you may [Explicitly disable root key propagation](#disable-root-key-propagation)
-3. You can fix your nested tables in both staging and final datasets. Add `_dlt_root_id` to all nested tables and copy data
-from related [root (top level) tables](../general-usage/schema.md#nested-references-root-and-nested-tables) `_dlt_id` (`row_key`).
-In that case `dlt` will update pipeline schema but will skip database migration.
+3. [Add the root key to existing tables](#add-the-root-key-to-existing-tables) yourself. This keeps your data.
 
 #### Forcing root key propagation
 
-`Root key` propagation is automatically enabled for all tables that have the `merge` write disposition set from the beginning. We do not always enable it by default because it takes up additional storage space. Nevertheless, in some cases, you may want to permanently enable `root key` propagation.
+`Root key` propagation is automatically enabled for tables that use the `delete-insert`, `upsert`, `insert-only` or `cdc` merge strategy from the beginning. We do not always enable it by default because it takes up additional storage space. Nevertheless, in some cases, you may want to permanently enable `root key` propagation.
 
-To enable `root key` propagation on an existing source or resource, you must drop and recreate its tables, since the `_dlt_root_id` column cannot be added to tables that already contain data.
+dlt cannot add the `_dlt_root_id` column to tables that already contain data. To enable `root key` propagation on an existing source or resource, drop and recreate its tables as shown below, or [add the root key to existing tables](#add-the-root-key-to-existing-tables) yourself.
 
 For example, suppose you used the [Facebook Ads](../dlt-ecosystem/verified-sources/facebook_ads.md) verified source, where the `merge` write disposition and `root key` are not enabled by default, to load the `ads` resource:
+
 ```py
 pipeline = dlt.pipeline(
     pipeline_name='facebook_ads_pipeline',
@@ -260,7 +280,7 @@ pipeline.run(my_facebook_ads.with_resources("ads"))
 
 If you want to change the `ads` resource to use `merge`, you must first drop the existing resource tables from the destination:
 
-```sh
+```cli
 dlt pipeline facebook_ads_pipeline drop ads
 ```
 
@@ -288,20 +308,50 @@ In this example, enabling `my_facebook_ads.root_key = True` and running the pipe
 If you have defined your own source with the `@dlt.source` decorator, you can also enable `root key` propagation by adding `@dlt.source(root_key=True)`.
 
 #### Disable root key propagation
+
 If your source generates single level of nested table (nested tables do not have nested tables) i.e. with `max_table_nesting=1` you can disable root key propagation
 by setting `root_key` to `False` on the source level. In that case `dlt` will use `parent_key` which is identical to `root_key` for level 1 nested tables. Note that currently you cannot disable propagation on the resource level.
 
 :::tip
-If you switched from `append` to `merge` and you forgot to set `root_key` on your source, it is too late to set it to `True` if you already have data in
+If you switched from `append` to `merge` and you forgot to set `root_key` on your source, setting it to `True` fails if you already have data in
 the destination. However, if you are sure that you do not have nested tables in nested tables (nesting level = 1), you can set it to `False` so the
 existing `parent_key` will be used.
 :::
 
+#### Add the root key to existing tables
+
+You can add `_dlt_root_id` to nested tables that already contain data yourself. dlt finds the column in the destination and skips the migration.
+
+1. Add `_dlt_root_id` as a nullable text column to every nested table of the resource.
+2. Copy the `_dlt_id` of the root table into it. In nested tables of level 1, `_dlt_parent_id` already holds this value. Deeper nested tables take `_dlt_root_id` from their parent table, one level at a time.
+3. Drop the nested tables of the resource in the [staging dataset](../dlt-ecosystem/staging.md#staging-dataset), if they exist. They keep the rows of the last load, so dlt cannot add the column there either. dlt creates them again in the next load.
+4. Run the pipeline with the new settings. If a load already failed, run the pipeline again: dlt loads the pending load package.
+
+For example, the `parent` resource in the `my_data` dataset has the nested tables `parent__children` and `parent__children__grand`:
+
+```sql
+ALTER TABLE my_data.parent__children ADD COLUMN _dlt_root_id VARCHAR;
+UPDATE my_data.parent__children SET _dlt_root_id = _dlt_parent_id;
+
+ALTER TABLE my_data.parent__children__grand ADD COLUMN _dlt_root_id VARCHAR;
+UPDATE my_data.parent__children__grand AS g
+SET _dlt_root_id = c._dlt_root_id
+FROM my_data.parent__children AS c
+WHERE g._dlt_parent_id = c._dlt_id;
+
+DROP TABLE IF EXISTS my_data_staging.parent__children__grand;
+DROP TABLE IF EXISTS my_data_staging.parent__children;
+```
+
+The example uses DuckDB and PostgreSQL syntax. Adjust the data type and the `UPDATE` statement to your destination.
+
 ## `scd2` strategy
+
 `dlt` can create [Slowly Changing Dimension Type 2](https://en.wikipedia.org/wiki/Slowly_changing_dimension#Type_2:_add_new_row) (SCD2) destination tables for dimension tables that change in the source. By default, the resource is expected to provide a full extract of the source table each run, though [incremental extracts](#example-incremental-scd2) are also possible. A row hash is stored in `_dlt_id` and used as a surrogate key to identify source records that have been inserted, updated, or deleted. A `NULL` value is used by default to indicate an active record, but a configurable high timestamp (for example, 9999-12-31 00:00:00.000000) can be used instead.
 
 :::note
 The `unique` hint for `_dlt_id` in the root table is set to `false` when using `scd2`. This differs from [the default behavior](./destination-tables.md#nested-tables). The reason is that the surrogate key stored in `_dlt_id` contains duplicates after an _insert-delete-reinsert_ pattern:
+
 1. A record with surrogate key X is inserted in a load at `t1`.
 2. The record with surrogate key X is deleted in a later load at `t2`.
 3. The record with surrogate key X is reinserted in an even later load at `t3`.
@@ -309,11 +359,13 @@ The `unique` hint for `_dlt_id` in the root table is set to `false` when using `
 After this pattern, the `scd2` table in the destination has two records for surrogate key X: one with the validity window `[t1, t2]`, and one with `[t3, NULL]`. As a result, `_dlt_id` contains duplicate values because both records share the same surrogate key.
 
 Note that:
+
 - The composite key `(_dlt_id, _dlt_valid_from)` is unique.
 - `_dlt_id` remains unique for nested tables—`scd2` does not affect this.
 :::
 
 ### Example: `scd2` merge strategy
+
 ```py
 @dlt.resource(
     write_disposition={"disposition": "merge", "strategy": "scd2"}
@@ -331,10 +383,10 @@ pipeline.run(dim_customer())  # first run — 2024-04-09 18:27:53.734235
 
 *`dim_customer` destination table after the first run—two records from the initial load are present, with validity columns added:*
 
-| `_dlt_valid_from` | `_dlt_valid_to` | `customer_key` | `c1` | `c2` |
-| -- | -- | -- | -- | -- |
-| 2024-04-09 18:27:53.734235 | NULL | 1 | foo | 1 |
-| 2024-04-09 18:27:53.734235 | NULL | 2 | bar | 2 |
+| `_dlt_valid_from`          | `_dlt_valid_to` | `customer_key` | `c1` | `c2` |
+| -------------------------- | --------------- | -------------- | ---- | ---- |
+| 2024-04-09 18:27:53.734235 | NULL            | 1              | foo  | 1    |
+| 2024-04-09 18:27:53.734235 | NULL            | 2              | bar  | 2    |
 
 ```py
 ...
@@ -350,11 +402,11 @@ pipeline.run(dim_customer())  # second run — 2024-04-09 22:13:07.943703
 
 *`dim_customer` destination table after the second run—new record inserted for `customer_key` 1, and the old record retired by updating `_dlt_valid_to`:*
 
-| `_dlt_valid_from` | `_dlt_valid_to` | `customer_key` | `c1` | `c2` |
-| -- | -- | -- | -- | -- |
-| 2024-04-09 18:27:53.734235 | **2024-04-09 22:13:07.943703** | 1 | foo | 1 |
-| 2024-04-09 18:27:53.734235 | NULL | 2 | bar | 2 |
-| **2024-04-09 22:13:07.943703** | **NULL** | **1** | **foo_updated** | **1** |
+| `_dlt_valid_from`              | `_dlt_valid_to`                | `customer_key` | `c1`            | `c2`  |
+| ------------------------------ | ------------------------------ | -------------- | --------------- | ----- |
+| 2024-04-09 18:27:53.734235     | **2024-04-09 22:13:07.943703** | 1              | foo             | 1     |
+| 2024-04-09 18:27:53.734235     | NULL                           | 2              | bar             | 2     |
+| **2024-04-09 22:13:07.943703** | **NULL**                       | **1**          | **foo_updated** | **1** |
 
 ```py
 ...
@@ -369,13 +421,14 @@ pipeline.run(dim_customer())  # third run — 2024-04-10 06:45:22.847403
 
 *`dim_customer` destination table after the third run—the deleted record is retired by updating `_dlt_valid_to`:*
 
-| `_dlt_valid_from` | `_dlt_valid_to` | `customer_key` | `c1` | `c2` |
-| -- | -- | -- | -- | -- |
-| 2024-04-09 18:27:53.734235 | 2024-04-09 22:13:07.943703 | 1 | foo | 1 |
-| 2024-04-09 18:27:53.734235 | **2024-04-10 06:45:22.847403** | 2 | bar | 2 |
-| 2024-04-09 22:13:07.943703 | NULL | 1 | foo_updated | 1 |
+| `_dlt_valid_from`          | `_dlt_valid_to`                | `customer_key` | `c1`        | `c2` |
+| -------------------------- | ------------------------------ | -------------- | ----------- | ---- |
+| 2024-04-09 18:27:53.734235 | 2024-04-09 22:13:07.943703     | 1              | foo         | 1    |
+| 2024-04-09 18:27:53.734235 | **2024-04-10 06:45:22.847403** | 2              | bar         | 2    |
+| 2024-04-09 22:13:07.943703 | NULL                           | 1              | foo_updated | 1    |
 
 ### Example: incremental `scd2`
+
 A `merge_key` can be provided to work with incremental extracts instead of full extracts. The `merge_key` lets you define which absent rows are considered "deleted". Compound natural keys are allowed and can be specified by providing a list of column names as `merge_key`.
 
 *Case 1: do not retire absent records*
@@ -397,12 +450,13 @@ def dim_customer():
 pipeline.run(dim_customer())  # first run — 2024-04-09 18:27:53.734235
 ...
 ```
+
 *`dim_customer` destination table after the first run:*
 
-| `_dlt_valid_from` | `_dlt_valid_to` | `customer_key` | `c1` | `c2` |
-| -- | -- | -- | -- | -- |
-| 2024-04-09 18:27:53.734235 | NULL | 1 | foo | 1 |
-| 2024-04-09 18:27:53.734235 | NULL | 2 | bar | 2 |
+| `_dlt_valid_from`          | `_dlt_valid_to` | `customer_key` | `c1` | `c2` |
+| -------------------------- | --------------- | -------------- | ---- | ---- |
+| 2024-04-09 18:27:53.734235 | NULL            | 1              | foo  | 1    |
+| 2024-04-09 18:27:53.734235 | NULL            | 2              | bar  | 2    |
 
 ```py
 ...
@@ -417,16 +471,17 @@ pipeline.run(dim_customer())  # second run — 2024-04-09 22:13:07.943703
 
 *`dim_customer` destination table after the second run—customer key 2 was not retired:*
 
-| `_dlt_valid_from` | `_dlt_valid_to` | `customer_key` | `c1` | `c2` |
-| -- | -- | -- | -- | -- |
-| 2024-04-09 18:27:53.734235 | **2024-04-09 22:13:07.943703** | 1 | foo | 1 |
-| 2024-04-09 18:27:53.734235 | NULL | 2 | bar | 2 |
-| **2024-04-09 22:13:07.943703** | **NULL** | **1** | **foo_updated** | **1** |
+| `_dlt_valid_from`              | `_dlt_valid_to`                | `customer_key` | `c1`            | `c2`  |
+| ------------------------------ | ------------------------------ | -------------- | --------------- | ----- |
+| 2024-04-09 18:27:53.734235     | **2024-04-09 22:13:07.943703** | 1              | foo             | 1     |
+| 2024-04-09 18:27:53.734235     | NULL                           | 2              | bar             | 2     |
+| **2024-04-09 22:13:07.943703** | **NULL**                       | **1**          | **foo_updated** | **1** |
 
 :::tip
 If you decide to undo the previous configuration that prevented retiring absent records for an existing pipeline,
 and want to start retiring them again,
 you must explicitly unset the `merge_key`:
+
 ```py
 @dlt.resource(
     columns={"customer_key": {"merge_key": False}},
@@ -435,6 +490,7 @@ you must explicitly unset the `merge_key`:
 def dim_customer():
     ...
 ```
+
 Simply omitting `merge_key` from the decorator will not disable the behavior. Alternatively, you can disable the `merge_key` hint for the affected column in the import schema.
 :::
 
@@ -464,10 +520,10 @@ pipeline.run(some_data())  # first run — 2024-01-02 03:03:35.854305
 
 *`some_data` destination table after the first run:*
 
-| `_dlt_valid_from` | `_dlt_valid_to` | `date` | `name` |
-| -- | -- | -- | -- |
-| 2024-01-02 03:03:35.854305 | NULL | 2024-01-01 | a |
-| 2024-01-02 03:03:35.854305 | NULL | 2024-01-01 | b |
+| `_dlt_valid_from`          | `_dlt_valid_to` | `date`     | `name` |
+| -------------------------- | --------------- | ---------- | ------ |
+| 2024-01-02 03:03:35.854305 | NULL            | 2024-01-01 | a      |
+| 2024-01-02 03:03:35.854305 | NULL            | 2024-01-01 | b      |
 
 ```py
 ...
@@ -484,12 +540,12 @@ pipeline.run(some_data())  # second run — 2024-01-03 03:01:11.943703
 
 *`some_data` destination table after the second run—2024-01-02 records were added, and 2024-01-01 records were left unchanged:*
 
-| `_dlt_valid_from` | `_dlt_valid_to` | `date` | `name` |
-| -- | -- | -- | -- |
-| 2024-01-02 03:03:35.854305 | NULL | 2024-01-01 | a |
-| 2024-01-02 03:03:35.854305 | NULL | 2024-01-01 | b |
-| **2024-01-03 03:01:11.943703** | **NULL** | **2024-01-02** | **c** |
-| **2024-01-03 03:01:11.943703** | **NULL** | **2024-01-02** | **d** |
+| `_dlt_valid_from`              | `_dlt_valid_to` | `date`         | `name` |
+| ------------------------------ | --------------- | -------------- | ------ |
+| 2024-01-02 03:03:35.854305     | NULL            | 2024-01-01     | a      |
+| 2024-01-02 03:03:35.854305     | NULL            | 2024-01-01     | b      |
+| **2024-01-03 03:01:11.943703** | **NULL**        | **2024-01-02** | **c**  |
+| **2024-01-03 03:01:11.943703** | **NULL**        | **2024-01-02** | **d**  |
 
 ```py
 ...
@@ -506,23 +562,43 @@ pipeline.run(some_data())  # third run — 2024-01-03 10:30:05.750356
 
 *`some_data` destination table after the third run—b was retired, bb was added, and the 2024-01-02 partition was left unchanged:*
 
-| `_dlt_valid_from` | `_dlt_valid_to` | `date` | `name` |
-| -- | -- | -- | -- |
-| 2024-01-02 03:03:35.854305 | NULL | 2024-01-01 | a |
-| 2024-01-02 03:03:35.854305 | **2024-01-03 10:30:05.750356** | 2024-01-01 | b |
-| 2024-01-03 03:01:11.943703 | NULL | 2024-01-02 | c |
-| 2024-01-03 03:01:11.943703 | NULL | 2024-01-02 | d |
-| **2024-01-03 10:30:05.750356** | **NULL** | **2024-01-01** | **bb** |
+| `_dlt_valid_from`              | `_dlt_valid_to`                | `date`         | `name` |
+| ------------------------------ | ------------------------------ | -------------- | ------ |
+| 2024-01-02 03:03:35.854305     | NULL                           | 2024-01-01     | a      |
+| 2024-01-02 03:03:35.854305     | **2024-01-03 10:30:05.750356** | 2024-01-01     | b      |
+| 2024-01-03 03:01:11.943703     | NULL                           | 2024-01-02     | c      |
+| 2024-01-03 03:01:11.943703     | NULL                           | 2024-01-02     | d      |
+| **2024-01-03 10:30:05.750356** | **NULL**                       | **2024-01-01** | **bb** |
+
+*Case 3: retire only the records that a SQL condition selects*
+
+Set `destination_scope` to retire only the absent records that a SQL condition selects. Records outside the condition stay active. If you set `destination_scope`, dlt ignores `merge_key`.
+
+```py
+@dlt.resource(
+    write_disposition={
+        "disposition": "merge",
+        "strategy": "scd2",
+        "destination_scope": "date >= '2024-01-01'",
+    }
+)
+def dim_customer():
+    ...
+```
+
+`source_filter` selects the loaded records to merge. dlt discards the other loaded records and their nested rows. They do not count as present, so `scd2` retires their destination records. For the rules of both options, read [Merge conditions](#merge-conditions).
 
 ### Handling nested structures with SCD type 2
+
 To explore how SCD Type 2 handles nested JSON structures, refer to the hands-on demonstration provided in the Colab Notebook linked below.
 
 Execute all steps directly in your browser:
 [Open in Colab.](https://colab.research.google.com/drive/1GpG3JKGWveB-kR7eNvlJLr6oO0nM7Fbv?usp=sharing)
 
-
 ### Example: configure validity column names
+
 `_dlt_valid_from` and `_dlt_valid_to` are used by default as validity column names. Other names can be configured as follows:
+
 ```py
 @dlt.resource(
     write_disposition={
@@ -537,22 +613,28 @@ def dim_customer():
 ```
 
 ### Example: configure active record timestamp
+
 You can configure the literal used to indicate an active record with `active_record_timestamp`. The default literal `NULL` is used if `active_record_timestamp` is omitted or set to `None`. Provide a date value if you prefer to use a high timestamp instead.
+
 ```py
 @dlt.resource(
     write_disposition={
         "disposition": "merge",
         "strategy": "scd2",
         # accepts various types of date/datetime objects
-        "active_record_timestamp": "9999-12-31",
+        "active_record_timestamp": "9999-12-31T00:00:00+00:00",
     }
 )
 def dim_customer():
     ...
 ```
 
+dlt compares this value with the "valid to" column of every load, so it must not change between loads. dlt stores it like a loaded timestamp, see [timezones of the validity columns](#timezones-of-the-validity-columns).
+
 ### Example: configure boundary timestamp
-You can configure the "boundary timestamp" used for record validity windows with `boundary_timestamp`. The provided date(time) value is used as "valid from" for new records and as "valid to" for retired records. The timestamp at which a load package is created is used if `boundary_timestamp` is omitted.
+
+You can configure the "boundary timestamp" used for record validity windows with `boundary_timestamp`. The provided date(time) value is used as "valid from" for new records and as "valid to" for retired records. If `boundary_timestamp` is omitted or `None`, dlt uses the time at which the load package was created.
+
 ```py
 @dlt.resource(
     write_disposition={
@@ -566,37 +648,39 @@ def dim_customer():
     ...
 ```
 
-#### Reset boundary timestamp to the current load time
-To stop using a previously set `boundary_timestamp` and revert to the default (the current load package creation time), set `boundary_timestamp` to `None`. You can do this either at definition time or dynamically with `apply_hints` before a run.
+The boundary applies only to the load that declares it. dlt stores it in the load package, not in the schema, so a new boundary does not create a new schema version, and the next load without `boundary_timestamp` uses its own creation time. To set the boundary of a single run, use `apply_hints` before the run:
 
-Definition-time (always use current load time):
 ```py
-@dlt.resource(
-    write_disposition={
-        "disposition": "merge",
-        "strategy": "scd2",
-        "boundary_timestamp": None,  # reset to current load time
-    }
-)
+@dlt.resource(write_disposition={"disposition": "merge", "strategy": "scd2"})
 def dim_customer():
     ...
-```
 
-Per-run reset (override just for this run):
-```py
-r.apply_hints(
+dim_customer.apply_hints(
     write_disposition={
         "disposition": "merge",
         "strategy": "scd2",
-        "boundary_timestamp": None,  # reset to current load time for this run
+        "boundary_timestamp": "2024-08-22T00:00:00+00:00",
     }
 )
-pipeline.run(r(...))
+pipeline.run(dim_customer())
 ```
-When `boundary_timestamp` is `None` (or omitted), `dlt` uses the load package's creation timestamp as the boundary for both retiring existing versions and creating new versions.
+
+dlt reads `boundary_timestamp` only from a write disposition dict, not from a function that returns the write disposition.
+
+### Timezones of the validity columns
+
+dlt writes `boundary_timestamp`, `active_record_timestamp` and the load package creation time into the validity columns by the rules for [loaded timestamps](schema.md#handling-of-timestamp-and-time-zones), so they are in the same timezone as the data:
+
+- A value with a timezone is converted to the [context timezone](schema.md#context-timezone), UTC by default.
+- A naive value is read in the context timezone.
+- A destination without timezone support, like Athena, stores the wall clock of the context timezone.
+
+The load package creation time is UTC, so the default boundary is the instant of the load.
 
 ### Example: Use your own row hash
+
 By default, `dlt` generates a row hash based on all columns provided by the resource and stores it in `_dlt_id`. You can use your own hash instead by specifying `row_version_column_name` in the `write_disposition` dictionary. You might already have a column present in your resource that can naturally serve as a row hash, in which case it's more efficient to use those pre-existing hash values than to generate new artificial ones. This option also allows you to use hashes based on a subset of columns, in case you want to ignore changes in some of the columns. When using your own hash, values for `_dlt_id` are randomly generated.
+
 ```py
 @dlt.resource(
     write_disposition={
@@ -615,22 +699,25 @@ If your source data contains nested fields (like lists or arrays) that may retur
 :::
 
 ### 🧪 Use scd2 with Arrow tables, Pandas or Polars DataFrames
+
 `dlt` will not add a **row hash** column to the tabular data automatically (we are working on it).
 You need to do that yourself by adding a transform function to the `scd2` resource that computes row hashes (using pandas.util, should be fairly fast).
-```py
+
+```py notype
 import dlt
 from dlt.sources.helpers.transform import add_row_hash_to_table
 
 scd2_r = dlt.resource(
-          arrow_table,
-          name="tabular",
-          write_disposition={
-              "disposition": "merge",
-              "strategy": "scd2",
-              "row_version_column_name": "row_hash",
-          },
-      ).add_map(add_row_hash_to_table("row_hash"))
+    arrow_table,
+    name="tabular",
+    write_disposition={
+        "disposition": "merge",
+        "strategy": "scd2",
+        "row_version_column_name": "row_hash",
+    },
+).add_map(add_row_hash_to_table("row_hash"))
 ```
+
 `add_row_hash_to_table` is the name of the transform function that will compute and create the `row_hash` column that is declared as holding the hash by `row_version_column_name`.
 
 :::tip
@@ -639,7 +726,12 @@ adding the transform with `add_map`.
 :::
 
 ### Nested tables
-Nested tables, if any, do not contain validity columns. Validity columns are only added to the root table. Validity column values for records in nested tables can be obtained by joining the root table using `_dlt_root_id` (`root_key`).
+
+Nested tables, if any, do not contain validity columns. Validity columns are only added to the root table. To get the validity columns for a nested record, join the nested table to its parent on `_dlt_parent_id`. By default, `_dlt_id` in the root table is the row hash of the record version. Deeper nested tables join through each parent level. If you set `root_key=True` on the source, nested tables also get `_dlt_root_id`, and you can join the root table directly.
+
+:::caution
+`scd2` does not need the root key, so dlt does not propagate it by default. If you want `_dlt_root_id` in nested tables, set `root_key=True` before the first load. dlt cannot add `_dlt_root_id` to tables that already contain data, but you can [add it yourself](#add-the-root-key-to-existing-tables).
+:::
 
 ### Limitations
 
@@ -652,6 +744,7 @@ column in the root table to stamp changes in nested data.
 
 :::warning
 The `upsert` merge strategy is currently supported for these destinations:
+
 - `athena`
 - `bigquery`
 - `databricks`
@@ -662,20 +755,72 @@ The `upsert` merge strategy is currently supported for these destinations:
 :::
 
 The `upsert` merge strategy does primary-key based *upserts*:
+
 - *update* a record if the key exists in the target table
 - *insert* a record if the key does not exist in the target table
 
 You can [delete records](#delete-records) with the `hard_delete` hint.
 
+### Skip unchanged records
+
+By default, `upsert` updates every record whose key exists in the target table, even when its values did not change. Set `skip_unchanged_rows` to update only the records that changed. Change consumers then see only the records that changed. For example, a Snowflake stream contains only the inserted and updated records:
+
+```py
+@dlt.resource(
+    write_disposition={
+        "disposition": "merge",
+        "strategy": "upsert",
+        "skip_unchanged_rows": True,
+    },
+    primary_key="my_primary_key",
+)
+def my_upsert_resource():
+    ...
+...
+```
+
+The option works the same way for the [`cdc` strategy](#cdc-strategy).
+
+Change detection compares all columns except the `primary_key`, the `hard_delete` column, and the dlt columns `_dlt_id`, `_dlt_load_id`, `_dlt_parent_id`, and `_dlt_root_id`. dlt sets the `_dlt_load_id` of an updated record to the current load. An unchanged record keeps the `_dlt_load_id` of its last change. Change detection also applies to nested rows, so dlt does not update an unchanged list element.
+
+On the `filesystem` destination, the `iceberg` table format does not support `skip_unchanged_rows` with `upsert`. The vector destinations `lancedb`, `lance`, `qdrant` and `weaviate` do not support it either, because their `upsert` updates every matched record. With it, dlt stops before the load starts.
+
+#### Detect changes with your own row version
+
+To detect changes with one column instead of all columns, also set `row_version_column_name`. dlt then updates a record only when the value in this column changes. Changes in the other columns do not update the record. The resource must provide the column, for example a hash of the columns you track or a version counter from the source system. The column cannot contain `NULL` values:
+
+```py
+@dlt.resource(
+    write_disposition={
+        "disposition": "merge",
+        "strategy": "upsert",
+        "skip_unchanged_rows": True,
+        "row_version_column_name": "row_hash",
+    },
+    primary_key="my_primary_key",
+)
+def my_upsert_resource():
+    ...
+...
+```
+
+Without `skip_unchanged_rows`, dlt ignores `row_version_column_name` and logs a warning. dlt still identifies records by `primary_key` and still generates `_dlt_id`. This is different from the [`scd2` strategy](#example-use-your-own-row-hash), where the row version column identifies the record. The row version applies to the root table only. dlt compares all columns of nested tables.
+
+### Filter the loaded records
+
+Set `source_filter` to merge only the loaded records that match a SQL condition. dlt discards the other loaded records. For the rules, read [Merge conditions](#merge-conditions). `upsert` does not delete records that are absent from the loaded data, so it does not support `destination_scope`. The `iceberg` table format and the vector destinations cannot apply a SQL condition, so they reject `source_filter` before the load starts.
+
 ### `upsert` versus `delete-insert`
 
 Unlike the default `delete-insert` merge strategy, the `upsert` strategy:
+
 1. needs a `primary_key`
 2. expects this `primary_key` to be unique (`dlt` does not deduplicate)
 3. does not support `merge_key`
 4. uses `MERGE` or `UPDATE` operations to process updates
 
 ### Example: `upsert` merge strategy
+
 ```py
 @dlt.resource(
     write_disposition={"disposition": "merge", "strategy": "upsert"},
@@ -691,6 +836,7 @@ def my_upsert_resource():
 The `insert-only` merge strategy is supported for all destinations that support `upsert` (see [above](#upsert-strategy)), including `filesystem` with `delta` and `iceberg` table formats and `lancedb`.
 
 The `insert-only` merge strategy does primary-key based *inserts* without updating existing records:
+
 - *insert* a record if the key does not exist in the target table
 - *skip* a record if the key already exists in the target table (no update happens)
 
@@ -701,16 +847,19 @@ You can use the `hard_delete` hint to filter out records marked for deletion bef
 ### `insert-only` versus `upsert`
 
 Unlike the `upsert` strategy, the `insert-only` strategy:
-1. **does not update** existing records
+
+1. **does not update** existing records, even when their values changed. `upsert` with [`skip_unchanged_rows`](#skip-unchanged-records) still updates the changed records
 2. provides better **performance** by skipping `UPDATE` operations
 
 Like `upsert`, the `insert-only` strategy:
+
 1. needs a `primary_key`
 2. expects this `primary_key` to be unique
 3. does not support `merge_key`
 4. generates deterministic `_dlt_id` based on primary key
 
 ### Example: `insert-only` merge strategy
+
 ```py
 @dlt.resource(
     write_disposition={"disposition": "merge", "strategy": "insert-only"},
@@ -720,3 +869,352 @@ def my_insert_only_resource():
     ...
 ...
 ```
+
+### Nested tables without a root key
+
+`insert-only` never deletes nested records, so it does not need the `root key` (`_dlt_root_id`). It merges nested tables by their row key, which dlt derives from the parent `_dlt_id` and the position in the list. By default, dlt still propagates the root key for `insert-only`. To save storage space, disable it on the source. Unlike the general rule for [disabling root key propagation](#disable-root-key-propagation), this works for any nesting depth:
+
+```py
+@dlt.source(root_key=False)
+def events_source():
+    @dlt.resource(
+        write_disposition={"disposition": "merge", "strategy": "insert-only"},
+        primary_key="event_id",
+    )
+    def events():
+        yield [{"event_id": 1, "tags": [{"name": "a", "props": [{"k": "v"}]}]}]
+
+    return events
+```
+
+:::caution
+`upsert` and `cdc` delete nested records by the root key. If you may switch the resource to one of these strategies later, keep the root key. dlt cannot add `_dlt_root_id` to tables that already contain data, but you can [add it yourself](#add-the-root-key-to-existing-tables).
+:::
+
+## `cdc` strategy
+
+:::note
+These destinations support the `cdc` merge strategy:
+
+- `duckdb` (`duckdb >= 1.4.0`)
+- `motherduck`
+- `ducklake`
+- `snowflake`
+- `postgres`
+- `bigquery`
+- `databricks`
+- `mssql`
+- `fabric`
+- `athena` with the `iceberg` table format
+- `filesystem` with the `delta` table format
+:::
+
+The `cdc` strategy treats the loaded data as a **complete snapshot of the source system**. It derives inserts, updates, and deletes from the snapshot:
+
+- It **inserts** a record whose key is not in the destination.
+- It **updates** a record whose key is in the destination.
+- It **deletes** a record that the destination has and the snapshot does not.
+
+If the source system deletes records without deletion markers, use `cdc` to mirror the source system. Set [`skip_unchanged_rows`](#skip-unchanged-records) so that `cdc` does not update unchanged records. As a result, change consumers see only the records that changed. For example, a Snowflake stream contains only the inserted, updated, and deleted records:
+
+```py
+@dlt.resource(
+    write_disposition={
+        "disposition": "merge",
+        "strategy": "cdc",
+        "skip_unchanged_rows": True,
+    },
+    primary_key="my_primary_key"
+)
+def my_cdc_resource():
+    ...
+...
+```
+
+To detect changes with one column instead of all columns, also set `row_version_column_name`, as described in [Detect changes with your own row version](#detect-changes-with-your-own-row-version).
+
+### `cdc` versus `replace` and `delete-insert`
+
+[`replace`](./full-loading.md) replaces the whole table with the loaded data. `delete-insert` with a `merge_key` replaces partitions of the table. Both delete and insert every record they touch, including the unchanged records. As a result, every record looks modified downstream. `_dlt_load_id` then does not show when a record last changed.
+
+On Snowflake, the deletes and inserts also create new micro-partitions. The `staging-optimized` replace strategy swaps the table object. This breaks a stream on that table.
+
+If you need only the data, choose `replace` or `delete-insert`. If you also need to know what changed, choose `cdc`.
+
+### `cdc` versus `upsert`
+
+Unlike the `upsert` strategy, the `cdc` strategy:
+
+1. **deletes** records that are absent from the loaded snapshot
+2. supports `merge_key` and `destination_scope` to limit deletes to a part of the table
+3. does not insert a loaded record that the `hard_delete` column marks as deleted
+
+Like `upsert`, the `cdc` strategy:
+
+1. needs a `primary_key`
+2. expects this `primary_key` to be unique (`dlt` does not deduplicate)
+3. generates a deterministic `_dlt_id` based on the primary key
+4. skips unchanged records with [`skip_unchanged_rows`](#skip-unchanged-records)
+5. merges only the loaded records that `source_filter` selects
+
+:::caution
+Make sure that the `primary_key` is unique. With duplicate keys, the result is not deterministic. Snowflake raises an error. `duckdb` updates an existing record with one of the duplicates and inserts every duplicate of a new key.
+:::
+
+### Deleting records with `hard_delete`
+
+You can also [delete records](#delete-records) with the `hard_delete` hint. If the `hard_delete` column marks a loaded record as deleted, `cdc` deletes its destination record. `cdc` does not insert this loaded record.
+
+### Limiting deletes with `merge_key` and merge conditions
+
+By default, `cdc` compares the whole table and deletes every record that is absent from the snapshot. If you load only a part of the table, for example recent months, limit the deletes to that part.
+
+Set `merge_key` to delete absent records only in the partitions of the merge source:
+
+```py
+@dlt.resource(
+    write_disposition={"disposition": "merge", "strategy": "cdc"},
+    primary_key="my_primary_key",
+    merge_key="month",
+)
+def my_partitioned_resource():
+    # yield a complete snapshot of the months you load
+    ...
+...
+```
+
+The `delta` table format does not support `merge_key` with `cdc`. Set a destination scope instead.
+
+`merge_key` works the same way for the [`scd2` strategy](#scd2-strategy). Without it, `scd2` retires every absent record. With it, `scd2` retires only the absent records whose `merge_key` is in the merge source. With `source_filter`, dlt takes the `merge_key` partitions from the merge source only.
+
+To limit the deletes with a SQL condition instead, set `destination_scope`. Read [Merge conditions](#merge-conditions).
+
+### Nested tables with `cdc`
+
+Nested rows follow their parent row. dlt deletes the nested rows of a deleted parent and the list elements that the load no longer has. dlt inserts new list elements. With `skip_unchanged_rows`, dlt does not update an unchanged element.
+
+### Limitations of `cdc`
+
+- The `primary_key` of the snapshot must be unique. `dlt` does not deduplicate the loaded data for this strategy.
+- A resource that yields no records produces no load job, so `cdc` deletes nothing. To delete the records of an empty snapshot, read [Delete all records with an empty snapshot](#delete-all-records-with-an-empty-snapshot).
+
+### Delete all records with an empty snapshot
+
+If the source system returns no records, yield [`dlt.mark.materialize_table_schema()`](resource.md#materialize-schema-without-rows). dlt then runs an empty load job, and the merge deletes every destination record. With `destination_scope`, it deletes only the records in the destination scope. With `merge_key`, it deletes nothing, because an empty snapshot has no partitions:
+
+```py
+@dlt.resource(
+    primary_key="id",
+    write_disposition={
+        "disposition": "merge",
+        "strategy": "cdc",
+        "destination_scope": "region = 'eu'",
+    },
+)
+def customers():
+    rows = fetch_customers(region="eu")  # ty: ignore[unresolved-reference]
+    if not rows:
+        # an empty load job deletes every record in the destination scope
+        yield dlt.mark.materialize_table_schema()
+    yield from rows
+```
+
+## Merge conditions
+
+`destination_scope` and `source_filter` are SQL conditions that limit a merge:
+
+- **`destination_scope`** selects the destination records that the merge can delete or retire. `delete-insert`, `scd2`, and `cdc` support it.
+- **`source_filter`** selects the loaded records to merge. dlt **discards** the other loaded records. The remaining records are the merge source. Keys and `merge_key` partitions come only from the merge source.
+
+| strategy        | `destination_scope`       | `source_filter` |
+| --------------- | ------------------------- | --------------- |
+| `delete-insert` | yes, the delete condition | yes             |
+| `scd2`          | yes                       | yes             |
+| `cdc`           | yes                       | yes             |
+| `upsert`        | no                        | yes             |
+| `insert-only`   | no                        | no              |
+
+With an unsupported option, dlt raises an error when you define the resource. If the destination picks the strategy, dlt ignores the option and logs a warning.
+
+```py
+@dlt.resource(
+    write_disposition={
+        "disposition": "merge",
+        "strategy": "cdc",
+        "destination_scope": "updated_at >= '2026-07-01'",
+    },
+    primary_key="my_primary_key",
+)
+def my_recent_resource():
+    ...
+...
+```
+
+On the `delta` table format, write this condition as `{table}.updated_at >= '2026-07-01'`.
+
+The destination evaluates both conditions. Write them with destination column names and SQL syntax. `destination_scope` replaces `merge_key`: if you set it, dlt **ignores `merge_key`**. On BigQuery, a `merge_key` compiles to a subquery, and the subquery prevents partition pruning. A destination scope can prune partitions.
+
+:::caution
+If you can filter the data at extract time, use [`resource.add_filter()`](resource.md#filter-transform-and-pivot-data). `source_filter` discards loaded records without an error. The load reports success, and the trace shows these records as extracted and normalized.
+:::
+
+:::warning
+For `cdc` and `scd2`, a discarded record is absent from the merge source. Then dlt deletes or retires its destination record. To keep the destination record, set a destination scope or a `merge_key` that excludes it.
+:::
+
+For the [`scd2` strategy](#scd2-strategy), `destination_scope` limits the records that `scd2` retires. The [`upsert` strategy](#filter-the-loaded-records) supports only `source_filter`, because it does not delete absent records.
+
+The conditions can reference the tables by placeholder. The expansion depends on the destination:
+
+| placeholder       | SQL destinations                                                              | `delta` table format                  |
+| ----------------- | ----------------------------------------------------------------------------- | ------------------------------------- |
+| `{table}`         | the fully qualified destination table, for example `"my_dataset"."items"`     | `target`, only in `destination_scope` |
+| `{staging_table}` | the fully qualified staging table, for example `"my_dataset_staging"."items"` | `source`, only in `source_filter`     |
+
+On SQL destinations:
+
+- `destination_scope` can use both placeholders.
+- `source_filter` cannot use the table placeholders. dlt applies it to the staging table, so write it with bare column names.
+
+Both conditions can also use [value placeholders](#fill-placeholders-with-values-from-the-load).
+
+On the `delta` table format, the conditions are Delta merge predicates:
+
+- `destination_scope` can use only `{table}`. dlt deletes only the unmatched destination records that the destination scope selects.
+- `source_filter` can use only `{staging_table}`.
+- A predicate cannot contain a subquery. Qualify every column, for example `{table}.bucket = 'new'` in `destination_scope` and `{staging_table}.bucket = 'new'` in `source_filter`.
+
+To write a literal brace, double it: `{{` or `}}`.
+
+### Replacing a partition with `delete-insert`
+
+For [`delete-insert`](#delete-insert-strategy), `destination_scope` is the delete condition. dlt deletes the records that the destination scope selects and inserts the merge source. The delete does not use keys, so `primary_key` and `merge_key` are optional. If you set a `primary_key`, dlt still deduplicates the loaded data.
+
+The partition usually changes with every load. Write it as a [placeholder](#fill-placeholders-with-values-from-the-load). Take its value from the argument of the resource:
+
+```py
+from datetime import date
+
+@dlt.resource(
+    write_disposition={
+        "disposition": "merge",
+        "strategy": "delete-insert",
+        "destination_scope": "date_col = {day}",
+        "extra_placeholders": {"day": lambda resource, table_name: resource.explicit_args["day"]},
+    },
+)
+def my_partition(day: date):
+    # yield the records for that one partition
+    ...
+
+pipeline = dlt.pipeline("my_pipeline", destination="duckdb")
+pipeline.run(my_partition(date(2026, 8, 1)))
+```
+
+The schema keeps `date_col = {day}`. The load package stores the value, and dlt expands the destination scope to `date_col = '2026-08-01'`. A load for another day does not create a new schema version.
+
+:::warning
+If a record **changes** the value that the destination scope tests, dlt does not delete its old copy. For example, a record can move to another date. Then the destination has two records with this key. To also delete records by key, add the key match to the destination scope: `"date_col = {day} OR id IN (SELECT id FROM {staging_table})"`. With this destination scope, the destination cannot prune partitions.
+:::
+
+If a `delete-insert` resource has no keys and no `destination_scope`, dlt appends the data. With a `destination_scope`, dlt replaces the records that the destination scope selects.
+
+With `source_filter` and no `destination_scope`, `delete-insert` deletes by the keys and `merge_key` partitions of the merge source. dlt keeps a destination record only when its key and partition are not in the merge source.
+
+#### Partition pruning
+
+If the destination table is partitioned, the delete can read only the partition that it replaces. BigQuery and Snowflake prune partitions for this delete when:
+
+1. On BigQuery, the destination table is partitioned on the column, for example with [`bigquery_adapter(my_partition, partition="date_col")`](../dlt-ecosystem/destinations/bigquery.md#use-an-adapter-to-apply-hints-to-a-resource). Snowflake has no partition hint. It skips micro-partitions by the minimum and maximum values of the column, which works best when records arrive in date order.
+2. The destination scope compares this column to a literal, for example `"date_col = {day}"`. A value placeholder expands to a literal.
+
+These conditions prevent partition pruning:
+
+- a `merge_key` instead of a destination scope. On BigQuery, a `merge_key` compiles to a subquery.
+- a subquery in the destination scope, for example `OR id IN (SELECT id FROM {staging_table})`
+- a function on the partition column, for example `DATE(date_col) = {day}` on a timestamp column
+
+To prune partitions based on the loaded data, also in nested tables, see the [partition pruning cookbook](../examples/partition_pruning.md).
+
+### Use placeholders to match keys in one partition
+
+By default, dlt deletes all records that the destination scope selects. If the primary key is unique only within a partition, match the keys against the staging table. Then dlt deletes only the records that the load replaces:
+
+```py
+from datetime import date
+
+@dlt.resource(
+    primary_key="id",
+    write_disposition={
+        "disposition": "merge",
+        "strategy": "delete-insert",
+        "destination_scope": "day = {day} AND id IN (SELECT id FROM {staging_table})",
+        "extra_placeholders": {"day": lambda resource, table_name: resource.explicit_args["day"]},
+    },
+)
+def items(day: date):
+    # yield the records for that day
+    ...
+```
+
+For `day=date(2026, 8, 1)`, dlt expands the placeholders on a SQL destination and runs this delete before the insert:
+
+```sql
+DELETE FROM "my_dataset"."items"
+WHERE day = '2026-08-01' AND id IN (SELECT id FROM "my_dataset_staging"."items");
+```
+
+The outer `day` and `id` refer to the destination table. The `id` in the subquery refers to the staging table. The subquery is not correlated, so ClickHouse also accepts this form.
+
+The `delta` table format does not support `delete-insert`. With `cdc`, write the partition condition as `"{table}.day = {day}"`. dlt expands it to `target.day = '2026-08-01'`.
+
+### Fill placeholders with values from the load
+
+dlt stores the merge conditions in the schema. A literal that changes with every load, such as the date of a partition, creates a new schema version with every load. Write a value placeholder instead. dlt expands each value placeholder to an escaped SQL literal, so do not put quotes around it. A `datetime` value expands to a timestamp literal of the destination, with the timestamp precision of the destination, by the same rules as the [validity columns](#timezones-of-the-validity-columns), so it compares to the loaded timestamps.
+
+dlt fills these value placeholders from the load package:
+
+| placeholder                               | value                                                                                        |
+| ----------------------------------------- | -------------------------------------------------------------------------------------------- |
+| `{load_id}`                               | the load id, the value of `_dlt_load_id` in this load                                        |
+| `{table_name}`                            | the name of the root table                                                                   |
+| `{load_package_timestamp}`                | the creation time of the load package, in seconds                                            |
+| `{load_package_timestamp_ms}`             | the creation time of the load package, in milliseconds                                       |
+| `{boundary_timestamp}`                    | the `scd2` boundary timestamp, or the creation time of the load package, a timestamp literal |
+| `{curr_date}`                             | the date of the load package, a date literal                                                 |
+| `{YYYY}`, `{MM}`, `{DD}`, `{HH}` and more | parts of the creation time of the load package                                               |
+
+The date and time placeholders are the same as the [date and time placeholders of the filesystem layout](../dlt-ecosystem/destinations/filesystem.md#date-and-time-placeholders). In merge conditions, a number is a number literal, so `{MM}` expands to `3`, not `'03'`. Names like `{MMMM}` expand to string literals.
+
+If the table is partitioned by the load date, a destination scope like `"load_day = {curr_date}"` needs no other values.
+
+:::caution
+The date placeholders give the date of the **load** in UTC, not the date of the data. A load that runs after midnight, or that carries late records, has a different date from its records. To replace the partitions of the data, set the value in `extra_placeholders`.
+:::
+
+A list or tuple value expands to a list of literals for `IN`. For example, `"event_day IN {days}"` expands to `event_day IN ('2026-10-02', '2026-10-04')`. An empty list expands to `(NULL)`, which matches no records.
+
+Set other values in `extra_placeholders`. A value is a constant or a function. dlt calls the function after the extract step, once for each table of the resource. The function receives the resource and the table name. It can read the arguments of the resource from `resource.explicit_args`, as in [Replacing a partition with `delete-insert`](#replacing-a-partition-with-delete-insert). For an [incremental](incremental-loading.md) resource, it can read `resource.incremental.incremental.last_value`, the highest cursor value of the load.
+
+dlt stores the values in the load package, not in the schema. The schema does not change between loads. If a load fails, dlt retries the package with the values of the extract step, even if the resource changed after the extract step.
+
+To merge only the records of the current load, use `{load_id}` in the source filter:
+
+```py
+@dlt.resource(
+    primary_key="id",
+    write_disposition={
+        "disposition": "merge",
+        "strategy": "delete-insert",
+        "source_filter": "_dlt_load_id = {load_id}",
+    },
+)
+def items():
+    ...
+```
+
+This source filter is useful when the staging tables keep the records of earlier loads, for example with [`truncate_staging_merge_tables_before_load`](../dlt-ecosystem/staging.md#keep-the-staging-tables-when-the-load-begins).
+
+The names of `extra_placeholders` cannot be `table`, `staging_table` or the name of a value placeholder that dlt fills. dlt reads `extra_placeholders` only from a write disposition dict, not from a function that returns the write disposition.
+
+A table [variant](resource.md#dispatch-data-to-many-tables) and a nested table with its own `primary_key` or `merge_key` in [`nested_hints`](schema.md#generate-custom-linking-for-nested-tables) merge on their own. dlt takes their values from their own write disposition. A variant without a write disposition uses the one of the resource.

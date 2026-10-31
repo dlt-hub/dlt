@@ -18,7 +18,7 @@ from dlt.destinations.impl.redshift.configuration import (
     RedshiftCredentials,
     RedshiftClientConfiguration,
 )
-from dlt.destinations.impl.redshift.redshift import RedshiftClient, psycopg2
+from dlt.destinations.impl.redshift.redshift import RedshiftClient, RedshiftSqlClient, psycopg2
 
 from tests.common.utils import COMMON_TEST_CASES_PATH
 from tests.utils import get_test_storage_root, skipifpypy
@@ -51,6 +51,20 @@ def test_postgres_and_redshift_credentials_defaults() -> None:
         red_cred.to_native_representation()
         == "postgres://loader:loader@localhost:5439/dlt_data?client_encoding=utf-8&connect_timeout=15"
     )
+
+
+def test_redshift_session_timezone(client: RedshiftClient) -> None:
+    """Redshift takes the timezone from the libpq startup options, like postgres."""
+    credentials = client.config.credentials.copy()
+    credentials.session_timezone = "Europe/Paris"
+    sql_client = RedshiftSqlClient(
+        client.sql_client.dataset_name,
+        client.sql_client.staging_dataset_name,
+        credentials,
+        client.capabilities,
+    )
+    with sql_client:
+        assert sql_client.execute_sql("SHOW timezone")[0][0] == "Europe/Paris"
 
 
 def test_redshift_factory() -> None:

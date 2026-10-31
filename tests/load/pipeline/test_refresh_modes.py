@@ -5,11 +5,12 @@ import dlt
 from dlt.common.destination.exceptions import DestinationUndefinedEntity
 from dlt.common.utils import uniq_id
 from dlt.common.typing import DictStrAny
-from dlt.common.schema.utils import is_nested_table
+from dlt.common.schema.utils import has_table_seen_data, is_nested_table
 from dlt.common.pipeline import pipeline_state as current_pipeline_state, TRefreshMode
 
 from dlt.destinations.sql_client import DBApiCursor
 from dlt.extract.source import DltSource
+from dlt.extract.resource import DltResource
 from dlt.extract.state import resource_state
 from dlt.pipeline.state_sync import load_pipeline_state_from_destination
 
@@ -21,7 +22,7 @@ from tests.pipeline.utils import (
     assert_only_table_columns,
     table_exists,
 )
-from tests.load.utils import destinations_configs, DestinationTestConfiguration
+from tests.load.utils import HF_BUCKET, destinations_configs, DestinationTestConfiguration
 
 
 # destinations that exercise the full truncate/drop table-chain logic (sql + filesystem + athena)
@@ -144,6 +145,10 @@ def test_refresh_drop_sources(
         refresh="drop_sources",
         **destination_config.run_kwargs,
     )
+    # the load package exposes the refresh mode and the tables dropped at the destination
+    package = info.load_packages[0]
+    assert package.refresh == "drop_sources"
+    assert {"some_data_one", "some_data_two", "some_data_three"} <= set(package.dropped_tables)
 
     assert set(t["name"] for t in pipeline.default_schema.data_tables(include_incomplete=True)) == {
         "some_data_one",
@@ -317,6 +322,11 @@ def test_refresh_drop_data_only(destination_config: DestinationTestConfiguration
         **destination_config.run_kwargs,
     )
     assert_load_info(info)
+    # the load package exposes the refresh mode and the tables truncated at the destination
+    package = info.load_packages[0]
+    assert package.refresh == "drop_data"
+    assert set(package.truncated_tables) == {"some_data_one", "some_data_two"}
+    assert not package.dropped_tables
 
     # Schema should not be mutated
     assert pipeline.default_schema.version_hash == first_schema_hash
@@ -801,3 +811,99 @@ def test_refresh_truncates_or_drops_when_no_data(
     if destination_config.destination_type != "filesystem":
         for table in ("items", "items__children"):
             assert table_exists(pipeline, table) is (refresh == "drop_data")
+
+
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(
+        default_sql_configs=True,
+        default_staging_configs=True,
+        local_filesystem_configs=True,
+        all_buckets_filesystem_configs=True,
+        table_format_filesystem_configs=True,
+        default_vector_configs=True,
+        exclude=["weaviate", "qdrant"],
+        bucket_exclude=(HF_BUCKET,),
+    ),
+    ids=lambda x: x.name,
+)
+def test_refresh_drop_resources_skips_missing_tables(
+    destination_config: DestinationTestConfiguration,
+) -> None:
+    """`drop_resources` drops every table of the refreshed resource in the destination, including
+    a declared nested table that never got data and a table dropped out of band."""
+
+    @dlt.resource(
+        write_disposition="append",
+        nested_hints={
+            "children": dlt.mark.make_nested_hints(columns=[{"name": "cid", "data_type": "bigint"}])
+        },
+    )
+    def items(item_id: int):
+        yield {"id": item_id}
+
+    pipeline = destination_config.setup_pipeline("refresh_missing" + uniq_id(), dev_mode=True)
+    assert_load_info(pipeline.run(items(1), **destination_config.run_kwargs))
+    # the nested table is in the schema but never got data, so it was not created
+    assert not has_table_seen_data(pipeline.default_schema.tables["items__children"])
+    with pipeline.destination_client() as client:
+        client.drop_tables("items", delete_schema=False)  # type: ignore[attr-defined]
+    assert not table_exists(pipeline, "items")
+
+    info = pipeline.run(items(2), refresh="drop_resources", **destination_config.run_kwargs)
+    assert_load_info(info)
+    assert set(info.load_packages[0].dropped_tables) == {"items", "items__children"}
+    assert load_table_counts(pipeline, "items") == {"items": 1}
+
+
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(default_sql_configs=True, subset=["duckdb"]),
+    ids=lambda x: x.name,
+)
+def test_refresh_drop_resources_incremental_empty_package_drops_all(
+    destination_config: DestinationTestConfiguration,
+) -> None:
+    """Makes sure that emitting empty package (no jobs) drops all resources"""
+    os.environ["DATA_WRITER__DISABLE_COMPRESSION"] = "TRUE"
+
+    def items_resource(initial_value: int, end_value: int) -> DltResource:
+        @dlt.resource(name="items", write_disposition="replace", primary_key="id")
+        def items(
+            updated: Any = dlt.sources.incremental(
+                "ts", initial_value=initial_value, end_value=end_value
+            )
+        ) -> Any:
+            yield [
+                {"id": 1, "ts": 1, "children": [{"cid": 1}]},
+                {"id": 2, "ts": 2, "children": [{"cid": 2}]},
+            ]
+
+        return items()
+
+    pipeline = destination_config.setup_pipeline("refresh_inc_empty" + uniq_id(), dev_mode=True)
+
+    # first refresh loads all data (ts within the [0, 10) window)
+    info = pipeline.run(
+        items_resource(0, 10), refresh="drop_resources", **destination_config.run_kwargs
+    )
+    assert_load_info(info)
+    assert load_table_counts(pipeline, "items", "items__children") == {
+        "items": 2,
+        "items__children": 2,
+    }
+    # the hint-only primary key was typed from the data
+    assert "primary_key" in pipeline.default_schema.tables["items"]["columns"]["id"]
+
+    # second refresh: the [100, 200) window selects nothing -> fully empty package
+    info = pipeline.run(
+        items_resource(100, 200), refresh="drop_resources", **destination_config.run_kwargs
+    )
+    assert_load_info(info)
+    # the empty package still reports the refresh mode and the dropped table chain
+    package = info.load_packages[0]
+    assert package.refresh == "drop_resources"
+    assert set(package.dropped_tables) == {"items", "items__children"}
+    # all tables are dropped and not recreated by the empty/replace run
+    assert table_exists(pipeline, "items") is False
+    assert table_exists(pipeline, "items__children") is False

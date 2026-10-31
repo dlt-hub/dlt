@@ -6,12 +6,14 @@ from typing import (
     ClassVar,
     List,
     Optional,
+    Sequence,
     Type,
     Union,
     Dict,
     Any,
     TypeVar,
     Generic,
+    TYPE_CHECKING,
 )
 from typing_extensions import TypeAlias
 import inspect
@@ -26,12 +28,20 @@ from dlt.common.destination.exceptions import (
     InvalidDestinationReference,
     UnknownDestinationModule,
 )
-from dlt.common.destination.client import DestinationClientConfiguration, JobClientBase
+from dlt.common.destination.client import (
+    DestinationClientConfiguration,
+    DestinationClientDwhConfiguration,
+    JobClientBase,
+)
+from dlt.common.metrics import TDatasetDataLocation, TSchemaReference, data_location_version
 from dlt.common.runtime.run_context import get_plugin_modules
 from dlt.common.schema.schema import Schema
 from dlt.common.typing import is_subclass
 from dlt.common.utils import get_full_callable_name, simple_repr, without_none
 from dlt.common.reflection.ref import object_from_ref
+
+if TYPE_CHECKING:
+    from dlt.common.libs.ibis import BaseBackend
 
 
 TDestinationConfig = TypeVar("TDestinationConfig", bound="DestinationClientConfiguration")
@@ -193,6 +203,26 @@ class Destination(ABC, Generic[TDestinationConfig, TDestinationClient]):
                 caps.max_column_identifier_length or caps.max_identifier_length,
             )
         return self.client_class(schema, config, caps)
+
+    def create_ibis_backend(
+        self, client: TDestinationClient, read_only: bool = False, schemas: Sequence[Schema] = ()
+    ) -> "BaseBackend":
+        """Create an ibis backend for this destination bound to `client`'s dataset.
+
+        Args:
+            client (TDestinationClient): The destination job client holding credentials and sql client.
+            read_only (bool): Open the backend read-only where the destination supports it.
+            schemas (Sequence[Schema]): Schemas to expose, used by table-scanner backends.
+
+        Returns:
+            BaseBackend: A connected ibis backend.
+
+        Raises:
+            NotImplementedError: If the destination does not support an ibis backend.
+        """
+        raise NotImplementedError(
+            f"Destination type `{self.destination_type}` is not supported by the Ibis backend."
+        )
 
     @classmethod
     def adjust_capabilities(
@@ -443,3 +473,56 @@ class DestinationReference:
             return refs
 
         return []
+
+
+def describe_dataset_location(
+    config: DestinationClientConfiguration,
+    caps: DestinationCapabilitiesContext,
+    schemas: Sequence[Schema],
+    resource_name: str,
+    tables: Sequence[str] = (),
+    physical_dataset_name: str = None,
+) -> TDatasetDataLocation:
+    """Describes the dataset bound to `config` as a data location recorded in the pipeline trace.
+
+    Both sides of the lineage graph are described here, so a dataset written by one run and read by
+    another compares field for field. Destinations without a dataset (ie. reverse ETL sinks) get no
+    dataset names. Table names are added by the caller, which knows what was touched.
+
+    Args:
+        config (DestinationClientConfiguration): Resolved configuration of the client in use.
+        caps (DestinationCapabilitiesContext): Runtime adjusted capabilities of the client in use.
+        schemas (Sequence[Schema]): Schemas holding the tables, the first one being the default.
+        resource_name (str): Resource that read from or wrote to the dataset.
+        tables (Sequence[str]): Tables the resource touched inside the dataset.
+        physical_dataset_name (str): Already normalized dataset name. Computed from `config` and the
+            default schema if not passed, which may emit the dataset normalization warning.
+
+    Returns:
+        TDatasetDataLocation: Destination identity, both dataset names, schemas and their version.
+    """
+    schema_refs: List[TSchemaReference] = [
+        {"name": schema.name, "version_hash": schema.version_hash} for schema in schemas
+    ]
+    location: TDatasetDataLocation = {
+        "kind": "dataset",
+        "resource_name": resource_name,
+        # a sink has no public location, its identity is carried only by the fingerprint
+        "location": config.data_location(),
+        "version": data_location_version(schema_refs),
+        "schemas": schema_refs,
+        "tables": list(tables),
+        "destination_type": DestinationReference.normalize_type(config.destination_type),
+        "destination_name": config.destination_name or Destination.to_name(config.destination_type),
+        "destination_fingerprint": config.fingerprint(),
+        "casefold": getattr(caps.casefold_identifier, "__name__", "str"),
+        "case_sensitive": caps.has_case_sensitive_identifiers,
+    }
+    if isinstance(config, DestinationClientDwhConfiguration):
+        location["dataset_name"] = config._make_dataset_name(schemas[0].name)
+        location["physical_dataset_name"] = (
+            physical_dataset_name
+            if physical_dataset_name is not None
+            else config.normalize_dataset_name(schemas[0])
+        )
+    return without_none(location)  # type: ignore[return-value]

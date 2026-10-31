@@ -4,6 +4,8 @@ import os
 import platform
 import shutil
 import subprocess
+import sys
+from pathlib import Path
 from typing import (
     Any,
     Callable,
@@ -11,14 +13,26 @@ from typing import (
     FrozenSet,
     List,
     Optional,
+    Sequence,
+    Set,
     Tuple,
+    Union,
 )
 
 import dlt
-from dlt.common.pipeline import get_dlt_pipelines_dir
+from dlt.common.metrics import DataWriterMetrics, ExtractMetrics, NormalizeMetrics
+from dlt.common.pipeline import (
+    ExtractInfo,
+    LoadInfo,
+    NormalizeInfo,
+    StepInfo,
+    get_dlt_pipelines_dir,
+)
+from dlt.common.storages.job_metrics import merge_metrics
 from dlt.common.schema import Schema
 from dlt.common.storages.configuration import TSchemaFileFormat
-from dlt.common.time import ensure_pendulum_datetime_non_utc
+from dlt.common.pendulum import ensure_pendulum_dt
+from dlt.common.time import ensure_datetime
 from dlt.common.typing import TAnyDateTime, TFun
 from dlt.common.configuration.container import Container
 from dlt.common.configuration.resolve import resolve_configuration
@@ -34,17 +48,21 @@ from dlt.common.storages.file_storage import FileStorage
 from dlt.common.versioned_state import json_decode_state
 
 from dlt.pipeline.pipeline import Pipeline
-from dlt.pipeline.trace import get_trace_file_path
+from dlt.pipeline.trace import PipelineTrace, get_trace_file_path
+from dlt.pipeline.typing import TPipelineStep
 from dlt.reflection.script_visitor import PipelineScriptVisitor
 
 from dlt._workspace.cli.exceptions import CliCommandInnerException
 from dlt._workspace.cli import echo as fmt
 from dlt._workspace.helpers.dashboard.typing import TPipelineListItem
+from dlt._workspace.access import format_access
 from dlt._workspace.typing import (
     ProviderInfo,
     ProviderLocationInfo,
     TLocationScope,
     TSchemaExport,
+    TTraceStepMetrics,
+    TWorkspaceAccess,
 )
 from dlt._workspace.profile import is_local_profile
 
@@ -157,7 +175,7 @@ def date_from_timestamp_with_ago(
     """Return a date with ago section"""
     if not timestamp or timestamp == 0:
         return "never"
-    timestamp = ensure_pendulum_datetime_non_utc(timestamp)
+    timestamp = ensure_pendulum_dt(ensure_datetime(timestamp))
     time_formatted = timestamp.format(datetime_format)
     ago = timestamp.diff_for_humans()
     return f"{ago} ({time_formatted})"
@@ -244,7 +262,73 @@ def make_mcp_run_flags(default_port: int = 8000) -> argparse.ArgumentParser:
             % ", ".join(defaults)
         ),
     )
+    flags.add_argument(
+        "--no-default-features",
+        action="store_true",
+        help="Serve only the features named by --features, without the defaults above",
+    )
+    flags.add_argument(
+        "--access",
+        default=None,
+        help=(
+            "Access the caller was granted, as `axis:verb,verb` pairs"
+            " (e.g. data:read,local:read). Tools requiring more are not served."
+            " `axis:` alone grants nothing on that axis. Everything is served when omitted."
+        ),
+    )
     return flags
+
+
+def resolve_features(feature_tokens: Optional[List[str]], defaults: Set[str] = None) -> Set[str]:
+    """Resolve `+name`, `-name`, `name` tokens against defaults into a feature set."""
+    if defaults is None:
+        defaults = set(DEFAULT_MCP_FEATURES)
+    if not feature_tokens:
+        return set(defaults)
+
+    result = set(defaults)
+    for item in feature_tokens:
+        # tokens may be comma-separated: "--features=-secrets,+context"
+        # because argparse treats leading "-" as a flag, use "=" form for removals
+        for token in item.split(","):
+            token = token.strip()
+            if not token:
+                continue
+            if token.startswith("-"):
+                result.discard(token[1:])
+            elif token.startswith("+"):
+                result.add(token[1:])
+            else:
+                result.add(token)
+    return result
+
+
+def mcp_stdio_args(
+    features: Optional[List[str]] = None,
+    with_defaults: bool = True,
+    access: Optional[TWorkspaceAccess] = None,
+) -> List[str]:
+    """`ai mcp run --stdio` arguments serving `features`, limited to what `access` covers."""
+    args = ["ai", "mcp", "run", "--stdio"]
+    # without `--access` the server grants everything
+    if access is not None:
+        args += ["--access", format_access(access)]
+    # serve `features` alone, not the interactive defaults
+    if not with_defaults:
+        args.append("--no-default-features")
+        resolved = resolve_features(features, set())
+        return args + ["--features", *sorted(resolved)] if resolved else args
+    resolved = resolve_features(features)
+    if resolved != DEFAULT_MCP_FEATURES:
+        args.extend(["--features"] + sorted(resolved))
+    return args
+
+
+def cli_host_command() -> str:
+    """The `dlthub` script next to the running interpreter, or the bare name if there is none."""
+    # always `dlthub`, not the active host: the `dlt` host has no `ai` command
+    script = Path(sys.executable).parent / ("dlthub.exe" if os.name == "nt" else "dlthub")
+    return str(script) if script.is_file() else "dlthub"
 
 
 def add_mcp_arg_parser(subparsers: Any, description: str, help_str: str, default_port: int) -> None:
@@ -402,3 +486,72 @@ def fetch_schema_export(
         format_=format_,
         content=content,
     )
+
+
+TRACE_METRICS_STEPS: Sequence[TPipelineStep] = ("extract", "normalize", "load")
+"""Pipeline steps that write or load files and keep their metrics in the trace."""
+
+
+def fetch_trace_metrics(
+    trace: PipelineTrace, steps: Optional[Sequence[TPipelineStep]] = None
+) -> List[TTraceStepMetrics]:
+    """Collects files, rows and sizes of the `steps` in `trace`, of all `TRACE_METRICS_STEPS` if
+    not given."""
+    selected = set(steps or TRACE_METRICS_STEPS)
+    result: List[TTraceStepMetrics] = []
+    for step_trace in trace.steps:
+        if step_trace.step not in selected:
+            continue
+        step_metrics = TTraceStepMetrics(
+            step=step_trace.step, started_at=step_trace.started_at, load_ids=[]
+        )
+        if step_trace.finished_at:
+            step_metrics["finished_at"] = step_trace.finished_at
+        if step_trace.step_exception:
+            step_metrics["step_exception"] = step_trace.step_exception
+        info = step_trace.step_info
+        if info is not None:
+            step_metrics["load_ids"] = list(info.loads_ids)
+        if isinstance(info, LoadInfo):
+            step_metrics["jobs"] = sorted(
+                (
+                    job_metrics._asdict()
+                    for metrics in info.metrics.values()
+                    for m in metrics
+                    for job_metrics in m["job_metrics"].values()
+                ),
+                key=lambda job: (job["table_name"], job["job_id"]),
+            )
+        elif isinstance(info, (ExtractInfo, NormalizeInfo)):
+            metrics_list: List[Union[ExtractMetrics, NormalizeMetrics]] = [
+                m for metrics in info.metrics.values() for m in metrics
+            ]
+            step_metrics["files"] = sorted(
+                (
+                    row
+                    for m in metrics_list
+                    for row in StepInfo.writer_metrics_asdict(m["job_metrics"])
+                ),
+                key=lambda row: (row["table_name"], row["job_id"]),
+            )
+            step_metrics["tables"] = StepInfo.writer_metrics_asdict(
+                _largest_first(merge_metrics(m["table_metrics"] for m in metrics_list)),
+                key_name="table_name",
+            )
+            if isinstance(info, ExtractInfo):
+                resources = _largest_first(
+                    merge_metrics(
+                        m["resource_metrics"] for metrics in info.metrics.values() for m in metrics
+                    )
+                )
+                step_metrics["resources"] = StepInfo.writer_metrics_asdict(
+                    # resources that wrote no files may still carry custom metrics
+                    {name: m for name, m in resources.items() if m.files_count != 0},
+                    key_name="resource_name",
+                )
+        result.append(step_metrics)
+    return result
+
+
+def _largest_first(metrics: Dict[str, DataWriterMetrics]) -> Dict[str, DataWriterMetrics]:
+    return dict(sorted(metrics.items(), key=lambda item: -item[1].file_size))

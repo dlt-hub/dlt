@@ -1,9 +1,11 @@
-from typing import Dict
+from typing import Any, Dict
 import dlt, os, pytest
 from dlt.common.utils import uniq_id
 from pytest_mock import MockerFixture
 
 from dlt.common.schema.typing import REPLACE_STRATEGIES, TLoaderReplaceStrategy
+from dlt.destinations.sql_jobs import SqlStagingReplaceFollowupJob
+from dlt.pipeline.exceptions import PipelineStepFailed
 
 from tests.pipeline.utils import (
     assert_load_info,
@@ -623,3 +625,118 @@ def test_replace_chain_truncate_consistent_with_package_jobs(
     # nested table is truncated
     assert truncate_spy.call_count == 1
     assert truncate_spy.call_args.args[1] == ["items__children"]
+
+
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(default_sql_configs=True, subset=["duckdb", "snowflake"]),
+    ids=lambda x: x.name,
+)
+@pytest.mark.parametrize("replace_strategy", ["insert-from-staging", "staging-optimized"])
+def test_replace_strategy_switch_creates_staging_tables(
+    destination_config: DestinationTestConfiguration, replace_strategy: TLoaderReplaceStrategy
+) -> None:
+    """switching to a staging replace strategy on an existing dataset must create
+    the now-required staging tables even though the schema version hash is unchanged.
+    """
+    skip_if_unsupported_replace_strategy(destination_config, replace_strategy)
+
+    pipeline = destination_config.setup_pipeline("replace_strategy_switch", dev_mode=True)
+
+    @dlt.resource(write_disposition="replace")
+    def items():
+        yield [{"id": 1, "val": "a"}, {"id": 2, "val": "b"}]
+
+    # the merge table makes the first run create the staging dataset without the replace table
+    @dlt.resource(write_disposition="merge", primary_key="id")
+    def merge_items():
+        yield [{"id": 1, "val": "m"}]
+
+    # nested merge table under a replace root makes a partial staging chain: the nested table
+    # loads to the staging dataset while the root does not until the strategy switch
+    @dlt.resource(
+        write_disposition="replace",
+        primary_key="id",
+        nested_hints={"list": dlt.mark.make_nested_hints(write_disposition="merge")},
+    )
+    def nested_items():
+        yield [{"id": 1, "list": [1, 2, 3]}]
+
+    os.environ["DESTINATION__REPLACE_STRATEGY"] = "truncate-and-insert"
+    info = pipeline.run([items(), merge_items(), nested_items()], **destination_config.run_kwargs)
+    assert_load_info(info)
+
+    # same schema, replace tables now go through the staging dataset
+    os.environ["DESTINATION__REPLACE_STRATEGY"] = replace_strategy
+    info = pipeline.run([items(), merge_items(), nested_items()], **destination_config.run_kwargs)
+    assert_load_info(info)
+    assert load_table_counts(pipeline, "items", "merge_items", "nested_items") == {
+        "items": 2,
+        "merge_items": 1,
+        "nested_items": 1,
+    }
+
+
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(default_sql_configs=True, subset=["duckdb"]),
+    ids=lambda x: x.name,
+)
+def test_replace_staging_empty_resource_aborted_package_keeps_data(
+    destination_config: DestinationTestConfiguration, mocker: MockerFixture
+) -> None:
+    """Makes sure that insert-from-staging does not truncate upfront when no data on resource"""
+    os.environ["DESTINATION__REPLACE_STRATEGY"] = "insert-from-staging"
+    pipeline = destination_config.setup_pipeline("replace_empty_abort", dev_mode=True)
+
+    @dlt.resource(write_disposition="replace")
+    def items(rows: Any) -> Any:
+        yield from rows
+
+    info = pipeline.run(items([{"id": 1}, {"id": 2}]), **destination_config.run_kwargs)
+    assert_load_info(info)
+
+    # fail the replace followup so the package aborts after the 0-row job loaded to staging
+    mocker.patch.object(
+        SqlStagingReplaceFollowupJob, "generate_sql", side_effect=Exception("compute failed")
+    )
+    with pytest.raises(PipelineStepFailed):
+        pipeline.run(items([]), **destination_config.run_kwargs)
+    assert load_table_counts(pipeline, "items") == {"items": 2}
+
+    # the pending package completes once the fault is gone and the table is replaced with no rows
+    mocker.stopall()
+    info = pipeline.run(items([]), **destination_config.run_kwargs)
+    assert_load_info(info)
+    assert load_table_counts(pipeline, "items") == {"items": 0}
+
+
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(default_sql_configs=True, subset=["duckdb", "snowflake"]),
+    ids=lambda x: x.name,
+)
+@pytest.mark.parametrize("replace_strategy", REPLACE_STRATEGIES)
+def test_replace_refreshed_disposition_no_data(
+    destination_config: DestinationTestConfiguration, replace_strategy: TLoaderReplaceStrategy
+) -> None:
+    """A table whose write disposition is refreshed to replace on a run without data for it is
+    truncated under every replace strategy."""
+    skip_if_unsupported_replace_strategy(destination_config, replace_strategy)
+    os.environ["DESTINATION__REPLACE_STRATEGY"] = replace_strategy
+
+    pipeline = destination_config.setup_pipeline("replace_refresh_empty", dev_mode=True)
+
+    @dlt.resource(name="events", table_name=lambda e: e["kind"], primary_key="id")
+    def events(kinds: Any) -> Any:
+        for idx, kind in enumerate(kinds):
+            yield {"id": idx, "kind": kind}
+
+    pipeline.run(events(["a", "b"]), write_disposition="merge", **destination_config.run_kwargs)
+    assert load_table_counts(pipeline, "a", "b") == {"a": 1, "b": 1}
+    assert pipeline.default_schema.tables["b"]["write_disposition"] == "merge"
+
+    # switch to replace with data only for "a": "b" is refreshed to replace and truncated
+    pipeline.run(events(["a"]), write_disposition="replace", **destination_config.run_kwargs)
+    assert pipeline.default_schema.tables["b"]["write_disposition"] == "replace"
+    assert load_table_counts(pipeline, "a", "b") == {"a": 1, "b": 0}

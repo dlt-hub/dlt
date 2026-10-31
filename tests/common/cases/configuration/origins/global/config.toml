@@ -1,0 +1,6 @@
+global_only = "global base"
+shared = "from_global_base"
+
+[gtbl]
+key = "from_global_base"
+from_global_base = 1

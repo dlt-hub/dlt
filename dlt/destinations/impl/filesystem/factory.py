@@ -17,6 +17,8 @@ from dlt.destinations.impl.filesystem.typing import TCurrentDateTime, TExtraPlac
 from dlt.common.normalizers.naming import NamingConvention
 
 if TYPE_CHECKING:
+    from dlt.common.libs.ibis import BaseBackend
+    from dlt.common.schema import Schema
     from dlt.destinations.impl.filesystem.filesystem import FilesystemClient
 
 
@@ -38,8 +40,12 @@ def filesystem_merge_strategies_selector(
     *,
     table_schema: TTableSchema,
 ) -> Sequence[TLoaderMergeStrategy]:
-    if table_schema.get("table_format") in ["delta", "iceberg"]:
+    table_format = table_schema.get("table_format")
+    if table_format == "delta":
         return supported_merge_strategies
+    elif table_format == "iceberg":
+        # pyiceberg `upsert` cannot delete rows absent from the loaded data
+        return [s for s in supported_merge_strategies if s != "cdc"]
     else:
         return []
 
@@ -71,12 +77,32 @@ class filesystem(Destination[FilesystemDestinationClientConfiguration, Filesyste
     def client_class(self) -> Type[FilesystemClient]:
         return HfFilesystemClient if self.is_hf else FilesystemClient
 
+    def create_ibis_backend(
+        self, client: "FilesystemClient", read_only: bool = False, schemas: "Sequence[Schema]" = ()
+    ) -> "BaseBackend":
+        """Create an ibis duckdb backend that maps the filesystem tables as in-memory views."""
+        from dlt.helpers.ibis import ibis
+        from dlt.destinations.impl.filesystem.sql_client import FilesystemSqlClient
+
+        sql_client = client.sql_client
+        assert isinstance(sql_client, FilesystemSqlClient)
+        if schemas:
+            sql_client.set_schemas(schemas)
+        # do not use a context manager so the cloned connection is not closed
+        duckdb_conn = sql_client.open_connection()
+        sql_client.create_views_for_all_tables()
+        con = ibis.duckdb.from_connection(duckdb_conn)
+        # disable the destructor so the connection survives handover to ibis
+        client.sql_client = None
+        sql_client.memory_db = None
+        return con
+
     def _raw_capabilities(self) -> DestinationCapabilitiesContext:
         caps = DestinationCapabilitiesContext.generic_capabilities(
             preferred_loader_file_format="jsonl",
             loader_file_format_selector=filesystem_loader_file_format_selector,
             supported_table_formats=["delta", "iceberg"],
-            supported_merge_strategies=["upsert", "insert-only"],
+            supported_merge_strategies=["upsert", "insert-only", "cdc"],
             merge_strategies_selector=filesystem_merge_strategies_selector,
         )
         caps.supported_loader_file_formats = list(caps.supported_loader_file_formats) + [
@@ -139,6 +165,7 @@ class filesystem(Destination[FilesystemDestinationClientConfiguration, Filesyste
         extra_placeholders: Optional[TExtraPlaceholders] = None,
         current_datetime: Optional[TCurrentDateTime] = None,
         always_refresh_views: bool = None,
+        warn_unsafe_layout_separators: bool = None,
         destination_name: str = None,
         environment: str = None,
         **kwargs: Any,
@@ -168,6 +195,8 @@ class filesystem(Destination[FilesystemDestinationClientConfiguration, Filesyste
             current_datetime (Optional[TCurrentDateTime]): Current datetime used by date/time related placeholders. If not provided, load package creation timestamp
                 will be used.
             always_refresh_views (bool, optional): Always refresh sql_client views by setting the newest table metadata or globbing table files
+            warn_unsafe_layout_separators (bool, optional): Warns when a `layout` separator around `{table_name}` can also occur
+                inside a table name, which lets one table select the files of another table. Defaults to True.
             destination_name (str, optional): Name of the destination, can be used in config section to differentiate between multiple of the same type
             environment (str, optional): Environment of the destination
             **kwargs (Any): Additional arguments passed to the destination config
@@ -185,6 +214,7 @@ class filesystem(Destination[FilesystemDestinationClientConfiguration, Filesyste
             extra_placeholders=extra_placeholders,
             current_datetime=current_datetime,
             always_refresh_views=always_refresh_views,
+            warn_unsafe_layout_separators=warn_unsafe_layout_separators,
             destination_name=destination_name,
             environment=environment,
             **kwargs,

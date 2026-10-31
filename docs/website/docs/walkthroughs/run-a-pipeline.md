@@ -3,7 +3,6 @@ title: Run a pipeline
 description: How to run a pipeline
 keywords: [how to, run a pipeline]
 ---
-
 # Run a pipeline
 
 Follow the steps below to run your pipeline script, see your loaded data and tables, inspect
@@ -58,7 +57,7 @@ data = chess_source(['magnuscarlsen', 'rpragchess'], start_month="2021/11", end_
 Install [enlighten](https://github.com/Rockhopper-Technologies/enlighten). Enlighten displays
 progress bars that can be mixed with log messages:
 
-```sh
+```cli
 pip install enlighten
 ```
 
@@ -83,7 +82,7 @@ PROGRESS=log python chess_pipeline.py
 You can quickly inspect the generated tables, the data, see how many rows were loaded to which
 table, do SQL queries, etc., by executing the following command from the same folder as your script:
 
-```sh
+```cli
 dlt pipeline chess_pipeline show
 ```
 
@@ -107,29 +106,34 @@ Collecting usage statistics. To deactivate, set browser.gatherUsageStats to Fals
 particular tables. The packages are identified by **load_id**, which you can see in the printout
 above or obtain by running the following command:
 
-```sh
+```cli
 dlt pipeline chess_pipeline info
 ```
 
 You can inspect the package, get a list of jobs, and in the case of failed ones, get the associated error
 messages.
 - See the most recent load package info:
-  ```sh
+
+  ```cli
   dlt pipeline chess_pipeline load-package
   ```
+
 - See package info with a given load id:
-  ```sh
+
+  ```cli
   dlt pipeline chess_pipeline load-package 1679931001.985323
   ```
+
 - Also, see the schema changes introduced in the package:
-  ```sh
+
+  ```cli
   dlt pipeline -v chess_pipeline load-package
   ```
 
 `dlt` stores the trace of the most recent data load. The trace contains information on the pipeline
 processing steps: `extract`, `normalize`, and `load`. It also shows the last `load_info`:
 
-```sh
+```cli
 dlt pipeline chess_pipeline trace
 ```
 
@@ -141,7 +145,9 @@ for more details.
 ## Run dlt in Notebooks
 
 ### Colab
+
 You'll need to install `dlt` like any other dependency:
+
 ```sh
 !pip install dlt
 ```
@@ -153,7 +159,6 @@ the content of the **toml** file from your `.dlt` folder into it. We support `co
 `dlt` will not reload the secrets automatically. Please restart your interpreter in Colab options when you add/change
 content of the variables above.
 :::
-
 
 ## Troubleshooting
 
@@ -207,10 +212,12 @@ and just add the `password` to your
 credentials.password="loader"
 ```
 
-> 💡 Make sure you run the script from the same folder in which it is saved. For example,
-> `python chess_demo/chess.py` will run the script from the `chess_demo` folder, but the current working
-> directory is the folder above. This prevents `dlt` from finding `chess_demo/.dlt/secrets.toml` and
-> filling in credentials.
+:::info
+Make sure you run the script from the same folder in which it is saved. For example,
+`python chess_demo/chess.py` will run the script from the `chess_demo` folder, but the current working
+directory is the folder above. This prevents `dlt` from finding `chess_demo/.dlt/secrets.toml` and
+filling in credentials.
+:::
 
 ### Failed API or database connections and other exceptions
 
@@ -229,7 +236,7 @@ except PipelineStepFailed as step_failed:
 
 Or use the `trace` command to review the last exception. Here we provided a wrong PostgreSQL password:
 
-```sh
+```cli
 dlt pipeline chess_pipeline trace
 ```
 
@@ -244,8 +251,9 @@ Failed due to: connection to server at "localhost" (127.0.0.1), port 5432 failed
 
 In rare cases, some jobs in a load package will fail in such a way that `dlt` will not be able
 to load it, even if it retries the process. In that case, the job is marked as failed, and additional
-information is available. Please note that ([if not otherwise configured](../running-in-production//running.md#failed-jobs)), `dlt` **will raise
-an exception on failed jobs and abort the package**. Aborted packages cannot be retried.
+information is available. Please note that ([if not otherwise configured](../running-in-production/running.md#how-dlt-reacts-to-a-failed-job)), `dlt` **will raise
+an exception on failed jobs and keep the package pending** so you can retry, fail, or abort it. See
+[how to handle problems in the load step](../running-in-production/running.md#handle-problems-in-load-step).
 
 ```text
 Step run COMPLETED in 14.21 seconds.
@@ -259,7 +267,7 @@ What now?
 
 Investigate further with the following command:
 
-```sh
+```cli
 dlt pipeline chess_pipeline failed-jobs
 ```
 

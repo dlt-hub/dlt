@@ -1,20 +1,20 @@
 ---
-title: Introduction
+title: Getting started with dlt
+sidebar_label: Introduction
 description: Introduction to dlt
 keywords: [introduction, who, what, how]
 ---
-
 # Getting started
 
 :::info
-Looking for the managed dltHub platform, AI Workbench, transformations, or data quality features? See the [dltHub docs](hub/getting-started/introduction.md).
+Looking for the managed [dltHub platform](https://dlthub.com/products/dlthub), [dltHub AI Harness](https://dlthub.com/features/ai-harness), transformations, or data quality features? See the [dltHub docs](hub/getting-started/introduction.md).
 :::
 
 ![dlt pacman](/img/dlt-pacman.gif)
 
 ## What is dlt?
 
-dlt is an open-source Python library that loads data from various, often messy data sources into well-structured datasets. It provides lightweight Python interfaces to extract, load, inspect and transform the data. dlt and the dlt docs are built from the ground up to be used with coding agents: [Agent-native workflow](hub/ingestion/rest-api-source.md) will take your pipeline code to data in a notebook for over [8,000+ sources](https://dlthub.com/workspace).
+dlt is an [open-source Python library](https://dlthub.com/product/dlt) that loads data from various, often messy data sources into well-structured datasets. It provides lightweight Python interfaces to extract, load, inspect and transform the data. dlt and the dlt docs are built from the ground up to be used with coding agents: [Agent-native workflow](hub/ingestion/rest-api-source.md) will take your pipeline code to data in a notebook for over [11,000+ sources](https://dlthub.com/context).
 
 dlt is designed to be easy to use, flexible, and scalable:
 
@@ -27,16 +27,19 @@ dlt is designed to be easy to use, flexible, and scalable:
 
 To get started with dlt, install the library using pip (use [clean virtual environment](reference/installation) for your experiments!):
 
-```sh
+```cli
 pip install dlt
 ```
 
 :::tip Working with the dltHub platform?
-If you want the managed platform, AI Workbench, transformations, and data quality features, get started here:
-```sh
+If you want the managed platform, the dltHub AI Harness, transformations, and data quality features, get started here:
+
+```cli
 uvx dlthub-start@latest
 ```
-See the [dltHub docs](hub/getting-started/introduction.md).
+
+See [Deploy your first pipeline](hub/getting-started/onboarding.md) for a walkthrough, or the
+[dltHub docs](hub/getting-started/introduction.md) for the full picture.
 :::
 
 :::tip
@@ -88,9 +91,11 @@ load_info = pipeline.run(source)
 print(load_info)
 print(pipeline.dataset().posts.df())
 ```
+
 :::tip
 LLMs are great at generating REST API pipelines!
-* [Follow LLM tutorial](hub/ingestion/rest-api-source.md) and start with one of [5,000+ sources](https://dlthub.com/workspace)
+
+* [Follow LLM tutorial](hub/ingestion/rest-api-source.md) and start with one of [11,000+ sources](https://dlthub.com/context)
 * Follow the [REST API source tutorial](./tutorial/rest-api) to learn more about the source configuration and pagination methods.
 :::
 

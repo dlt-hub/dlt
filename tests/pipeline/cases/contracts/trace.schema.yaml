@@ -1,5 +1,5 @@
-version: 9
-version_hash: P8E7cjYovKZVIFpXOcuizgzCVXmUriPYEZ1FxBt63Tc=
+version: 29
+version_hash: Zm55WoM0094+vOhqUdgyrUwwStk8qpxGTUCu/eT9rwY=
 engine_version: 11
 name: trace
 tables:
@@ -81,16 +81,20 @@ tables:
         description: dlt library version
         data_type: text
         nullable: true
-      execution_context__plus__name:
-        description: dlthub plus library name (if installed)
+      execution_context__dlthub__name:
+        description: dlthub library name (if installed)
         data_type: text
         nullable: true
-      execution_context__plus__version:
-        description: dlthub plus library version (if installed)
+      execution_context__dlthub__version:
+        description: dlthub library version (if installed)
         data_type: text
         nullable: true
-      execution_context__run_context:
-        description: Run context class name (e.g. PluggableRunContext)
+      execution_context__run_context__name:
+        description: Run context name (e.g. dlt)
+        data_type: text
+        nullable: true
+      execution_context__run_context__profile:
+        description: Active profile name (if run context supports profiles)
         data_type: text
         nullable: true
       started_at:
@@ -237,6 +241,10 @@ tables:
         description: File last modification time as unix timestamp
         data_type: double
         nullable: true
+      files_count:
+        description: Number of files the metrics sum up
+        data_type: bigint
+        nullable: true
       load_id:
         data_type: text
         nullable: true
@@ -283,6 +291,10 @@ tables:
         description: File last modification time as unix timestamp
         data_type: double
         nullable: true
+      files_count:
+        description: Number of files the metrics sum up
+        data_type: bigint
+        nullable: true
       load_id:
         data_type: text
         nullable: true
@@ -326,6 +338,10 @@ tables:
       last_modified:
         description: File last modification time as unix timestamp
         data_type: double
+        nullable: true
+      files_count:
+        description: Number of files the metrics sum up
+        data_type: bigint
         nullable: true
       load_id:
         data_type: text
@@ -423,6 +439,9 @@ tables:
       primary_key:
         data_type: text
         nullable: true
+      merge_key:
+        data_type: text
+        nullable: true
       _dlt_parent_id:
         data_type: text
         nullable: false
@@ -450,7 +469,168 @@ tables:
       incremental__range_end:
         data_type: text
         nullable: true
+      schema_contract__tables:
+        data_type: text
+        nullable: true
+      schema_contract__columns:
+        data_type: text
+        nullable: true
+      schema_contract__data_type:
+        data_type: text
+        nullable: true
+      write_disposition__disposition:
+        data_type: text
+        nullable: true
+      write_disposition__strategy:
+        data_type: text
+        nullable: true
+      write_disposition__source_filter:
+        data_type: text
+        nullable: true
+      write_disposition__destination_scope:
+        data_type: text
+        nullable: true
     parent: trace__steps
+  trace__steps__extract_info__hints__write_disposition__extra_placeholders:
+    description: Values of the merge condition placeholders of a resource, functions by name
+    columns:
+      name:
+        data_type: text
+        nullable: true
+      value:
+        data_type: text
+        nullable: true
+      _dlt_id:
+        data_type: text
+        nullable: false
+        unique: true
+        row_key: true
+      _dlt_parent_id:
+        data_type: text
+        nullable: false
+        parent_key: true
+      _dlt_list_idx:
+        data_type: bigint
+        nullable: false
+    parent: trace__steps__extract_info__hints
+  trace__steps__extract_info__hints__nested_hints:
+    description: Hints of the nested tables of a resource
+    columns:
+      load_id:
+        data_type: text
+        nullable: true
+      extract_idx:
+        description: Index of the extract run within the same load_id
+        data_type: bigint
+        nullable: true
+      resource_name:
+        data_type: text
+        nullable: true
+      columns:
+        description: JSON-serialized column hints applied to the nested table
+        data_type: text
+        nullable: true
+      write_disposition:
+        data_type: text
+        nullable: true
+      schema_contract:
+        data_type: text
+        nullable: true
+      table_format:
+        data_type: text
+        nullable: true
+      file_format:
+        data_type: text
+        nullable: true
+      original_columns:
+        description: JSON-serialized column hints before normalization
+        data_type: text
+        nullable: true
+      primary_key:
+        data_type: text
+        nullable: true
+      merge_key:
+        data_type: text
+        nullable: true
+      parent_table_name:
+        description: Parent table forced for the nested table
+        data_type: text
+        nullable: true
+      schema_contract__tables:
+        data_type: text
+        nullable: true
+      schema_contract__columns:
+        data_type: text
+        nullable: true
+      schema_contract__data_type:
+        data_type: text
+        nullable: true
+      write_disposition__disposition:
+        data_type: text
+        nullable: true
+      write_disposition__strategy:
+        data_type: text
+        nullable: true
+      write_disposition__source_filter:
+        data_type: text
+        nullable: true
+      write_disposition__destination_scope:
+        data_type: text
+        nullable: true
+      _dlt_id:
+        data_type: text
+        nullable: false
+        unique: true
+        row_key: true
+      _dlt_parent_id:
+        data_type: text
+        nullable: false
+        parent_key: true
+      _dlt_list_idx:
+        data_type: bigint
+        nullable: false
+    parent: trace__steps__extract_info__hints
+  trace__steps__extract_info__hints__nested_hints__path:
+    description: Path of a nested table, the identifiers of the data before normalization
+    columns:
+      value:
+        data_type: text
+        nullable: true
+      _dlt_id:
+        data_type: text
+        nullable: false
+        unique: true
+        row_key: true
+      _dlt_parent_id:
+        data_type: text
+        nullable: false
+        parent_key: true
+      _dlt_list_idx:
+        data_type: bigint
+        nullable: false
+    parent: trace__steps__extract_info__hints__nested_hints
+  trace__steps__extract_info__hints__nested_hints__write_disposition__extra_placeholders:
+    description: Values of the merge condition placeholders of a nested table
+    columns:
+      name:
+        data_type: text
+        nullable: true
+      value:
+        data_type: text
+        nullable: true
+      _dlt_id:
+        data_type: text
+        nullable: false
+        unique: true
+        row_key: true
+      _dlt_parent_id:
+        data_type: text
+        nullable: false
+        parent_key: true
+      _dlt_list_idx:
+        data_type: bigint
+        nullable: false
+    parent: trace__steps__extract_info__hints__nested_hints
   trace__steps__step_info__loads_ids:
     description: List of load package IDs processed in a pipeline step
     columns:
@@ -491,6 +671,10 @@ tables:
       schema_name:
         data_type: text
         nullable: true
+      schema_migrated:
+        description: True when the schema was applied (migrated) at the destination
+        data_type: bool
+        nullable: true
       _dlt_parent_id:
         data_type: text
         nullable: false
@@ -505,6 +689,14 @@ tables:
         row_key: true
       completed_at:
         data_type: timestamp
+        nullable: true
+      refresh:
+        data_type: text
+        nullable: true
+      has_pending_transitions:
+        description: True when jobs committed to the destination but were not yet
+          moved
+        data_type: bool
         nullable: true
     parent: trace__steps
   trace__steps__step_info__load_packages__jobs:
@@ -584,6 +776,10 @@ tables:
         description: File last modification time as unix timestamp
         data_type: double
         nullable: true
+      files_count:
+        description: Number of files the metrics sum up
+        data_type: bigint
+        nullable: true
       load_id:
         data_type: text
         nullable: true
@@ -629,6 +825,10 @@ tables:
       last_modified:
         description: File last modification time as unix timestamp
         data_type: double
+        nullable: true
+      files_count:
+        description: Number of files the metrics sum up
+        data_type: bigint
         nullable: true
       load_id:
         data_type: text
@@ -701,6 +901,10 @@ tables:
       retry_count:
         data_type: bigint
         nullable: true
+      file_size:
+        description: Bytes of the job file on disk
+        data_type: bigint
+        nullable: true
     parent: trace__steps
   trace__steps__load_info__job_metrics__followup_jobs:
     description: IDs of followup jobs created by this load job (per-job and table
@@ -725,6 +929,11 @@ tables:
   trace__steps__step_info__load_packages__tables:
     description: Schema update tables within a load package (write disposition, format,
       contract)
+    # the applied user/destination schema is destination-variable (each destination adds its own
+    # x- hints, e.g. lance's x-lance-remove-orphans), so let this subtree's columns evolve while
+    # the rest of the trace stays frozen; child __columns table inherits this hint
+    schema_contract:
+      columns: evolve
     columns:
       write_disposition:
         data_type: text
@@ -769,6 +978,18 @@ tables:
       x_normalizer__seen_data:
         description: Whether the normalizer has seen actual data for this table
         data_type: bool
+        nullable: true
+      x_merge_strategy:
+        data_type: text
+        nullable: true
+      schema_contract__tables:
+        data_type: text
+        nullable: true
+      schema_contract__columns:
+        data_type: text
+        nullable: true
+      schema_contract__data_type:
+        data_type: text
         nullable: true
     parent: trace__steps__step_info__load_packages
   trace__steps__step_info__load_packages__tables__columns:
@@ -852,6 +1073,9 @@ tables:
       incremental:
         data_type: bool
         nullable: true
+      x_row_version:
+        data_type: bool
+        nullable: true
     parent: trace__steps__step_info__load_packages__tables
   trace__resolved_config_values:
     description: Config and secret values resolved during the pipeline run (key, provider,
@@ -870,6 +1094,11 @@ tables:
         nullable: true
       config_type_name:
         description: Configuration spec class name that requested the value
+        data_type: text
+        nullable: true
+      provider_location:
+        description: Human readable location within the provider (e.g. the toml file) holding the
+          value
         data_type: text
         nullable: true
       _dlt_parent_id:
@@ -997,6 +1226,243 @@ tables:
         unique: true
         row_key: true
     parent: trace__steps__extract_info__resource_metrics
+  trace__steps__step_info__load_packages__dropped_tables:
+    columns:
+      value:
+        data_type: text
+        nullable: true
+      _dlt_parent_id:
+        data_type: text
+        nullable: false
+        parent_key: true
+      _dlt_list_idx:
+        data_type: bigint
+        nullable: false
+      _dlt_id:
+        data_type: text
+        nullable: false
+        unique: true
+        row_key: true
+    parent: trace__steps__step_info__load_packages
+  trace__steps__step_info__load_packages__truncated_tables:
+    columns:
+      value:
+        data_type: text
+        nullable: true
+      _dlt_parent_id:
+        data_type: text
+        nullable: false
+        parent_key: true
+      _dlt_list_idx:
+        data_type: bigint
+        nullable: false
+      _dlt_id:
+        data_type: text
+        nullable: false
+        unique: true
+        row_key: true
+    parent: trace__steps__step_info__load_packages
+  trace__steps__extract_info__inputs:
+    columns:
+      load_id:
+        data_type: text
+        nullable: true
+      extract_idx:
+        data_type: bigint
+        nullable: true
+      kind:
+        data_type: text
+        nullable: true
+      location:
+        data_type: text
+        nullable: true
+      version:
+        data_type: text
+        nullable: true
+      resource_name:
+        data_type: text
+        nullable: true
+      _dlt_parent_id:
+        data_type: text
+        nullable: false
+        parent_key: true
+      _dlt_list_idx:
+        data_type: bigint
+        nullable: false
+      _dlt_id:
+        data_type: text
+        nullable: false
+        unique: true
+        row_key: true
+      dataset_name:
+        data_type: text
+        nullable: true
+      physical_dataset_name:
+        data_type: text
+        nullable: true
+      destination_type:
+        data_type: text
+        nullable: true
+      destination_name:
+        data_type: text
+        nullable: true
+      destination_fingerprint:
+        data_type: text
+        nullable: true
+      casefold:
+        data_type: text
+        nullable: true
+      case_sensitive:
+        data_type: bool
+        nullable: true
+    parent: trace__steps
+  trace__steps__extract_info__inputs__endpoints:
+    columns:
+      value:
+        data_type: text
+        nullable: true
+      _dlt_parent_id:
+        data_type: text
+        nullable: false
+        parent_key: true
+      _dlt_list_idx:
+        data_type: bigint
+        nullable: false
+      _dlt_id:
+        data_type: text
+        nullable: false
+        unique: true
+        row_key: true
+    parent: trace__steps__extract_info__inputs
+  trace__steps__extract_info__inputs__schemas:
+    columns:
+      name:
+        data_type: text
+        nullable: true
+      version_hash:
+        data_type: text
+        nullable: true
+      _dlt_parent_id:
+        data_type: text
+        nullable: false
+        parent_key: true
+      _dlt_list_idx:
+        data_type: bigint
+        nullable: false
+      _dlt_id:
+        data_type: text
+        nullable: false
+        unique: true
+        row_key: true
+    parent: trace__steps__extract_info__inputs
+  trace__steps__extract_info__inputs__tables:
+    columns:
+      value:
+        data_type: text
+        nullable: true
+      _dlt_parent_id:
+        data_type: text
+        nullable: false
+        parent_key: true
+      _dlt_list_idx:
+        data_type: bigint
+        nullable: false
+      _dlt_id:
+        data_type: text
+        nullable: false
+        unique: true
+        row_key: true
+    parent: trace__steps__extract_info__inputs
+  trace__steps__load_info__outputs:
+    columns:
+      load_id:
+        data_type: text
+        nullable: true
+      kind:
+        data_type: text
+        nullable: true
+      version:
+        data_type: text
+        nullable: true
+      destination_type:
+        data_type: text
+        nullable: true
+      destination_name:
+        data_type: text
+        nullable: true
+      case_sensitive:
+        data_type: bool
+        nullable: true
+      resource_name:
+        data_type: text
+        nullable: true
+      _dlt_parent_id:
+        data_type: text
+        nullable: false
+        parent_key: true
+      _dlt_list_idx:
+        data_type: bigint
+        nullable: false
+      _dlt_id:
+        data_type: text
+        nullable: false
+        unique: true
+        row_key: true
+      destination_fingerprint:
+        data_type: text
+        nullable: true
+      casefold:
+        data_type: text
+        nullable: true
+      location:
+        data_type: text
+        nullable: true
+      dataset_name:
+        data_type: text
+        nullable: true
+      physical_dataset_name:
+        data_type: text
+        nullable: true
+    parent: trace__steps
+  trace__steps__load_info__outputs__schemas:
+    columns:
+      name:
+        data_type: text
+        nullable: true
+      version_hash:
+        data_type: text
+        nullable: true
+      _dlt_parent_id:
+        data_type: text
+        nullable: false
+        parent_key: true
+      _dlt_list_idx:
+        data_type: bigint
+        nullable: false
+      _dlt_id:
+        data_type: text
+        nullable: false
+        unique: true
+        row_key: true
+    parent: trace__steps__load_info__outputs
+  trace__steps__load_info__outputs__tables:
+    columns:
+      value:
+        data_type: text
+        nullable: true
+      _dlt_parent_id:
+        data_type: text
+        nullable: false
+        parent_key: true
+      _dlt_list_idx:
+        data_type: bigint
+        nullable: false
+      _dlt_id:
+        data_type: text
+        nullable: false
+        unique: true
+        row_key: true
+    parent: trace__steps__load_info__outputs
 settings:
   detections:
   - iso_timestamp
@@ -1021,11 +1487,13 @@ normalizers:
     module: dlt.common.normalizers.json.relational
   use_break_path_on_normalize: false
 previous_hashes:
-- lZ/04BwFLOm7fouDWZwxKImlCEdyHBO+SUUgIVLGm1k=
-- nNzjL9RAoVnFRkAEXVSu6FPXKDHlW1gQ5pJN0o12msk=
-- z//eAZyEIH4IFhc95OmWN6Uv4QBb8o4o9puK23yw9Ww=
-- zsNXwXS2tlD1Or0sGgLOMI7clOz978WoyDuzVx+KU1s=
-- JE62zVwqT2T/qHTi2Qdnn2d1A/JzCzyGtDwc+qUmbTs=
-- 9Ysjq/W0xpxkI/vBiYm8Qbr2nDP3JMt6KvGKUS/FCyI=
-- NYeAxJ2r+T+dKFnXFhBEPzBP6SO+ORdhOfgQRo/XqBU=
-- RV9jvZSD5dM+ZGjEL3HqokLvtf22K4zMNc3zWRahEw4=
+- IjmTlJET8k8+C6tXvNj8AbbnJuozgus7IpMHyHajFUw=
+- ZLr3XFtMA/YYbGutCI92/cwwh5xbxwZfh7QEzT541RQ=
+- q4KacWuGaYN74mKfU4XUk7+12XdnuWtTdWtbfUArYHU=
+- XmCnGxqMtPEuQgzNNVVqhf0aUzcwzPi0Gk71p9CBP8w=
+- 9/I5yQZMOhWEdPc+Cal0MeULamc3DykS4vZqkRcsrAM=
+- XRwlTg3masjK7YvoEOt11D/ILQe6cB4FSZ5+cH3xfdc=
+- 5snV4y/ucV79nzDg/Kz96XQU99Tr/rJh7ZcnjfIHwqs=
+- PH8+XylY1qJ+IGXbQbRgJorv/xJwYuirdJW3zJMfhZM=
+- 1kxexbqKswtAzBSget26Tu/XrLSA4Limk+sRJeql5aY=
+- cmZ/fKGtDKNuPqgqgbNV5tl5FQg8vlj2+d5RyrgB22I=

@@ -1,5 +1,5 @@
 import re
-from typing import TYPE_CHECKING, Any, BinaryIO, IO
+from typing import Any, BinaryIO, IO
 import os
 from pathlib import Path
 import sys
@@ -15,11 +15,6 @@ import zlib
 import tarfile
 from importlib.metadata import version as pkg_version
 from packaging.version import Version
-
-if TYPE_CHECKING:
-    from dlt.common.libs.sqlglot import TSqlGlotDialect
-else:
-    TSqlGlotDialect = Any
 
 from typing import (
     Any,
@@ -427,6 +422,37 @@ def map_nested_keys_in_place(
     return _nested
 
 
+def map_nested_dicts_in_place(
+    func: AnyFun,
+    _nested: TAny,
+    *args: Any,
+    max_nesting: Optional[int] = None,
+    **kwargs: Any,
+) -> TAny:
+    """Applies `func` to all dicts that are elements of lists in `_nested` recursively, replacing
+    them in place. Dicts nested in dicts are traversed, but `func` is not applied to them.
+
+    `max_nesting` limits the number of list levels, all levels if `None`. `func` gets a dict
+    after the dicts nested in it, so it does not see the values that `func` added. Additional
+    `*args` and `**kwargs` are passed to `func`.
+    """
+    if not isinstance(_nested, (dict, list)):
+        raise ValueError(_nested, "Not a nested type")
+
+    def _map(value: Any, level: int) -> None:
+        if isinstance(value, dict):
+            for nested_value in value.values():
+                _map(nested_value, level)
+        elif isinstance(value, list) and (max_nesting is None or level < max_nesting):
+            for idx, element in enumerate(value):
+                _map(element, level + 1)
+                if isinstance(element, dict):
+                    value[idx] = func(element, *args, **kwargs)
+
+    _map(_nested, 0)
+    return _nested
+
+
 def is_interactive() -> bool:
     """
     Determine if the current environment is interactive.
@@ -561,12 +587,23 @@ def get_full_obj_class_name(obj: Any) -> str:
 
 
 def get_full_callable_name(f: AnyFun) -> str:
+    """Returns `module.qualname` of `f`. Callables defined in a module run with `python -m` are
+    named after that module, not `__main__`.
+    """
     module = f.__module__
     name = get_callable_name(f, name_attr="__qualname__")
     # exclude 'builtins' for built-in types.
     if module is None or module == "builtins":
         return name
+    if module == "__main__":
+        module = get_main_module_name()
     return module + "." + name
+
+
+def get_main_module_name() -> str:
+    """Returns the name the `__main__` module was run under with `python -m`, else `__main__`"""
+    main = sys.modules.get("__main__")
+    return getattr(getattr(main, "__spec__", None), "name", None) or "__main__"
 
 
 def obfuscate_pseudo_secret(pseudo_secret: str, pseudo_key: bytes) -> str:
@@ -622,7 +659,7 @@ def increase_row_count(row_counts: RowCounts, counter_name: str, count: int) -> 
 
 def merge_row_counts(row_counts_1: RowCounts, row_counts_2: RowCounts) -> None:
     """merges row counts_2 into row_counts_1"""
-    # only keys present in row_counts_2 are modifed
+    # only keys present in row_counts_2 are modified
     for counter_name in row_counts_2.keys():
         row_counts_1[counter_name] = row_counts_1.get(counter_name, 0) + row_counts_2[counter_name]
 
@@ -640,6 +677,46 @@ def extend_list_deduplicated(
             list_keys.add(key)
             original_list.append(item)
     return original_list
+
+
+def group_by_key(items: Sequence[TAny], key_f: Callable[[TAny], str]) -> Dict[str, List[TAny]]:
+    """Groups `items` by `key_f`. Keeps the order of the items in each group and between groups"""
+    groups: Dict[str, List[TAny]] = {}
+    for item in items:
+        groups.setdefault(key_f(item), []).append(item)
+    return groups
+
+
+def merge_keyed_groups(
+    original_list: Sequence[TAny],
+    extending_list: Sequence[TAny],
+    key_f: Callable[[TAny], str],
+) -> Tuple[List[TAny], List[TAny]]:
+    """Extends the first list with the second list. Each group of items with the same key
+    replaces the whole group with that key in the first list.
+
+    Returns the merged list and the items that changed.
+    """
+    extending = group_by_key(extending_list, key_f)
+    original = group_by_key(original_list, key_f)
+    changed = [key for key, group in extending.items() if original.get(key) != group]
+    if not changed:
+        return list(original_list), []
+
+    # a new group keeps the position of the group that it replaces. the order carries meaning here
+    merged: List[TAny] = []
+    placed: Set[str] = set()
+    for item in original_list:
+        key = key_f(item)
+        if key not in extending:
+            merged.append(item)
+        elif key not in placed:
+            placed.add(key)
+            merged.extend(extending[key])
+    for key, group in extending.items():
+        if key not in placed:
+            merged.extend(group)
+    return merged, [item for key in changed for item in extending[key]]
 
 
 @contextmanager
@@ -816,33 +893,3 @@ def is_typeerror_due_to_wrong_call(exc: Exception, func: AnyFun) -> bool:
 removeprefix = getattr(
     str, "removeprefix", lambda s_, p_: s_[len(p_) :] if s_.startswith(p_) else s_
 )
-
-
-def read_dialect_and_sql(
-    file_obj: IO[str],
-    fallback_dialect: Optional[TSqlGlotDialect] = None,
-) -> Tuple[TSqlGlotDialect, str]:
-    """
-    Read the first line of a file for the dialect (after the first colon),
-    falls back to `fallback_dialect` if not found or empty,
-    and then reads the rest as the SQL statement.
-
-    Args:
-        file_obj (IO[str]): A file-like object opened in text mode.
-        fallback_dialect (Optional[str]): A fallback dialect to use if the first line
-            does not specify a dialect.
-
-    Returns:
-        Tuple[str, str]: A tuple containing:
-            - The extracted or fallback dialect as a string.
-            - The SQL statement read from the rest of the file.
-    """
-    first_line = file_obj.readline()
-    # e.g. something like: "dialect: clickhouse\n"
-    parts = first_line.split(":", 1)
-    parsed_dialect = cast(TSqlGlotDialect, parts[1].strip() if len(parts) > 1 else "")
-
-    dialect = parsed_dialect if parsed_dialect else fallback_dialect
-
-    sql_statement = file_obj.read()
-    return dialect, sql_statement

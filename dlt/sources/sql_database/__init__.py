@@ -13,6 +13,7 @@ from dlt.extract import DltResource, Incremental, decorators
 from .helpers import (
     _execute_table_adapter,
     default_engine_adapter_callback,
+    record_table_input,
     table_rows,
     engine_from_credentials,
     remove_nullability_adapter,
@@ -329,7 +330,7 @@ def sql_table(
         # may be from what is found in the reflection, so it is set explicitly
         hints["primary_key"] = [primary_key] if isinstance(primary_key, str) else list(primary_key)
 
-    return decorators.resource(
+    resource = decorators.resource(
         table_rows,
         name=str(table),
         write_disposition=write_disposition,
@@ -352,6 +353,8 @@ def sql_table(
         resolve_foreign_keys=resolve_foreign_keys,
         table_loader_class=table_loader_class,
     )
+    record_table_input(resource, credentials, schema, str(table))
+    return resource
 
 
 __all__ = [

@@ -6,7 +6,12 @@ import multiprocessing
 import platform
 from typing import Optional
 
-from dlt.common.runtime.typing import TExecutionContext, TVersion, TExecInfoNames
+from dlt.common.runtime.typing import (
+    TExecutionContext,
+    TRunContextInfo,
+    TVersion,
+    TExecInfoNames,
+)
 from dlt.common.typing import StrStr, StrAny, List
 from dlt.common.utils import filter_env_vars
 from dlt.version import __version__, DLT_PKG_NAME
@@ -268,7 +273,7 @@ def is_gcp_cloud_function() -> bool:
     return os.environ.get("FUNCTION_NAME") is not None
 
 
-def get_plus_version() -> TVersion:
+def get_dlthub_version() -> TVersion:
     "Gets dlthub library version"
     try:
         from dlthub.version import __version__, PKG_NAME
@@ -278,19 +283,27 @@ def get_plus_version() -> TVersion:
         return None
 
 
-def run_context_name() -> str:
+def run_context_info() -> TRunContextInfo:
+    "Gets name and profile (if supported) of the active run context"
+    info = TRunContextInfo(name="dlt")
     try:
         from dlt.common.configuration.container import Container
-        from dlt.common.configuration.specs.pluggable_run_context import PluggableRunContext
+        from dlt.common.configuration.specs.pluggable_run_context import (
+            PluggableRunContext,
+            ProfilesRunContext,
+        )
 
         container = Container()
         if PluggableRunContext in container:
-            return container[PluggableRunContext].context.name
+            run_ctx = container[PluggableRunContext].context
+            info["name"] = run_ctx.name
+            if isinstance(run_ctx, ProfilesRunContext):
+                info["profile"] = run_ctx.profile
 
     except Exception:
         pass
 
-    return "dlt"
+    return info
 
 
 def get_execution_context() -> TExecutionContext:
@@ -302,9 +315,9 @@ def get_execution_context() -> TExecutionContext:
         exec_info=exec_info_names(),
         os=TVersion(name=platform.system(), version=platform.release()),
         library=TVersion(name=DLT_PKG_NAME, version=__version__),
-        run_context=run_context_name(),
+        run_context=run_context_info(),
     )
-    if plus_version := get_plus_version():
-        context["dlthub"] = plus_version
+    if dlthub_version := get_dlthub_version():
+        context["dlthub"] = dlthub_version
 
     return context

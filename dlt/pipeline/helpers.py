@@ -10,9 +10,13 @@ from typing import (
 
 from dlt.common.jsonpath import TAnyJsonPath
 from dlt.common.exceptions import TerminalException
+from dlt.common.destination.exceptions import SchemaUpdateError
+from dlt.common.schema import Schema
 from dlt.common.schema.typing import TSimpleRegex
+from dlt.common.schema.utils import get_nested_tables, is_nested_table
 from dlt.common.pipeline import pipeline_state as current_pipeline_state, TRefreshMode
 from dlt.common.storages.load_package import TLoadPackageDropTablesState
+from dlt.common.utils import clone_dict_nested
 from dlt.pipeline.exceptions import (
     PipelineNeverRan,
     PipelineStepFailed,
@@ -57,6 +61,28 @@ def retry_load(
         return True
 
     return _retry_load
+
+
+def retry_schema_update() -> Callable[[BaseException], bool]:
+    """A retry strategy for Tenacity that repeats the `load` step when a schema update fails.
+
+    Schema update errors typically happen when several pipelines run in parallel and race to create the
+    same table or add the same column. Retrying is safe: `dlt` re-reads the destination and applies only
+    the changes that are still missing. Compose with `retry_load` to also retry other load failures.
+
+    >>> from tenacity import Retrying, stop_after_attempt, retry_if_exception
+    >>> from dlt.pipeline.helpers import retry_load, retry_schema_update
+    >>> should_retry = retry_if_exception(retry_schema_update()) | retry_if_exception(retry_load(("load", "extract")))
+    >>> for attempt in Retrying(stop=stop_after_attempt(5), retry=should_retry, reraise=True):
+    >>>     with attempt:
+    >>>         pipeline.run(data)
+    """
+
+    def _retry_schema_update(ex: BaseException) -> bool:
+        # only the load step raises it, as the context of PipelineStepFailed
+        return isinstance(ex, SchemaUpdateError) or isinstance(ex.__context__, SchemaUpdateError)
+
+    return _retry_schema_update
 
 
 class pipeline_drop:
@@ -143,8 +169,9 @@ class pipeline_drop:
         try:
             self.pipeline.load()
         except Exception:
-            # Clear extracted state on failure so command can run again
-            self.pipeline.drop_pending_packages()
+            # delete pending packages so the command can run again; state and schema are
+            # restored below, so a full abort (which also re-loads) must not run here
+            self.pipeline._delete_pending_packages()
             with self.pipeline.managed_state() as state:
                 force_state_extract(state)
             # Restore original schema file so all tables are known on next run
@@ -182,7 +209,12 @@ def prepare_refresh_source(
         state_paths="*" if refresh == "drop_sources" else [],
         state_only=only_truncate,
     )
-    load_package_state: TLoadPackageDropTablesState = {}
+    if refresh == "drop_resources" and drop_result.info["tables"]:
+        # like on the first run, dropped tables start from their import schema definition
+        import_schema = pipeline._schema_storage.load_import_schema(source.schema.name)
+        if import_schema:
+            add_import_tables(source.schema, import_schema, drop_result.info["tables"])
+    load_package_state: TLoadPackageDropTablesState = {"refresh": refresh}
     if drop_result.modified_tables:
         if only_truncate:
             load_package_state["truncated_tables"] = drop_result.modified_tables
@@ -191,3 +223,13 @@ def prepare_refresh_source(
             # if any tables should be dropped, we force state to extract
             force_state_extract(pipeline_state)
     return load_package_state
+
+
+def add_import_tables(schema: Schema, import_schema: Schema, table_names: Sequence[str]) -> None:
+    """Adds tables `table_names` of `import_schema` to `schema`, parents before nested tables."""
+    for table in import_schema.data_tables(include_incomplete=True):
+        if is_nested_table(table):
+            continue
+        for chain_table in get_nested_tables(import_schema.tables, table["name"]):
+            if chain_table["name"] in table_names:
+                schema.update_table(clone_dict_nested(chain_table))  # type: ignore[type-var]

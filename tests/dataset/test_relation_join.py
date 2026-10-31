@@ -1,6 +1,6 @@
 import tempfile
 import pathlib
-from typing import Any, Sequence, Callable, TypedDict, Optional, Union
+from typing import Any, List, Sequence, Callable, TypedDict, Optional, Union
 
 import pytest
 import sqlglot
@@ -8,12 +8,15 @@ import sqlglot.expressions as sge
 
 import dlt
 from dlt.common.schema.typing import TTableReference
+from dlt.common.storages.configuration import FilesystemConfiguration
+from dlt.dataset.exceptions import LineageFailedException
 from dlt.dataset._join import (
     _build_join_condition_from_pairs,
     _resolve_reference_chain,
     _to_join_ref,
 )
 from dlt.dataset.relation import TJoinType
+from dlt.destinations.impl.duckdb.sql_client import DuckDbSqlClient, WithTableScanners
 from tests.dataset.utils import TCrossDs3Fixture, TCrossDsFixture, TLoadsFixture
 
 
@@ -223,7 +226,9 @@ def test_resolve_reference_chain_rejection_matrix(
 
 
 @pytest.mark.parametrize("dataset_with_loads", ["with_root_key"], indirect=True)
-def test_join_rejects_different_physical_destination(dataset_with_loads: TLoadsFixture) -> None:
+def test_join_across_different_physical_destinations_attaches(
+    dataset_with_loads: TLoadsFixture, monkeypatch: pytest.MonkeyPatch
+) -> None:
     dataset, _, _ = dataset_with_loads
 
     with tempfile.TemporaryDirectory() as tmp:
@@ -244,8 +249,25 @@ def test_join_rejects_different_physical_destination(dataset_with_loads: TLoadsF
         rel = dataset.table("users")
         other_rel = other_dataset.table("other_data")
 
-        with pytest.raises(ValueError, match="different physical destinations"):
+        # a duckdb `ATTACH` makes the foreign database accessible under a prefixed catalog
+        joined = rel.join(other_rel, on="users._dlt_id = other_data._dlt_id")
+        assert [info["attach_type"] for info in joined._attach_infos()] == ["duckdb"]
+        assert f"attach_{other_dataset.sql_client.dataset_name}" in joined.to_sql()
+
+        # a primary that cannot attach the foreign location still rejects the join. The patch
+        # applies to the instance, so the foreign config keeps its ability and the reverse
+        # direction still works
+        primary_config = dataset.destination_client.config
+        monkeypatch.setattr(primary_config, "can_attach", lambda attach_type: False)
+        with pytest.raises(ValueError, match="cannot access the data") as reject:
             rel.join(other_rel, on="users._dlt_id = other_data._dlt_id")
+        # only one direction accesses the data here, so the message offers the swap and does
+        # not materialize
+        assert "can join" in str(reject.value)
+        assert f"Run the query on dataset '{other_dataset.dataset_name}'" in str(reject.value)
+        # the message names both locations, which a bare credentials display cannot distinguish
+        assert primary_config.data_location() in str(reject.value)
+        assert other_dataset.destination_client.config.data_location() in str(reject.value)
 
 
 def test_join_rejects_same_name_on_different_physical_destinations() -> None:
@@ -272,19 +294,80 @@ def test_join_rejects_same_name_on_different_physical_destinations() -> None:
         ds_a = pipeline_a.dataset()
         ds_b = pipeline_b.dataset()
         assert ds_a.dataset_name == ds_b.dataset_name
-        assert not ds_a.is_same_physical_destination(ds_b)
+        a_config = ds_a.destination_client.config
+        b_config = ds_b.destination_client.config
+        assert a_config.data_location() != b_config.data_location()
+        # duckdb reports the other database as readable because duckdb can attach it
+        assert a_config.can_read_from(b_config)
 
-        with pytest.raises(ValueError, match="different physical destinations") as exc_info:
+        # an `ATTACH` relaxes the physical-destination guard. But the dataset name alone cannot
+        # distinguish two datasets that share a name on different locations
+        with pytest.raises(ValueError, match="same name located on two different destinations"):
             ds_a.table("users").join(ds_b.table("orders"), on="users.id = orders.user_id")
 
-        assert "a.duckdb" in str(exc_info.value)
-        assert "b.duckdb" in str(exc_info.value)
+
+def test_join_rejects_two_foreign_datasets_sharing_a_name() -> None:
+    """Two foreign datasets of one name bind to a single `ATTACH` alias. The query then reads the
+    tables of the dataset that the user joined last."""
+    with tempfile.TemporaryDirectory() as tmp:
+        tmp_path = pathlib.Path(tmp)
+        pipelines_dir = str(tmp_path / "pipelines_dir")
+        shared_dataset_name = "same_name_two_foreign"
+
+        primary = dlt.pipeline(
+            pipeline_name="same_name_two_foreign_primary",
+            pipelines_dir=pipelines_dir,
+            destination=dlt.destinations.duckdb(str(tmp_path / "primary.duckdb")),
+            dataset_name="ds_primary",
+        )
+        primary.run([{"id": 1}], table_name="users")
+
+        # both foreign datasets carry `orders` and `refunds` under the same dataset name
+        foreign_datasets = []
+        for db_name in ("a", "b"):
+            foreign = dlt.pipeline(
+                pipeline_name=f"same_name_two_foreign_{db_name}",
+                pipelines_dir=pipelines_dir,
+                destination=dlt.destinations.duckdb(str(tmp_path / f"{db_name}.duckdb")),
+                dataset_name=shared_dataset_name,
+            )
+            foreign.run([{"user_id": 1, "src": db_name}], table_name="orders")
+            foreign.run([{"user_id": 1, "src": db_name}], table_name="refunds")
+            foreign_datasets.append(foreign.dataset())
+
+        ds_a, ds_b = foreign_datasets
+        ds_primary = primary.dataset()
+        # a shared name at two locations is not one dataset. The join guard asks exactly this
+        assert ds_a.is_same_dataset(ds_a)
+        assert ds_a.is_same_dataset(dlt.dataset(ds_a._destination, shared_dataset_name))
+        assert not ds_a.is_same_dataset(ds_b)
+        assert not ds_a.is_same_dataset(ds_primary)
+
+        joined = ds_primary.table("users").join(
+            ds_a.table("orders"), on="users.id = orders.user_id"
+        )
+
+        with pytest.raises(ValueError, match="already contains a different dataset") as reject:
+            joined.join(ds_b.table("refunds"), on="users.id = refunds.user_id")
+        # the message names both locations, so the user sees which two datasets clashed
+        assert ds_a.destination_client.config.data_location() in str(reject.value)
+        assert ds_b.destination_client.config.data_location() in str(reject.value)
+
+        # the same foreign dataset accessed through another `Dataset` instance is not a collision
+        same_ds_b = dlt.dataset(ds_b._destination, shared_dataset_name)
+        joined_b = (
+            primary.dataset()
+            .table("users")
+            .join(ds_b.table("orders"), on="users.id = orders.user_id")
+        )
+        joined_b = joined_b.join(same_ds_b.table("refunds"), on="users.id = refunds.user_id")
+        assert list(joined_b._foreign_datasets) == [shared_dataset_name]
+        assert joined_b.df()["orders__src"].to_list() == ["b"]
 
 
 @pytest.mark.parametrize(
     "make_destination",
     [
-        pytest.param(lambda p: dlt.destinations.filesystem(str(p / "data")), id="filesystem"),
         pytest.param(
             lambda p: dlt.destinations.sqlalchemy(f"sqlite:///{p / 'shop.db'}"), id="sqlite"
         ),
@@ -315,10 +398,53 @@ def test_join_rejects_cross_dataset_on_unsupported_destination(
 
         ds_a = pipeline_a.dataset()
         ds_b = pipeline_b.dataset()
-        assert ds_a.is_same_physical_destination(ds_b)
+        # one database file, yet each dataset lives in its own attached file. A query engine
+        # accesses only the dataset that it opened
+        assert ds_a.destination_client.config.data_location() != (
+            ds_b.destination_client.config.data_location()
+        )
 
-        with pytest.raises(ValueError, match="Cross-dataset joins are not supported"):
+        # sqlite attaches only its own dataset file, so the other one is inaccessible. No
+        # direction works, and the user must materialize the data
+        with pytest.raises(ValueError, match="cannot access the data") as reject:
             ds_a.table("users").join(ds_b.table("orders"), on="users.id = orders.user_id")
+        assert "Materialize" in str(reject.value)
+        assert "can join" not in str(reject.value)
+
+
+def test_join_cross_dataset_on_filesystem_attaches() -> None:
+    """dlt materializes each of two datasets in one bucket into its own query engine. The query
+    then attaches the second dataset and accesses it."""
+    with tempfile.TemporaryDirectory() as tmp:
+        tmp_path = pathlib.Path(tmp)
+        bucket_url = FilesystemConfiguration.make_file_url(str(tmp_path / "data"))
+        crm = dlt.pipeline(
+            pipeline_name="fs_cross_crm",
+            pipelines_dir=str(tmp_path / "pipelines_dir"),
+            destination=dlt.destinations.filesystem(bucket_url),
+            dataset_name="fs_crm",
+        )
+        crm.run([{"id": 1, "name": "Alice"}], table_name="users", loader_file_format="parquet")
+        sales = dlt.pipeline(
+            pipeline_name="fs_cross_sales",
+            pipelines_dir=str(tmp_path / "pipelines_dir"),
+            destination=dlt.destinations.filesystem(bucket_url),
+            dataset_name="fs_sales",
+        )
+        sales.run([{"id": 10, "user_id": 1}], table_name="orders", loader_file_format="parquet")
+
+        ds_crm, ds_sales = crm.dataset(), sales.dataset()
+        # one bucket, so both datasets share a data location yet each needs its own attach
+        assert ds_crm.destination_client.config.data_location() == (
+            ds_sales.destination_client.config.data_location()
+        )
+        joined = ds_crm.table("users").join(
+            ds_sales.table("orders"), on="users.id = orders.user_id"
+        )
+        assert joined._foreign_datasets["fs_sales"].alias == "attach_fs_sales"
+        df = joined.df()
+        assert list(df["name"]) == ["Alice"]
+        assert list(df["orders__id"]) == [10]
 
 
 @pytest.mark.parametrize(
@@ -404,12 +530,6 @@ def test_resolve_reference_chain_matrix(
             "users__orders",
             "no base table",
             id="query-relation-not-joinable",
-        ),
-        pytest.param(
-            lambda ds: ds.table("users__orders").limit(5).select("order_id"),
-            "users",
-            "no base table to resolve references",
-            id="subquery-hides-base-table",
         ),
     ],
 )
@@ -541,24 +661,6 @@ def test_join_does_not_project_incomplete_target_columns(
     assert len(rows) == 3
 
 
-_MAGIC_LIMIT_LEAKS_PAST_JOIN = pytest.mark.xfail(
-    reason=(
-        "magic join does not wrap a limited left relation as a derived table, so LIMIT is "
-        "rendered on the joined query instead of the limited left relation"
-    ),
-    strict=True,
-)
-
-
-_MAGIC_WHERE_LEAKS_PAST_OUTER_JOIN = pytest.mark.xfail(
-    reason=(
-        "magic join does not wrap a filtered left relation as a derived table, so its WHERE is "
-        "evaluated after the join and drops unmatched right-side rows of right/full joins"
-    ),
-    strict=True,
-)
-
-
 @pytest.mark.parametrize(
     "build_rel,expected_session_ids",
     [
@@ -566,7 +668,6 @@ _MAGIC_WHERE_LEAKS_PAST_OUTER_JOIN = pytest.mark.xfail(
             lambda ds: ds.table("users").order_by("id").limit(1).join("user_sessions"),
             ["s1", "s2"],
             id="limit-magic",
-            marks=_MAGIC_LIMIT_LEAKS_PAST_JOIN,
         ),
         pytest.param(
             lambda ds: ds.table("users")
@@ -592,13 +693,11 @@ _MAGIC_WHERE_LEAKS_PAST_OUTER_JOIN = pytest.mark.xfail(
             lambda ds: ds.table("users").where("id", "eq", 1).join("user_sessions", kind="right"),
             ["s1", "s2", "s3"],
             id="filter-magic-right",
-            marks=_MAGIC_WHERE_LEAKS_PAST_OUTER_JOIN,
         ),
         pytest.param(
             lambda ds: ds.table("users").where("id", "eq", 1).join("user_sessions", kind="full"),
             ["s1", "s2", "s3"],
             id="filter-magic-full",
-            marks=_MAGIC_WHERE_LEAKS_PAST_OUTER_JOIN,
         ),
         pytest.param(
             lambda ds: ds.table("users")
@@ -1004,6 +1103,18 @@ def test_where_then_join_produces_correct_data(dataset_with_loads: TLoadsFixture
     assert df["order_id"].iloc[0] == 101
 
 
+def test_where_on_joined_column_then_rejoin(dataset_with_loads: TLoadsFixture) -> None:
+    dataset, _, _ = dataset_with_loads
+    joined = dataset.table("users__orders").join("users")
+    filtered = joined.where("users__name", "eq", "Alice")
+
+    df = filtered.df()
+    assert set(df["users__name"]) == {"Alice"}
+    assert len(df) == (joined.df()["users__name"] == "Alice").sum()
+    # joining the same table again is still a no-op
+    assert filtered.join("users").sqlglot_expression.sql() == filtered.sqlglot_expression.sql()
+
+
 def test_order_by_then_join_produces_correct_data(dataset_with_loads: TLoadsFixture) -> None:
     """order_by before join should preserve join correctness and ordering."""
     dataset, _, _ = dataset_with_loads
@@ -1039,6 +1150,22 @@ def test_select_then_join_preserves_narrow_projection(dataset_with_loads: TLoads
     assert "_dlt_parent_id" not in df.columns
     # right side columns are present
     assert "users__name" in df.columns
+
+
+def test_limit_and_select_then_magic_join(dataset_with_loads: TLoadsFixture) -> None:
+    """LIMIT and select() on the left relation apply before the magic join."""
+    dataset, _, _ = dataset_with_loads
+    limited = dataset.table("users__orders").order_by("order_id").limit(1)
+
+    joined = limited.select("order_id", "_dlt_parent_id").join("users")
+    df = joined.df()
+    assert len(df) == 1
+    assert "order_id" in df.columns
+    assert "users__name" in df.columns
+
+    # a projection that drops the join key cannot be joined once LIMIT seals it
+    with pytest.raises(LineageFailedException, match="_dlt_parent_id"):
+        limited.select("order_id").join("users").df()
 
 
 @pytest.mark.parametrize(
@@ -1281,7 +1408,7 @@ def test_explicit_on_joins_local_table(
 ) -> None:
     ds = dataset_with_relational_tables
     joined = build_join(ds)
-    assert not joined._foreign_schemas
+    assert not joined._foreign_datasets
     df = joined.df()
     assert len(df) == 4
     assert "orders__amount" in df.columns
@@ -1349,56 +1476,36 @@ def test_explicit_on_projection_prefix(
     assert right_aliases == expected
 
 
-def _order_by_sort_key(rel: dlt.Relation) -> sge.Column:
-    """Return the single ORDER BY sort-key column of a relation."""
-    order = rel.sqlglot_expression.args.get("order")
-    assert order is not None and len(order.expressions) == 1
-    sort_key = order.expressions[0].this
-    assert isinstance(sort_key, sge.Column)
-    return sort_key
-
-
-@pytest.mark.parametrize(
-    "build_join,order_column",
-    [
-        pytest.param(
-            lambda ds: ds.table("customers").join(
-                "orders", on="customers.customer_id = orders.customer_id"
-            ),
-            "orders__order_id",
-            id="default-prefix",
-        ),
-        pytest.param(
-            lambda ds: ds.table("customers").join(
-                "orders", on="customers.customer_id = orders.customer_id", alias="o"
-            ),
-            "o__order_id",
-            id="custom-alias",
-        ),
-    ],
-)
-def test_order_by_join_output_resolves_to_source_column(
+@pytest.mark.parametrize("alias", [None, "o"], ids=["default-prefix", "custom-alias"])
+def test_order_by_join_output_alias_survives_select(
     dataset_with_relational_tables: dlt.Dataset,
-    build_join: Callable[[dlt.Dataset], dlt.Relation],
-    order_column: str,
+    alias: Optional[str],
 ) -> None:
-    rel = build_join(dataset_with_relational_tables).order_by(order_column)
-    sort_key = _order_by_sort_key(rel)
-    assert sort_key.table == "orders"
-    assert sort_key.name == "order_id"
+    """Ordering by a join output alias survives a later projection change."""
+    prefix = alias or "orders"
+    rel = (
+        dataset_with_relational_tables.table("customers")
+        .join("orders", on="customers.customer_id = orders.customer_id", alias=alias)
+        .order_by(f"{prefix}__order_id", "desc")
+        .select("name", f"{prefix}__amount")
+    )
+    df = rel.df()
+    assert list(df.columns) == ["name", f"{prefix}__amount"]
+    assert [float(x) for x in df[f"{prefix}__amount"]] == [30.0, 200.0, 75.0, 50.0]
 
 
-def test_order_by_join_output_renders_resolvable_tsql(
+def test_order_by_join_output_binds_to_source_column(
     dataset_with_relational_tables: dlt.Dataset,
 ) -> None:
+    """tsql cannot resolve a select alias inside an ORDER BY expression (NULLS emulation)."""
     rel = (
         dataset_with_relational_tables.table("customers")
         .join("orders", on="customers.customer_id = orders.customer_id")
         .order_by("orders__order_id")
     )
-    order_by = sqlglot.transpile(rel.to_sql(), read="duckdb", write="tsql")[0].split("ORDER BY", 1)[
-        1
-    ]
+    sql = rel.to_sql()
+    assert 'ORDER BY "orders"."order_id"' in sql
+    order_by = sqlglot.transpile(sql, read="duckdb", write="tsql")[0].split("ORDER BY", 1)[1]
     assert "[orders__order_id]" not in order_by
     assert "[orders].[order_id]" in order_by
 
@@ -1449,6 +1556,42 @@ def test_explicit_on_with_filtered_side(
     assert len(df) == expected_rows
     assert list(df["name"]) == expected_names
     assert list(df["orders__amount"]) == expected_amounts
+
+
+@pytest.mark.parametrize(
+    "build_join,name_column",
+    [
+        pytest.param(
+            lambda ds: ds.query("SELECT g.n FROM generate_series(1, 2) AS g(n)").join(
+                ds.table("customers"), on="g.n = customers.customer_id"
+            ),
+            "customers__name",
+            id="table-function-lhs",
+        ),
+        pytest.param(
+            lambda ds: ds.table("customers").join(
+                ds.query("SELECT g.n FROM generate_series(1, 2) AS g(n)"),
+                on="customers.customer_id = g.n",
+            ),
+            "name",
+            id="table-function-rhs",
+        ),
+        pytest.param(
+            lambda ds: ds.query("SELECT v.a FROM (VALUES (1), (2)) AS v(a)").join(
+                ds.table("customers"), on="v.a = customers.customer_id"
+            ),
+            "customers__name",
+            id="values-lhs",
+        ),
+    ],
+)
+def test_explicit_on_with_table_function_source(
+    dataset_with_relational_tables: dlt.Dataset,
+    build_join: Callable[[dlt.Dataset], dlt.Relation],
+    name_column: str,
+) -> None:
+    df = build_join(dataset_with_relational_tables).df()
+    assert sorted(df[name_column]) == ["Alice", "Bob"]
 
 
 def test_explicit_on_does_not_mutate_transformed_rhs(
@@ -1840,9 +1983,9 @@ def test_cross_dataset_join(
 
     joined = users.join(ds_inv.table("purchases"), on=on)
 
-    assert ds_inv.dataset_name in joined._foreign_schemas
-    assert ds_inv.dataset_name not in users._foreign_schemas
-    assert len(joined._foreign_schemas[ds_inv.dataset_name]) >= 1
+    assert ds_inv.dataset_name in joined._foreign_datasets
+    assert ds_inv.dataset_name not in users._foreign_datasets
+    assert len(joined._foreign_datasets[ds_inv.dataset_name].dataset.schemas) >= 1
 
     df = joined.df()
     assert len(df) == 3
@@ -2147,7 +2290,7 @@ def test_cross_dataset_join_via_dotted_string_qualifies_foreign_dataset(
     joined = ds_crm.table("users").join(
         ds_inv.table("purchases"), on="users.id = purchases.user_id"
     )
-    assert ds_inv.dataset_name in joined._foreign_schemas
+    assert ds_inv.dataset_name in joined._foreign_datasets
 
     chained = joined.join(
         f"{ds_inv.dataset_name}.inventory_items",
@@ -2423,3 +2566,196 @@ def test_magic_join_after_foreign_base_table_resolves_local_target() -> None:
         # the local magic target must enter the query alongside the foreign table
         sql = joined.to_sql()
         assert f'"{ds_crm.dataset_name}"."users"' in sql, sql
+
+
+def test_attach_info_built_once_per_relation(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The relation builds the attach info and the destination clients on the first read, and only
+    once."""
+    with tempfile.TemporaryDirectory() as tmp:
+        tmp_path = pathlib.Path(tmp)
+        crm = dlt.pipeline(
+            pipeline_name="attach_cost_crm",
+            pipelines_dir=str(tmp_path / "pipelines_dir"),
+            destination=dlt.destinations.duckdb(str(tmp_path / "crm.duckdb")),
+            dataset_name="crm_data",
+        )
+        crm.run([{"id": 1, "name": "Alice"}], table_name="users")
+        sales = dlt.pipeline(
+            pipeline_name="attach_cost_sales",
+            pipelines_dir=str(tmp_path / "pipelines_dir"),
+            destination=dlt.destinations.duckdb(str(tmp_path / "sales.duckdb")),
+            dataset_name="sales_data",
+        )
+        sales.run([{"id": 10, "user_id": 1}], table_name="orders")
+
+        crm_dataset = crm.dataset()
+        sales_dataset = sales.dataset()
+
+        built_aliases: list[str] = []
+        original_attach_statements = DuckDbSqlClient.attach_statements
+
+        def _counting_attach_statements(self: Any, *, alias: str, tables: Any = None) -> Any:
+            built_aliases.append(alias)
+            return original_attach_statements(self, alias=alias, tables=tables)
+
+        monkeypatch.setattr(DuckDbSqlClient, "attach_statements", _counting_attach_statements)
+
+        created_clients: list[str] = []
+        original_create = dlt.Dataset._create_destination_client
+
+        def _counting_create(self: Any) -> Any:
+            created_clients.append(self.dataset_name)
+            return original_create(self)
+
+        monkeypatch.setattr(dlt.Dataset, "_create_destination_client", _counting_create)
+
+        joined = crm_dataset.table("users").join(
+            sales_dataset.table("orders"), on="users.id = orders.user_id"
+        )
+        # dlt needs no statements to decide that a join is legal
+        assert built_aliases == []
+
+        # dlt needs only the catalog alias to bind identifiers
+        assert "attach_sales_data" in joined.to_sql()
+        assert built_aliases == []
+
+        assert len(joined.df()) == 1
+        # dlt builds once per foreign dataset and memoizes the result for further reads
+        assert built_aliases == ["attach_sales_data"]
+        joined.df()
+        joined.to_model()
+        assert built_aliases == ["attach_sales_data"]
+
+        # a relation chained from the join reuses the memoized result for that dataset
+        assert len(joined.where("users.id = 1").df()) == 1
+        assert built_aliases == ["attach_sales_data"]
+
+        # one cached destination client per dataset, however many times the relation uses it
+        assert sorted(created_clients) == ["crm_data", "sales_data"]
+
+        # dlt memoizes a second foreign dataset next to the first one, not instead of it
+        support = dlt.pipeline(
+            pipeline_name="attach_cost_support",
+            pipelines_dir=str(tmp_path / "pipelines_dir"),
+            destination=dlt.destinations.duckdb(str(tmp_path / "support.duckdb")),
+            dataset_name="support_data",
+        )
+        support.run([{"id": 100, "user_id": 1}], table_name="tickets")
+        two_foreign = joined.join(
+            support.dataset().table("tickets"), on="users.id = tickets.user_id"
+        )
+        assert len(two_foreign.df()) == 1
+        assert built_aliases == ["attach_sales_data", "attach_support_data"]
+        two_foreign.df()
+        assert built_aliases == ["attach_sales_data", "attach_support_data"]
+
+
+def test_attach_covers_tables_added_by_a_chained_join(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A relation chained from a join reads a second foreign table, so the attach must grow."""
+    asked_for: list[Any] = []
+    original_attach_statements = WithTableScanners.attach_statements
+
+    def _spy_attach_statements(self: Any, *, alias: str, tables: Any = None) -> Any:
+        asked_for.append(None if tables is None else sorted(tables))
+        return original_attach_statements(self, alias=alias, tables=tables)
+
+    monkeypatch.setattr(WithTableScanners, "attach_statements", _spy_attach_statements)
+
+    with tempfile.TemporaryDirectory() as tmp:
+        tmp_path = pathlib.Path(tmp)
+        crm = dlt.pipeline(
+            pipeline_name="attach_grow_crm",
+            pipelines_dir=str(tmp_path / "pipelines_dir"),
+            destination=dlt.destinations.duckdb(str(tmp_path / "crm.duckdb")),
+            dataset_name="crm_data",
+        )
+        crm.run([{"id": 1}], table_name="users")
+        # a scanner destination materializes one view per table, so it builds only the needed ones
+        sales = dlt.pipeline(
+            pipeline_name="attach_grow_sales",
+            pipelines_dir=str(tmp_path / "pipelines_dir"),
+            destination=dlt.destinations.filesystem(
+                FilesystemConfiguration.make_file_url(str(tmp_path / "sales_bucket"))
+            ),
+            dataset_name="sales_data",
+        )
+        sales.run([{"id": 10, "user_id": 1}], table_name="orders", loader_file_format="parquet")
+        sales.run([{"id": 10, "sku": "W-1"}], table_name="items", loader_file_format="parquet")
+        sales.run([{"id": 99}], table_name="untouched", loader_file_format="parquet")
+
+        joined = (
+            crm.dataset()
+            .table("users")
+            .join(sales.dataset().table("orders"), on="users.id = orders.user_id")
+        )
+        assert len(joined.df()) == 1
+        assert joined._foreign_datasets["sales_data"].attach_tables == frozenset({"orders"})
+        assert asked_for == [["orders"]]
+
+        # the chained join needs `items` too, which the memoized attach info does not cover
+        chained = joined.join("sales_data.items", on="orders.id = items.id")
+        assert len(chained.df()) == 1
+        assert chained._foreign_datasets["sales_data"].attach_tables == frozenset(
+            {"orders", "items"}
+        )
+        # dlt describes again only the table that is missing from the attach info
+        assert asked_for == [["orders"], ["items"]]
+
+        def _views(info: Any) -> List[str]:
+            return [
+                s["sql"]
+                for s in info["statements"]
+                if s["sql"].startswith("CREATE OR REPLACE VIEW")
+            ]
+
+        # the attach info stays cumulative. A table that no query referenced never gets a view
+        views = _views(chained._attach_infos()[0])
+        assert len(views) == 2
+        assert not any("untouched" in sql for sql in views)
+        # a persisted model carries every view. It has no earlier attach state to use
+        assert _views(chained.to_model().attach[0]) == views
+
+
+def test_attach_statements_stay_bounded_when_foreign_data_grows() -> None:
+    """A view over grown data replaces its recorded definition. Definitions do not accumulate."""
+    with tempfile.TemporaryDirectory() as tmp:
+        tmp_path = pathlib.Path(tmp)
+        crm = dlt.pipeline(
+            pipeline_name="attach_bounded_crm",
+            pipelines_dir=str(tmp_path / "pipelines_dir"),
+            destination=dlt.destinations.duckdb(str(tmp_path / "crm.duckdb")),
+            dataset_name="crm_data",
+        )
+        crm.run([{"id": 1}], table_name="users")
+        # a scanner destination embeds the concrete file list in its view, so the SQL changes
+        # every time the pipeline loads data
+        sales = dlt.pipeline(
+            pipeline_name="attach_bounded_sales",
+            pipelines_dir=str(tmp_path / "pipelines_dir"),
+            destination=dlt.destinations.filesystem(
+                FilesystemConfiguration.make_file_url(str(tmp_path / "sales_bucket"))
+            ),
+            dataset_name="sales_data",
+        )
+        sales.run([{"id": 10, "user_id": 1}], table_name="orders", loader_file_format="parquet")
+
+        crm_dataset, sales_dataset = crm.dataset(), sales.dataset()
+        pool = crm_dataset.sql_client.credentials.conn_pool
+
+        recorded: List[int] = []
+        view_sqls: List[str] = []
+        for _ in range(3):
+            sales.run([{"id": 11, "user_id": 1}], table_name="orders", loader_file_format="parquet")
+            relation = crm_dataset.table("users").join(
+                sales_dataset.table("orders"), on="users.id = orders.user_id"
+            )
+            relation.df()
+            recorded.append(len(pool._statements))
+            view_sqls.append(
+                next(s.sql for s in pool._statements if s.sql.startswith("CREATE OR REPLACE VIEW"))
+            )
+
+        assert len(set(recorded)) == 1, f"attach statements grew: {recorded}"
+        # the newest definition always replaces the single recorded view
+        assert len(set(view_sqls)) == 3
+        assert sum(1 for s in pool._statements if s.sql.startswith("CREATE OR REPLACE VIEW")) == 1

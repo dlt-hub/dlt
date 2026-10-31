@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Any, Type, Union, Dict, TYPE_CHECKING
+from typing import Any, Sequence, Type, Union, Dict, TYPE_CHECKING
 
 from dlt.common.destination import Destination, DestinationCapabilitiesContext
 from dlt.destinations.impl.duckdb.factory import _set_duckdb_raw_capabilities
@@ -11,6 +11,8 @@ from dlt.destinations.impl.motherduck.configuration import (
 
 if TYPE_CHECKING:
     from duckdb import DuckDBPyConnection
+    from dlt.common.libs.ibis import BaseBackend
+    from dlt.common.schema import Schema
     from dlt.destinations.impl.motherduck.motherduck import MotherDuckClient
 
 
@@ -30,6 +32,17 @@ class motherduck(Destination[MotherDuckClientConfiguration, "MotherDuckClient"])
         from dlt.destinations.impl.motherduck.motherduck import MotherDuckClient
 
         return MotherDuckClient
+
+    def create_ibis_backend(
+        self, client: "MotherDuckClient", read_only: bool = False, schemas: "Sequence[Schema]" = ()
+    ) -> "BaseBackend":
+        """Create an ibis duckdb backend over the motherduck connection."""
+        from dlt.helpers.ibis import ibis
+
+        # read_only is managed server-side on motherduck, so it is not set here
+        with client:
+            client.sql_client.use_dataset()
+            return ibis.duckdb.from_connection(client.config.credentials.conn_pool.move_conn())
 
     def __init__(
         self,

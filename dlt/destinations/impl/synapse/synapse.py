@@ -254,7 +254,7 @@ class SynapseCopyFileLoadJob(CopyRemoteFileLoadJob):
         as required by Synapse.
         """
         bucket_url = urlparse(bucket_path)
-        # "blob" endpoint has better performance than "dfs" endoint
+        # "blob" endpoint has better performance than "dfs" endpoint
         # https://learn.microsoft.com/en-us/sql/t-sql/statements/copy-into-transact-sql?view=azure-sqldw-latest#external-locations
         endpoint = "blob"
         _path = "/" + bucket_url.netloc + bucket_url.path

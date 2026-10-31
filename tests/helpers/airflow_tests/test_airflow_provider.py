@@ -28,6 +28,8 @@ def test_airflow_secrets_toml_provider() -> None:
         # make sure provider works while creating DAG
         provider = AirflowSecretsTomlProvider()
         assert provider.get_value("api_key", str, None, "sources")[0] == "test_value"
+        # airflow variables have no location to report
+        assert provider.get_value_location("api_key", None, "sources") == ""
 
         @task()
         def test_task():

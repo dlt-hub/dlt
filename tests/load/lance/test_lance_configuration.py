@@ -73,7 +73,7 @@ def test_lance_storage_configuration_namespace_uri() -> None:
         pytest.param(None, "", id="empty"),
         pytest.param(
             LanceStorageConfiguration(bucket_url="data/lance"),
-            digest128(""),
+            digest128("file://"),
             id="storage_local",
         ),
         pytest.param(

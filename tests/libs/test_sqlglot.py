@@ -1,21 +1,28 @@
-from typing import List, Optional, Set, cast
+from typing import List, Optional, Set, Tuple, cast
 import importlib
 import pytest
 import sqlglot
 import sqlglot.expressions as sge
+from sqlglot.optimizer.annotate_types import annotate_types
+from sqlglot.optimizer.qualify import qualify
 
 from dlt.common.libs.sqlglot import (
     DLT_SUBQUERY_NAME,
     TSqlGlotDialect,
+    build_typed_literal,
     filter_select_column_names,
     from_sqlglot_type,
     get_select_column_names,
+    migrate_order_and_limit,
     to_sqlglot_type,
     uuid_expr_for_dialect,
     validate_no_star_select,
     build_outer_select_statement,
     reorder_or_adjust_outer_select,
     normalize_query_identifiers,
+    has_pure_column_projection,
+    get_left_source_qualifier,
+    where_on_output,
 )
 from dlt.common.normalizers.naming.snake_case import NamingConvention as SnakeCaseNaming
 from dlt.common.schema.typing import TDataType, TColumnType, TTableSchemaColumns
@@ -111,6 +118,7 @@ def _from_sqlglot_cases() -> list[tuple[sge.DataType.Type, Optional[TDataType]]]
         sge.DataType.Type.BOOLEAN: "bool",
         # UNKNOWN
         sge.DataType.Type.UNKNOWN: None,
+        sge.DataType.Type.NULL: None,
     }
 
     try:
@@ -664,3 +672,258 @@ def test_normalize_query_identifiers_table_qualified_columns() -> None:
     assert f"{expected_table}.my_col" in normalized_sql
     assert f"{expected_table}.other_col" in normalized_sql
     assert f"{expected_table}.id" in normalized_sql
+
+
+@pytest.mark.parametrize(
+    "query,expected",
+    [
+        ("SELECT a, b FROM t", True),
+        ("SELECT * FROM t", True),
+        ("SELECT a AS x FROM t", False),
+        ("SELECT COUNT(a) FROM t", False),
+        ("SELECT DISTINCT a FROM t", False),
+        ("SELECT a FROM t GROUP BY a", False),
+        ("SELECT t.a FROM t JOIN u ON t.id = u.id", False),
+    ],
+    ids=["plain-columns", "star", "alias", "aggregate", "distinct", "group-by", "join"],
+)
+def test_has_pure_column_projection(query: str, expected: bool) -> None:
+    assert has_pure_column_projection(cast(sge.Query, sqlglot.parse_one(query))) is expected
+
+
+@pytest.mark.parametrize(
+    "dialect,query,expected",
+    [
+        pytest.param("duckdb", "SELECT * FROM t", "t", id="table"),
+        pytest.param("duckdb", "SELECT * FROM t AS x", "x", id="aliased-table"),
+        pytest.param("duckdb", "SELECT * FROM (SELECT 1) AS s", "s", id="derived-table"),
+        pytest.param("duckdb", "SELECT * FROM (SELECT 1)", None, id="unaliased-derived-table"),
+        pytest.param(
+            "duckdb", "SELECT * FROM read_parquet('a.parquet') AS x", "x", id="table-function"
+        ),
+        pytest.param(
+            "duckdb", "SELECT * FROM read_parquet('a.parquet')", None, id="unaliased-table-function"
+        ),
+        pytest.param(
+            "duckdb", "SELECT * FROM generate_series(1, 3) AS g(n)", "g", id="aliased-columns"
+        ),
+        pytest.param("snowflake", "SELECT * FROM TABLE(my_udtf(1)) AS x", "x", id="udtf"),
+        pytest.param("snowflake", "SELECT * FROM @my_stage AS s", "s", id="stage"),
+        pytest.param("postgres", "SELECT * FROM (VALUES (1)) AS v(a)", "v", id="values"),
+        # bigquery binds the alias to the unnested element, not to the source
+        pytest.param("bigquery", "SELECT * FROM UNNEST([1, 2]) AS x", None, id="unnest"),
+    ],
+)
+def test_get_left_source_qualifier(dialect: str, query: str, expected: Optional[str]) -> None:
+    query_expr = cast(sge.Query, sqlglot.parse_one(query, read=dialect))
+    assert get_left_source_qualifier(query_expr) == expected
+
+
+def _wrap_and_migrate(query: str, *projection: str) -> Tuple[sge.Select, sge.Query]:
+    """Wrap `query` as a derived table selecting `projection`, then migrate its ORDER BY/LIMIT."""
+    subquery = cast(sge.Query, sqlglot.parse_one(query)).subquery(DLT_SUBQUERY_NAME)
+    outer = sge.select(
+        *(sge.Column(this=sge.to_identifier(col, quoted=True)) for col in projection)
+    ).from_(subquery)
+    migrate_order_and_limit(subquery.this, outer, DLT_SUBQUERY_NAME)
+    return outer, subquery.this
+
+
+# dialects that render ORDER BY/LIMIT differently (tsql TOP/FETCH, trino OFFSET..LIMIT, NULLS)
+_MIGRATE_DIALECTS: List[TSqlGlotDialect] = [
+    "duckdb",
+    "postgres",
+    "tsql",
+    "trino",
+    "snowflake",
+    "databricks",
+]
+
+
+@pytest.mark.parametrize(
+    "query,projection,hoisted",
+    [
+        pytest.param(
+            "SELECT col1 AS c FROM my_table ORDER BY c LIMIT 3 OFFSET 1",
+            ("c",),
+            True,
+            id="alias-key",
+        ),
+        pytest.param(
+            "SELECT col1 + 1 AS c FROM my_table ORDER BY col1 + 1 LIMIT 3",
+            ("c",),
+            True,
+            id="computed-key",
+        ),
+        pytest.param(
+            "SELECT DISTINCT col1 FROM my_table ORDER BY col1 LIMIT 3",
+            ("col1",),
+            True,
+            id="distinct",
+        ),
+        pytest.param(
+            "SELECT col1, COUNT(*) AS cnt FROM my_table GROUP BY col1 ORDER BY cnt LIMIT 3",
+            ("col1", "cnt"),
+            True,
+            id="group-by",
+        ),
+        pytest.param(
+            "SELECT col1 AS c FROM my_table ORDER BY col2 LIMIT 3", ("c",), False, id="dropped-key"
+        ),
+    ],
+)
+def test_migrate_order_and_limit_across_dialects(
+    query: str, projection: Tuple[str, ...], hoisted: bool
+) -> None:
+    """ORDER BY/LIMIT move onto the wrap only when the sort key survives the projection."""
+    outer, inner = _wrap_and_migrate(query, *projection)
+    # sort/limit leave the inner and land on the outer exactly when they can be hoisted
+    assert (inner.args.get("order") is None) is hoisted
+    assert (inner.args.get("limit") is None) is hoisted
+    assert (outer.args.get("order") is not None) is hoisted
+    assert (outer.args.get("limit") is not None) is hoisted
+    # the sort must render at the level that owns it in every dialect (outer tail vs inner body)
+    for dialect in _MIGRATE_DIALECTS:
+        before_alias, _, after_alias = outer.sql(dialect=dialect).partition(DLT_SUBQUERY_NAME)
+        assert ("ORDER BY" in after_alias) is hoisted
+        assert ("ORDER BY" in before_alias) is (not hoisted)
+
+
+def test_migrate_order_and_limit_rewrites_computed_key_to_output_name() -> None:
+    """A computed sort key is rewritten to reference the wrap's exposed output column."""
+    outer, inner = _wrap_and_migrate("SELECT col1 + 1 AS c FROM my_table ORDER BY col1 + 1", "c")
+    assert inner.args.get("order") is None
+    order = outer.args.get("order")
+    assert order is not None
+    sort_key = order.expressions[0].this
+    assert isinstance(sort_key, sge.Column)
+    assert sort_key.name == "c" and sort_key.table == DLT_SUBQUERY_NAME
+
+
+@pytest.mark.parametrize(
+    "query,predicate,expected",
+    [
+        pytest.param(
+            "SELECT a, b FROM t", "a = 1", "SELECT a, b FROM t WHERE a = 1", id="plain-columns"
+        ),
+        pytest.param(
+            "SELECT a FROM t", "b = 1", "SELECT a FROM t WHERE b = 1", id="column-not-in-output"
+        ),
+        pytest.param(
+            "SELECT a FROM t LIMIT 5",
+            "a > 1",
+            "SELECT a FROM t WHERE a > 1 LIMIT 5",
+            id="limit-applies-after-filter",
+        ),
+        pytest.param(
+            "SELECT b * 10 AS a FROM t",
+            "a = 10",
+            "SELECT b * 10 AS a FROM t WHERE (b * 10) = 10",
+            id="computed-alias",
+        ),
+        pytest.param(
+            "SELECT a AS src, a * 10 AS a FROM t",
+            "a = 10",
+            "SELECT t.* FROM (SELECT a AS src, a * 10 AS a FROM t) AS t WHERE a = 10",
+            id="alias-shadows-source",
+        ),
+        pytest.param(
+            "SELECT a AS b, b AS a FROM t",
+            "a = 1",
+            "SELECT t.* FROM (SELECT a AS b, b AS a FROM t) AS t WHERE a = 1",
+            id="swapped-renames",
+        ),
+        pytest.param(
+            "SELECT t.a, u.b AS u__b FROM t JOIN u ON t.id = u.id",
+            "u__b = 1",
+            "SELECT t.a, u.b AS u__b FROM t JOIN u ON t.id = u.id WHERE u.b = 1",
+            id="joined-alias",
+        ),
+        pytest.param(
+            "SELECT a * 10 AS a FROM t",
+            "t.a = 1",
+            "SELECT a * 10 AS a FROM t WHERE t.a = 1",
+            id="qualified-column-binds-source",
+        ),
+        pytest.param(
+            "SELECT MAX(a) AS m FROM t",
+            "m > 1",
+            "SELECT t.* FROM (SELECT MAX(a) AS m FROM t) AS t WHERE m > 1",
+            id="aggregate",
+        ),
+        pytest.param(
+            "SELECT b, COUNT(*) AS n FROM t GROUP BY b",
+            "a > 1",
+            "SELECT b, COUNT(*) AS n FROM t WHERE a > 1 GROUP BY b",
+            id="group-by-filters-source-rows",
+        ),
+        pytest.param(
+            "SELECT a, ROW_NUMBER() OVER (ORDER BY a) AS rn FROM t",
+            "rn = 1",
+            "SELECT t.* FROM (SELECT a, ROW_NUMBER() OVER (ORDER BY a) AS rn FROM t) AS t WHERE"
+            " rn = 1",
+            id="window",
+        ),
+        pytest.param(
+            "SELECT MY_UDAF(a) AS m FROM t",
+            "m > 1",
+            "SELECT t.* FROM (SELECT MY_UDAF(a) AS m FROM t) AS t WHERE m > 1",
+            id="unknown-function",
+        ),
+        pytest.param(
+            "SELECT b, MAX(a) AS m FROM t GROUP BY b ORDER BY m LIMIT 2",
+            "m > 1",
+            "SELECT t.* FROM (SELECT b, MAX(a) AS m FROM t GROUP BY b) AS t WHERE m > 1 ORDER BY m"
+            " LIMIT 2",
+            id="order-and-limit-move-out",
+        ),
+        pytest.param(
+            "SELECT b, MAX(a) AS m FROM t GROUP BY b ORDER BY MIN(c) LIMIT 2",
+            "m > 1",
+            "SELECT b, MAX(a) AS m FROM t WHERE m > 1 GROUP BY b ORDER BY MIN(c) LIMIT 2",
+            id="order-key-not-in-output",
+        ),
+    ],
+)
+def test_where_on_output(query: str, predicate: str, expected: str) -> None:
+    """Unqualified predicate columns bind to the output of the query, other columns to its sources."""
+    source = cast(sge.Query, sqlglot.parse_one(query))
+    filtered = where_on_output(source, sge.condition(predicate))
+    assert filtered.sql() == expected
+
+    def _qualified(expression: sge.Expression, dialect: str) -> str:
+        schema = {
+            "t": {"a": "INT", "b": "INT", "c": "INT", "id": "INT"},
+            "u": {"b": "INT", "id": "INT"},
+        }
+        return qualify(expression.copy(), schema=schema, dialect=dialect).sql("duckdb")
+
+    # clickhouse binds WHERE names to select aliases first, the filter must mean the same there
+    if _qualified(source, "clickhouse") == _qualified(source, "duckdb"):
+        assert _qualified(filtered, "clickhouse") == _qualified(filtered, "duckdb")
+
+
+def test_build_typed_literal_bool_produces_boolean_expression() -> None:
+    """A bool value must become sge.Boolean, not a numeric literal -- bool is an int
+    subclass, so an isinstance(v, (int, float)) check ahead of the bool check would
+    silently misclassify it and break sqlglot's type annotation pass downstream.
+    """
+    lit = build_typed_literal(True)
+    assert isinstance(lit, sge.Boolean)
+    assert lit.this is True
+
+    lit = build_typed_literal(False)
+    assert isinstance(lit, sge.Boolean)
+    assert lit.this is False
+
+
+def test_build_typed_literal_bool_survives_type_annotation() -> None:
+    """A WHERE clause built from a bool literal (as Relation.where()/.filter() do)
+    must survive sqlglot's annotate_types pass instead of raising decimal.InvalidOperation.
+    """
+    condition = sge.EQ(this=sge.column("is_active"), expression=build_typed_literal(True))
+    select = sqlglot.select("*").from_("my_table").where(condition)
+
+    annotated = annotate_types(select)
+
+    assert "TRUE" in annotated.sql()

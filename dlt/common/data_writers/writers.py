@@ -36,6 +36,7 @@ from dlt.common.data_writers.exceptions import (
 from dlt.common.destination.configuration import (
     CsvFormatConfiguration,
     CsvQuoting,
+    ParquetCompression,
     ParquetFormatConfiguration,
 )
 from dlt.common.destination import (
@@ -44,9 +45,9 @@ from dlt.common.destination import (
     LOADER_FILE_FORMATS,
 )
 from dlt.common.exceptions import ValueErrorWithKnownValues
-from dlt.common.metrics import DataWriterMetrics
 from dlt.common.schema.typing import TTableSchemaColumns
 from dlt.common.typing import StrAny, TDataItem, TDataItems
+from dlt.common.time import get_context_timezone_name
 
 if TYPE_CHECKING:
     from dlt.common.libs.pyarrow import pyarrow as pa
@@ -69,9 +70,6 @@ class FileWriterSpec(NamedTuple):
     supports_compression: bool = False
     file_max_items: Optional[int] = None
     """Set an upper limit on the number of items in one file"""
-
-
-EMPTY_DATA_WRITER_METRICS = DataWriterMetrics("", 0, 0, 2**32, 0.0)
 
 
 class DataWriter(abc.ABC):
@@ -196,8 +194,8 @@ class JsonlWriter(DataWriter):
         )
 
 
-class ModelWriter(DataWriter):
-    """Writes incoming items row by row into a text file and ensures a trailing ;"""
+class RelationToModelWriter(DataWriter):
+    """Writes each received Relation into a separate text file."""
 
     def write_header(self, columns_schema: TTableSchemaColumns) -> None:
         pass
@@ -205,9 +203,7 @@ class ModelWriter(DataWriter):
     def write_data(self, items: Sequence[TDataItem]) -> None:
         super().write_data(items)
         for item in items:
-            dialect = item.query_dialect
-            query = item.to_sql()
-            self._f.write("dialect: " + (dialect or "") + "\n" + query + "\n")
+            self._f.write(str(item.to_model()))
 
     @classmethod
     def writer_spec(cls) -> FileWriterSpec:
@@ -326,8 +322,9 @@ class ParquetDataWriter(DataWriter):
         *,
         flavor: Optional[str] = None,
         version: Optional[str] = "2.4",
+        compression: Optional[ParquetCompression] = "snappy",
         data_page_size: Optional[int] = None,
-        timestamp_timezone: str = "UTC",
+        timestamp_timezone: str = None,
         row_group_size: Optional[int] = None,
         coerce_timestamps: Optional[Literal["s", "ms", "us", "ns"]] = None,
         allow_truncated_timestamps: bool = False,
@@ -346,6 +343,9 @@ class ParquetDataWriter(DataWriter):
             self.parquet_format.update(_format.as_dict_nondefault())
         else:
             self.parquet_format = _format
+        self.timestamp_timezone = (
+            get_context_timezone_name() if timestamp_timezone is None else timestamp_timezone
+        )
 
     def _create_writer(self, schema: "pa.Schema") -> "pa.parquet.ParquetWriter":
         from dlt.common.libs.pyarrow import pyarrow
@@ -361,6 +361,7 @@ class ParquetDataWriter(DataWriter):
         parquet_writer_kwargs = {
             "flavor": self.parquet_format.flavor,
             "version": self.parquet_format.version,
+            "compression": self.parquet_format.compression,
             "data_page_size": self.parquet_format.data_page_size,
             "coerce_timestamps": self.parquet_format.coerce_timestamps,
             "allow_truncated_timestamps": self.parquet_format.allow_truncated_timestamps,
@@ -377,9 +378,7 @@ class ParquetDataWriter(DataWriter):
         from dlt.common.libs.pyarrow import columns_to_arrow
 
         # build schema
-        self.schema = columns_to_arrow(
-            columns_schema, self._caps, self.parquet_format.timestamp_timezone
-        )
+        self.schema = columns_to_arrow(columns_schema, self._caps, self.timestamp_timezone)
         # find row items that are of the json type (could be abstracted out for use in other writers?)
         self.nested_indices = [
             i for i, field in columns_schema.items() if field["data_type"] == "json"
@@ -940,7 +939,7 @@ ALL_WRITERS: List[Type[DataWriter]] = [
     ArrowToJsonlWriter,
     ArrowToTypedJsonlListWriter,
     ArrowToCsvWriter,
-    ModelWriter,
+    RelationToModelWriter,
 ]
 
 WRITER_SPECS: Dict[FileWriterSpec, Type[DataWriter]] = {

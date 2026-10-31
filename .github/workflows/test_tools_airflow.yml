@@ -8,6 +8,9 @@ jobs:
   run_airflow:
     name: ${{ matrix.display_name }}
     runs-on: blacksmith-8vcpu-ubuntu-2404
+    env:
+      # Prevent implicit resyncs by `uv run`; this is ignored by explicit `uv sync` commands.
+      UV_NO_SYNC: "1"
     strategy:
       fail-fast: false
       matrix:
@@ -27,7 +30,7 @@ jobs:
 
     steps:
       - name: Check out
-        uses: actions/checkout@master
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
 
       - name: Setup Python
         uses: actions/setup-python@v5

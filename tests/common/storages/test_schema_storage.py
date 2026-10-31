@@ -105,6 +105,48 @@ def test_import_overwrites_existing_if_modified(
     assert_schema_imported(synced_storage, storage)
 
 
+def test_save_does_not_link_stale_schema_to_current_import(ie_storage: SchemaStorage) -> None:
+    stale_schema = Schema("ethereum")
+    imported_schema = prepare_eth_import_folder(ie_storage)
+
+    ie_storage.save_schema(stale_schema, link_import_schema=False)
+    loaded_schema = ie_storage.load_schema("ethereum")
+
+    assert "blocks" in loaded_schema.tables
+    assert loaded_schema._imported_version_hash == imported_schema.stored_version_hash
+
+
+def test_load_import_schema(ie_storage: SchemaStorage, storage: SchemaStorage) -> None:
+    """Loads the import schema linked to itself, without saving it to the storage."""
+    assert storage.load_import_schema("ethereum") is None
+    assert ie_storage.load_import_schema("ethereum") is None
+
+    imported_schema = prepare_eth_import_folder(ie_storage)
+    schema = ie_storage.load_import_schema("ethereum")
+    assert schema.version_hash == imported_schema.version_hash
+    assert schema._imported_version_hash == schema.version_hash
+    assert not ie_storage.has_schema("ethereum")
+
+
+def test_import_keeps_normalizer_hints_of_existing_tables(ie_storage: SchemaStorage) -> None:
+    """A changed import schema replaces the stored one, tables already stored keep their
+    normalizer hints and the stored schema stays linked to the import file."""
+    import_schema = prepare_eth_import_folder(ie_storage)
+    schema = ie_storage.load_schema("ethereum")
+    schema.tables["blocks"]["x-normalizer"] = {"seen-data": True}
+    ie_storage.save_schema(schema)
+
+    import_schema.tables["blocks"]["description"] = "changed in import"
+    ie_storage._export_schema(import_schema, ie_storage.config.import_schema_path)
+    schema = ie_storage.load_schema("ethereum")
+    assert schema.tables["blocks"]["description"] == "changed in import"
+    assert utils.has_table_seen_data(schema.tables["blocks"])
+    assert not utils.has_table_seen_data(schema.tables["blocks__uncles"])
+    assert schema._imported_version_hash == ie_storage.load_import_schema("ethereum").version_hash
+    # not imported again
+    assert ie_storage.load_schema("ethereum").stored_version == schema.stored_version
+
+
 def test_skip_import_if_not_modified(synced_storage: SchemaStorage, storage: SchemaStorage) -> None:
     storage_schema = assert_schema_imported(synced_storage, storage)
     assert not storage_schema.is_modified

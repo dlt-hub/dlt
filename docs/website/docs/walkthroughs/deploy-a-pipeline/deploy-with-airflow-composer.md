@@ -3,19 +3,16 @@ title: Deploy with Airflow and Google Composer
 description: How to deploy a pipeline with Airflow and Google Composer
 keywords: [how to, deploy a pipeline, airflow, gcp]
 ---
-
 # Deploy a pipeline with Airflow and Google Composer
 
 Before you can deploy a pipeline, you will need to [install dlt](../../reference/installation.md)
 and [create a pipeline](../../tutorial/load-data-from-an-api.md).
-
 
 :::tip
 While this walkthrough deals specifically with Google Composer, it will generate DAGs and configuration files that you can use on any Airflow deployment. DAGs are generated using **dlt Airflow helper** that maps `dlt` resources into Airflow tasks, provides a clean working environment, retry mechanism, metrics, and logging via Airflow loggers.
 :::
 
 If you want to explore other ways to run dlt with Airflow, such as using `PythonOperator`, `PythonVirtualenvOperator`, `KubernetesPodOperator`, or external services like Cloud Run, check out [this guide by Francesco Mucio](https://selectstarfrom.substack.com/p/how-to-run-dlt-or-python-in-airflow). It explains the trade-offs of each approach and helps you choose the right one for your setup.
-
 
 ## 1. Add your `dlt` project directory to GitHub
 
@@ -36,13 +33,15 @@ This should successfully load data from the source to the destination once and a
 ## 3. Initialize deployment
 
 First, you need to add additional dependencies that the `deploy` command requires:
-```sh
+
+```cli
 pip install "dlt[cli]"
 ```
 
 then:
-```sh
-dlt deploy {pipeline_name}_pipeline.py airflow-composer
+
+```cli
+dlt deploy <pipeline_name>_pipeline.py airflow-composer
 ```
 
 This command checks if your pipeline has run successfully before and creates the following folders:
@@ -69,12 +68,12 @@ By default, the `dlt deploy` command shows you the deployment credentials in ENV
 
 ## Example with the pipedrive pipeline
 
-
-
 ### 1. Run the deploy command
-```sh
+
+```cli
 dlt deploy pipedrive_pipeline.py airflow-composer
 ```
+
 where `pipedrive_pipeline.py` is the pipeline script that you just ran and `airflow-composer` is a deployment method. The command will create deployment files and provide instructions to set up the credentials.
 
 ```text
@@ -99,9 +98,10 @@ pipedrive_api_key = "c66..."
 
 The `deploy` command will use an [Airflow variable](#4-add-credentials) called `dlt_secrets_toml` to store all the required secrets as a TOML fragment. You can also use **environment variables** by passing the `--secrets-format env` option:
 
-```sh
+```cli
 dlt deploy pipedrive_pipeline.py airflow-composer --secrets-format env
 ```
+
 which will output the environment variable names and their values.
 
 ```sh
@@ -204,12 +204,16 @@ def load_data():
 load_data()
 ```
 
+:::note
+With `decompose="parallel"` or `decompose="parallel-isolated"`, the decomposed tasks share one staging area (the staging destination and dataset name). To stop one task from deleting staging files that another task is still loading, `PipelineTasksGroup` disables staging-destination truncation automatically in these modes. Pass `truncate_staging_destination=True` or `False` to the `PipelineTasksGroup` constructor to force the behavior instead.
+:::
+
 - Customize the PipelineTaskGroup:
 
   - Change the name from “pipeline_name” to yours, for example, “pipedrive”.
   - Change runtime settings: data_folder, logging, retry policy, etc. For example, let’s wipe all the data created by the pipeline (`wipe_local_data=True`), redirect the dlt logger into the task logger (`use_task_logger=True`), and set the retry policy as a Retrying class object with three restart attempts.
 
-  ```py
+  ```py notype
   from tenacity import Retrying, stop_after_attempt
 
   # Set `use_data_folder` to True to store temporary data in the `data` bucket.
@@ -222,8 +226,13 @@ load_data()
       retry_policy=Retrying(stop=stop_after_attempt(3), reraise=True),
   )
   ```
+
 :::tip
 When you run the `load_data` DAG above, Airflow will call the `source` function every 30 seconds (by default) to be able to monitor the tasks. Make sure that your source function does not perform any long-lasting operations, e.g., reflecting the source database. In the case of [sql_database](../../dlt-ecosystem/verified-sources/sql_database/index.md), we added an option to delay database reflection until data is accessed by a resource.
+:::
+
+:::tip
+To load the data interval of each DAG run, set `allow_external_schedulers=True` on the incrementals of your resources. Then the incrementals do not use the dlt state. See [Using Airflow schedule for backfill and incremental loading](../../general-usage/incremental/cursor.md#using-airflow-schedule-for-backfill-and-incremental-loading).
 :::
 
 :::caution
@@ -268,7 +277,7 @@ You should now move your working code from the pipeline script you previously ra
 
   **Note**: PipelineTasksGroup can’t handle the list of sources (e.g., data=[source, activities_source]), so we have to add them sequentially. See the [Troubleshooting](deploy-with-airflow-composer.md#troubleshooting) section.
 
-  ```py
+  ```py notype
   # Create the source,
   # the "serialize" decompose option will convert
   # dlt resources into Airflow tasks.
@@ -392,7 +401,7 @@ There are two ways to pass the credentials:
 
 1. In the `dlt_secrets_toml` Airflow variable.
 
-   - During the execution of the `deploy` command with `--secrets-format toml`, secret variables
+  - During the execution of the `deploy` command with `--secrets-format toml`, secret variables
      will be displayed in the output:
 
      ```sh
@@ -402,15 +411,15 @@ There are two ways to pass the credentials:
      pipedrive_api_key = "c66c..."
      ```
 
-   - Launch the Airflow UI, head to the **Admin** top-level menu, and select **Variables**.
-   - Add a new variable with the name `dlt_secrets_toml`.
-   - Paste the TOML fragment displayed by the `deploy` command.
-   - 💡 The content of this variable will be used by the `dlt` Airflow helper instead of the local `secrets.toml` which you are familiar with. If your local secrets file contains anything else you want to access on Airflow, you are good to just copy the local `secrets.toml` content to the `dlt_secrets_toml` variable.
-   - [read more on how to use Airflow Variables to store `dlt` configuration](../../general-usage/credentials/vaults.md#configure-airflow-variables-as-provider)
+  - Launch the Airflow UI, head to the **Admin** top-level menu, and select **Variables**.
+  - Add a new variable with the name `dlt_secrets_toml`.
+  - Paste the TOML fragment displayed by the `deploy` command.
+  - 💡 The content of this variable will be used by the `dlt` Airflow helper instead of the local `secrets.toml` which you are familiar with. If your local secrets file contains anything else you want to access on Airflow, you are good to just copy the local `secrets.toml` content to the `dlt_secrets_toml` variable.
+  - [read more on how to use Airflow Variables to store `dlt` configuration](../../general-usage/credentials/vaults.md#configure-airflow-variables-as-provider)
 
 1. As environment variables.
 
-   - During the execution of the `deploy` command with `--secrets-format env` (by default),
+  - During the execution of the `deploy` command with `--secrets-format env` (by default),
      environment variables will be displayed in the output:
 
      ```sh
@@ -425,7 +434,7 @@ There are two ways to pass the credentials:
      c66c...
      ```
 
-   - Copy capitalized variables and add them into Airflow’s env variables, then save it. Now, `dlt` can
+  - Copy capitalized variables and add them into Airflow’s env variables, then save it. Now, `dlt` can
      pick it up.
 
      ![add-credential](images/add-credential.png)
@@ -581,7 +590,7 @@ In this case, you perhaps passed a list of sources to the method `add_run` as da
 
 For example:
 
-```py
+```py notype
 tasks.add_run(
     pipeline=pipeline,
     data=[source, activities_source],
@@ -593,7 +602,7 @@ If `data` is a DltSource and `decompose` is “serialize,” it will decompose t
 
 PipelineTasksGroup can't handle the list of sources in the “serialize” mode; it can only decompose `DltSource`, so we have to add them sequentially:
 
-```py
+```py notype
 tasks.add_run(
     pipeline=pipeline,
     data=source,

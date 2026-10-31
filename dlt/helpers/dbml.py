@@ -489,7 +489,7 @@ def export_to_dbml(
     include_root_child_ref: bool = True,
     group_by_resource: bool = False,
 ) -> str:
-    """Convert a `dlt.Schema` to a a DBML string and return its value.
+    """Convert a `dlt.Schema` to a DBML string and return its value.
 
     Args:
         schema: dlt schema to convert

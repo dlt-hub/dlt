@@ -32,3 +32,15 @@ DLT_PIP_TOOL = "DLT_PIP_TOOL"
 
 DLT_DISABLE_PLUGINS = "DLT_DISABLE_PLUGINS"
 """Disables detecting and instantiating plugins. Will speed up initial imports a little."""
+
+DLT_INTERVAL_START = "DLT_INTERVAL_START"
+"""ISO 8601 UTC start of the interval a scheduler assigned to this run"""
+
+DLT_INTERVAL_END = "DLT_INTERVAL_END"
+"""ISO 8601 UTC end of the interval a scheduler assigned to this run"""
+
+DLT_INTERVAL_TIMEZONE = "DLT_INTERVAL_TIMEZONE"
+"""IANA name of the timezone the interval bounds are converted to"""
+
+DLT_ALLOW_EXTERNAL_SCHEDULERS = "DLT_ALLOW_EXTERNAL_SCHEDULERS"
+"""`True` lets incrementals that left the flag unset take the interval above, process-wide"""

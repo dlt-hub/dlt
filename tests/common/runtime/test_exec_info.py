@@ -2,6 +2,8 @@ import pytest
 
 from dlt.common.runtime.exec_info import (
     exec_info_names,
+    get_execution_context,
+    run_context_info,
     is_aws_lambda,
     is_claude_code,
     is_claude_code_cli,
@@ -140,3 +142,10 @@ def test_exec_info_names_excludes_agents_when_absent(environment: DictStrStr) ->
     names = exec_info_names()
     agent_names = {"claude_code", "claude_code_cli", "cursor", "codex"}
     assert agent_names.isdisjoint(set(names))
+
+
+def test_run_context_info() -> None:
+    # default run context does not support profiles
+    info = run_context_info()
+    assert info == {"name": "dlt"}
+    assert get_execution_context()["run_context"] == info

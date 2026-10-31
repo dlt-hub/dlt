@@ -3,6 +3,7 @@
 #     "dlt[duckdb]",
 #     "numpy",
 #     "pandas",
+#     "pyarrow",
 #     "sqlalchemy",
 # ]
 # ///
@@ -108,7 +109,8 @@ def _(mo):
 
 
 @app.cell
-def _(os):
+def _():
+    import os
     from typing import Iterable
     import dlt
     from dlt.extract import DltResource
@@ -118,7 +120,7 @@ def _(os):
     from dlt.sources.helpers.rest_client.auth import BearerTokenAuth
     from dlt.sources.helpers.rest_client.paginators import HeaderLinkPaginator
 
-    dlt.secrets["SOURCES__SECRET_KEY"] = os.getenv("SECRET_KEY")
+    os.environ["SOURCES__SECRET_KEY"] = os.getenv("SECRET_KEY")
 
     @dlt.source
     def _github_source(secret_key: str = dlt.secrets.value) -> Iterable[DltResource]:
@@ -158,6 +160,7 @@ def _(os):
         TDataItems,
         dlt,
         load_info,
+        os,
         pipeline,
     )
 
@@ -235,7 +238,7 @@ def _(subprocess):
 def _(mo):
     mo.md(r"""
     ---
-    ###  **(0) Python**
+    ###  **(1) Python**
     """)
     return
 
@@ -339,7 +342,7 @@ def _(subprocess):
 def _(mo):
     mo.md(r"""
     ---
-    ###  **(0) Python**
+    ###  **(1) Python**
     """)
     return
 
@@ -526,7 +529,7 @@ def _(
     dlt,
     os,
 ):
-    dlt.secrets["SOURCES__SECRET_KEY"] = os.getenv("SECRET_KEY")
+    os.environ["SOURCES__SECRET_KEY"] = os.getenv("SECRET_KEY")
 
     @dlt.source
     def _github_source(secret_key: str = dlt.secrets.value) -> Iterable[DltResource]:
@@ -616,7 +619,7 @@ def _(
     dlt,
     os,
 ):
-    dlt.secrets["SOURCES__SECRET_KEY"] = os.getenv("SECRET_KEY")
+    os.environ["SOURCES__SECRET_KEY"] = os.getenv("SECRET_KEY")
 
     @dlt.source
     def _github_source(secret_key: str = dlt.secrets.value) -> Iterable[DltResource]:
@@ -695,7 +698,7 @@ def _(
     dlt,
     os,
 ):
-    dlt.secrets["SOURCES__SECRET_KEY"] = os.getenv("SECRET_KEY")
+    os.environ["SOURCES__SECRET_KEY"] = os.getenv("SECRET_KEY")
 
     @dlt.source
     def _github_source(secret_key: str = dlt.secrets.value) -> Iterable[DltResource]:
@@ -866,11 +869,9 @@ def _(subprocess):
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(r"""
-    🎊🎊🎊 That's it! We hope you enjoyed this course and learned more about `dlt`! 🎊🎊🎊
-
-    Please share your feedback with us: [Feedback Google Form](https://forms.gle/1NYrGcRj5gLQ4WDt8) 🌼
-    """)
+    mo.md(
+        r"""🎊🎊🎊 That's it! We hope you enjoyed this course and learned more about `dlt`! 🎊🎊🎊"""
+    )
     return
 
 

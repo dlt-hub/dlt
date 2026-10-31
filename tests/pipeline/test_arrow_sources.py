@@ -1,13 +1,18 @@
 import os
+from datetime import datetime, timezone
 from typing import Any
+from zoneinfo import ZoneInfo
+
 import pytest
 import pandas as pd
 import pyarrow as pa
 
 import dlt
 from dlt.common import json, Decimal
+from dlt.common.configuration.container import Container
+from dlt.common.configuration.specs.timezone_context import TimezoneContext
 from dlt.common.data_writers.writers import count_rows_in_items
-from dlt.common.time import ensure_pendulum_datetime_utc
+from dlt.common.time import ensure_pendulum_datetime
 from dlt.common.utils import uniq_id
 from dlt.common.libs.pyarrow import (
     NameNormalizationCollision,
@@ -21,7 +26,11 @@ from tests.cases import (
     arrow_table_all_data_types,
     prepare_shuffled_tables,
 )
-from tests.pipeline.utils import assert_only_table_columns, load_tables_to_dicts
+from tests.pipeline.utils import (
+    assert_only_table_columns,
+    load_extracted_parquet,
+    load_tables_to_dicts,
+)
 from tests.utils import (
     TPythonTableFormat,
     arrow_item_from_pandas,
@@ -156,9 +165,7 @@ def test_normalize_jsonl(item_type: TPythonTableFormat, is_list: bool):
         res_item["decimal"] = Decimal(res_item["decimal"])
         exp_item["decimal"] = Decimal(exp_item["decimal"])
         # we normalize timestamps to UTC
-        exp_item["datetime"] = (
-            ensure_pendulum_datetime_utc(exp_item["datetime"]).isoformat().replace("+00:00", "Z")
-        )
+        exp_item["datetime"] = ensure_pendulum_datetime(exp_item["datetime"]).isoformat()
         assert res_item == exp_item
 
 
@@ -848,3 +855,86 @@ def test_arrow_table_variant_hints() -> None:
     assert len(rows["table_a"]) == 4
     rows = load_tables_to_dicts(pipeline, "table_b")
     assert len(rows["table_b"]) == 2
+
+
+@pytest.mark.parametrize("item_type", ["pandas", "arrow-table", "arrow-batch"])
+@pytest.mark.parametrize("dispatch", ["function", "mark"])
+def test_arrow_dynamic_table_name(item_type: TPythonTableFormat, dispatch: str) -> None:
+    """Arrow items are dispatched with a table name function or `dlt.mark.with_table_name`.
+    The function receives pandas frames as arrow tables.
+    """
+
+    def table_name(t: Any) -> str:
+        return f"{t.column('kind')[0].as_py()}_events"
+
+    pages = [
+        pa.table({"kind": ["click"], "id": [1]}),
+        pa.table({"kind": ["view"], "id": [2]}),
+        # a new column on a later item evolves the dispatched table
+        pa.table({"kind": ["click"], "id": [3], "button": ["left"]}),
+    ]
+
+    @dlt.resource(name="events", table_name=table_name if dispatch == "function" else None)
+    def events():
+        for page in pages:
+            item = arrow_item_from_table(page, item_type)
+            yield dlt.mark.with_table_name(item, table_name(page)) if dispatch == "mark" else item
+
+    pipeline = dlt.pipeline("arrow_" + uniq_id(), destination="duckdb")
+    pipeline.run(events())
+
+    assert_only_table_columns(pipeline, "click_events", ["kind", "id", "button"])
+    assert_only_table_columns(pipeline, "view_events", ["kind", "id"])
+    rows = load_tables_to_dicts(
+        pipeline, "click_events", "view_events", exclude_system_cols=True, sortkey="id"
+    )
+    assert rows == {
+        "click_events": [
+            {"kind": "click", "id": 1, "button": None},
+            {"kind": "click", "id": 3, "button": "left"},
+        ],
+        "view_events": [{"kind": "view", "id": 2}],
+    }
+
+
+TZ_COLUMNS: Any = {
+    "id": {"data_type": "bigint"},
+    "ts_aware": {"data_type": "timestamp", "timezone": True},
+    "ts_naive": {"data_type": "timestamp", "timezone": False},
+}
+TZ_NAIVE_IN = datetime(2024, 1, 15, 23, 30)
+TZ_AWARE_IN = datetime(2024, 1, 15, 23, 30, tzinfo=timezone.utc)
+
+
+@pytest.mark.parametrize("tz_name", ["UTC", "Europe/Berlin"], ids=["utc", "berlin"])
+def test_extracted_parquet_follows_context_timezone(tz_name: str) -> None:
+    """The parquet file extract writes carries the context timezone."""
+    rows = [
+        {"id": 1, "ts_aware": TZ_NAIVE_IN, "ts_naive": TZ_NAIVE_IN},
+        {"id": 2, "ts_aware": TZ_AWARE_IN, "ts_naive": TZ_AWARE_IN},
+    ]
+
+    @dlt.resource(name="events", columns=TZ_COLUMNS)
+    def some_data() -> Any:
+        # arrow carries no per-value zone, so the aware row is spelled as its UTC instant
+        yield pa.Table.from_pylist(
+            [
+                {k: v.replace(tzinfo=None) if isinstance(v, datetime) else v for k, v in r.items()}
+                for r in rows
+            ]
+        )
+
+    pipeline = dlt.pipeline("arrow_tz_" + uniq_id(), destination="filesystem")
+    with Container().injectable_context(TimezoneContext(tz_name)):
+        # only arrow items reach extract as parquet, dict rows go to typed jsonl regardless
+        pipeline.extract(some_data(), loader_file_format="parquet")
+        table = load_extracted_parquet(pipeline)
+
+    # `timezone=True` is labelled with the context timezone, `timezone=False` stays naive
+    assert table.schema.field("ts_aware").type.tz == tz_name
+    assert table.schema.field("ts_naive").type.tz is None
+
+    aware, naive = table.column("ts_aware").to_pylist(), table.column("ts_naive").to_pylist()
+    # a naive input keeps its wall clock, so its instant moves with the zone
+    assert aware[0] == TZ_NAIVE_IN.replace(tzinfo=ZoneInfo(tz_name))
+    assert naive[0].replace(tzinfo=None) == TZ_NAIVE_IN

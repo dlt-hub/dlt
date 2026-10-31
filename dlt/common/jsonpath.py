@@ -3,7 +3,7 @@ from itertools import chain
 
 from dlt.common.typing import DictStrAny
 
-from jsonpath_ng import JSONPath, Fields as JSONPathFields
+from jsonpath_ng import JSONPath, Fields as JSONPathFields, DatumInContext, Root, This
 from jsonpath_ng.ext import parse as _parse
 
 TJsonPath = Union[str, JSONPath]  # Jsonpath compiled or str
@@ -36,6 +36,24 @@ def find_values(path: TJsonPath, data: DictStrAny) -> List[Any]:
     return [m.value for m in path.find(data)]
 
 
+def _stringify_path(match: DatumInContext) -> str:
+    """Render `DatumInContext` to parseable string representation"""
+    parts: list[str] = []
+    current: Optional[DatumInContext] = match
+
+    while current is not None:
+        if not isinstance(current.path, (Root, This)):
+            parts.append(str(current.path))
+        current = current.context
+
+    if parts:
+        parts.reverse()
+        return ".".join(parts)
+
+    # fallback to native __str__ for whole-object matches (e.g. $ or @)
+    return str(match.path)
+
+
 def resolve_paths(paths: TAnyJsonPath, data: DictStrAny) -> List[str]:
     """Return a list of paths resolved against `data`. The return value is a list of strings.
 
@@ -44,7 +62,7 @@ def resolve_paths(paths: TAnyJsonPath, data: DictStrAny) -> List[str]:
     >>> # ['a.items.[0].b', 'a.items.[1].b']
     """
     paths = compile_paths(paths)
-    return list(chain.from_iterable((str(r.full_path) for r in p.find(data)) for p in paths))
+    return list(chain.from_iterable((_stringify_path(r) for r in p.find(data)) for p in paths))
 
 
 def is_simple_field_path(path: JSONPath) -> bool:

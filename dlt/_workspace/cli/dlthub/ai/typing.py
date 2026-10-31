@@ -24,14 +24,14 @@ class TAiStatusInfo(TypedDict):
 
 
 class TWorkbenchComponentInfo(TypedDict):
-    """A skill, command, or rule inside a workbench toolkit."""
+    """A skill, command, rule, or agent inside a dltHub AI Harness toolkit."""
 
     name: str
     description: str
 
 
 class TWorkbenchMcpServerInfo(TypedDict):
-    """MCP server definition inside a workbench toolkit."""
+    """MCP server definition inside a dltHub AI Harness toolkit."""
 
     command: str
     args: List[str]
@@ -54,6 +54,7 @@ class TWorkbenchToolkitInfo(TToolkitInfo):
     skills: List[TWorkbenchComponentInfo]
     commands: List[TWorkbenchComponentInfo]
     rules: List[TWorkbenchComponentInfo]
+    agents: List[TWorkbenchComponentInfo]
     mcp_servers: NotRequired[Dict[str, TWorkbenchMcpServerInfo]]
     has_ignore: bool
 

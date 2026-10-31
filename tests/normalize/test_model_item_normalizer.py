@@ -6,7 +6,9 @@ import sqlglot
 import sqlglot.expressions
 from typing import Iterator, List, Tuple, NamedTuple, Union, Optional, cast
 from packaging.version import Version
+from pytest_mock import MockerFixture
 
+from dlt.common import logger
 from dlt.common.destination import DestinationCapabilitiesContext, merge_caps_file_formats
 from dlt.common.configuration.container import Container
 from dlt.common.storages import (
@@ -16,12 +18,11 @@ from dlt.common.storages import (
 from dlt.common.schema.exceptions import CannotCoerceNullException
 from dlt.common.schema.schema import Schema
 from dlt.common.schema import utils
-from dlt.common.utils import read_dialect_and_sql
+from dlt.common.destination.client import SqlModel
 from dlt.common.libs.sqlglot import TSqlGlotDialect
 
 from dlt.normalize import Normalize
 from dlt.normalize.exceptions import NormalizeJobFailed
-from dlt.common.libs.sqlglot import SqlModel
 from dlt.extract.extract import ExtractStorage
 
 from tests.utils import clean_test_storage, TEST_DICT_CONFIG_PROVIDER
@@ -119,12 +120,9 @@ def extract_normalize_retrieve(
         model_files[0]
     )
     with FileStorage.open_zipsafe_ro(model_full_path, "r", encoding="utf-8") as f:
-        select_dialect, normalized_select_query = read_dialect_and_sql(
-            file_obj=f,
-            fallback_dialect=fallback_dialect,
-        )
+        parsed_model = SqlModel.from_file(file_obj=f, fallback_dialect=fallback_dialect)
 
-    return select_dialect, normalized_select_query, load_id
+    return parsed_model.query_dialect, parsed_model.to_sql(), load_id
 
 
 @pytest.mark.parametrize("caps", MODEL_CAPS, indirect=True, ids=DESTINATIONS_SUPPORTING_MODEL)
@@ -157,7 +155,7 @@ def test_star_select_rejection(
 
 @pytest.mark.parametrize("caps", MODEL_CAPS, indirect=True, ids=DESTINATIONS_SUPPORTING_MODEL)
 def test_simple_model_normalizing(
-    caps: DestinationCapabilitiesContext, model_normalize: Normalize
+    caps: DestinationCapabilitiesContext, model_normalize: Normalize, mocker: MockerFixture
 ) -> None:
     """
     This test demonstrates how a model with simple sql query is transformed by the normalizer for each destination capabilities.
@@ -182,9 +180,17 @@ def test_simple_model_normalizing(
     # Ensure the schema contains the table "my_table" with columns a, b
     schema = create_schema_with_complete_columns("my_table", "text", ["a_a", "b", "d"])
 
+    logger_spy = mocker.spy(logger, "warning")
     select_dialect, normalized_select_query, load_id = extract_normalize_retrieve(
         model_normalize, model, schema, "my_table", dialect
     )
+    # `c` is not a column of `my_table`, so the model does not load it
+    dropped_warnings = [
+        call.args[0] for call in logger_spy.call_args_list if "are not loaded" in call.args[0]
+    ]
+    assert len(dropped_warnings) == 1
+    # the warning names the casefolded destination identifier
+    assert "['c']" in dropped_warnings[0].lower()
 
     assert select_dialect == dialect
     if dialect == "duckdb":
@@ -216,12 +222,14 @@ def test_simple_model_normalizing(
             == normalized_select_query
         )
     elif dialect in ("tsql", "fabric"):  # mssql, synapse, fabric
-        assert (
+        # newer sqlglot lower-cases the generated inner derived-table alias for case-insensitive
+        # T-SQL (`[A_a] AS [A_a]` -> `[A_a] AS [a_a]`); both resolve identically, so accept either
+        assert normalized_select_query in [
             "SELECT _dlt_subquery.[A_a] AS [a_a], _dlt_subquery.[b] AS [b], NULL AS [d],"
             f" '{load_id}' AS [_dlt_load_id], NEWID() AS [_dlt_id] FROM (SELECT [b] AS [b], [A_a]"
-            " AS [A_a], [c] AS [c] FROM [my_table]) AS _dlt_subquery\n"
-            == normalized_select_query
-        )
+            f" AS [{inner}], [c] AS [c] FROM [my_table]) AS _dlt_subquery\n"
+            for inner in ("A_a", "a_a")
+        ]
     elif dialect == "postgres":
         assert (
             'SELECT _dlt_subquery."A_a" AS "a_a", _dlt_subquery."b" AS "b", NULL AS "d",'

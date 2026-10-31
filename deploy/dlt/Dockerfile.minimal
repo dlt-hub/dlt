@@ -51,8 +51,9 @@ RUN uv run dlt pipeline fruit_pipeline info
 # enable workspace
 RUN mkdir -p .dlt && touch .dlt/.workspace
 RUN uv run python minimal_pipeline.py
-# routes to dlthub
-RUN uv run dlt local pipeline info fruit_pipeline
+# dlt is stubbed in active workspace: global flags still work, commands point to dlthub
+RUN uv run dlt --version
+RUN ! uv run dlt pipeline fruit_pipeline info
 
 
 # install hub

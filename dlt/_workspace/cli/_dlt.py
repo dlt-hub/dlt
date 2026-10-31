@@ -18,7 +18,6 @@ from dlt._workspace.cli._telemetry_command import (
 from dlt._workspace.cli.echo import maybe_no_stdin
 
 ACTION_EXECUTED = False
-DEFAULT_DOCS_URL = "https://dlthub.com/docs/intro"
 
 
 class _LazyMarkdown:
@@ -317,7 +316,6 @@ def main(host: str = "dlt") -> int:
         parser, pre_parser, installed_commands = _create_parser(host)
     except ValueError as ex:
         fmt.secho(str(ex), err=True, fg="red")
-        fmt.note("Please refer to our docs at '%s' for further assistance." % DEFAULT_DOCS_URL)
         return -1
     # pre-pass extracts global flags at any argv position; main parse uses namespace=ns to keep them
     ns, remaining = pre_parser.parse_known_args(sys.argv[1:])
@@ -346,7 +344,7 @@ def main(host: str = "dlt") -> int:
                         sys.path.insert(0, "")
                 cmd.execute(args)
         except Exception as ex:
-            docs_url = getattr(cmd, "docs_url", None) or DEFAULT_DOCS_URL
+            docs_url = getattr(cmd, "docs_url", None)
             error_code = -1
             raiseable_exception = ex
 
@@ -358,7 +356,10 @@ def main(host: str = "dlt") -> int:
             if raiseable_exception:
                 fmt.secho(str(raiseable_exception) or str(ex), err=True, fg="red")
 
-            fmt.note("Please refer to our docs at '%s' for further assistance." % docs_url)
+            # only point to docs when the command or exception provides a specific
+            # link; the generic intro-page footer was removed (#4126)
+            if docs_url:
+                fmt.note("Please refer to our docs at '%s' for further assistance." % docs_url)
             if _debug.is_debug_enabled() and raiseable_exception:
                 raise raiseable_exception
 
@@ -370,20 +371,32 @@ def main(host: str = "dlt") -> int:
     return 0
 
 
+def _print_use_dlthub_note(command: Optional[str]) -> None:
+    """Print a note pointing the user to the `dlthub` replacement of the attempted `dlt` command."""
+    if replacement := fmt.DLT_TO_DLTHUB_COMMANDS.get(command or ""):
+        fmt.echo(
+            "`dlt %s` is not available in an active dltHub Workspace. Use %s instead."
+            % (command, fmt.bold("dlthub " + replacement)),
+            err=True,
+        )
+    else:
+        fmt.echo(
+            "Use %s as the top level command in an active dltHub Workspace. Check %s and %s"
+            " for former dlt commands."
+            % (fmt.bold("dlthub"), fmt.bold("dlthub --help"), fmt.bold("dlthub local --help")),
+            err=True,
+        )
+
+
 def _main() -> None:
     """Entry point for the `dlt` console script."""
-    # when workspace is active, dlt commands mirrors dlthub
-    if is_workspace_active():
-        host = "dlthub"
-        fmt.note(
-            "Please use %s as top level command. Check `%s` for former dlt commands. "
-            "Falling back to dlthub command set."
-            % (fmt.bold("dlthub"), fmt.bold("dlthub local --help"))
-        )
-        fmt.echo()
-    else:
-        host = "dlt"
-    exit(main(host))
+    # when workspace is active, dlt commands do not execute - the user is pointed to dlthub.
+    # only `dlt --version` still dispatches
+    if is_workspace_active() and "--version" not in sys.argv[1:]:
+        command = next((a for a in sys.argv[1:] if not a.startswith("-")), None)
+        _print_use_dlthub_note(command)
+        exit(-1)
+    exit(main("dlt"))
 
 
 def _main_dlthub() -> None:

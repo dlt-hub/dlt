@@ -1,7 +1,25 @@
 from typing import Any
 
+from dlt.common.exceptions import DltException
 from dlt.extract.exceptions import PipeException
 from dlt.common.typing import TDataItem
+
+
+class IntervalNotAvailable(DltException):
+    def __init__(self, operation: str, context_missing: bool = False) -> None:
+        if context_missing:
+            msg = (
+                f"Cannot {operation} the interval because no `TimeIntervalContext` is active."
+                " Outside a scheduled job, inject one with"
+                " `Container().injectable_context(TimeIntervalContext())`."
+            )
+        else:
+            msg = (
+                f"Cannot {operation} the interval because none is active. Manual and event"
+                " triggers generate no interval - check `dlt.current.interval.is_empty` before"
+                " adjusting it."
+            )
+        super().__init__(msg)
 
 
 class IncrementalCursorPathMissing(PipeException):
@@ -76,9 +94,11 @@ class IncrementalCursorThresholdExceeded(PipeException):
             f" `{cursor_path}` exceeded `duplicate_cursor_error_threshold` ({threshold}). dlt keeps"
             " one deduplication hash per boundary record in the pipeline state, so this many"
             " records at the boundary value would write a large state on every run. Use a cursor"
-            " column with higher resolution, or switch to `merge_key` together with"
-            " `range_start='open'` to disable boundary deduplication, or raise"
-            " `duplicate_cursor_error_threshold` if a large state is acceptable."
+            " column with higher resolution. If a destination primary-key merge handles replayed"
+            " rows, keep the start range closed and set `primary_key=()` on the incremental object"
+            " to disable extractor deduplication. Append loads still need deduplication to avoid"
+            " replayed rows. Raise `duplicate_cursor_error_threshold` if a large state is"
+            " acceptable."
         )
         super().__init__(pipe_name, msg)
 

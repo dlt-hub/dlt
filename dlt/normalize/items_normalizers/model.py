@@ -2,9 +2,10 @@ from typing import List, Optional
 
 import sqlglot
 
+from dlt.common import logger
+from dlt.common.destination.client import SqlModel
 from dlt.common.libs.sqlglot import (
     TSqlGlotDialect,
-    SqlModel,
     build_outer_select_statement,
     reorder_or_adjust_outer_select,
     uuid_expr_for_dialect,
@@ -18,7 +19,6 @@ from dlt.common.schema.utils import (
     normalize_table_identifiers,
 )
 from dlt.common.schema import TSchemaUpdate
-from dlt.common.utils import read_dialect_and_sql
 
 from dlt.normalize.exceptions import NormalizeException
 from dlt.normalize.items_normalizers.base import ItemsNormalizer
@@ -32,7 +32,7 @@ class ModelItemsNormalizer(ItemsNormalizer):
 
     def _adjust_outer_select_with_dlt_columns(
         self,
-        sql_dialect: TSqlGlotDialect,
+        destination_dialect: TSqlGlotDialect,
         outer_parsed_select: sqlglot.exp.Select,
         root_table_name: str,
     ) -> Optional[TSchemaUpdate]:
@@ -98,7 +98,7 @@ class ModelItemsNormalizer(ItemsNormalizer):
                         f"Received row id type: '{row_id_type}'."
                     )
                 dlt_id_expr = sqlglot.exp.Alias(
-                    this=uuid_expr_for_dialect(sql_dialect, self.load_id),
+                    this=uuid_expr_for_dialect(destination_dialect, self.load_id),
                     alias=sqlglot.to_identifier(NORM_C_DLT_ID, quoted=True),
                 )
                 outer_parsed_select.selects.append(dlt_id_expr)
@@ -120,12 +120,14 @@ class ModelItemsNormalizer(ItemsNormalizer):
         with self.normalize_storage.extracted_packages.storage.open_file(
             extracted_items_file, "r"
         ) as f:
-            sql_dialect, select_statement = read_dialect_and_sql(
+            model = SqlModel.from_file(
                 file_obj=f,
                 fallback_dialect=self.config.destination_capabilities.sqlglot_dialect,  # caps are available at this point
             )
+        sql_dialect = model.query_dialect
+        destination_dialect = self.config.destination_capabilities.sqlglot_dialect
+        select_statement = model.to_sql()
 
-        # TODO the dialect here should be the "query dialect"; i.e., the transpilation input
         parsed_select = sqlglot.parse_one(select_statement, read=sql_dialect)
 
         # The query is ensured to be a select statement upstream,
@@ -144,28 +146,44 @@ class ModelItemsNormalizer(ItemsNormalizer):
 
         schema_updates = []
         dlt_col_update = self._adjust_outer_select_with_dlt_columns(
-            sql_dialect, outer_parsed_select, root_table_name
+            destination_dialect, outer_parsed_select, root_table_name
         )
 
         if dlt_col_update:
             schema_updates.append(dlt_col_update)
 
         if needs_reordering:
+            table_columns = self.schema.get_table_columns(root_table_name)
+            # incomplete columns have no data type, so the destination table cannot hold them
+            known_columns = {name.lower() for name in table_columns}
+            dropped_columns = [
+                select.alias
+                for select in outer_parsed_select.selects
+                if select.alias.lower() not in known_columns
+            ]
+            if dropped_columns:
+                logger.warning(
+                    f"Columns {dropped_columns} selected by the model of table `{root_table_name}`"
+                    f" in schema `{self.schema.name}` are not loaded because their data type is"
+                    " unknown. Cast them in the query or set their data type with the `columns`"
+                    " hint."
+                )
             reorder_or_adjust_outer_select(
                 outer_parsed_select,
-                self.schema.get_table_columns(root_table_name),
+                table_columns,
                 self._normalize_casefold,
                 self.schema.name,
                 root_table_name,
             )
 
-        # TODO the dialect here should be the "destination dialect"; i.e., the transpilation output
-        normalized_query = outer_parsed_select.sql(dialect=sql_dialect)
+        # sqlglot parses the query in the query dialect and writes it in the destination dialect.
+        # the model that goes to the load job therefore always uses the destination dialect
+        normalized_query = outer_parsed_select.sql(dialect=destination_dialect)
         self.item_storage.write_data_item(
             self.load_id,
             self.schema.name,
             root_table_name,
-            SqlModel.from_query_string(normalized_query, sql_dialect),
+            model.with_query(normalized_query, destination_dialect),
             {},
         )
 

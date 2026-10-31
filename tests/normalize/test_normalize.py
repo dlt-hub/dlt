@@ -1,4 +1,6 @@
+import gzip
 import os
+import random
 from copy import deepcopy
 import pytest
 from fnmatch import fnmatch
@@ -25,7 +27,7 @@ from dlt.common.configuration.container import Container
 from dlt.extract.extract import ExtractStorage
 from dlt.normalize import Normalize
 from dlt.normalize.validate import validate_and_update_schema
-from dlt.normalize.worker import group_worker_files
+from dlt.common.storages.normalize_storage import group_worker_files
 from dlt.normalize.exceptions import NormalizeJobFailed
 
 from tests.cases import JSON_TYPED_DICT, JSON_TYPED_DICT_TYPES
@@ -35,6 +37,7 @@ from tests.utils import (
     assert_no_dict_key_starts_with,
     clean_test_storage,
     init_test_logging,
+    sum_job_metrics_by_table,
 )
 from tests.normalize.utils import (
     json_case_path,
@@ -316,6 +319,33 @@ def test_multiprocessing_row_counting(
     assert row_counts == step_info.row_counts
 
 
+@pytest.mark.parametrize("pool_workers", (4, 8), ids=("4 norm workers", "8 norm workers"))
+def test_parallel_normalize_table_metrics_with_file_rotation(
+    raw_normalize: Normalize, pool_workers: int
+) -> None:
+    os.environ["DATA_WRITER__FILE_MAX_ITEMS"] = "1000"
+    os.environ["NORMALIZE__DATA_WRITER__FILE_MAX_ITEMS"] = "1000"
+
+    row_count = 2000
+    items = [{"id": i, "friends": [f"f{j}" for j in range(i % 5)]} for i in range(row_count)]
+    schema = Schema("rotation_metrics")
+    extract_items(raw_normalize.normalize_storage, items, schema, "people", batch_size=500)
+
+    with create_pool(PoolRunnerConfiguration(pool_type="process", workers=pool_workers)) as pool:
+        raw_normalize.run(pool)
+
+    step_info = raw_normalize.get_step_info(MockPipeline("rotation_metrics", True))  # type: ignore[abstract]
+    load_id = step_info.loads_ids[0]
+    metrics = step_info.metrics[load_id][0]
+    expected_counts = sum_job_metrics_by_table(metrics["job_metrics"])
+    friend_rows = sum(i % 5 for i in range(row_count))
+
+    assert step_info.row_counts["people"] == expected_counts["people"] == row_count
+    assert (
+        step_info.row_counts["people__friends"] == expected_counts["people__friends"] == friend_rows
+    )
+
+
 @pytest.mark.parametrize("pool_workers", (1, 2))
 def test_progress_collector_counters(raw_normalize: Normalize, pool_workers: int) -> None:
     """Verify that per-table progress counters match final row counts."""
@@ -436,35 +466,45 @@ def test_normalize_drops_empty_package_keeps_refresh(raw_normalize: Normalize) -
 
 @pytest.mark.parametrize("caps", INSERT_CAPS + JSONL_CAPS, indirect=True)
 @pytest.mark.parametrize("write_disposition", ["append", "replace", "merge"])
-def test_normalize_contract_discard_all_rows_writes_empty_job(
-    caps: DestinationCapabilitiesContext, write_disposition: str, raw_normalize: Normalize
+@pytest.mark.parametrize("seen_data", [True, False], ids=["seen_data", "never_seen"])
+def test_normalize_contract_discard_all_rows(
+    caps: DestinationCapabilitiesContext,
+    write_disposition: str,
+    seen_data: bool,
+    raw_normalize: Normalize,
 ) -> None:
     """When a `columns: discard_row` contract eliminates ALL rows of a root table, an empty job is
-    still written (so a `replace` table is truncated) with a post-filter row count of 0 - for every
-    write disposition and output writer."""
+    written only if the table has already seen data (so an existing table is truncated). A table
+    that never seen data is not materialized - no job is produced for it."""
     schema = Schema("contracts")
-    schema.update_table(
-        new_table(
-            "items",
-            write_disposition=write_disposition,  # type: ignore[arg-type]
-            schema_contract={"columns": "discard_row"},
-            columns=[{"name": "id", "data_type": "bigint", "nullable": True}],
-        )
+    table = new_table(
+        "items",
+        write_disposition=write_disposition,  # type: ignore[arg-type]
+        schema_contract={"columns": "discard_row"},
+        columns=[{"name": "id", "data_type": "bigint", "nullable": True}],
     )
+    if seen_data:
+        table["x-normalizer"] = {"seen-data": True}
+    schema.update_table(table)
     # every row carries a NEW column `name` so `discard_row` drops all of them
     items = [{"id": i, "name": f"n{i}"} for i in range(5)]
     load_id = extract_items(raw_normalize.normalize_storage, items, schema, "items")
     normalize_pending(raw_normalize)
 
-    # an empty root-table job is written, physically present, and the package is retained
-    files = raw_normalize.load_storage.list_new_jobs(load_id)
-    assert [ParsedLoadJobFileName.parse(f).table_name for f in files] == ["items"]
-    assert raw_normalize.load_storage.normalized_packages.storage.has_file(files[0])
-    assert load_id in raw_normalize.load_storage.list_normalized_packages()
-    # per-job row count is the post-filter value: 0
-    step_info = raw_normalize.get_step_info(MockPipeline("contracts_pipeline", True))  # type: ignore[abstract]
-    assert step_info.row_counts["items"] == 0
-    assert step_info.metrics[load_id][0]["table_metrics"]["items"].items_count == 0
+    normalized = raw_normalize.load_storage.list_normalized_packages()
+    if seen_data:
+        # existing table is truncated via an empty job with a post-filter row count of 0
+        assert load_id in normalized
+        files = raw_normalize.load_storage.list_new_jobs(load_id)
+        assert [ParsedLoadJobFileName.parse(f).table_name for f in files] == ["items"]
+        assert raw_normalize.load_storage.normalized_packages.storage.has_file(files[0])
+        step_info = raw_normalize.get_step_info(MockPipeline("contracts_pipeline", True))  # type: ignore[abstract]
+        assert step_info.row_counts["items"] == 0
+        assert step_info.metrics[load_id][0]["table_metrics"]["items"].items_count == 0
+    else:
+        # never-seen table is not materialized: no job is produced for it
+        files = raw_normalize.load_storage.list_new_jobs(load_id) if load_id in normalized else []
+        assert "items" not in [ParsedLoadJobFileName.parse(f).table_name for f in files]
 
 
 @pytest.mark.parametrize("caps", INSERT_CAPS + JSONL_CAPS, indirect=True)
@@ -789,43 +829,113 @@ def test_schema_update_conflict(
     assert package_jobs["new_jobs"][0].file_path.endswith(".insert_values.gz")
 
 
+def _job_file(table_name: str, idx: int, file_format: str = "typed-jsonl") -> str:
+    return f"{table_name}.f{idx:03}.0.{file_format}"
+
+
+def _grouped(
+    files: List[str], no_groups: int, file_sizes: Dict[str, int] = None
+) -> List[List[str]]:
+    # workers are interchangeable so the order of groups does not matter
+    return sorted(group_worker_files(files, no_groups, file_sizes))
+
+
 def test_group_worker_files() -> None:
-    files = ["f%03d" % idx for idx in range(0, 100)]
+    files = [_job_file("t", idx) for idx in range(100)]
 
     assert group_worker_files([], 4) == []
-    assert group_worker_files(["f001"], 1) == [["f001"]]
-    assert group_worker_files(["f001"], 100) == [["f001"]]
-    assert group_worker_files(files[:4], 4) == [["f000"], ["f001"], ["f002"], ["f003"]]
-    assert group_worker_files(files[:5], 4) == [
-        ["f000"],
-        ["f001"],
-        ["f002"],
-        ["f003", "f004"],
-    ]
-    assert group_worker_files(files[:8], 4) == [
-        ["f000", "f001"],
-        ["f002", "f003"],
-        ["f004", "f005"],
-        ["f006", "f007"],
-    ]
-    assert group_worker_files(files[:8], 3) == [
-        ["f000", "f001"],
-        ["f002", "f003", "f006"],
-        ["f004", "f005", "f007"],
-    ]
-    assert group_worker_files(files[:5], 3) == [
-        ["f000"],
-        ["f001", "f003"],
-        ["f002", "f004"],
+    assert group_worker_files(files[:1], 1) == [files[:1]]
+    assert group_worker_files(files[:1], 100) == [files[:1]]
+    # without sizes files are cut into contiguous groups of similar length
+    assert _grouped(files[:4], 4) == [[f] for f in files[:4]]
+    assert _grouped(files[:5], 4) == [files[0:1], files[1:2], files[2:4], files[4:5]]
+    assert _grouped(files[:8], 4) == [files[0:2], files[2:4], files[4:6], files[6:8]]
+    assert _grouped(files[:8], 3) == [files[0:3], files[3:6], files[6:8]]
+
+    # files are sorted by name so files of a table stay together
+    unsorted = [_job_file(t, i) for t, i in [("tab1", 1), ("chd", 3), ("tab1", 2), ("chd", 4)]]
+    unsorted.append(_job_file("tab1", 3))
+    assert _grouped(unsorted, 3) == [
+        [_job_file("chd", 3), _job_file("chd", 4)],
+        [_job_file("tab1", 1), _job_file("tab1", 2)],
+        [_job_file("tab1", 3)],
     ]
 
-    # check if sorted
-    files = ["tab1.1", "chd.3", "tab1.2", "chd.4", "tab1.3"]
-    assert group_worker_files(files, 3) == [
-        ["chd.3"],
-        ["chd.4", "tab1.2"],
-        ["tab1.1", "tab1.3"],
-    ]
+
+def test_group_worker_files_by_size() -> None:
+    def loads(groups: List[List[str]], sizes: Dict[str, int]) -> List[int]:
+        return sorted(sum(sizes[f] for f in group) for group in groups)
+
+    # one big table and many small ones: the small tables do not pile up on one worker
+    sizes = {_job_file("big", i): 8000 for i in range(16)}
+    sizes.update({_job_file(f"small_{i}", 0): 100 for i in range(10)})
+    assert loads(group_worker_files(list(sizes), 4, sizes), sizes) == [32000, 32000, 32000, 33000]
+
+    # a table that fits on a worker is not split
+    sizes = {_job_file(t, i): 8000 for t in "abcd" for i in range(2)}
+    assert _grouped(list(sizes), 4, sizes) == [[_job_file(t, 0), _job_file(t, 1)] for t in "abcd"]
+
+    # rotation leaves a small last file which does not take a worker on its own
+    sizes = {_job_file("items", i): 8000 for i in range(7)}
+    sizes[_job_file("items", 7)] = 20
+    assert loads(group_worker_files(list(sizes), 4, sizes), sizes) == [8020, 16000, 16000, 16000]
+
+    # each format is balanced on its own, normalize parses jsonl but may link parquet
+    sizes = {_job_file("arrow", i, "parquet"): 100000 for i in range(4)}
+    sizes.update({_job_file("items", i): 8000 for i in range(8)})
+    for group in group_worker_files(list(sizes), 4, sizes):
+        assert sorted(f.split(".")[-1] for f in group) == ["parquet", "typed-jsonl", "typed-jsonl"]
+
+    # files without size are split by count
+    sizes = {_job_file("items", i): 0 for i in range(8)}
+    assert [len(g) for g in group_worker_files(list(sizes), 4, sizes)] == [2, 2, 2, 2]
+
+
+def test_group_worker_files_smallest_largest_group() -> None:
+    def smallest_largest_group(file_sizes: List[int], no_groups: int) -> int:
+        # contiguous groups filled up to `cap` by brute force
+        cap = max(file_sizes)
+        while True:
+            groups, filled = 1, 0
+            for size in file_sizes:
+                if filled and filled + size > cap:
+                    groups, filled = groups + 1, 0
+                filled += size
+            if groups <= no_groups:
+                return cap
+            cap += 1
+
+    rng = random.Random(1)
+    for _ in range(500):
+        workers = rng.randint(1, 6)
+        file_sizes = [rng.choice([rng.randint(0, 10), rng.randint(1, 300)]) for _ in range(20)]
+        sizes = {_job_file("items", i): size for i, size in enumerate(file_sizes)}
+        groups = group_worker_files(list(sizes), workers, sizes)
+        assert len(groups) == workers
+        assert all(groups)
+        largest = max(sum(sizes[f] for f in group) for group in groups)
+        assert largest == smallest_largest_group(file_sizes, workers)
+
+
+def test_file_sizes_of_missing_files(raw_normalize: Normalize) -> None:
+    # a file that is gone weighs nothing, its worker reports the actual error
+    missing = "1234.5/new_jobs/" + _job_file("items", 0)
+    assert raw_normalize._file_sizes([missing]) == {missing: 0}
+
+
+def test_file_sizes_of_gzipped_files(raw_normalize: Normalize) -> None:
+    # a gzipped file weighs its uncompressed size, the work normalize does on it
+    storage = raw_normalize.normalize_storage.extracted_packages.storage
+    storage.create_folder("1234.5/new_jobs")
+    gzipped = "1234.5/new_jobs/" + _job_file("items", 0)
+    plain = "1234.5/new_jobs/" + _job_file("items", 1)
+    data = b'{"id": 1}\n' * 10000
+    with gzip.open(storage.make_full_path(gzipped), "wb") as f:
+        f.write(data)
+    with storage.open_file(plain, "wb") as f:
+        f.write(data)
+    assert os.path.getsize(storage.make_full_path(gzipped)) < len(data)
+    assert raw_normalize._file_sizes([gzipped, plain]) == {gzipped: len(data), plain: len(data)}
 
 
 EXPECTED_ETH_TABLES = [

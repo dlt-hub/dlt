@@ -1,6 +1,7 @@
 from functools import update_wrapper
 import inspect
 from typing import (
+    TYPE_CHECKING,
     AsyncIterable,
     cast,
     ClassVar,
@@ -8,6 +9,7 @@ from typing import (
     Iterable,
     Iterator,
     Generator,
+    List,
     Type,
     Union,
     Any,
@@ -16,6 +18,8 @@ from typing import (
 )
 
 from dlt.common import logger
+from dlt.common.exceptions import TypeErrorWithKnownTypes
+from dlt.common.metrics import TDataLocation
 from dlt.common.configuration.inject import get_fun_spec, with_config
 from dlt.common.configuration.resolve import inject_section
 from dlt.common.configuration.specs import BaseConfiguration, known_sections
@@ -52,9 +56,11 @@ from dlt.extract.utils import (
     make_schema_with_default_name,
     wrap_parallel_iterator,
     dynstr,
+    get_code_ref,
 )
 from dlt.extract.items import (
     DataItemWithMeta,
+    HintsMeta,
     TableNameMeta,
 )
 from dlt.extract.items_transform import (
@@ -71,9 +77,10 @@ from dlt.extract.items_transform import (
 from dlt.extract.state import resource_state
 from dlt.extract.pipe_iterator import ManagedPipeIterator
 from dlt.extract.pipe import Pipe
-from dlt.extract.hints import DltResourceHints, HintsMeta, TResourceHints
+from dlt.extract.hints import DltResourceHints, TResourceHints
 from dlt.extract.incremental import Incremental, IncrementalResourceWrapper
 from dlt.extract.exceptions import (
+    DataLocationKindRequired,
     InvalidTransformerDataTypeGeneratorFunctionRequired,
     InvalidParentResourceDataType,
     InvalidParentResourceIsAFunction,
@@ -88,6 +95,10 @@ from dlt.extract.exceptions import (
     ResourceNotATransformer,
 )
 from dlt.extract.wrappers import wrap_additional_type
+
+
+if TYPE_CHECKING:
+    from dlt.extract.reference import SourceFactory
 
 
 def with_table_name(item: TDataItems, table_name: str) -> DataItemWithMeta:
@@ -141,6 +152,11 @@ class DltResource(Iterable[TDataItem], DltResourceHints):
         self.source_name = None
         self._parent: DltResource = None
         self._custom_metrics: Dict[str, Any] = {}
+        self._inputs: List[TDataLocation] = []
+        self._code_ref: str = None
+        """Fully qualified name of the function the resource was created from"""
+        self._factory: Optional["SourceFactory[Any, Any]"] = None
+        """Single resource source factory of a standalone resource"""
         super().__init__(hints)
         self._update_wrapper()
 
@@ -173,6 +189,7 @@ class DltResource(Iterable[TDataItem], DltResourceHints):
             if inject_config:
                 r_._inject_config()
         else:
+            code_ref = get_code_ref(data)
             if callable(data):
                 name = name or get_callable_name(data)
 
@@ -208,6 +225,7 @@ class DltResource(Iterable[TDataItem], DltResourceHints):
                     section=section,
                     args_bound=not callable(data),
                 )
+                r_._code_ref = code_ref
                 if inject_config:
                     r_._inject_config()
             else:
@@ -226,6 +244,45 @@ class DltResource(Iterable[TDataItem], DltResourceHints):
     def custom_metrics(self) -> Dict[str, Any]:
         """Customizable resource metrics"""
         return self._custom_metrics
+
+    @property
+    def inputs(self) -> List[TDataLocation]:
+        """Data locations this resource read from, recorded during extraction."""
+        return self._inputs
+
+    def add_input(self, location: TDataLocation, replace: bool = False) -> Self:
+        """Records a data location this resource reads from, to be emitted in the pipeline trace.
+
+        Call on the resource instance when it is created, or from inside a running resource via
+        `dlt.current.resource()` when the location is only known once config is resolved. One entry
+        per location, listing the tables, endpoints or files touched inside it - not one entry per
+        table. `kind` defaults to the name of the source this resource belongs to, and must be
+        passed explicitly by a resource that has no source yet.
+
+        Args:
+            location (TDataLocation): Location that was read, or a `kind`-specific subclass of it.
+            replace (bool): Drops the locations recorded so far and records `location` as the only
+                one.
+
+        Returns:
+            DltResource: returns self
+
+        Raises:
+            TypeErrorWithKnownTypes: If `location` is not a mapping.
+            DataLocationKindRequired: If `kind` is absent and there is no source to default it from.
+        """
+        if not isinstance(location, dict):
+            raise TypeErrorWithKnownTypes("location", location, ["TDataLocation"])
+        # a fact that could not be established is absent from the row, not null
+        described: DictStrAny = dict(without_none(location))
+        if not described.get("kind"):
+            if not self.source_name:
+                raise DataLocationKindRequired(self.name)
+            described["kind"] = self.source_name
+        if replace:
+            self._inputs.clear()
+        self._inputs.append(cast(TDataLocation, described))
+        return self
 
     @property
     def name(self) -> str:
@@ -419,7 +476,7 @@ class DltResource(Iterable[TDataItem], DltResourceHints):
         in batches.
 
          Notes:
-             1. Transformers won't be limited. They should process all the data they receive fully to avoid inconsistencies in generated datasets.
+             1. On a transformer, the limit is set on the resource at the top of the transformer chain. That resource and all its transformers receive the limited data. `count_rows` counts the rows of that resource. A transformer that is not bound to a resource cannot be limited.
              2. Each yielded item may contain several rows. By default `add_limit` only limits the "number of yields", not the total number of rows.
              3. Empty pages/yields are also counted. Use `count_rows` to skip empty pages.
 
@@ -432,16 +489,31 @@ class DltResource(Iterable[TDataItem], DltResourceHints):
              "DltResource": returns self
         """
 
+        limit = LimitItem(max_items=max_items, max_time=max_time, count_rows=count_rows)
+        pipe = self._pipe
         if self.is_transformer:
-            logger.warning(
-                f"Setting add_limit to a transformer {self.name} has no effect. Set the limit on"
-                " the top level resource."
+            if not self._pipe.is_data_bound:
+                logger.warning(
+                    f"dlt cannot limit transformer `{self.name}` because it is not bound to a"
+                    " resource. Bind it with `|` or `data_from` before you call `add_limit`."
+                )
+                return self
+            # only the generator at the head of the transformer chain can be closed
+            while pipe.parent is not None:
+                pipe = pipe.parent
+            existing = pipe.get_by_type(LimitItem)
+            if existing and existing != limit:
+                logger.warning(
+                    f"The limit of transformer `{self.name}` replaced a different limit on its"
+                    f" parent resource `{pipe.name}`."
+                )
+            logger.info(
+                f"The limit of transformer `{self.name}` is set on its parent resource"
+                f" `{pipe.name}`."
             )
-        else:
-            # remove existing limit if any
-            self._pipe.remove_by_type(LimitItem)
-            self.add_step(LimitItem(max_items=max_items, max_time=max_time, count_rows=count_rows))
-
+        # remove existing limit if any
+        pipe.remove_by_type(LimitItem)
+        pipe.append_step(limit)
         return self
 
     def parallelize(self) -> Self:
@@ -470,9 +542,6 @@ class DltResource(Iterable[TDataItem], DltResourceHints):
             self._pipe.insert_step(item_transform, insert_at)
         return self
 
-    def _remove_incremental_step(self) -> None:
-        self._pipe.remove_by_type(Incremental, IncrementalResourceWrapper)
-
     def set_incremental(
         self, new_incremental: Union[Incremental[Any], IncrementalResourceWrapper]
     ) -> Optional[Union[Incremental[Any], IncrementalResourceWrapper]]:
@@ -480,7 +549,6 @@ class DltResource(Iterable[TDataItem], DltResourceHints):
 
         Args:
             new_incremental: The Incremental instance/hint to set or replace
-            from_hints: If the incremental is set from hints. Defaults to False.
         """
         if new_incremental is Incremental.EMPTY:
             new_incremental = None
@@ -489,26 +557,17 @@ class DltResource(Iterable[TDataItem], DltResourceHints):
             if resource_primary_key := self._hints.get("primary_key"):
                 new_incremental.set_deduplication_key(resource_primary_key, from_hints=True)
         incremental = self.incremental
-        if incremental is not None:
-            # if isinstance(new_incremental, Mapping):
-            #     new_incremental = Incremental.ensure_instance(new_incremental)
-
-            if isinstance(new_incremental, IncrementalResourceWrapper):
-                # Completely replace the wrapper
-                self._remove_incremental_step()
-                self.add_step(new_incremental)
-            elif isinstance(incremental, IncrementalResourceWrapper):
-                incremental.set_incremental(new_incremental, from_hints=True)
-            else:
-                self._remove_incremental_step()
-                # re-add the step
-                incremental = None
-        if incremental is None:
-            # if there's no wrapper add incremental as a transform
+        if isinstance(incremental, IncrementalResourceWrapper) and not isinstance(
+            new_incremental, IncrementalResourceWrapper
+        ):
+            incremental.set_incremental(new_incremental, from_hints=True)
+        else:
+            # replace the step in place so steps inserted after it keep their position
+            step_no = self._pipe.remove_by_type(Incremental, IncrementalResourceWrapper)
             if new_incremental:
                 if not isinstance(new_incremental, IncrementalResourceWrapper):
                     new_incremental = Incremental.ensure_instance(new_incremental)
-                self.add_step(new_incremental)
+                self.add_step(new_incremental, insert_at=step_no if step_no >= 0 else None)
         return new_incremental
 
     def _set_hints(
@@ -688,15 +747,14 @@ class DltResource(Iterable[TDataItem], DltResourceHints):
     def _eject_config(self) -> bool:
         """Unwraps the pipe generator step from config injection and incremental wrappers by restoring the original step.
 
-        Removes the step with incremental wrapper. Should be used before a subsequent _inject_config is called on the
-        same pipe to successfully wrap it with new incremental and config injection.
+        Should be used before a subsequent _inject_config is called on the same pipe to successfully wrap it with
+        new incremental and config injection. The incremental step stays in the pipe and is replaced in place.
         Note that resources with bound arguments cannot be ejected.
 
         """
         if not self._pipe.is_empty and not self._args_bound:
             orig_gen = getattr(self._pipe.gen, "__GEN__", None)
             if orig_gen:
-                self._remove_incremental_step()
                 self._pipe.replace_gen(orig_gen)
                 return True
         return False
@@ -771,6 +829,8 @@ class DltResource(Iterable[TDataItem], DltResourceHints):
             args_bound=self._args_bound,
         )
 
+        cloned_r._code_ref = self._code_ref
+        cloned_r._inputs = list(self._inputs)
         # keep the parent
         cloned_r._parent = self._parent
         # also clone parent if requested

@@ -29,7 +29,7 @@ from dlt.common.destination.client import (
     DestinationClientConfiguration,
     WithStateSync,
 )
-from dlt.common.time import ensure_pendulum_datetime_utc
+from dlt.common.time import ensure_pendulum_datetime
 
 from dlt.normalize.items_normalizers import JsonLItemsNormalizer
 from tests.cases import table_update_and_row, assert_all_data_types_row
@@ -261,7 +261,7 @@ def test_complete_load(client: SqlJobClientBaseWithDestinationTestConfiguration)
     assert load_rows[0][2] == 0
     import datetime  # noqa: I251
 
-    assert isinstance(ensure_pendulum_datetime_utc(load_rows[0][3]), datetime.datetime)
+    assert isinstance(ensure_pendulum_datetime(load_rows[0][3]), datetime.datetime)
     assert load_rows[0][4] == client.schema.version_hash
     # make sure that hash in loads exists in schema versions table
     versions_table = client.sql_client.make_qualified_table_name(version_table_name)
@@ -541,6 +541,9 @@ def test_get_storage_table_with_all_types(
             elif c["data_type"] == "json" and c["nullable"]:
                 continue
         if client.config.destination_type == "dremio" and c["data_type"] == "json":
+            continue
+        # duckdb_engine reflects JSON columns as VARCHAR
+        if client.config.destination_name == "sqlalchemy_duckdb" and c["data_type"] == "json":
             continue
         if not client.capabilities.supports_native_boolean and c["data_type"] == "bool":
             # The reflected data type is probably either int or boolean depending on how the client is implemented
@@ -834,7 +837,7 @@ def test_write_dispositions(
 
     if write_disposition == "merge":
         available_merge_strategy = resolve_merge_strategy(
-            client.schema.tables, prepared_root_table, client.capabilities
+            client.schema.tables, prepared_root_table, client.capabilities, is_prepared=True
         )
         if not available_merge_strategy:
             pytest.skip("destination does not support merge")
@@ -1355,3 +1358,49 @@ def get_columns_and_row_all_types(destination_config: DestinationClientConfigura
             ["col4_precision"] if destination_config.destination_type in ["motherduck"] else None
         ),
     )
+
+
+@pytest.mark.parametrize(
+    "client",
+    destinations_configs(
+        default_sql_configs=True, default_vector_configs=True, exclude=["weaviate", "qdrant"]
+    ),
+    indirect=True,
+    ids=lambda x: x.name,
+)
+def test_schema_update_include_existing_tables(
+    client: SqlJobClientBaseWithDestinationTestConfiguration,
+) -> None:
+    schema = client.schema
+    item_normalizer = JsonLItemsNormalizer(None, None, None, schema, "load_id", None)
+    col_id = item_normalizer._infer_column("id", 1)
+    table_a, table_b, table_c = (f"table_{n}_{uniq_id()}" for n in "abc")
+    only_tables = {table_b, schema.version_table_name}
+
+    # a and b exist in the destination
+    schema.update_table(new_table(table_a, columns=[col_id]))
+    schema.update_table(new_table(table_b, columns=[col_id]))
+    schema._bump_version()
+    client.update_stored_schema()
+
+    # a gains x, c is added, only b is migrated: only means only but the hash is stored anyway
+    schema.update_table(new_table(table_a, columns=[item_normalizer._infer_column("x", 1)]))
+    schema.update_table(new_table(table_c, columns=[col_id]))
+    schema._bump_version()
+    client.update_stored_schema(only_tables=only_tables)
+    assert client.get_stored_schema_by_hash(schema.stored_version_hash) is not None
+    _, storage_cols = client.get_storage_table(table_a)
+    assert "x" not in normalize_storage_table_cols(table_a, storage_cols, schema)
+    assert client.get_storage_table(table_c)[0] is False
+
+    # a gains y: existing a gets x (skipped before) and y, c is still not created
+    schema.update_table(new_table(table_a, columns=[item_normalizer._infer_column("y", 1)]))
+    schema._bump_version()
+    applied_update = client.update_stored_schema(
+        only_tables=only_tables, include_existing_tables=True
+    )
+    assert set(applied_update.keys()) == {table_a}
+    assert set(applied_update[table_a]["columns"].keys()) == {"x", "y"}
+    _, storage_cols = client.get_storage_table(table_a)
+    assert {"x", "y"} <= normalize_storage_table_cols(table_a, storage_cols, schema).keys()
+    assert client.get_storage_table(table_c)[0] is False

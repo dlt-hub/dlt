@@ -174,9 +174,15 @@ def test_import_extracted_package(load_storage: LoadStorage) -> None:
     load_id = create_load_id()
     extracted.create_package(load_id, schema=Schema("package"))
     extracted_state = extracted.get_load_package_state(load_id)
+    extracted.save_pipeline_state(load_id, '{"pipeline_name": "p"}', {"package": "{}"})
     load_storage.import_extracted_package(load_id, extracted)
     # make sure state was imported
     assert extracted_state == load_storage.new_packages.get_load_package_state(load_id)
+    # restore snapshot travels with the package
+    assert load_storage.new_packages.load_pipeline_state(load_id) == (
+        '{"pipeline_name": "p"}',
+        {"package": "{}"},
+    )
     # move to normalized
     load_storage.commit_new_load_package(load_id)
     assert extracted_state == load_storage.normalized_packages.get_load_package_state(load_id)

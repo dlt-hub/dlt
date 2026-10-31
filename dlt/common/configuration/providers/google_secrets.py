@@ -1,6 +1,5 @@
 import base64
-import string
-import re
+import threading
 from typing import Sequence, Set, Optional, Any, Dict, Tuple
 
 from dlt.common import logger
@@ -8,32 +7,8 @@ from dlt.common.json import json
 from dlt.common.configuration.specs import GcpServiceAccountCredentials
 from dlt.common.configuration.exceptions import ConfigProviderException
 from dlt.common.exceptions import MissingDependencyException
-from .vault import VaultDocProvider
+from .vault import VaultDocProvider, normalize_key
 from .provider import get_key_name
-
-# Create a translation table to replace punctuation with ""
-# since google secrets allow "-"" and "_" we need to exclude them
-punctuation = "".join(set(string.punctuation) - {"-", "_"})
-translator = str.maketrans("", "", punctuation)
-
-
-def normalize_key(in_string: str) -> str:
-    """Replaces punctuation characters in a string
-
-    Note: We exclude `_` and `-` from punctuation characters
-
-    Args:
-        in_string(str): input string
-
-    Returns:
-        (str): a string without punctuation characters and whitespaces
-    """
-
-    # Strip punctuation from the string
-    stripped_text = in_string.translate(translator)
-    whitespace = re.compile(r"\s+")
-    stripped_whitespace = whitespace.sub("", stripped_text)
-    return stripped_whitespace
 
 
 class GoogleSecretsProvider(VaultDocProvider):
@@ -55,6 +30,8 @@ class GoogleSecretsProvider(VaultDocProvider):
                           API calls and roles/secretmanager.secretViewer permission.
         """
         self.credentials = credentials
+        self._client: Any = None
+        self._client_lock = threading.Lock()
         super().__init__(only_secrets, only_toml_fragments, list_secrets)
 
     @staticmethod
@@ -84,17 +61,42 @@ class GoogleSecretsProvider(VaultDocProvider):
         else:
             return super().locations
 
-    def _get_google_client(self, service_name: str = "secretmanager", version: str = "v1") -> Any:
-        try:
-            from googleapiclient.discovery import build
-        except ModuleNotFoundError:
-            raise MissingDependencyException(
-                "GoogleSecretsProvider",
-                ["google-api-python-client"],
-                "We need google-api-python-client to build client for secretmanager v1",
-            )
+    def _get_google_client(self) -> Any:
+        """Builds and caches the secretmanager client, client creation is not thread-safe
+        The cached client may be shared between threads"""
+        with self._client_lock:
+            if self._client is None:
+                try:
+                    import httplib2  # type: ignore[import-untyped]
+                    import google_auth_httplib2  # type: ignore[import-untyped]
+                    from google.auth.credentials import with_scopes_if_required
+                    from googleapiclient.discovery import build
+                    from googleapiclient.http import HttpRequest
+                except ModuleNotFoundError:
+                    raise MissingDependencyException(
+                        "GoogleSecretsProvider",
+                        ["google-api-python-client"],
+                        "We need google-api-python-client to build client for secretmanager v1",
+                    )
 
-        return build(service_name, version, credentials=self.credentials.to_native_credentials())
+                # scope the credentials as `build` does for its default transport
+                credentials = with_scopes_if_required(
+                    self.credentials.to_native_credentials(),
+                    ["https://www.googleapis.com/auth/cloud-platform"],
+                )
+
+                def _request_builder(http: Any, *args: Any, **kwargs: Any) -> Any:
+                    # discard the default `http`, each request gets a fresh transport while
+                    # sharing `credentials` which is safe by design
+                    authorized_http = google_auth_httplib2.AuthorizedHttp(
+                        credentials, http=httplib2.Http()
+                    )
+                    return HttpRequest(authorized_http, *args, **kwargs)
+
+                self._client = build(
+                    "secretmanager", "v1", requestBuilder=_request_builder, credentials=credentials
+                )
+            return self._client
 
     def _handle_http_error(self, error: Any) -> Tuple[Dict[str, Any], int, str, str]:
         error_doc = json.loadb(error.content)["error"]

@@ -12,6 +12,7 @@ from dlt.common.pipeline import LoadInfo
 from dlt.common.typing import DictStrAny
 from dlt.destinations.fs_client import FSClientBase
 from dlt.destinations.exceptions import DestinationUndefinedEntity
+from dlt.pipeline.trace import load_trace
 from dlt.common.schema.typing import TTableSchema
 
 
@@ -177,6 +178,21 @@ def assert_load_info(info: LoadInfo, expected_load_packages: int = 1) -> None:
     assert all(p.completed_at is not None for p in info.load_packages) is True
     # no failed jobs in any of the packages
     assert all(len(p.jobs["failed_jobs"]) == 0 for p in info.load_packages) is True
+
+
+def assert_trace_restored(pipeline: dlt.Pipeline) -> None:
+    """Assert that the pipeline saved its last trace and that the restored trace serializes.
+
+    Args:
+        pipeline (dlt.Pipeline): The pipeline that ran the last step.
+
+    Raises:
+        AssertionError: If the trace was not saved or differs from the last trace.
+    """
+    restored = load_trace(pipeline.working_dir)
+    assert restored is not None, "the pipeline did not save its trace"
+    assert restored.asdict() == pipeline.last_trace.asdict()
+    json.dumps(restored)
 
 
 #
@@ -652,3 +668,14 @@ def assert_schema_on_data(
             set(col["name"] for col in table_columns.values() if col["nullable"])
             == columns_with_nulls
         ), "Some columns didn't receive NULLs which is required"
+
+
+def load_extracted_parquet(pipeline: dlt.Pipeline) -> Any:
+    """The single parquet file extract wrote, read back as an arrow table."""
+    import pyarrow as pa
+
+    norm_storage = pipeline._get_normalize_storage()
+    files = [fn for fn in norm_storage.list_files_to_normalize_sorted() if fn.endswith(".parquet")]
+    assert len(files) == 1
+    with norm_storage.extracted_packages.storage.open_file(files[0], "rb") as f:
+        return pa.parquet.read_table(f)

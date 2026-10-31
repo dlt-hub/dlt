@@ -40,6 +40,11 @@ FILESYSTEM_DIFFERENT_LOCATION_JOIN_COMPATIBILITY_CONFIGS = destinations_configs(
     subset=["filesystem"],
 )
 
+DUCKDB_JOIN_COMPATIBILITY_CONFIGS = destinations_configs(
+    default_sql_configs=True,
+    subset=["duckdb"],
+)
+
 CROSS_DATABASE_PROBE_CONFIGS = destinations_configs(
     default_sql_configs=True,
     subset=["clickhouse", "fabric", "snowflake", "synapse"],
@@ -181,10 +186,35 @@ def test_same_database_join_compatibility(
     first_destination, second_destination = _make_same_database_destinations(
         destination_config, tmp_path, test_id
     )
+    # sqlite gives every dataset its own database file, and a connection attaches only its own
+    # file. two datasets that share a connection string still cannot access each other
+    expected = destination_config.destination_name != "sqlalchemy_sqlite"
     # filesystem at the same location is readable but dlt is the only writing engine
     expected_write = False if destination_config.destination_type == "filesystem" else None
     _run_two_pipeline_check(
-        destination_config, first_destination, second_destination, True, expected_write
+        destination_config, first_destination, second_destination, expected, expected_write
+    )
+
+
+@pytest.mark.parametrize(
+    "destination_config",
+    DUCKDB_JOIN_COMPATIBILITY_CONFIGS,
+    ids=lambda x: x.name,
+)
+def test_duckdb_different_database_compatible(
+    destination_config: DestinationTestConfiguration,
+    tmp_path: Path,
+) -> None:
+    # duckdb can attach any other duckdb database, so a join reads across them. a model attaches
+    # only the datasets that it joins, and never the dataset that it selects from. dlt therefore
+    # writes a model only where the data already is
+    test_id = uniq_id()
+    _run_two_pipeline_check(
+        destination_config,
+        dlt.destinations.duckdb(str(tmp_path / f"join_compat_first_{test_id}.duckdb")),
+        dlt.destinations.duckdb(str(tmp_path / f"join_compat_second_{test_id}.duckdb")),
+        True,
+        expected_write=False,
     )
 
 
@@ -193,15 +223,16 @@ def test_same_database_join_compatibility(
     FILESYSTEM_DIFFERENT_LOCATION_JOIN_COMPATIBILITY_CONFIGS,
     ids=lambda x: x.name,
 )
-def test_filesystem_different_location_not_compatible(
+def test_filesystem_different_location_readable_not_writable(
     destination_config: DestinationTestConfiguration,
     tmp_path: Path,
 ) -> None:
-    # reading across filesystem locations requires auto ATTACH in the duckdb view layer
+    # a duckdb engine attaches the scanner catalog of the other location, but dlt is the only
+    # engine that writes to a filesystem
     first_destination, second_destination = _make_filesystem_different_location_destinations(
         tmp_path, uniq_id()
     )
-    _run_two_pipeline_check(destination_config, first_destination, second_destination, False)
+    _run_two_pipeline_check(destination_config, first_destination, second_destination, True, False)
 
 
 @pytest.mark.parametrize(

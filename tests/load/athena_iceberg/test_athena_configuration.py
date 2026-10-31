@@ -16,7 +16,12 @@ from tests.load.utils import S3_TABLES_CATALOG, cm_yield_client
 @pytest.mark.parametrize(
     "config,expected_fingerprint",
     [
-        pytest.param(AthenaClientConfiguration(), "", id="empty"),
+        # even an empty config resolves to the default catalog, so the fingerprint is never empty
+        pytest.param(
+            AthenaClientConfiguration(),
+            digest128(DEFAULT_AWS_DATA_CATALOG),
+            id="default_catalog_no_region",
+        ),
         pytest.param(
             AthenaClientConfiguration(credentials=AwsCredentials(region_name="us-west-2")),
             digest128(f"us-west-2/{DEFAULT_AWS_DATA_CATALOG}"),

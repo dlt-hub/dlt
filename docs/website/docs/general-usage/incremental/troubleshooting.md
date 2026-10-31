@@ -3,6 +3,7 @@ title: Troubleshooting incremental loading
 description: Common issues and how to fix them
 keywords: [incremental loading, troubleshooting]
 ---
+# Troubleshooting incremental loading
 
 If you see that the incremental loading is not working as expected and the incremental values are not modified between pipeline runs, check the following:
 
@@ -14,7 +15,7 @@ If you see that the incremental loading is not working as expected and the incre
 
 4. After the pipeline run, check the state of the pipeline. You can do this by running the following command:
 
-```sh
+```cli
 dlt pipeline -v <pipeline_name> info
 ```
 
@@ -63,27 +64,39 @@ sources:
 
 Verify that the `last_value` is updated between pipeline runs.
 
-### Growing pipeline state from boundary deduplication
+## Growing pipeline state from boundary deduplication
 
-To avoid loading the same row twice, dlt keeps a deduplication hash in `unique_hashes` for **every record that shares the current boundary (maximum) cursor value**. This list is stored in the pipeline state and re-written on every run. When many records share the same cursor value — for example a low-resolution cursor (a date without a time) or a backfill that stamps every row with the same timestamp — `unique_hashes` can grow to tens of MB and bloat the `_dlt_pipeline_state` table.
+With a closed start range, dlt stores a deduplication hash in `unique_hashes` for each distinct record at the current boundary cursor value. The boundary is the maximum for the default `max` cursor, or the minimum when using `min`. Low-resolution cursors and backfills that assign the same timestamp to many rows can produce a large list, which is persisted in pipeline state.
 
-dlt logs a warning once the number of boundary records passes `Incremental.duplicate_cursor_warning_threshold` (200 by default). To address it:
+dlt logs a warning when the boundary hash count crosses `Incremental.duplicate_cursor_warning_threshold` (200 by default). To reduce the state size:
 
-- Use a cursor column with higher resolution so fewer records share the same value.
-- If you do not need boundary deduplication (for example because a `primary_key` merge already removes duplicates, or rows never overlap between runs), switch to `merge_key` together with `range_start="open"`, which excludes records equal to the last value and disables the deduplication state.
-- Set `Incremental.duplicate_cursor_error_threshold` (disabled by default) to fail with `IncrementalCursorThresholdExceeded` instead of silently accumulating state once the boundary record count crosses the threshold:
+- Use a cursor column with higher resolution so fewer records share the boundary value.
+- When a destination `primary_key` merge handles replayed rows, keep the start range closed and disable only extractor deduplication with `primary_key=()` on the incremental object. Keep the resource's primary key and merge disposition. Boundary rows will be extracted and merged again, including late arrivals with the same cursor value:
+
+```py
+@dlt.resource(primary_key="id", write_disposition="merge")
+def events(updated_at=dlt.sources.incremental("updated_at", primary_key=())):
+    ...
+```
+
+Do not disable extractor deduplication for append loads unless replayed rows are acceptable. An open start range excludes all rows equal to the saved cursor value, including late arrivals; use it only when the source guarantees those rows cannot arrive later. Destination merging cannot recover rows excluded during extraction.
+
+To stop extraction when the boundary hash count exceeds an application-wide limit, set `Incremental.duplicate_cursor_error_threshold` before running the pipeline:
 
 ```py
 dlt.sources.incremental.duplicate_cursor_error_threshold = 100_000
 ```
 
-### Type mismatch errors
+The limit is disabled (`None`) by default. Exceeding it raises `IncrementalCursorThresholdExceeded` without truncating the hashes. A failed extraction does not commit the new pipeline state. Raise the limit if the larger state is acceptable. The check runs after each item or batch, so it limits persisted state rather than peak batch memory.
+
+## Type mismatch errors
 
 If you encounter an `IncrementalCursorInvalidCoercion` error, it typically means the `initial_value` type does not match the data type of the field in your source data.
 
-#### Example
+### Example
 
 This fails because the `initial_value` is an integer, but the `created_at` values are string-formatted timestamps:
+
 ```py
 # This fails: integer initial_value with string timestamps
 @dlt.resource
@@ -94,6 +107,7 @@ def my_data(
 ```
 
 To fix this, use a string timestamp that matches the format of the source field:
+
 ```py
 created_at = dlt.sources.incremental("created_at", initial_value="2024-01-01 00:00:00")
 ```

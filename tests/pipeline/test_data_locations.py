@@ -1,0 +1,344 @@
+import asyncio
+import json
+import os
+from typing import Any, Callable, Dict, List, cast
+
+import pytest
+
+import dlt
+from dlt.common import known_env
+from dlt.common.metrics import TDatasetDataLocation, data_location_version
+from dlt.common.runners import Venv
+from dlt.common.utils import digest128, uniq_id
+from dlt.extract.reference import SourceReference
+
+from tests.pipeline.cases.code_location_pipeline import (
+    async_rows,
+    async_shop,
+    inner_resource,
+    passthrough,
+    rows,
+    shop,
+    users,
+)
+from tests.pipeline.utils import assert_load_info
+from tests.utils import get_test_storage_root
+
+
+def _outputs(info: Any) -> List[TDatasetDataLocation]:
+    """All output locations of a load info, across load packages"""
+    return [location for metrics in info.metrics.values() for location in metrics[0]["outputs"]]
+
+
+def _by_resource(locations: List[TDatasetDataLocation]) -> Dict[str, TDatasetDataLocation]:
+    return {location["resource_name"]: location for location in locations}
+
+
+def _inputs(info: Any) -> List[Any]:
+    """All input locations of an extract info, across load packages and the sources in them"""
+    return [
+        location
+        for metrics in info.metrics.values()
+        for source_metrics in metrics
+        for location in source_metrics["inputs"]
+    ]
+
+
+def _code_locations(inputs: List[Any]) -> Dict[str, str]:
+    """`code` location of each resource, no other kind is expected among `inputs`"""
+    assert all(location["kind"] == "code" for location in inputs)
+    return {location["resource_name"]: location["location"] for location in inputs}
+
+
+@dlt.resource(primary_key="id", name="orders")
+def orders_with_nested() -> Any:
+    yield [
+        {"id": 1, "items": [{"sku": "a"}, {"sku": "b"}]},
+        {"id": 2, "items": [{"sku": "c"}]},
+    ]
+
+
+@dlt.source(name="sales")
+def sales_source() -> Any:
+    return dlt.resource([{"id": 1}], name="orders")
+
+
+@dlt.source(name="crm")
+def crm_source() -> Any:
+    return dlt.resource([{"id": 1}], name="contacts")
+
+
+def test_output_locations_identify_the_dataset() -> None:
+    """One entry per resource, naming the dataset the way the input side of another run will"""
+    # rotate the writer so a table really is spread over several load jobs
+    os.environ["DATA_WRITER__FILE_MAX_ITEMS"] = "1"
+
+    pipeline = dlt.pipeline(
+        pipeline_name="out_" + uniq_id(),
+        destination="duckdb",
+        dataset_name="My_DataSet",
+        dev_mode=True,
+    )
+    info = pipeline.run([orders_with_nested(), dlt.resource([{"id": 1}], name="customers")])
+    assert_load_info(info)
+
+    locations = _by_resource(_outputs(info))
+    # nested tables belong to the resource owning their root table, each listed once even though
+    # the writer split them over several jobs
+    assert locations["orders"]["tables"] == ["orders", "orders__items"]
+    assert locations["customers"]["tables"] == ["customers"]
+    orders_jobs = [
+        job
+        for metrics in info.metrics.values()
+        for job in metrics[0]["job_metrics"].values()
+        if job.table_name == "orders"
+    ]
+    assert len(orders_jobs) > 1
+
+    location = locations["orders"]
+    assert location["kind"] == "dataset"
+    assert location["destination_type"] == "dlt.destinations.duckdb"
+    assert location["destination_name"] == "duckdb"
+    assert location["case_sensitive"] is False
+    # duckdb does not casefold, the identity function is still recorded
+    assert location["casefold"] == "str"
+    # duckdb has no fingerprint, the column is present and empty
+    assert location["destination_fingerprint"] == ""
+    # the logical name is kept for display, the normalized one is the join key between sides
+    assert location["dataset_name"] == pipeline.dataset_name
+    assert location["physical_dataset_name"].startswith("my_data_set")
+    assert location["physical_dataset_name"] == info.dataset_name
+    assert location["version"] == data_location_version(location["schemas"])
+
+    # a new column changes the schema hash and with it the version of the location
+    info = pipeline.run(dlt.resource([{"id": 2, "extra": "x"}], name="customers"))
+    assert _by_resource(_outputs(info))["customers"]["version"] != location["version"]
+
+
+def test_local_filesystem_fingerprint() -> None:
+    """A local path reports the fingerprint of its file:// url, as all past dlt versions did"""
+    pipeline = dlt.pipeline(
+        pipeline_name="out_local_fs_" + uniq_id(),
+        destination=dlt.destinations.filesystem(os.path.join(get_test_storage_root(), "lake")),
+        dataset_name="local_" + uniq_id(),
+    )
+    info = pipeline.run(dlt.resource([{"id": 1}], name="customers"))
+    assert_load_info(info)
+
+    assert info.destination_fingerprint == digest128("file://")
+    location = _by_resource(_outputs(info))["customers"]
+    assert location["destination_fingerprint"] == digest128("file://")
+
+
+def test_output_locations_of_multiple_datasets() -> None:
+    """A single load step writes several datasets when each schema resolves to its own"""
+    pipeline = dlt.pipeline(
+        pipeline_name="out_multi_" + uniq_id(),
+        destination="duckdb",
+        dataset_name="marts",
+        dev_mode=True,
+    )
+    pipeline.config.use_single_dataset = False
+
+    info = pipeline.run([sales_source(), crm_source()])
+    assert_load_info(info, expected_load_packages=2)
+    other_schema = next(s for s in pipeline.schema_names if s != pipeline.default_schema_name)
+
+    # a location carries only the schema of its own package, versioned by that schema alone
+    locations = _outputs(info)
+    by_schema = {
+        location["schemas"][0]["name"]: location
+        for location in locations
+        if location["resource_name"] in ("orders", "contacts")
+    }
+    assert set(by_schema) == {"sales", "crm"}
+    assert by_schema["sales"]["version"] != by_schema["crm"]["version"]
+
+    # the default schema keeps the configured dataset, the other is suffixed with its schema name
+    physical_of = {name: location["physical_dataset_name"] for name, location in by_schema.items()}
+    assert physical_of[pipeline.default_schema_name] == pipeline.dataset_name
+    assert physical_of[other_schema] == f"{pipeline.dataset_name}_{other_schema}"
+
+    # `LoadInfo.dataset_name` can only name one of them, the output locations record both
+    assert len(set(physical_of.values())) == 2
+    assert info.dataset_name in set(physical_of.values())
+
+    # pipeline state is written into every dataset, so a resource name alone does not identify a
+    # location - each row is self contained and carries the dataset it was written to
+    state_datasets = {
+        location["physical_dataset_name"]
+        for location in locations
+        if location["resource_name"] == "_dlt_pipeline_state"
+    }
+    assert state_datasets == set(physical_of.values())
+
+    # flattened rows stay attributable to their package
+    rows = info.asdict()["outputs"]
+    assert len({row["load_id"] for row in rows}) == 2
+    assert {row["physical_dataset_name"] for row in rows} == set(physical_of.values())
+
+    # a schema loaded by a later run resolves to its own dataset, leaving the first ones alone
+    info = pipeline.run(dlt.resource([{"id": 1}], name="c_table"), schema=dlt.Schema("other"))
+    later = _by_resource(_outputs(info))["c_table"]
+    assert later["physical_dataset_name"] == f"{pipeline.dataset_name}_other"
+    assert [s["name"] for s in later["schemas"]] == ["other"]
+
+
+def test_input_locations_replaced_on_each_run() -> None:
+    """A reused resource instance re-reads its location every run, `replace` drops the stale one"""
+    bucket = {"url": "file:///first"}
+
+    @dlt.resource(name="files")
+    def files() -> Any:
+        resource = dlt.current.resource()
+        resource.add_input(
+            {"kind": "filesystem", "resource_name": resource.name, "location": bucket["url"]},
+            replace=True,
+        )
+        yield [{"id": 1}]
+
+    resource = files()
+    pipeline = dlt.pipeline(
+        pipeline_name="inputs_replaced_" + uniq_id(), destination="duckdb", dev_mode=True
+    )
+    assert [location["location"] for location in _inputs(pipeline.extract(resource))] == [
+        "file:///first"
+    ]
+
+    bucket["url"] = "file:///second"
+    assert [location["location"] for location in _inputs(pipeline.extract(resource))] == [
+        "file:///second"
+    ]
+
+
+def test_input_and_output_locations_join_on_physical_dataset_name() -> None:
+    """The read side of a run and the write side of the run before it compare field for field"""
+    source_pipeline = dlt.pipeline(
+        pipeline_name="lineage_src_" + uniq_id(),
+        destination="duckdb",
+        dataset_name="Raw_Data",
+        dev_mode=True,
+    )
+    load_info = source_pipeline.run(orders_with_nested())
+    assert_load_info(load_info)
+    written = _by_resource(_outputs(load_info))["orders"]
+
+    dataset = source_pipeline.dataset()
+
+    @dlt.resource(name="orders_copy")
+    def copy_orders() -> Any:
+        yield list(dataset.table("orders").fetchall())
+
+    resource = copy_orders()
+    resource.add_input(
+        TDatasetDataLocation(  # type: ignore[typeddict-item]
+            kind="dataset",
+            resource_name="orders_copy",
+            location=written["location"],
+            dataset_name=dataset.dataset_name,
+            physical_dataset_name=written["physical_dataset_name"],
+            tables=["orders"],
+        )
+    )
+
+    target_pipeline = dlt.pipeline(
+        pipeline_name="lineage_tgt_" + uniq_id(), destination="duckdb", dev_mode=True
+    )
+    extract_info = target_pipeline.extract(resource)
+
+    read = cast(
+        TDatasetDataLocation, extract_info.metrics[extract_info.loads_ids[0]][0]["inputs"][0]
+    )
+    assert read["physical_dataset_name"] == written["physical_dataset_name"]
+    assert read["location"] == written["location"]
+    assert read["resource_name"] == "orders_copy"
+
+
+CODE_MODULE = "tests.pipeline.cases.code_location_pipeline"
+SHOP_LOCATIONS = {"users": f"{CODE_MODULE}.shop", "static": f"{CODE_MODULE}.shop"}
+
+
+def test_code_input_location_joins_pipelines_of_the_same_source() -> None:
+    """Pipelines running the same custom source report the same `code` location"""
+    locations = [
+        _code_locations(_inputs(dlt.pipeline(pipeline_name="code_" + uniq_id()).extract(shop())))
+        for _ in range(2)
+    ]
+    assert locations == [SHOP_LOCATIONS] * 2
+
+
+@pytest.mark.parametrize(
+    "data,expected",
+    [
+        # plain data and anonymous code have no location, a transformer has its parent instead
+        pytest.param(lambda: [{"id": 1}], {}, id="list"),
+        pytest.param(lambda: iter([{"id": 1}]), {}, id="iterator"),
+        pytest.param(lambda: dlt.resource(lambda: [{"id": 1}], name="t"), {}, id="lambda_resource"),
+        pytest.param(lambda: (x for x in [{"id": 1}]), {}, id="generator_expression"),
+        pytest.param(
+            lambda: dlt.resource([{"id": 1}], name="t") | dlt.transformer(name="tr")(passthrough),
+            {},
+            id="transformer_over_list",
+        ),
+        # resources and generators are named after their function
+        pytest.param(lambda: rows(), {"t": f"{CODE_MODULE}.rows"}, id="generator"),
+        pytest.param(
+            lambda: async_rows(), {"t": f"{CODE_MODULE}.async_rows"}, id="async_generator"
+        ),
+        pytest.param(lambda: users(), {"users": f"{CODE_MODULE}.users"}, id="resource"),
+        pytest.param(
+            lambda: users.with_name("renamed")(),
+            {"renamed": f"{CODE_MODULE}.users"},
+            id="renamed_resource",
+        ),
+        pytest.param(
+            lambda: inner_resource(),
+            {"inner": f"{CODE_MODULE}.inner_resource.<locals>.inner"},
+            id="inner_resource",
+        ),
+        pytest.param(
+            lambda: SourceReference.from_reference(f"{CODE_MODULE}.users"),
+            {"users": f"{CODE_MODULE}.users"},
+            id="resource_from_reference",
+        ),
+        # resources of a source point at the source, however the source was obtained
+        pytest.param(lambda: shop(), SHOP_LOCATIONS, id="source"),
+        pytest.param(lambda: shop, SHOP_LOCATIONS, id="source_factory"),
+        pytest.param(
+            lambda: shop().with_resources("static"),
+            {"static": f"{CODE_MODULE}.shop"},
+            id="source_with_resources",
+        ),
+        # the parent of a selected transformer is extracted and reported, the transformer is not
+        pytest.param(
+            lambda: shop().with_resources("enrich"),
+            {"users": f"{CODE_MODULE}.shop"},
+            id="source_transformer_selected",
+        ),
+        pytest.param(lambda: shop().clone(with_name="shop_2"), SHOP_LOCATIONS, id="source_clone"),
+        pytest.param(lambda: shop().decompose("scc"), SHOP_LOCATIONS, id="source_decomposed"),
+        pytest.param(
+            lambda: asyncio.run(async_shop()),  # type: ignore[arg-type]
+            {"users": f"{CODE_MODULE}.async_shop"},
+            id="async_source",
+        ),
+        # a resource taken out of its source is on its own
+        pytest.param(
+            lambda: shop().resources["users"],
+            {"users": f"{CODE_MODULE}.users"},
+            id="resource_of_source",
+        ),
+    ],
+)
+def test_code_input_location_of_data(data: Callable[[], Any], expected: Dict[str, str]) -> None:
+    pipeline = dlt.pipeline(pipeline_name="code_" + uniq_id())
+    assert _code_locations(_inputs(pipeline.extract(data(), table_name="t"))) == expected
+
+
+def test_code_input_location_of_module_run_as_main() -> None:
+    """A source in a pipeline module run with `python -m` is named after that module, not `__main__`"""
+    # the pipeline run by the subprocess must land in test storage, not in the user's home
+    os.environ[known_env.DLT_DATA_DIR] = get_test_storage_root()
+    output = Venv.restore_current().run_module(CODE_MODULE)
+    inputs = json.loads(output.strip().splitlines()[-1])
+    assert _code_locations(inputs) == SHOP_LOCATIONS

@@ -1,7 +1,7 @@
 import dataclasses
 
 import os
-from typing import Dict, Final, Optional, Type
+from typing import ClassVar, Dict, Final, Optional, Tuple, Type
 from urllib.parse import urlparse
 
 from dlt.common.typing import DictStrAny, DictStrOptionalStr
@@ -9,12 +9,16 @@ from dlt.common.typing import DictStrAny, DictStrOptionalStr
 from dlt.common import logger
 from dlt.common.configuration import configspec, resolve_type
 from dlt.common.configuration.specs.hf_credentials import HfCredentials
+from dlt.common.destination.attach import TAttachType
 from dlt.common.destination.client import (
     CredentialsConfiguration,
     DestinationClientConfiguration,
+    DestinationClientDwhConfiguration,
     DestinationClientStagingConfiguration,
+    WithAttachableEngine,
 )
 from dlt.common.storages import FilesystemConfigurationWithLocalFiles
+from dlt.common.utils import digest128
 
 from dlt.destinations.impl.filesystem.typing import TCurrentDateTime, TExtraPlaceholders
 from dlt.destinations.path_utils import check_layout, get_unused_placeholders
@@ -22,7 +26,9 @@ from dlt.destinations.path_utils import check_layout, get_unused_placeholders
 
 @configspec
 class FilesystemDestinationClientConfiguration(  # type: ignore[misc]
-    FilesystemConfigurationWithLocalFiles, DestinationClientStagingConfiguration
+    WithAttachableEngine,
+    FilesystemConfigurationWithLocalFiles,
+    DestinationClientStagingConfiguration,
 ):
     destination_type: Final[str] = dataclasses.field(default="filesystem", init=False, repr=False, compare=False)  # type: ignore[misc]
     current_datetime: Optional[TCurrentDateTime] = None
@@ -31,6 +37,10 @@ class FilesystemDestinationClientConfiguration(  # type: ignore[misc]
     """Maximum number of pipeline state files to keep; 0 or negative value disables cleanup."""
     always_refresh_views: bool = False
     """Always refresh table scanner views by setting the newest table metadata or globbing table files"""
+    max_delete_workers: Optional[int] = None
+    """Maximum number of files that dlt deletes concurrently when it truncates or drops tables. The
+    default depends on the bucket protocol: 10 for s3, 32 for gs, 16 for Azure, 8 for local files
+    and 1 for all other protocols."""
     deltalake_storage_options: Optional[DictStrAny] = None
     """Additional storage options passed to `deltalake` library, overriding credentials-derived values."""
     deltalake_configuration: Optional[DictStrOptionalStr] = None
@@ -46,14 +56,26 @@ class FilesystemDestinationClientConfiguration(  # type: ignore[misc]
     files in place (e.g. rejected purge, deferred GC). When false, the table is dropped from
     the catalog and dlt deletes the table files itself."""
 
+    ATTACHABLE_PROTOCOLS: ClassVar[Tuple[str, ...]] = ("file", "s3", "az", "abfss", "hf")
+    """Protocols a foreign DuckDB engine reads with SQL alone. These protocols mirror the
+    `CREATE SECRET` statements that `DuckDbSqlClient` builds. The other protocols (`gs`, `sftp`,
+    `gdrive`) access their data through an fsspec filesystem that only the process which
+    registered it holds."""
+
     @resolve_type("credentials")
     def resolve_credentials_type(self) -> Type[CredentialsConfiguration]:
         return super().resolve_credentials_type()
 
-    def physical_location(self) -> str:
+    def attach_type(self) -> Optional[TAttachType]:
+        """Returns None for a protocol a foreign DuckDB engine cannot access with SQL."""
+        if self.protocol not in self.ATTACHABLE_PROTOCOLS:
+            return None
+        return super().attach_type()
+
+    def data_location(self) -> str:
         """Returns scheme://netloc for remote filesystems, or the absolute local path."""
         if not self.bucket_url:
-            return ""
+            self._no_data_location("the configuration has no `bucket_url`")
 
         if self.is_local_path(self.bucket_url):
             return self.make_local_path(self.make_file_url(self.bucket_url))
@@ -68,14 +90,6 @@ class FilesystemDestinationClientConfiguration(  # type: ignore[misc]
         and setting False here we enforce it's usage
         """
         return False
-
-    def can_read_from(self, other: DestinationClientConfiguration) -> bool:
-        # filesystem tables are queried through a local engine (e.g. DuckDB) that
-        # can access multiple storage backends in a single query, so join
-        # compatibility is determined by the engine, not by the storage location.
-
-        # until auto ATTACH is implemented, storage location must be used
-        return super().can_read_from(other)
 
     def on_resolved(self) -> None:
         # Validate layout and show unused placeholders
@@ -96,3 +110,9 @@ class HfFilesystemDestinationClientConfiguration(FilesystemDestinationClientConf
     @property
     def hf_namespace(self) -> str:
         return os.path.basename(self.bucket_url)
+
+    def fingerprint(self) -> str:
+        """Returns a fingerprint of the Hugging Face namespace that holds the dataset repos."""
+        if not self.bucket_url:
+            return ""
+        return digest128(f"hf://datasets/{self.hf_namespace}")

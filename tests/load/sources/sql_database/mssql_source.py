@@ -1,6 +1,7 @@
 import uuid
 import random
 from datetime import datetime, date, time
+from decimal import Decimal
 from typing import Any, Dict, List, TypedDict, cast
 from sqlalchemy import Column, DateTime, Integer, MetaData, String, Table, create_engine, func
 from sqlalchemy import schema as sqla_schema
@@ -11,6 +12,17 @@ import mimesis
 from dlt.common.pendulum import pendulum, timedelta
 from dlt.common.utils import uniq_id
 from dlt.sources.credentials import ConnectionStringCredentials
+
+from tests.load.sources.sql_database.utils import cursor_datetime
+
+# `amount` does not fit a float, `rate` has a scale above the 10 that connectorx returns
+DECIMALS_ROW: Dict[str, Any] = dict(
+    id=1,
+    amount=Decimal("123456789012345678.0123456789"),
+    rate=Decimal("1.123456789059"),
+    big_amount=Decimal("12.34"),
+    balance=Decimal("922337203685477.5807"),
+)
 
 
 class MSSQLSourceDB:
@@ -57,9 +69,9 @@ class MSSQLSourceDB:
         with self.engine.begin() as conn:
             conn.execute(text(query))
 
-    def update_row(self, updates: Dict[str, Any], conditions: str) -> None:
+    def update_row(self, updates: Dict[str, Any], conditions: str, table: str = "app_user") -> None:
         set_clause = ", ".join([f"{column} = :{column}" for column in updates.keys()])
-        query = f"UPDATE {self.schema}.app_user SET {set_clause} WHERE {conditions}"
+        query = f"UPDATE {self.schema}.{table} SET {set_clause} WHERE {conditions}"
         with self.engine.begin() as conn:
             conn.execute(text(query), updates)
 
@@ -107,14 +119,40 @@ class MSSQLSourceDB:
         )
         self.metadata.create_all(bind=self.engine)
 
+    def create_decimals_table(self) -> None:
+        """Creates `decimals` table with `DECIMALS_ROW`, kept out of the tables created upfront."""
+        from sqlalchemy import Numeric
+        from sqlalchemy.dialects.mssql import MONEY
+
+        table = Table(
+            "decimals",
+            self.metadata,
+            Column("id", Integer(), primary_key=True, autoincrement=False),
+            Column("amount", Numeric(28, 10)),
+            Column("rate", Numeric(20, 12)),
+            Column("big_amount", Numeric(35, 2)),
+            Column("balance", MONEY()),
+        )
+        table.create(bind=self.engine)
+        with self.engine.begin() as conn:
+            conn.execute(table.insert(), [DECIMALS_ROW])
+
     def generate_users(self, n: int = 50) -> None:
         person = mimesis.Person()
         table = self.metadata.tables[f"{self.schema}.app_user"]
         info = self.table_infos.setdefault(
             "app_user",
-            dict(row_count=0, ids=[], created_at=SQLServerIncrementingDate(), is_view=False),
+            dict(
+                row_count=0,
+                ids=[],
+                created_at=SQLServerIncrementingDate(),
+                is_view=False,
+                rows=[],
+            ),
         )
         dt = info["created_at"]
+        # ids are assigned in insert order starting at 1
+        first_id = info["row_count"] + 1
         all_rows = [
             dict(
                 email=person.email(unique=True),
@@ -128,20 +166,21 @@ class MSSQLSourceDB:
                 some_bit=random.choice([True, False]),
                 some_date=mimesis.Datetime().date(),
                 some_datetime2=mimesis.Datetime().datetime(),
-                # For datetimeoffset, we can just store the same datetime or rely on default
-                some_datetimeoffset=mimesis.Datetime().datetime(timezone="UTC"),
-                some_smalldatetime=mimesis.Datetime().datetime(),
+                some_datetimeoffset=cursor_datetime(id_, zoned=True),
+                # SMALLDATETIME has minute precision
+                some_smalldatetime=cursor_datetime(id_, zoned=False).replace(microsecond=0),
                 some_time=time(12, 0),
                 some_uniqueidentifier=str(uuid.uuid4()),
                 some_xml="<root><element>value</element></root>",
                 some_json_array='["apple","banana"]',
                 some_binary=b"\x00\x01\x02",
             )
-            for _ in range(n)
+            for id_ in range(first_id, first_id + n)
         ]
         with self.engine.begin() as conn:
             conn.execute(table.insert(), all_rows)
         info["row_count"] += n
+        info["rows"] += all_rows
 
 
 class SQLServerIncrementingDate:
@@ -150,7 +189,8 @@ class SQLServerIncrementingDate:
 
     def __next__(self) -> pendulum.DateTime:
         value = self.current_value
-        self.current_value += timedelta(seconds=random.randrange(0, 120))
+        # never zero: equal cursor values make `range_start="open"` drop a row at a chunk boundary
+        self.current_value += timedelta(seconds=random.randrange(1, 120))
         return value
 
 
@@ -159,3 +199,5 @@ class SQLServerTableInfo(TypedDict):
     ids: List[int]
     created_at: SQLServerIncrementingDate
     is_view: bool
+    rows: List[Dict[str, Any]]
+    """Source rows in insert order."""

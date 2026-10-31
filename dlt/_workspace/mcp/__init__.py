@@ -1,4 +1,3 @@
-from dlt import version
 from dlt.common.exceptions import MissingDependencyException
 
 try:
@@ -6,9 +5,8 @@ try:
     from dlt._workspace.mcp.server import DltMCP, WorkspaceMCP, PipelineMCP
 except ModuleNotFoundError:
     raise MissingDependencyException(
-        "dlt mcp support",
-        [f"{version.DLT_PKG_NAME}[workspace]"],
-        "Install dlt with Workspace extras to use MCP",
+        "dlthub mcp support",
+        ["fastmcp"],
     )
 
 __all__ = ["FastMCP", "DltMCP", "WorkspaceMCP", "PipelineMCP"]

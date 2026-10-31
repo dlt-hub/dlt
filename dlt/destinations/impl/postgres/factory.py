@@ -19,6 +19,8 @@ from dlt.destinations.impl.postgres.postgres_adapter import GEOMETRY_HINT, SRID_
 from dlt.destinations.type_mapping import TypeMapperImpl
 
 if TYPE_CHECKING:
+    from dlt.common.libs.ibis import BaseBackend
+    from dlt.common.schema import Schema
     from dlt.destinations.impl.postgres.postgres import PostgresClient
 
 
@@ -149,6 +151,7 @@ class postgres(Destination[PostgresClientConfiguration, "PostgresClient"]):
     def _raw_capabilities(self) -> DestinationCapabilitiesContext:
         # https://www.postgresql.org/docs/current/limits.html
         caps = DestinationCapabilitiesContext()
+        caps.supports_session_timezone = True
         caps.preferred_loader_file_format = "insert_values"
         caps.supported_loader_file_formats = ["insert_values", "csv", "parquet", "model"]
         caps.loader_file_format_selector = make_adbc_parquet_file_format_selector(
@@ -175,7 +178,7 @@ class postgres(Destination[PostgresClientConfiguration, "PostgresClient"]):
         caps.max_text_data_type_length = 1024 * 1024 * 1024
         caps.is_max_text_data_type_length_in_bytes = True
         caps.supports_ddl_transactions = True
-        caps.supported_merge_strategies = ["delete-insert", "upsert", "scd2", "insert-only"]
+        caps.supported_merge_strategies = ["delete-insert", "upsert", "scd2", "insert-only", "cdc"]
         caps.supported_replace_strategies = [
             "truncate-and-insert",
             "insert-from-staging",
@@ -190,6 +193,17 @@ class postgres(Destination[PostgresClientConfiguration, "PostgresClient"]):
         from dlt.destinations.impl.postgres.postgres import PostgresClient
 
         return PostgresClient
+
+    def create_ibis_backend(
+        self, client: "PostgresClient", read_only: bool = False, schemas: "Sequence[Schema]" = ()
+    ) -> "BaseBackend":
+        """Create an ibis postgres backend for the client's dataset."""
+        from dlt.helpers.ibis import ibis
+
+        credentials = client.config.credentials.copy()
+        # ibis resolves the schema from the database path; its `schema` argument is overridden
+        credentials.database = credentials.database + "/" + client.sql_client.dataset_name
+        return ibis.connect(credentials.to_native_representation())
 
     def __init__(
         self,

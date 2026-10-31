@@ -8,9 +8,11 @@
 /docs_processed
 
 # Generated files
+/docs/hub/command-line-interface.md
+/docs/hub/reference/api/*-api.md
+/docs/hub/reference/python-sdk/
 .docusaurus
 .cache-loader
-docs/api_reference
 jaffle_shop
 
 # Misc

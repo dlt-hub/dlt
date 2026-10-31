@@ -63,9 +63,15 @@ class PydanticValidator(ValidateItem, Generic[_TPydanticModel]):
         return_models = cfg.get("return_validated_models", False)
 
         if isinstance(item, list):
+            # preserve incoming empty lists (eg. materialized empties); do not validate them
+            if len(item) == 0:
+                return item
             validated_list = validate_and_filter_items(
                 self.table_name, self.list_model, item, self.column_mode, self.data_mode
             )
+            # a non-empty list fully consumed by validation is treated like a filtered-out item
+            if not validated_list:
+                return None
             if return_models:
                 return validated_list
             return [m.model_dump(by_alias=True) for m in validated_list]

@@ -13,6 +13,8 @@ from dlt.destinations.impl.duckdb.configuration import DuckDbCredentials, DuckDb
 
 if TYPE_CHECKING:
     from duckdb import DuckDBPyConnection
+    from dlt.common.libs.ibis import BaseBackend
+    from dlt.common.schema import Schema
     from dlt.destinations.impl.duckdb.duck import DuckDbClient
 else:
     DuckDBPyConnection = Any
@@ -137,10 +139,9 @@ def duckdb_merge_strategies_selector(
 
         if Version(_duckdb.__version__) < Version("1.4.0"):
             legacy_strategies = list(supported_merge_strategies)
-            if "upsert" in legacy_strategies:
-                legacy_strategies.remove("upsert")
-            if "insert-only" in legacy_strategies:
-                legacy_strategies.remove("insert-only")
+            for merge_strategy in ("upsert", "insert-only", "cdc"):
+                if merge_strategy in legacy_strategies:
+                    legacy_strategies.remove(merge_strategy)
             supported_merge_strategies = legacy_strategies
     except ImportError:
         # return default if duckdb not installed
@@ -152,6 +153,7 @@ def duckdb_merge_strategies_selector(
 def _set_duckdb_raw_capabilities(
     caps: DestinationCapabilitiesContext,
 ) -> DestinationCapabilitiesContext:
+    caps.supports_session_timezone = True
     caps.preferred_loader_file_format = "insert_values"
     caps.supported_loader_file_formats = ["insert_values", "parquet", "jsonl", "model"]
     caps.preferred_staging_file_format = None  # TODO remove because is default value
@@ -172,7 +174,7 @@ def _set_duckdb_raw_capabilities(
     caps.supports_ddl_transactions = True
     caps.alter_add_multi_column = False
     caps.supports_truncate_command = False
-    caps.supported_merge_strategies = ["delete-insert", "upsert", "scd2", "insert-only"]
+    caps.supported_merge_strategies = ["delete-insert", "upsert", "scd2", "insert-only", "cdc"]
     caps.supported_replace_strategies = ["truncate-and-insert", "insert-from-staging"]
     caps.merge_strategies_selector = duckdb_merge_strategies_selector
     caps.sqlglot_dialect = "duckdb"
@@ -195,6 +197,19 @@ class duckdb(Destination[DuckDbClientConfiguration, "DuckDbClient"]):
         from dlt.destinations.impl.duckdb.duck import DuckDbClient
 
         return DuckDbClient
+
+    def create_ibis_backend(
+        self, client: "DuckDbClient", read_only: bool = False, schemas: "Sequence[Schema]" = ()
+    ) -> "BaseBackend":
+        """Create an ibis duckdb backend that takes ownership of the client's duckdb connection."""
+        from dlt.helpers.ibis import ibis
+
+        client.config.credentials.read_only = read_only
+        # open the connection, switch to the dataset so tables resolve unqualified, then hand the
+        # connection to ibis
+        with client:
+            client.sql_client.use_dataset()
+            return ibis.duckdb.from_connection(client.config.credentials.conn_pool.move_conn())
 
     def __init__(
         self,

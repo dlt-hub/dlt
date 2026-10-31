@@ -1,11 +1,12 @@
 """Tests for job reference construction, parsing, resolution, and display."""
 
-from typing import List, Optional, Tuple
+from typing import Any, List, Mapping, Optional, Tuple
 
 import pytest
 
 from dlt._workspace.deployment._job_ref import (
     format_job_label,
+    job_category,
     make_job_ref,
     parse_job_ref,
     resolve_job_ref,
@@ -173,3 +174,23 @@ def test_format_job_label(
     expose: Optional[TExposeSpec] = {"display_name": display_name} if display_name else None
     deliver: Optional[TDeliverSpec] = {"pipeline_name": pipeline_name} if pipeline_name else None
     assert format_job_label(job_ref, expose, deliver) == expected
+
+
+@pytest.mark.parametrize(
+    "expose,deliver,job_type,expected",
+    [
+        ({"category": "background_agent"}, None, "batch", "background_agent"),
+        ({}, {"pipeline_name": "p"}, "batch", "pipeline"),
+        (None, None, "interactive", "interactive"),
+        ({"category": "dashboard"}, {"pipeline_name": "p"}, "batch", "dashboard"),
+    ],
+    ids=["expose-category", "delivering-job", "job-type", "category-over-pipeline"],
+)
+def test_job_category(
+    expose: Optional[Mapping[str, Any]],
+    deliver: Optional[Mapping[str, Any]],
+    job_type: str,
+    expected: str,
+) -> None:
+    """How the CLI summary groups jobs: `expose.category`, else `pipeline`, else `job_type`."""
+    assert job_category(expose, deliver, job_type) == expected

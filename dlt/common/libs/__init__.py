@@ -1,4 +1,5 @@
 """Detect optional dataframe libs without forcing their import."""
+import importlib
 import sys
 from types import ModuleType
 from typing import Any, Optional
@@ -38,6 +39,11 @@ def is_arrow_object(obj: Any) -> bool:
     return m is not None and isinstance(obj, (m.Table, m.RecordBatch))
 
 
+def is_arrow_schema(obj: Any) -> bool:
+    m = get_pyarrow_module()
+    return m is not None and isinstance(obj, m.Schema)
+
+
 def is_pandas_frame(obj: Any) -> bool:
     m = get_pandas_module()
     return m is not None and isinstance(obj, m.DataFrame)
@@ -68,9 +74,16 @@ def is_instance_lib(obj: Any, *, class_ref: str) -> bool:
     if module_name not in sys.modules:
         return False
 
-    module: ModuleType = sys.modules[module_name]
-    target_class: Any = module
-    for part in import_parts[1:]:
-        target_class = getattr(target_class, part)
+    target_class: Any = sys.modules[module_name]
+    for idx, part in enumerate(import_parts[1:], start=1):
+        # packages do not necessarily re-export their submodules: import them on demand. a
+        # package that loads the attribute lazily raises ImportError from `hasattr` when its
+        # own dependencies are missing, and such a class is not installed either
+        try:
+            if isinstance(target_class, ModuleType) and not hasattr(target_class, part):
+                importlib.import_module(".".join(import_parts[: idx + 1]))
+            target_class = getattr(target_class, part)
+        except ImportError:
+            return False
 
     return isinstance(obj, target_class)

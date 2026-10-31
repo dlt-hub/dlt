@@ -3,7 +3,6 @@ title: "Destination: Iceberg"
 description: Iceberg destination
 keywords: [Iceberg, pyiceberg]
 ---
-
 # Iceberg
 
 :::note
@@ -23,11 +22,11 @@ The Iceberg destination in dlt allows you to load data into Iceberg tables using
 * Exposes data via DuckDB views using `pipeline.dataset()`
 * Supports partitioning
 
-##  Prerequisites
+## Prerequisites
 
 If you don't have a dltHub workspace yet, scaffold one with:
 
-```sh
+```cli
 uvx dlthub-init@latest
 ```
 
@@ -49,6 +48,7 @@ To configure Iceberg destination you need to choose and configure the catalog. T
 * generate and hand locations for newly generated tables (rest catalogs)
 
 Currently, the Iceberg destination supports two catalog types:
+
 * SQL-based catalog. Ideal for local development; stores metadata in SQLite or PostgreSQL
 * REST catalog. Used in production with systems like Lakekeeper or Polaris
 
@@ -86,6 +86,7 @@ aws_secret_access_key = "please set me up!"
 register_new_tables=true
 table_location_layout="{dataset_name}/{table_name}"
 ```
+
 </TabItem>
 
 <TabItem value="env">
@@ -101,6 +102,7 @@ export DESTINATION__ICEBERG__FILESYSTEM__CREDENTIALS__AWS_SECRET_ACCESS_KEY="ple
 export DESTINATION__ICEBERG__CAPABILITIES__REGISTER_NEW_TABLE=True
 export DESTINATION__ICEBERG__CAPABILITIES__TABLE_LOCATION_LAYOUT={dataset_name}/{table_name}
 ```
+
 </TabItem>
 </Tabs>
 
@@ -118,10 +120,10 @@ It supports two modes:
 
 The SQL catalog stores one table of the following schema:
 
-| catalog_name | table_namespace     | table_name  | metadata_location                                 | previous_metadata_location                                                          |
-|--------------|---------------------|-------------|---------------------------------------------------|---------------------------------------------------------------------------------------|
-| default      | jaffle_shop_dataset | orders | path/to/files                                     | path/to/files |
-| default      | jaffle_shop_dataset | _dlt_loads  | path/to/files  | path/to/files |
+| catalog_name | table_namespace     | table_name | metadata_location | previous_metadata_location |
+| ------------ | ------------------- | ---------- | ----------------- | -------------------------- |
+| default      | jaffle_shop_dataset | orders     | path/to/files     | path/to/files              |
+| default      | jaffle_shop_dataset | _dlt_loads | path/to/files     | path/to/files              |
 
 ### Lakekeeper catalog
 
@@ -159,6 +161,7 @@ bucket_url="s3://warehouse/"
 [destination.iceberg.capabilities]
 table_location_layout="lakekeeper-warehouse/dlthub_demo/lakekeeper_demo/{dataset_name}/{table_name}"
 ```
+
 </TabItem>
 
 <TabItem value="env">
@@ -173,6 +176,7 @@ export DESTINATION__ICEBERG__CREDENTIALS__PROPERTIES__OAUTH2-SERVER-URI=https://
 export DESTINATION__ICEBERG__FILESYSTEM__BUCKET_URL=s3://warehouse/
 export DESTINATION__ICEBERG__CAPABILITIES__TABLE_LOCATION_LAYOUT=lakekeeper-warehouse/dlthub_demo/lakekeeper_demo/{dataset_name}/{table_name}
 ```
+
 </TabItem>
 
 </Tabs>
@@ -229,6 +233,7 @@ bucket_url="s3://warehouse"
 [destination.iceberg.capabilities]
 table_location_layout="{dataset_name}/{table_name}"
 ```
+
 </TabItem>
 
 <TabItem value="env">
@@ -242,6 +247,7 @@ export DESTINATION__ICEBERG__CREDENTIALS__PROPERTIES__SCOPE=PRINCIPAL_ROLE:ALL
 export DESTINATION__ICEBERG__FILESYSTEM__BUCKET_URL=s3://warehouse/
 export DESTINATION__ICEBERG__CAPABILITIES__TABLE_LOCATION_LAYOUT={dataset_name}/{table_name}
 ```
+
 </TabItem>
 
 </Tabs>
@@ -253,12 +259,11 @@ For more information, refer to the [Lakekeeper section above](#lakekeeper-catalo
 dlt supports three AWS-backed Iceberg catalogs.
 Their names correspond to the `catalog_type` value you pass in your destination block:
 
-| `catalog_type`      | What it talks to under the hood |
-| ------------------- | ----------------------------------------------------------------------------------- |
-| **`s3tables-rest`** | Uses the AWS S3 Tables Iceberg REST API endpoint, and S3 table buckets |
+| `catalog_type`      | What it talks to under the hood                                                   |
+| ------------------- | --------------------------------------------------------------------------------- |
+| **`s3tables-rest`** | Uses the AWS S3 Tables Iceberg REST API endpoint, and S3 table buckets            |
 | **`glue-rest`**     | Uses the AWS Glue Iceberg REST API endpoint, Lake Formation, and S3 table buckets |
-| **`glue`**          | Uses the AWS Glue Catalog, and normal S3 buckets |
-
+| **`glue`**          | Uses the AWS Glue Catalog, and normal S3 buckets                                  |
 
 #### Catalog `[s3tables-rest]`
 
@@ -293,6 +298,7 @@ region_name           = "<region>"
 "rest.signing-name"   = "s3tables"
 "rest.signing-region" = "<region>"
 ```
+
 </TabItem>
 
 <TabItem value="env">
@@ -310,18 +316,21 @@ export DESTINATION__ICEBERG__CREDENTIALS__PROPERTIES='{
   "rest.signing-region": "<region>"
 }'
 ```
+
 </TabItem>
 
 </Tabs>
 
-##### Prerequisites
+##### S3 Tables Catalog Prerequisites
 
 Create the S3 Table bucket first and grant the calling IAM principal s3tables:* actions read/write permissions on that bucket.
+
 * `warehouse` – full bucket ARN for your S3 Tables catalog.
 * `uri` – region-specific S3 Tables REST endpoint.
 * `rest.*` properties – mandatory SigV4 settings for every call.
 
 #### Catalog `[glue-rest]`
+
 Configure this catalog when you want to publish Iceberg tables directly into an S3 Tables bucket via the AWS Glue Iceberg REST API endpoint.
 
 :::note
@@ -356,6 +365,7 @@ region_name           = "<region>"
 "rest.signing-name"   = "glue"
 "rest.signing-region" = "<region>"
 ```
+
 </TabItem>
 <TabItem value="env">
 
@@ -375,8 +385,10 @@ export DESTINATION__ICEBERG__CREDENTIALS__PROPERTIES='{
 </TabItem>
 </Tabs>
 
-##### Prerequisites
+##### Glue REST Catalog Prerequisites
+
 Сreate the S3 Table bucket first and follow this AWS documentation to properly configure IAM, Glue, and Lake Formation: [Create an Iceberg catalog for S3 Tables via Glue REST](https://docs.aws.amazon.com/AmazonS3/latest/userguide/s3-tables-integrating-glue-endpoint.html)
+
 * `warehouse` – glue catalog arn for your S3 Tables catalog.
 * `uri` – region-specific Glue REST endpoint.
 * `rest.*` properties – mandatory SigV4 settings for every call.
@@ -408,6 +420,7 @@ aws_access_key_id     = "<aws_access_key_id>"
 aws_secret_access_key = "<aws_secret_access_key>"
 region_name           = "<region>"
 ```
+
 </TabItem> <TabItem value="env">
 
 ```sh
@@ -420,31 +433,33 @@ export DESTINATION__ICEBERG__CREDENTIALS__REGION_NAME="<region>"
 </TabItem>
 </Tabs>
 
-##### Prerequisites
+##### Glue Catalog Prerequisites
+
 An S3 bucket and an IAM principal allowed to read/write that bucket and access the Glue Data Catalog.
 
 * `bucket_url` – S3 prefix where Iceberg data and metadata files will live.
-
 
 ### Unity Catalog
 
 [Unity Catalog](https://www.databricks.com/product/unity-catalog) provides a REST API for Iceberg that allows external clients to access Databricks tables.
 
-#### Prerequisites
+#### Unity Catalog Prerequisites
 
 Before using Unity Catalog with the Iceberg destination, ensure you have:
 
 1. Unity Catalog enabled in your workspace
 2. External data access enabled for your metastore
 3. EXTERNAL USE SCHEMA privilege granted to your principal:
+
    ```sql
    GRANT EXTERNAL USE SCHEMA ON CATALOG <catalog_name> TO `user@company.com`;
    ```
+
    Where `<catalog_name>` is the name of the catalog you want to grant access to.
 
 For detailed setup instructions, see Databricks guide on [accessing tables from Apache Iceberg clients](https://learn.microsoft.com/en-us/azure/databricks/external-access/iceberg).
 
-#### Configuration
+#### Unity Catalog Configuration
 
 <Tabs
   groupId="filesystem-type"
@@ -467,6 +482,7 @@ warehouse = "dlt_ci"
 [destination.iceberg.credentials.properties]
 token = "please set me up!"
 ```
+
 </TabItem>
 
 <TabItem value="env">
@@ -477,6 +493,7 @@ export DESTINATION__ICEBERG__CREDENTIALS__URI=https://<workspace-url>/api/2.1/un
 export DESTINATION__ICEBERG__CREDENTIALS__WAREHOUSE=dlt_ci
 export DESTINATION__ICEBERG__CREDENTIALS__PROPERTIES__TOKEN=please set me up!
 ```
+
 </TabItem>
 
 </Tabs>
@@ -494,8 +511,12 @@ All [write dispositions](../../general-usage/incremental-loading.md) are support
 
 ## Merge strategies
 
-The Iceberg destination supports three merge strategies when using `write_disposition="merge"`: `delete-insert`, `upsert`, and `insert-only`.
+With `write_disposition="merge"`, the Iceberg destination supports two merge strategies: `delete-insert` and `upsert`.
 All strategies use a single Iceberg transaction for delete and insert operations and support [hard delete](../../general-usage/merge-loading.md#delete-records) functionality.
+
+:::tip
+For large tables, [partition](#partitioning) the table by day or by hour. Then [replace whole partitions](#replace-partitions) with the `delete-insert` strategy. When dlt replaces a partition, it does not read or rewrite the data of other partitions. As a result, the cost of a load does not increase when the table grows. A merge by primary key reads all data files that can contain the loaded keys. Use merges by primary key only for small tables.
+:::
 
 ### Delete-insert strategy
 
@@ -512,19 +533,119 @@ def my_resource():
 ```
 
 #### Key characteristics
-- Requires primary key or merge key columns
+
+- Requires primary key or merge key columns, or a `destination_scope`
 - Supports only regular tables (nested tables not supported)
 - Automatically deduplicates data based on primary keys
 - Uses single Iceberg transaction for delete and insert operations
+
+#### Replace partitions
+
+Partition the table by a day or an hour column. Then make sure that each load contains all records of the partitions that it loads.
+
+Each load replaces these partitions: dlt deletes all records of these partitions and inserts the loaded records. As a result, if a record of a replaced partition is absent from the loaded data, dlt deletes it.
+
+If the loaded records show which partitions to replace, use a merge key. If you know the partitions before the load, use a destination scope.
+
+##### With a merge key
+
+Set the merge key to the partition column:
+
+```py
+@dlt.resource(
+    primary_key="id",
+    merge_key="day",
+    columns={"day": {"partition": True}},
+    write_disposition={"disposition": "merge", "strategy": "delete-insert"},
+    table_format="iceberg",
+)
+def events():
+    ...
+```
+
+By default, dlt also deletes the records with the loaded primary keys from other partitions. As a result, if a record moves to another partition, dlt deletes it from its old partition. This delete reads the other partitions. If your records never move between partitions, disable this delete:
+
+```toml
+[destination.iceberg]
+delete_by_primary_key=false
+```
+
+dlt still uses the primary key to deduplicate the loaded records.
+
+:::tip
+Load a few partitions at a time, for example one day or a few hours. A merge key with hundreds of values in one load reads the whole table.
+:::
+
+##### With a destination scope
+
+Write the partitions to replace as a `destination_scope` that compares the partition column to a value. Take the value from a [value placeholder](../../general-usage/merge-loading.md#fill-placeholders-with-values-from-the-load). Then the schema does not change with every load:
+
+```py
+from datetime import date
+
+@dlt.resource(
+    columns={"day": {"partition": True}},
+    write_disposition={
+        "disposition": "merge",
+        "strategy": "delete-insert",
+        "destination_scope": "day = {day}",
+        "extra_placeholders": {"day": lambda resource, table_name: resource.explicit_args["day"]},
+    },
+    table_format="iceberg",
+)
+def events(day: date):
+    ...
+```
+
+The destination scope does not depend on the loaded records. With a destination scope, dlt ignores `merge_key` and does not delete by `primary_key`.
+
+If a load has no records for a partition, yield [`dlt.mark.materialize_table_schema()`](../../general-usage/resource.md#materialize-schema-without-rows) from the resource. dlt then runs an empty load job, and the merge deletes all records in the destination scope. Without this marker, dlt creates no load job for the table and deletes nothing.
+
+Compare only partition columns in the destination scope. A condition on other columns reads and rewrites the data of the partition.
+
+#### Merge conditions
+
+The `delete-insert` strategy supports both [merge conditions](../../general-usage/merge-loading.md#merge-conditions). The `upsert` strategy supports only `source_filter`:
+
+- `source_filter` is a duckdb SQL condition on the loaded records. `{staging_table}` expands to the loaded records.
+- `destination_scope` is an Iceberg row filter on the destination table: comparisons, `IN`, `IS NULL`, `LIKE 'prefix%'`, `AND`, `OR` and `NOT` on columns of the table. You can write the columns by name or as `{table}.column`. dlt does not support subqueries, functions or `{staging_table}`. A list in a value placeholder selects a list of values, for example `day IN {days}`.
+
+Both conditions accept [value placeholders](../../general-usage/merge-loading.md#fill-placeholders-with-values-from-the-load). In the destination scope, dlt writes a date or a timestamp as an ISO string. Iceberg converts this string to the type of the column.
+
+#### Change data capture
+
+The Iceberg destination does not support the `cdc` merge strategy. Use `delete-insert`:
+
+- **Complete partitions**: if the resource yields all current records of a day or an hour, [replace the partitions](#replace-partitions). If a record of a replaced partition is absent from the loaded data, dlt deletes it. If the resource yields all records of the table, use the `replace` write disposition.
+- **A change log**: if the resource yields the inserted, updated and deleted records, for example from the [`pg_replication`](../../dlt-ecosystem/verified-sources/pg_replication.md) source, configure the resource:
+
+  - Set the `primary_key`.
+  - Mark the delete flag with the `hard_delete` hint.
+  - Sort by the change version with `dedup_sort`. Then dlt keeps only the last change of each record.
+
+  ```py
+  @dlt.resource(
+      primary_key="id",
+      columns={"deleted": {"hard_delete": True}, "lsn": {"dedup_sort": "desc"}},
+      write_disposition={"disposition": "merge", "strategy": "delete-insert"},
+      table_format="iceberg",
+  )
+  def changes():
+      ...
+  ```
+
+  Each load reads the data files that can contain the changed keys. Run the pipeline often, so that each load has few changed keys. Keep the table small, or use keys that increase with time.
 
 ### Upsert strategy
 
 The `upsert` strategy is similar to delete-insert strategy but with key differences in behavior and requirements:
 
 - Supports nested data: unlike `delete-insert`, `upsert` handles nested data
-    - Note: nested data requires a column with the `unique` property (dlt will use `_dlt_id` by default)
+  - Note: nested data requires a column with the `unique` property (dlt will use `_dlt_id` by default)
 - Does not deduplicate records with duplicate primary keys in the incoming data
-- Upsert _does not_ support merge keys
+- Upsert _does not_ support merge keys, `destination_scope` or `skip_unchanged_rows`
+
+Each load reads the data files that can contain the loaded keys. If the table is small, or if the keys increase with time, for example sequential IDs, use `upsert`. For large tables, use `delete-insert` and [replace partitions](#replace-partitions).
 
 ```py
 @dlt.resource(
@@ -536,25 +657,12 @@ def my_upsert_resource():
     yield [{"id": 1, "name": "Alice Updated"}, {"id": 3, "name": "Charlie"}]
 ```
 
-### Insert-only strategy
-
-The `insert-only` strategy inserts new records based on primary key without updating existing records. See the [insert-only strategy](../../general-usage/merge-loading.md#insert-only-strategy) docs for details.
-
-```py
-@dlt.resource(
-    write_disposition={"disposition": "merge", "strategy": "insert-only"},
-    primary_key="id",
-    table_format="iceberg"
-)
-def my_insert_only_resource():
-    yield [{"id": 1, "name": "Alice"}, {"id": 3, "name": "Charlie"}]
-```
-
 :::info Performance Testing
-The `delete-insert`, `upsert`, and `insert-only` merge strategies have been stress tested with datasets containing tens of millions of rows without encountering any issues. Memory usage and processing time scale linearly with the size of the updated dataset.
+We did stress tests of the `delete-insert` and `upsert` merge strategies on datasets with tens of millions of records. The tests found no errors. Memory usage and processing time scale linearly with the size of the updated dataset.
 :::
 
 #### Known limitations
+
 - Orphaned nested table records: updates to nested structures that remove elements do not delete them from the destination table.
 
 ## Data access
@@ -565,6 +673,7 @@ When invoked, this creates an in-memory DuckDB database with views pointing to I
 The created views reflect the latest available snapshot. To ensure fresh data during development, use the `always_refresh_views` option. Views are materialized only on demand, based on query usage.
 
 ## Credentials for data access
+
 By default, credentials for accessing data are vended by the catalog, and per-table secrets are created automatically. This works best with cloud storage providers like AWS S3 using STS credentials.
 However, due to potential performance limitations with temporary credentials, we recommend defining the filesystem explicitly when working with `dataset()` or dltHub transformations.
 This approach allows for native DuckDB filesystem access, persistent secrets, and faster data access. For example, when using AWS S3 as the storage location
@@ -581,13 +690,13 @@ aws_secret_access_key = "please set me up!"
 Apache Iceberg supports [table partitioning](https://iceberg.apache.org/docs/latest/partitioning/) to optimize query performance.
 
 There are two ways to configure partitioning in dltHub Iceberg destination:
+
 * Using the [`iceberg_adapter`](#using-the-iceberg_adapter-function) function
 * Using column-level [`partition`](#using-column-level-partition-property) property
 
 ### Using the `iceberg_adapter` function
 
 The `iceberg_adapter` function allows you to configure partitioning for your Iceberg tables. This adapter supports various partition transformations that can be applied to your data columns.
-
 
 ```py
 import dlt
@@ -609,15 +718,19 @@ iceberg_adapter(
 Iceberg supports several transformation functions for partitioning. Use the `iceberg_partition` helper class to create partition specifications:
 
 #### Identity partitioning
+
 Partition by the exact value of a column (default for string columns when specified by name):
 
 ```py
+from dlt.destinations.adapters import iceberg_adapter, iceberg_partition
+
 # These are equivalent:
 iceberg_adapter(resource, partition=["region"])
 iceberg_adapter(resource, partition=[iceberg_partition.identity("region")])
 ```
 
 #### Temporal transformations
+
 Extract time components from date/datetime columns:
 
 * `iceberg_partition.year(column_name)`: Partition by year
@@ -640,9 +753,12 @@ iceberg_adapter(
 ```
 
 #### Bucket partitioning
+
 Distribute data across a fixed number of buckets using a hash function:
 
 ```py
+from dlt.destinations.adapters import iceberg_adapter, iceberg_partition
+
 iceberg_adapter(
     resource,
     partition=[iceberg_partition.bucket(16, "user_id")]
@@ -650,9 +766,12 @@ iceberg_adapter(
 ```
 
 #### Truncate partitioning
+
 Partition string values by a fixed prefix length:
 
 ```py
+from dlt.destinations.adapters import iceberg_adapter, iceberg_partition
+
 iceberg_adapter(
     resource,
     partition=[iceberg_partition.truncate(3, "category")]  # Groups "ELECTRONICS" → "ELE"
@@ -662,6 +781,7 @@ iceberg_adapter(
 ### Advanced partitioning examples
 
 #### Multi-column partitioning
+
 Combine multiple partition strategies:
 
 ```py
@@ -701,6 +821,7 @@ pipeline.run(sales_data)
 ```
 
 #### Custom partition field names
+
 Specify custom names for partition fields to make them more descriptive:
 
 ```py

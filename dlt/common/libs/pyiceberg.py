@@ -1,5 +1,5 @@
 import os
-from typing import Dict, Any, List, Optional, Union
+from typing import Callable, Dict, Any, List, Optional, Sequence, Tuple, Union
 from pathlib import Path
 import warnings
 import time
@@ -34,6 +34,17 @@ try:
         UNPARTITIONED_PARTITION_SPEC,
         PartitionSpec as IcebergPartitionSpec,
     )
+    from pyiceberg.schema import Schema as IcebergSchema
+    from pyiceberg.transforms import (
+        Transform,
+        IdentityTransform,
+        YearTransform,
+        MonthTransform,
+        DayTransform,
+        HourTransform,
+        BucketTransform,
+        TruncateTransform,
+    )
     import pyarrow as pa
     from pydantic import BaseModel, ConfigDict, Field
 except ModuleNotFoundError:
@@ -42,6 +53,19 @@ except ModuleNotFoundError:
         [f"{version.DLT_PKG_NAME}[pyiceberg]"],
         "Install `pyiceberg` so dlt can create Iceberg tables in the `filesystem` destination.",
     )
+
+TPartitionField = Tuple[str, Transform[Any, Any], Optional[str]]
+"""Source column, transform and partition field name (`None` for the default name)"""
+
+_TRANSFORM_LOOKUP: Dict[str, Callable[[Optional[int]], Transform[Any, Any]]] = {
+    "identity": lambda _: IdentityTransform(),
+    "year": lambda _: YearTransform(),
+    "month": lambda _: MonthTransform(),
+    "day": lambda _: DayTransform(),
+    "hour": lambda _: HourTransform(),
+    "bucket": lambda n: BucketTransform(n),
+    "truncate": lambda w: TruncateTransform(w),
+}
 
 pyiceberg_semver = Version(pyiceberg.__version__)
 
@@ -447,42 +471,82 @@ def evolve_table(
     return table
 
 
+def get_partition_transform(
+    transform: str, param_value: Optional[int] = None
+) -> Transform[Any, Any]:
+    """Get the PyIceberg Transform object for a partition transform name.
+
+    Args:
+        transform: Name of the transform, ie. `identity`, `day` or `bucket`
+        param_value: Number of buckets for `bucket`, width for `truncate`
+
+    Returns:
+        A PyIceberg Transform object
+
+    Raises:
+        ValueError: If the transform is not recognized
+    """
+    try:
+        factory = _TRANSFORM_LOOKUP[transform]
+    except KeyError as exc:
+        raise ValueError(f"Unknown partition transformation type: {transform}") from exc
+    return factory(param_value)
+
+
 def create_table(
     catalog: IcebergCatalog,
     table_id: str,
-    table_location: str,
-    schema: Union[pa.Schema, "pyiceberg.schema.Schema"],
+    table_location: Optional[str],
+    schema: Union[pa.Schema, IcebergSchema],
     partition_columns: Optional[List[str]] = None,
-    partition_spec: Optional[IcebergPartitionSpec] = UNPARTITIONED_PARTITION_SPEC,
-    properties: Optional[Dict[str, str]] = None,
+    properties: Optional[Dict[str, Any]] = None,
+    partition_fields: Optional[Sequence[TPartitionField]] = None,
 ) -> None:
+    """Creates an Iceberg table partitioned by `partition_fields` with a single catalog call."""
     if isinstance(schema, pa.Schema):
         schema = ensure_iceberg_compatible_arrow_schema(schema)
 
+    fields: List[TPartitionField] = []
     if partition_columns:
         warnings.warn(
-            "partition_columns is deprecated. Use partition_spec instead.",
+            "partition_columns is deprecated. Use partition_fields instead.",
             DeprecationWarning,
             stacklevel=2,
         )
-        with catalog.create_table_transaction(
-            table_id,
-            schema=schema,
-            location=table_location,
-            properties=properties or {},
-        ) as txn:
-            # add partitioning
-            with txn.update_spec() as update_spec:
-                for col in partition_columns:
-                    update_spec.add_identity(col)
-    else:
-        catalog.create_table(
-            identifier=table_id,
-            schema=schema,
-            location=table_location,
-            partition_spec=partition_spec,
-            properties=properties or {},
-        )
+        fields = [(col, IdentityTransform(), None) for col in partition_columns]
+    fields.extend(partition_fields or [])
+
+    partition_spec = UNPARTITIONED_PARTITION_SPEC
+    if fields:
+        schema, partition_spec = _resolve_partition_spec(schema, fields, properties)
+    catalog.create_table(
+        identifier=table_id,
+        schema=schema,
+        location=table_location,
+        partition_spec=partition_spec,
+        properties=properties or {},
+    )
+
+
+def _resolve_partition_spec(
+    schema: Union[pa.Schema, IcebergSchema],
+    fields: Sequence[TPartitionField],
+    properties: Optional[Dict[str, Any]],
+) -> Tuple[IcebergSchema, IcebergPartitionSpec]:
+    """Resolves `fields` by column name into a partition spec and the schema it refers to."""
+    # Glue and S3 Tables REST reject staged creates, the scratch transaction is never committed.
+    # real identifiers may be nested and locations catalog managed, neither affects the spec
+    scratch_catalog = get_sql_catalog("partition_spec", "sqlite:///:memory:", None)
+    txn = scratch_catalog.create_table_transaction(
+        "partition_spec.table",
+        schema=schema,
+        location="memory://partition_spec/table",
+        properties=properties or {},
+    )
+    with txn.update_spec() as update_spec:
+        for source_column, transform, partition_field in fields:
+            update_spec.add_field(source_column, transform, partition_field)
+    return txn.table_metadata.schema(), txn.table_metadata.spec()
 
 
 def get_iceberg_tables(

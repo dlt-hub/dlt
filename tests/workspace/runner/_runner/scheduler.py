@@ -1,9 +1,8 @@
 """Trigger scheduler for local workspace runner."""
 
 import time
+from datetime import datetime, timezone
 from typing import Dict, List, Optional, Set, Tuple
-
-from dlt.common.pendulum import pendulum
 
 from dlt._workspace.deployment._job_ref import short_name as job_short_name
 from dlt._workspace.deployment.exceptions import InvalidFreshnessConstraint, InvalidTrigger
@@ -40,7 +39,7 @@ class TriggerScheduler:
         self._event_triggers: Dict[str, List[Tuple[TJobDefinition, TTrigger]]] = {}
         self._timed: List[ScheduledItem] = []
         self._warnings: List[str] = []
-        self._last_scheduled: Dict[str, pendulum.DateTime] = {}
+        self._last_scheduled: Dict[str, datetime] = {}
         """Tracks last scheduled_at per (job_ref, trigger) for every: rescheduling."""
 
     def register_triggers(
@@ -109,7 +108,7 @@ class TriggerScheduler:
                 if item.repeating:
                     # record this fire time for every: rescheduling
                     key = f"{item.job_def['job_ref']}:{item.trigger}"
-                    self._last_scheduled[key] = pendulum.from_timestamp(item.fire_at, tz="UTC")
+                    self._last_scheduled[key] = datetime.fromtimestamp(item.fire_at, timezone.utc)
                     self._schedule_timed(item.job_def, item.trigger, into=remaining)
                 else:
                     short = job_short_name(item.job_def["job_ref"])
@@ -167,7 +166,7 @@ class TriggerScheduler:
 
         try:
             scheduled_at = next_scheduled_run(
-                trigger, pendulum.now("UTC"), tz=tz, prev_scheduled_run=prev
+                trigger, datetime.now(timezone.utc), tz=tz, prev_scheduled_run=prev
             )
         except InvalidTrigger:
             return

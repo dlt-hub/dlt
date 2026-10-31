@@ -1,3 +1,5 @@
+import os
+
 import dlt
 import pytest
 
@@ -13,6 +15,7 @@ from dlt.pipeline.exceptions import PipelineStepFailed
 
 from tests.load.utils import destinations_configs, DestinationTestConfiguration
 from tests.load.lance.lance_utils import lance_rest_destination_configs
+from tests.utils import get_test_storage_root
 
 
 pytestmark = pytest.mark.essential
@@ -428,3 +431,47 @@ def test_lance_commit_job_retry_idempotency(
         client = cast(LanceClient, client)
         ds = client.open_lance_dataset("items")
         assert sorted(r["id"] for r in ds.to_table().to_pylist()) == list(range(5))
+
+
+@pytest.mark.parametrize(
+    "destination_config",
+    lance_destination_configs,
+    ids=lambda x: x.name,
+)
+def test_lance_joins_lancedb_across_destinations(
+    destination_config: DestinationTestConfiguration,
+) -> None:
+    """Lance and LanceDB both read `.lance` data through the same duckdb extension. A query on
+    either destination attaches the other destination and accesses its data.
+    """
+    lance_pipeline = destination_config.setup_pipeline(
+        pipeline_name="test_lance_joins_lancedb", dev_mode=True
+    )
+    lance_pipeline.run([{"id": 1, "name": "alice"}], table_name="users")
+
+    suffix = uniq_id()
+    lancedb_pipeline = dlt.pipeline(
+        pipeline_name="test_lancedb_joined_by_lance_" + suffix,
+        destination=dlt.destinations.lancedb(
+            lance_uri=os.path.join(get_test_storage_root(), "lancedb_" + suffix)
+        ),
+        dataset_name="lancedb_ds_" + suffix,
+    )
+    lancedb_pipeline.run([{"id": 1, "tag": "vip"}], table_name="tags")
+
+    lance_ds = lance_pipeline.dataset()
+    lancedb_ds = lancedb_pipeline.dataset()
+
+    # lance attaches the lancedb dataset and reads it
+    joined = lance_ds.table("users").join(lancedb_ds.table("tags"), on="users.id = tags.id")
+    assert joined._foreign_datasets[lancedb_ds.dataset_name].alias is not None
+    df = joined.df()
+    assert list(df["name"]) == ["alice"]
+    assert list(df["tags__tag"]) == ["vip"]
+
+    # and lancedb reads the lance dataset the same way
+    joined_back = lancedb_ds.table("tags").join(lance_ds.table("users"), on="tags.id = users.id")
+    assert joined_back._foreign_datasets[lance_ds.dataset_name].alias is not None
+    df_back = joined_back.df()
+    assert list(df_back["tag"]) == ["vip"]
+    assert list(df_back["users__name"]) == ["alice"]

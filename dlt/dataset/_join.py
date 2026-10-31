@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from functools import reduce
-from typing import TYPE_CHECKING, Any, Iterable, NamedTuple, Optional, Sequence, Set, Union
+from typing import TYPE_CHECKING, Iterable, NamedTuple, Optional, Sequence, Set, Union
 
 import sqlglot
 import sqlglot.expressions as sge
@@ -10,7 +10,16 @@ from sqlglot.errors import ParseError, TokenError
 from dlt.common.typing import TypedDict
 from dlt.common.schema import Schema, utils as schema_utils
 from dlt.common.schema.typing import TTableReference, TTableSchemaColumns
-from dlt.common.libs.sqlglot import TSqlGlotDialect
+from dlt.common.libs.sqlglot import (
+    TSqlGlotDialect,
+    aliased_subquery,
+    defines_rows,
+    extract_table_qualifier,
+    get_from_source,
+    get_left_source_qualifier,
+    get_source_qualifier,
+    wrap_as_derived_table,
+)
 
 if TYPE_CHECKING:
     from dlt.dataset.relation import TJoinType
@@ -24,11 +33,8 @@ class _JoinTarget(NamedTuple):
     dataset_name: str
     table_name: str
     columns: TTableSchemaColumns
-    schemas: Sequence[Schema]
     subquery: Optional[sge.Query] = None
     """RHS query embedded as a derived table for transformed relations; `None` for base tables."""
-    physical_dataset_name: Optional[str] = None
-    """Physical (normalized) dataset name; set for foreign targets."""
 
 
 class _JoinRef(TypedDict):
@@ -172,69 +178,14 @@ def _build_join_condition_from_pairs(
     return reduce(lambda x, y: sge.And(this=x, expression=y), conditions)
 
 
-def _identifier_name(node: Any) -> Optional[str]:
-    """Return the string name of an sqlglot identifier-or-string node."""
-    if isinstance(node, sge.Identifier):
-        return node.name
-    if isinstance(node, str):
-        return node
-    return None
-
-
-def _subquery_alias_name(subquery: sge.Subquery) -> Optional[str]:
-    """Return the alias name of a subquery, or `None`."""
-    alias_expr = subquery.args.get("alias")
-    if not isinstance(alias_expr, sge.TableAlias):
-        return None
-    return _identifier_name(alias_expr.this)
-
-
-def _extract_table_qualifier(table_expr: sge.Expression) -> Optional[tuple[str, str]]:
-    if not isinstance(table_expr, sge.Table):
-        return None
-
-    table_name = _identifier_name(table_expr.args.get("this"))
-    if table_name is None:
-        return None
-
-    alias_expr = table_expr.args.get("alias")
-    if isinstance(alias_expr, sge.TableAlias):
-        alias_name = _identifier_name(alias_expr.this)
-        if alias_name is not None:
-            return table_name, alias_name
-
-    return table_name, table_name
-
-
-def _from_source(query: sge.Query) -> Optional[sge.Expression]:
-    """Return the FROM source expression (table or subquery), or `None`."""
-    # sqlglot >= 28 renamed `from` to `from_` internally
-    from_expr = query.args.get("from_") or query.args.get("from")
-    if not isinstance(from_expr, sge.From):
-        return None
-    source: Optional[sge.Expression] = from_expr.this
-    return source
-
-
-def _source_qualifier(source: Optional[sge.Expression]) -> Optional[str]:
-    """Return the SQL qualifier (alias or table name) of a FROM/JOIN source."""
-    if isinstance(source, sge.Table):
-        result = _extract_table_qualifier(source)
-        return result[1] if result else None
-    if isinstance(source, sge.Subquery):
-        return _subquery_alias_name(source)
-    return None
-
-
 def _extract_joined_table_aliases(
     query: sge.Query, dataset_name: Optional[str] = None
 ) -> dict[str, str]:
     alias_map: dict[str, str] = {}
-    from_this = _from_source(query)
-    if not isinstance(from_this, sge.Table):
-        return alias_map
-
-    tables: list[sge.Table] = [from_this]
+    tables: list[sge.Table] = []
+    from_this = get_from_source(query)
+    if isinstance(from_this, sge.Table):
+        tables.append(from_this)
     for join in query.args.get("joins") or []:
         if isinstance(join.this, sge.Table):
             tables.append(join.this)
@@ -242,7 +193,7 @@ def _extract_joined_table_aliases(
     for table in tables:
         if dataset_name is not None and table.db and table.db != dataset_name:
             continue
-        table_qualifier = _extract_table_qualifier(table)
+        table_qualifier = extract_table_qualifier(table)
         if not table_qualifier:
             continue
         table_name, qualifier = table_qualifier
@@ -275,7 +226,13 @@ def _discover_join_params(
 
     qualifier_map = _extract_joined_table_aliases(expression, dataset_name)
     if left_table not in qualifier_map:
-        raise ValueError("Join query has no base table to resolve references.")
+        # the left base table may be embedded in a derived table; join via its alias
+        if (
+            not isinstance(get_from_source(expression), sge.Subquery)
+            or (left_qualifier := get_left_source_qualifier(expression)) is None
+        ):
+            raise ValueError("Join query has no base table to resolve references.")
+        qualifier_map[left_table] = left_qualifier
 
     attach_qualifier = qualifier_map[left_table]
 
@@ -425,7 +382,8 @@ def _apply_join(
 
     query = _copy_as_select(expression)
 
-    left_source_qualifier = _left_source_qualifier(query) or left_table
+    left_source_qualifier = get_left_source_qualifier(query) or left_table
+    query = _seal_left_side(query, left_source_qualifier, kind)
     _qualify_unscoped_predicate_columns(query, left_source_qualifier)
 
     join_params, target_qualifier = _discover_join_params(
@@ -463,80 +421,66 @@ def _apply_join(
     return query
 
 
-def _qualify_physical_tables_with_dataset(expression: sge.Expression, dataset_name: str) -> None:
-    """Bind every physical table reference in `expression` to `dataset_name`."""
+def _qualify_unscoped_tables_with_dataset(expression: sge.Expression, dataset_name: str) -> None:
+    """Set the logical `dataset_name` qualifier on table references that lack one.
+
+    Skips CTE references and table functions; physical (normalized) dataset resolution happens
+    later in `bind_query`.
+    """
     cte_names = {cte.alias_or_name for cte in expression.find_all(sge.CTE)}
     db_identifier = sge.to_identifier(dataset_name, quoted=False)
     for table in expression.find_all(sge.Table):
-        if table.name in cte_names:
+        if table.name in cte_names or extract_table_qualifier(table) is None:
             continue
         if table.args.get("db"):
             continue
         table.set("db", db_identifier.copy())
 
 
-def _left_source_qualifier(query: sge.Query) -> Optional[str]:
-    """Return the qualifier used to reference the FROM source (alias or table name)."""
-    return _source_qualifier(_from_source(query))
-
-
 def _collect_source_qualifiers(query: sge.Query) -> Set[str]:
     """Collect the SQL qualifiers (aliases or table names) of every FROM/JOIN source."""
-    sources = [_from_source(query), *(join.this for join in query.args.get("joins") or [])]
-    return {qualifier for source in sources if (qualifier := _source_qualifier(source)) is not None}
+    sources = [get_from_source(query), *(join.this for join in query.args.get("joins") or [])]
+    return {
+        qualifier for source in sources if (qualifier := get_source_qualifier(source)) is not None
+    }
 
 
 def _is_flat_select(query: sge.Select) -> bool:
-    if any(
-        query.args.get(key) for key in ("group", "having", "qualify", "distinct", "limit", "offset")
-    ):
-        return False
-    return not any(sel.find(sge.AggFunc, sge.Window) for sel in query.selects)
+    return not defines_rows(query) and not any(query.args.get(key) for key in ("limit", "offset"))
 
 
 def _qualify_unscoped_predicate_columns(query: sge.Select, source_qualifier: str) -> None:
     """Bind unqualified WHERE/ORDER BY columns to the single source.
 
-    ORDER BY references to select output aliases are expanded to their source
-    expressions first, so qualification cannot produce nonexistent columns.
+    ORDER BY references to select output aliases stay bare; `bind_query` resolves them.
     """
     if query.args.get("joins"):
         return
     qualifier_identifier = sge.to_identifier(source_qualifier, quoted=False)
-    alias_sources = {
-        sel.output_name: sel.this for sel in query.selects if isinstance(sel, sge.Alias)
-    }
-    order_clause = query.args.get("order")
-    if order_clause is not None and alias_sources:
-        for col in list(order_clause.find_all(sge.Column)):
-            if col.args.get("table") is None and col.parent_select is query:
-                source = alias_sources.get(col.name)
-                if source is not None:
-                    col.replace(source.copy())
+    output_aliases = {sel.output_name for sel in query.selects if isinstance(sel, sge.Alias)}
     for clause_key in ("where", "order"):
         clause = query.args.get(clause_key)
         if clause is None:
             continue
         for col in clause.find_all(sge.Column):
-            if col.args.get("table") is None and col.parent_select is query:
-                col.set("table", qualifier_identifier.copy())
+            if col.args.get("table") is not None or col.parent_select is not query:
+                continue
+            # ORDER BY resolves output aliases first; WHERE is pre-projection and sees columns
+            if clause_key == "order" and col.name in output_aliases:
+                continue
+            col.set("table", qualifier_identifier.copy())
 
 
-def _aliased_subquery(query: sge.Query, qualifier: str) -> sge.Subquery:
-    """Wrap `query` as a derived table exposed under `qualifier`."""
-    return sge.Subquery(
-        this=query,
-        alias=sge.TableAlias(this=sge.to_identifier(qualifier, quoted=False)),
-    )
+def _seal_left_side(query: sge.Select, left_source_qualifier: str, kind: TJoinType) -> sge.Select:
+    """Seal the left side in a derived table when its rows must be fixed before the join.
 
-
-def _wrap_as_derived_table(query: sge.Select, qualifier: str) -> sge.Select:
-    """Re-select all of `query`'s columns from it embedded as a derived table."""
-    return (
-        sge.Select()
-        .select(sge.Column(table=sge.to_identifier(qualifier), this=sge.Star()))
-        .from_(_aliased_subquery(query, qualifier))
-    )
+    A non-flat left side (LIMIT/OFFSET/DISTINCT/GROUP/aggregate), or a WHERE that must precede a
+    RIGHT/FULL join, would otherwise leak past the join and change which rows survive.
+    """
+    where_must_apply_before_join = kind in ("right", "full") and query.args.get("where") is not None
+    if not _is_flat_select(query) or where_must_apply_before_join:
+        return wrap_as_derived_table(query, left_source_qualifier)
+    return query
 
 
 def _apply_explicit_join(
@@ -561,19 +505,17 @@ def _apply_explicit_join(
         left_dataset_name: Dataset name for the left-hand side.
     """
     query = _copy_as_select(expression)
-    _qualify_physical_tables_with_dataset(query, left_dataset_name)
+    _qualify_unscoped_tables_with_dataset(query, left_dataset_name)
 
-    from_this = _from_source(query)
-    left_source_qualifier = _source_qualifier(from_this)
+    from_this = get_from_source(query)
+    left_source_qualifier = get_source_qualifier(from_this)
     if left_source_qualifier is None:
         raise ValueError(
             "Cannot apply explicit join: left-side query must have a named source "
             "in its FROM clause (a base table or an aliased derived table)."
         )
 
-    where_must_apply_before_join = kind in ("right", "full") and query.args.get("where") is not None
-    if not _is_flat_select(query) or where_must_apply_before_join:
-        query = _wrap_as_derived_table(query, left_source_qualifier)
+    query = _seal_left_side(query, left_source_qualifier, kind)
 
     _qualify_unscoped_predicate_columns(query, left_source_qualifier)
 
@@ -589,8 +531,8 @@ def _apply_explicit_join(
     if target.subquery is not None:
         # transformed relation: embed its query as a subquery
         rhs_inner = target.subquery.copy()
-        _qualify_physical_tables_with_dataset(rhs_inner, target.dataset_name)
-        target_expr = _aliased_subquery(rhs_inner, target_qualifier)
+        _qualify_unscoped_tables_with_dataset(rhs_inner, target.dataset_name)
+        target_expr = aliased_subquery(rhs_inner, target_qualifier)
     else:
         target_expr = sge.Table(
             this=sge.to_identifier(target.table_name, quoted=True),

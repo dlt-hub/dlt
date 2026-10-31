@@ -11,11 +11,13 @@ import time
 from typing import Dict, Tuple
 
 from dlt.common.typing import TDataItems
+from dlt.common.utils import uniq_id
 from dlt.common.schema import TTableSchema
 from dlt.common.destination.capabilities import TLoaderParallelismStrategy
 from tests.pipeline.utils import (
     assert_table_column,
 )
+from tests.utils import sum_job_metrics_by_table
 
 
 def run_pipeline(
@@ -159,3 +161,71 @@ def test_normalize_compression_with_spawn_workers() -> None:
 
     info = p.load()
     assert_table_column(p, "data", data, info=info)
+
+
+@pytest.mark.parametrize("workers", (4, 8), ids=("4 norm workers", "8 norm workers"))
+def test_step_table_metrics_with_file_rotation_and_workers(workers: int) -> None:
+    os.environ["DATA_WRITER__FILE_MAX_ITEMS"] = "1000"
+    os.environ["NORMALIZE__WORKERS"] = str(workers)
+    os.environ["NORMALIZE__DATA_WRITER__FILE_MAX_ITEMS"] = "1000"
+
+    row_count = 2000
+    friend_rows = sum(i % 5 for i in range(row_count))
+
+    @dlt.resource
+    def countries() -> TDataItems:
+        for i in range(100):
+            yield {"code": i, "name": f"c{i}"}
+
+    @dlt.resource
+    def famous_people() -> TDataItems:
+        for i in range(row_count):
+            yield {"id": i, "friend_names": [f"f{j}" for j in range(i % 5)]}
+
+    pipeline = dlt.pipeline(uniq_id(), destination="duckdb", dev_mode=True)
+    extract_info = pipeline.extract([countries(), famous_people()])
+    normalize_info = pipeline.normalize()
+
+    extract_load_id = extract_info.loads_ids[0]
+    extract_metrics = extract_info.metrics[extract_load_id][0]
+    extract_table_counts = sum_job_metrics_by_table(extract_metrics["job_metrics"])
+    assert (
+        extract_metrics["table_metrics"]["countries"].items_count
+        == extract_table_counts["countries"]
+    )
+    assert (
+        extract_metrics["table_metrics"]["famous_people"].items_count
+        == extract_table_counts["famous_people"]
+    )
+    assert (
+        extract_metrics["resource_metrics"]["countries"].items_count
+        == extract_table_counts["countries"]
+    )
+    assert (
+        extract_metrics["resource_metrics"]["famous_people"].items_count
+        == extract_table_counts["famous_people"]
+    )
+
+    normalize_load_id = normalize_info.loads_ids[0]
+    normalize_metrics = normalize_info.metrics[normalize_load_id][0]
+    normalize_table_counts = sum_job_metrics_by_table(normalize_metrics["job_metrics"])
+    assert normalize_info.row_counts["countries"] == normalize_table_counts["countries"] == 100
+    assert (
+        normalize_info.row_counts["famous_people"]
+        == normalize_table_counts["famous_people"]
+        == row_count
+    )
+    assert (
+        normalize_info.row_counts["famous_people__friend_names"]
+        == normalize_table_counts["famous_people__friend_names"]
+        == friend_rows
+    )
+
+    load_info = pipeline.load()
+    with pipeline.sql_client() as client:
+        assert client.execute_sql("SELECT COUNT(*) FROM famous_people")[0][0] == row_count
+        assert (
+            client.execute_sql("SELECT COUNT(*) FROM famous_people__friend_names")[0][0]
+            == friend_rows
+        )
+    assert load_info.loads_ids == normalize_info.loads_ids

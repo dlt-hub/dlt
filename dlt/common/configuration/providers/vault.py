@@ -1,5 +1,7 @@
 import abc
 import contextlib
+import re
+import string
 from typing import Any, Dict, Optional, Set, Tuple
 
 from dlt.common import logger
@@ -11,6 +13,25 @@ from dlt.common.configuration.specs.base_configuration import is_secret_hint
 from .doc import BaseDocProvider
 
 SECRETS_TOML_KEY = "dlt_secrets_toml"
+
+# translation table that removes punctuation from secret name components
+# "-" and "_" are allowed in secret names by all supported vaults so we keep them
+PUNCTUATION_TRANSLATOR = str.maketrans("", "", "".join(set(string.punctuation) - {"-", "_"}))
+WHITESPACE_RE = re.compile(r"\s+")
+
+
+def normalize_key(in_string: str) -> str:
+    """Replaces punctuation characters in a string
+
+    Note: We exclude `_` and `-` from punctuation characters
+
+    Args:
+        in_string(str): input string
+
+    Returns:
+        (str): a string without punctuation characters and whitespaces
+    """
+    return WHITESPACE_RE.sub("", in_string.translate(PUNCTUATION_TRANSLATOR))
 
 
 class VaultDocProvider(BaseDocProvider):

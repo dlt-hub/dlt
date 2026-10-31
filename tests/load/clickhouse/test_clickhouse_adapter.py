@@ -3,6 +3,7 @@ import pytest
 from typing import Generator, Dict, List, Literal, cast
 
 import dlt
+from dlt.common.destination.exceptions import SchemaUpdateTerminalError
 from dlt.common.schema.exceptions import UnboundColumnException
 from dlt.common.schema.typing import TColumnSchema, TTableSchemaColumns
 from dlt.destinations.adapters import clickhouse_adapter
@@ -30,6 +31,7 @@ from tests.load.clickhouse.utils import (
     get_create_table_query,
     get_deployment_type,
     get_partition_key,
+    get_primary_key,
     get_sorting_key,
 )
 from tests.load.utils import DestinationTestConfiguration, destinations_configs
@@ -218,6 +220,8 @@ def test_clickhouse_adapter_sort(
     sql_client = cast(ClickHouseSqlClient, pipe.sql_client())
     sorting_key = get_sorting_key(sql_client, table_name=res.name)
     assert sorting_key == expected_sorting_key
+    # without a `primary_key` hint ClickHouse derives the primary index from the sorting key
+    assert get_primary_key(sql_client, table_name=res.name) == expected_sorting_key
 
 
 # NOTE: if you update `test_clickhouse_adapter_partition`, check if the equivalent
@@ -508,6 +512,9 @@ def test_clickhouse_adapter_expr_fails(
     with pytest.raises(PipelineStepFailed) as pip_ex:
         pipe.run(res_upper, **destination_config.run_kwargs)
     cause = pip_ex.value.__cause__
+    # happens during schema update
+    assert isinstance(cause, SchemaUpdateTerminalError)
+    cause = cause.__cause__
     assert isinstance(cause, DatabaseTerminalException)
     assert str(cause).startswith("Code: 47.")  # UNKNOWN_IDENTIFIER
 
@@ -521,6 +528,8 @@ def test_clickhouse_adapter_expr_fails(
     with pytest.raises(PipelineStepFailed) as pip_ex:
         pipe.run(res_nullable, **destination_config.run_kwargs)
     cause = pip_ex.value.__cause__
+    assert isinstance(cause, SchemaUpdateTerminalError)
+    cause = cause.__cause__
     assert isinstance(cause, DatabaseTerminalException)
     assert str(cause).startswith("Code: 44.")  # ILLEGAL_COLUMN
 

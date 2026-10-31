@@ -1,9 +1,10 @@
 import tomlkit
 import yaml
-from typing import Any, Callable, Dict, MutableMapping, Sequence, Optional, Tuple, Type
+from contextlib import contextmanager
+from typing import Any, Callable, Dict, Iterator, MutableMapping, Sequence, Optional, Tuple, Type
 
 from dlt.common.configuration.utils import auto_cast, auto_config_fragment
-from dlt.common.utils import update_dict_nested
+from dlt.common.utils import clone_dict_nested, update_dict_nested
 
 from .provider import ConfigProvider, get_key_name
 
@@ -19,12 +20,18 @@ class BaseDocProvider(ConfigProvider):
     def get_key_name(key: str, *sections: str) -> str:
         return get_key_name(key, ".", *sections)
 
-    def get_value(
-        self, key: str, hint: Type[Any], pipeline_name: str, *sections: str
-    ) -> Tuple[Optional[Any], str]:
+    @staticmethod
+    def get_key_path(key: str, pipeline_name: Optional[str], *sections: str) -> Tuple[str, ...]:
+        """Returns a path to `key` in the config document"""
         full_path = sections + (key,)
         if pipeline_name:
             full_path = (pipeline_name,) + full_path
+        return full_path
+
+    def get_value(
+        self, key: str, hint: Type[Any], pipeline_name: str, *sections: str
+    ) -> Tuple[Optional[Any], str]:
+        full_path = self.get_key_path(key, pipeline_name, *sections)
         full_key = self.get_key_name(key, pipeline_name, *sections)
         node = self._config_doc
         try:
@@ -57,6 +64,15 @@ class BaseDocProvider(ConfigProvider):
         self._config_doc = self._set_fragment(
             self._config_doc, key, value_or_fragment, pipeline_name, *sections
         )
+
+    @contextmanager
+    def preserve(self) -> Iterator[None]:
+        """Restores the config doc on exit, undoing any values written within the context."""
+        saved = clone_dict_nested(self._config_doc)
+        try:
+            yield
+        finally:
+            self._config_doc = saved
 
     def to_toml(self) -> str:
         return tomlkit.dumps(self._config_doc)

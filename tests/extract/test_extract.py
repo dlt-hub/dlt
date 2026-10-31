@@ -1,29 +1,49 @@
-from typing import Dict, List, Optional, Any
+from datetime import date  # noqa: I251
+from typing import Dict, Iterator, List, NamedTuple, Optional, Any, Tuple, cast
 import pytest
 import os
 
 import dlt
 from dlt.common import json
+from dlt.common.configuration import inject_section
+from dlt.common.configuration.container import Container
+from dlt.common.configuration.specs import ConfigSectionContext, known_sections
+from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.data_types.typing import TDataType
+from dlt.common.exceptions import TypeErrorWithKnownTypes
+from dlt.common.metrics import DataWriterMetrics, TDataLocation
+from dlt.common.pipeline import StateInjectableContext, TPipelineState
 from dlt.common.schema.utils import is_nested_table, may_be_nested
 from dlt.common.storages import (
     SchemaStorage,
     SchemaStorageConfiguration,
     NormalizeStorageConfiguration,
 )
+from dlt.common.storages.load_package import TLoadPackageState, default_load_package_state
 from dlt.common.storages.schema_storage import SchemaStorage
-from dlt.common.schema.typing import TColumnSchema, TWriteDisposition
+from dlt.common.schema.typing import TColumnSchema, TWriteDisposition, TWriteDispositionConfig
 from dlt.common.typing import TTableNames, TDataItems
 from dlt.common.utils import uniq_id
 
 from dlt.extract import DltResource, DltSource
-from dlt.extract.exceptions import DataItemRequiredForDynamicTableHints, ResourceExtractionError
+from dlt.extract.exceptions import (
+    DataItemRequiredForDynamicTableHints,
+    DataLocationKindRequired,
+    ResourceExtractionError,
+)
 from dlt.extract.extract import ExtractStorage, Extract
+from dlt.extract.utils import get_unbalanced_files_warning
 from dlt.extract.hints import TResourceNestedHints, make_hints, make_nested_hints
 from dlt.extract.items_transform import ValidateItem, MetricsItem
 from dlt.extract.items import TableNameMeta, DataItemWithMeta
 
-from tests.utils import MockPipeline, clean_test_storage, get_test_storage_root
+from tests.utils import (
+    MockPipeline,
+    capture_dlt_logger,
+    clean_test_storage,
+    get_test_storage_root,
+    sum_job_metrics_by_table,
+)
 from tests.extract.utils import expect_extracted_file, assert_written_tables_are_computed
 
 NESTED_DATA = [
@@ -645,7 +665,13 @@ def test_extract_renamed_clone_and_parent(extract_step: Extract):
 def expect_tables(extract_step: Extract, resource: DltResource) -> dlt.Schema:
     source = DltSource(dlt.Schema("selectables"), "module", [resource(10)])
     load_id = extract_step.extract_storage.create_load_package(source.discover_schema())
-    extract_step._extract_single_source(load_id, source, max_parallel_items=5, workers=1)
+    extract_step._extract_single_source(
+        load_id,
+        source,
+        max_parallel_items=5,
+        workers=1,
+        package_state=default_load_package_state(),
+    )
     # odd and even tables must be in the source schema
     assert len(source.schema.data_tables(include_incomplete=True)) == 2
     assert "odd_table" in source.schema._schema_tables
@@ -668,7 +694,13 @@ def expect_tables(extract_step: Extract, resource: DltResource) -> dlt.Schema:
     source = source.with_resources(resource.name)
     source.selected_resources[resource.name].bind(10).select_tables("odd_table")
     load_id = extract_step.extract_storage.create_load_package(source.discover_schema())
-    extract_step._extract_single_source(load_id, source, max_parallel_items=5, workers=1)
+    extract_step._extract_single_source(
+        load_id,
+        source,
+        max_parallel_items=5,
+        workers=1,
+        package_state=default_load_package_state(),
+    )
     assert len(source.schema.data_tables(include_incomplete=True)) == 1
     assert "odd_table" in source.schema._schema_tables
     extract_step.extract_storage.commit_new_load_package(load_id, source.schema)
@@ -1193,13 +1225,22 @@ def _mark_seen_data(schema: dlt.Schema, *table_names: str) -> None:
 
 
 def _extract_resource(
-    extract_step: Extract, schema: dlt.Schema, resource: DltResource
+    extract_step: Extract,
+    schema: dlt.Schema,
+    resource: DltResource,
+    package_state: TLoadPackageState = None,
 ) -> Dict[str, Any]:
     """Extract a single resource into the shared `schema` (mirrors the per-run extraction) and
     return its per-table writer metrics (table name -> DataWriterMetrics)."""
     source = DltSource(schema, "module", [resource])
     load_id = extract_step.extract_storage.create_load_package(schema)
-    extract_step._extract_single_source(load_id, source, max_parallel_items=5, workers=1)
+    extract_step._extract_single_source(
+        load_id,
+        source,
+        max_parallel_items=5,
+        workers=1,
+        package_state=package_state if package_state is not None else default_load_package_state(),
+    )
     table_metrics: Dict[str, Any] = extract_step._step_info_metrics(load_id)[0]["table_metrics"]
     extract_step.extract_storage.commit_new_load_package(load_id, schema)
     for extractor in extract_step._last_extractors.values():
@@ -1207,12 +1248,63 @@ def _extract_resource(
     return table_metrics
 
 
+def test_extract_table_and_resource_metrics_with_file_rotation() -> None:
+    os.environ["DATA_WRITER__FILE_MAX_ITEMS"] = "500"
+
+    row_count = 1500
+
+    @dlt.resource
+    def alpha() -> TDataItems:
+        for i in range(row_count):
+            yield {"id": i}
+
+    @dlt.resource
+    def beta() -> TDataItems:
+        for i in range(100):
+            yield {"n": i}
+
+    pipeline = dlt.pipeline(uniq_id(), destination="duckdb", dev_mode=True)
+    extract_info = pipeline.extract([alpha(), beta()])
+    load_id = extract_info.loads_ids[0]
+    metrics = extract_info.metrics[load_id][0]
+    expected_table_counts = sum_job_metrics_by_table(metrics["job_metrics"])
+
+    assert metrics["table_metrics"]["alpha"].items_count == expected_table_counts["alpha"]
+    assert metrics["table_metrics"]["beta"].items_count == expected_table_counts["beta"]
+    assert metrics["resource_metrics"]["alpha"].items_count == expected_table_counts["alpha"]
+    assert metrics["resource_metrics"]["beta"].items_count == expected_table_counts["beta"]
+
+
+def test_extract_resource_metrics_with_interleaved_tables() -> None:
+    # a resource dispatching to several tables whose writers stay open interleaves its jobs with
+    # another resource's, so the same resource's tables are non-adjacent in job_metrics
+    @dlt.resource(table_name=lambda item: f"multi_{item['bucket']}")
+    def multi() -> TDataItems:
+        for i in range(1000):
+            yield {"id": i, "bucket": i % 2}
+
+    @dlt.resource
+    def other() -> TDataItems:
+        for i in range(500):
+            yield {"id": i}
+
+    pipeline = dlt.pipeline(uniq_id(), destination="duckdb", dev_mode=True)
+    extract_info = pipeline.extract([multi(), other()])
+    load_id = extract_info.loads_ids[0]
+    metrics = extract_info.metrics[load_id][0]
+    expected_table_counts = sum_job_metrics_by_table(metrics["job_metrics"])
+
+    expected_multi = expected_table_counts["multi_0"] + expected_table_counts["multi_1"]
+    assert metrics["resource_metrics"]["multi"].items_count == expected_multi
+    assert metrics["resource_metrics"]["other"].items_count == expected_table_counts["other"]
+
+
 @pytest.mark.parametrize(
     "table_name,expected",
     [("items", "items"), ("MyItems", "my_items")],
     ids=["table_is_resource_name", "table_differs_from_resource_name"],
 )
-def test_handle_empty_tables_refreshes_static_write_disposition(
+def test_handle_empty_tables_does_not_mutate_disposition(
     extract_step: Extract, table_name: str, expected: str
 ) -> None:
     schema = dlt.Schema("empty_tables")
@@ -1273,59 +1365,66 @@ def test_handle_empty_tables_refreshes_static_write_disposition(
     metrics = _extract_resource(extract_step, schema, items_merge())
     assert expected not in metrics
 
-    # write disposition refreshed from the resource, with the full scd2 merge config applied
-    assert items_table["write_disposition"] == "merge"
-    assert items_table["x-merge-strategy"] == "scd2"
-    # scd2 validity columns were added by the merge config, normalized like on the data path
-    assert "valid_from" in items_table["columns"]
-    assert "valid_to" in items_table["columns"]
-    assert "ValidFrom" not in items_table["columns"]
-    # existing hints survive the isolated disposition update
+    # an empty run does NOT modify the table: the stored disposition and hints are left untouched,
+    # and the new scd2 merge config (incl. validity columns) is only applied once data arrives
+    assert items_table["write_disposition"] == "replace"
+    assert "x-merge-strategy" not in items_table
+    assert "valid_from" not in items_table["columns"]
+    assert "valid_to" not in items_table["columns"]
+    # existing hints are preserved because the table is not rewritten
     assert items_table["columns"]["id"]["primary_key"] is True
     assert items_table["columns"]["id"]["data_type"] == "bigint"
     assert items_table["columns"]["value"]["cluster"] is True
-    assert items_table["x-custom"] == "keep-me"
+    assert items_table["x-custom"] == "keep-me"  # type: ignore[typeddict-item]
+
+
+def _items_with_variant_and_pseudo_roots(
+    wd: TWriteDispositionConfig,
+    variant_wd: Optional[TWriteDispositionConfig],
+    nested_wd: TWriteDispositionConfig,
+    data: Any,
+) -> DltResource:
+    """`items` with the variant `OtherItems`. A primary key in the nested hints breaks `SubItems` of
+    both tables out into pseudo-roots with `nested_wd`. A `None` `variant_wd` keeps the resource
+    write disposition."""
+
+    # a column makes the root complete (so it survives the seen_data filter)
+    @dlt.resource(
+        name="items",
+        write_disposition=wd,
+        columns=[{"name": "id", "data_type": "bigint"}],
+        nested_hints={
+            "SubItems": make_nested_hints(
+                primary_key="Id",
+                write_disposition=nested_wd,
+                columns=[{"name": "id", "data_type": "bigint"}],
+            )
+        },
+    )
+    def items() -> Any:
+        yield from data
+
+    # the variant has a non-normalized name; it inherits the nested hints
+    items.apply_hints(
+        table_name="OtherItems", write_disposition=variant_wd, create_table_variant=True
+    )
+    return items
+
+
+def _items_and_variant_data() -> List[Any]:
+    return [
+        {"Id": 1, "SubItems": [{"Id": 101}]},
+        dlt.mark.with_table_name({"Id": 2, "SubItems": [{"Id": 102}]}, "OtherItems"),
+    ]
 
 
 def test_handle_empty_tables_variant_pseudo_root_no_cascade(extract_step: Extract) -> None:
-    """Nested hints that break nesting (a primary key) create a pseudo-root table - both for the
-    default table and for a variant. On an empty run every table is refreshed from the current
-    hints: the default root from the resource hints, the variant (declared with a non-normalized
-    name) from its own variant hints keyed by the raw name, and each pseudo-root by re-deriving its
-    write disposition from the parent's nested hints. Re-deriving reads the parent's nested hints
-    only (it never recomputes a pseudo-root as a root), so no spurious cascade tables are created.
+    """Nested hints that break nesting (a primary key) create a pseudo-root table for both the
+    default table and a variant. An empty run does not modify these tables and never recomputes a
+    pseudo-root as a root, so no spurious cascade tables are created.
     """
     schema = dlt.Schema("empty_tables")
-
-    def make_resource(
-        wd: TWriteDisposition,
-        variant_wd: TWriteDisposition,
-        nested_wd: TWriteDisposition,
-        data: Any,
-    ) -> DltResource:
-        # a column makes the root complete (so it survives the seen_data filter); the nested hint's
-        # primary key breaks nesting into a pseudo-root that carries its own disposition
-        @dlt.resource(
-            name="items",
-            write_disposition=wd,
-            columns=[{"name": "id", "data_type": "bigint"}],
-            nested_hints={
-                "SubItems": make_nested_hints(
-                    primary_key="Id",
-                    write_disposition=nested_wd,
-                    columns=[{"name": "id", "data_type": "bigint"}],
-                )
-            },
-        )
-        def items() -> Any:
-            yield from data
-
-        # the variant has a non-normalized name and its own write disposition; it inherits the
-        # (nesting-breaking) nested hints
-        items.apply_hints(
-            table_name="OtherItems", write_disposition=variant_wd, create_table_variant=True
-        )
-        return items
+    make_resource = _items_with_variant_and_pseudo_roots
 
     # the four tables exercised below: the default root + its pseudo-root, and the variant root +
     # its pseudo-root
@@ -1335,10 +1434,7 @@ def test_handle_empty_tables_variant_pseudo_root_no_cascade(extract_step: Extrac
 
     # run 1: replace with data for both the default table and the variant creates all four tables
     # (each root plus its broken-out, primary-keyed pseudo-root)
-    seed = [
-        {"Id": 1, "SubItems": [{"Id": 101}]},
-        dlt.mark.with_table_name({"Id": 2, "SubItems": [{"Id": 102}]}, "OtherItems"),
-    ]
+    seed = _items_and_variant_data()
     _extract_resource(extract_step, schema, make_resource("replace", "replace", "replace", seed))
     _mark_seen_data(schema, *all_tables)
     for pseudo in pseudo_roots:
@@ -1368,32 +1464,146 @@ def test_handle_empty_tables_variant_pseudo_root_no_cascade(extract_step: Extrac
     assert object_extractor.tables_with_items == set()
     assert object_extractor.tables_with_empty == set()
 
-    # run 3: default root -> append, variant -> merge, and the nested hint flips replace -> merge,
-    # all with no data. nothing is replace, so no table is truncated, but every disposition is
-    # refreshed from the current hints - including each pseudo-root, re-derived from the nested hints
+    # run 3: default root -> append, variant -> merge, and the nested hint changes replace -> merge,
+    # all with no data. nothing is replace, so no table is truncated. an empty run does not modify
+    # the schema, so every stored disposition stays at its previous (replace) value - the new hints
+    # would only be applied once data arrives
     metrics = _extract_resource(extract_step, schema, make_resource("append", "merge", "merge", []))
     for table in all_tables:
         assert table not in metrics
-    # the default root from the resource hints, the variant from its own (raw-name-keyed) hints -
-    # a normalized lookup would miss the variant and wrongly fall back to the resource root's append
-    assert schema.tables["items"]["write_disposition"] == "append"
-    assert schema.tables["other_items"]["write_disposition"] == "merge"
-    # each pseudo-root is re-derived from the parent's nested hints: replace -> merge
-    for pseudo in pseudo_roots:
-        assert schema.tables[pseudo]["write_disposition"] == "merge"
-    # re-deriving reads the parent's nested hints only, never recomputing a pseudo-root as a root,
-    # so no spurious cascade tables are created
+        assert schema.tables[table]["write_disposition"] == "replace"
+    # no pseudo-root is ever recomputed as a root, so no spurious cascade tables are created
     assert "items__sub_items__sub_items" not in schema.tables
     assert "other_items__sub_items__sub_items" not in schema.tables
 
 
+def test_extra_placeholders_of_variants_and_pseudo_roots(extract_step: Extract) -> None:
+    """Each root table and pseudo-root stores the values of `extra_placeholders` from the hints
+    that computed it in this extract."""
+    schema = dlt.Schema("placeholders")
+
+    def day_scope(day: Any) -> TWriteDispositionConfig:
+        return {
+            "disposition": "merge",
+            "strategy": "delete-insert",
+            "destination_scope": "day = {day}",
+            "extra_placeholders": {"day": day},
+        }
+
+    def items(
+        wd: TWriteDispositionConfig,
+        variant_wd: Optional[TWriteDispositionConfig],
+        nested_wd: TWriteDispositionConfig,
+    ) -> DltResource:
+        return _items_with_variant_and_pseudo_roots(
+            wd, variant_wd, nested_wd, _items_and_variant_data()
+        )
+
+    def extract_placeholders(resource: DltResource) -> Any:
+        package_state = default_load_package_state()
+        _extract_resource(extract_step, schema, resource, package_state)
+        return package_state.get("placeholders")
+
+    # the variant overrides the value, a function gets the name of each pseudo-root
+    assert extract_placeholders(
+        items(day_scope(1), day_scope(2), day_scope(lambda resource, table_name: table_name))
+    ) == {
+        "items": {"day": 1},
+        "items__sub_items": {"day": "items__sub_items"},
+        "other_items": {"day": 2},
+        "other_items__sub_items": {"day": "other_items__sub_items"},
+    }
+    # a variant without a write disposition uses the one of the resource
+    assert extract_placeholders(items(day_scope(1), None, "append")) == {
+        "items": {"day": 1},
+        "other_items": {"day": 1},
+    }
+    # only the variant merges
+    assert extract_placeholders(items("append", day_scope(2), "append")) == {
+        "other_items": {"day": 2}
+    }
+    # the variant is gone but the table keeps its `variant_name`
+    assert schema.tables["other_items"]["variant_name"] == "OtherItems"
+    resource = dlt.resource(_items_and_variant_data(), name="items", write_disposition=day_scope(3))
+    assert extract_placeholders(resource) == {"items": {"day": 3}, "other_items": {"day": 3}}
+    # the default normalization keeps the path separator in a root table name
+    resource = dlt.resource(
+        [{"id": 1}], name="orders", table_name="orders__eu", write_disposition=day_scope(4)
+    )
+    assert extract_placeholders(resource) == {"orders__eu": {"day": 4}}
+
+    # an scd2 boundary is stored like a placeholder, never in the schema
+    schema = dlt.Schema("scd2_placeholders")
+
+    def scd2(boundary: Any = None) -> TWriteDispositionConfig:
+        if boundary is None:
+            return {"disposition": "merge", "strategy": "scd2"}
+        return {"disposition": "merge", "strategy": "scd2", "boundary_timestamp": boundary}
+
+    assert extract_placeholders(
+        items(scd2("2024-01-01T00:00:00+00:00"), scd2(date(2024, 1, 2)), scd2("2024-01-03"))
+    ) == {
+        "items": {"boundary_timestamp": "2024-01-01T00:00:00+00:00"},
+        "items__sub_items": {"boundary_timestamp": "2024-01-03"},
+        "other_items": {"boundary_timestamp": date(2024, 1, 2)},
+        "other_items__sub_items": {"boundary_timestamp": "2024-01-03"},
+    }
+    # without a declared boundary the load uses the package creation time
+    assert extract_placeholders(items(scd2(), scd2(), scd2())) is None
+    assert all("x-boundary-timestamp" not in table for table in schema.tables.values())
+
+
+def test_extra_placeholders_resolved_after_extract(extract_step: Extract) -> None:
+    """A function in `extra_placeholders` runs once per table after the extract step, so it sees
+    the final incremental state. An empty materialized table gets the values too. The schema
+    keeps the merge conditions, never `extra_placeholders`."""
+    schema = dlt.Schema("placeholders")
+    calls: List[Tuple[str, str]] = []
+
+    def last_day(resource: DltResource, table_name: str) -> Any:
+        calls.append((resource.name, table_name))
+        return resource.incremental.incremental.last_value
+
+    @dlt.resource(
+        primary_key="id",
+        write_disposition={
+            "disposition": "merge",
+            "strategy": "delete-insert",
+            "destination_scope": "day = {day}",
+            "extra_placeholders": {"day": last_day, "tenant": "acme"},
+        },
+    )
+    def events(rows: List[Dict[str, Any]], day=dlt.sources.incremental("day")):
+        yield rows or dlt.mark.materialize_table_schema()
+
+    # the incremental keeps its state between the extracts
+    state: TPipelineState = {}
+
+    def extract_placeholders(rows: List[Dict[str, Any]]) -> Any:
+        calls.clear()
+        with Container().injectable_context(StateInjectableContext(state=state)):
+            load_id = extract_step.extract(DltSource(schema, "module", [events(rows)]), 20, 1)
+        package_state = extract_step.extract_storage.new_packages.get_load_package_state(load_id)
+        extract_step.extract_storage.commit_new_load_package(load_id, schema)
+        return package_state["placeholders"]
+
+    assert extract_placeholders([{"id": 1, "day": 1}, {"id": 2, "day": 3}]) == {
+        "events": {"day": 3, "tenant": "acme"}
+    }
+    assert calls == [("events", "events")]
+    assert schema.tables["events"]["x-merge-destination-scope"] == "day = {day}"  # type: ignore[typeddict-item]
+    assert "extra_placeholders" not in json.dumps(schema.to_dict())
+
+    # an empty materialized table has a merge job, so it gets the values too
+    assert extract_placeholders([]) == {"events": {"day": 3, "tenant": "acme"}}
+    assert calls == [("events", "events")]
+
+
 @pytest.mark.parametrize("dispatch", ["marked", "dynamic"])
-def test_handle_empty_tables_updates_dispatched_tables(
-    extract_step: Extract, dispatch: str
-) -> None:
+def test_handle_empty_tables_dispatched_tables(extract_step: Extract, dispatch: str) -> None:
     """Event-dispatch tables - created via with_table_name marks or a dynamic table_name function -
-    have their (static) write disposition refreshed on an empty run, and a replace table that gets
-    no data has an empty file written so it is truncated."""
+    keep their stored write disposition unchanged on an empty run, while a replace table that gets no
+    data has an empty file written so it is truncated."""
     schema = dlt.Schema("empty_tables")
 
     def make_resource(wd: TWriteDisposition, data: Any) -> DltResource:
@@ -1456,11 +1666,12 @@ def test_handle_empty_tables_updates_dispatched_tables(
     assert object_extractor.tables_with_items == {"my_issue"}
     assert object_extractor.tables_with_empty == set()
 
-    # run 4: switch to append with no data - tables are refreshed to append and NOT truncated
+    # run 4: switch to append with no data - not truncated, and an empty run leaves the stored
+    # disposition unchanged (still replace); the switch to append only takes effect once data arrives
     metrics = _extract_resource(extract_step, schema, make_resource("append", []))
     for table in tables:
         assert table not in metrics
-        assert schema.tables[table]["write_disposition"] == "append"
+        assert schema.tables[table]["write_disposition"] == "replace"
 
 
 @pytest.mark.parametrize("with_hints", [False, True], ids=["resource_columns", "import_hints"])
@@ -1668,12 +1879,11 @@ def test_handle_empty_tables_variant_not_redeclared_left_untouched(extract_step:
     # the stored-merge variant differs from the replace resource -> left untouched, not truncated
     assert "other_items" not in metrics
     assert schema.tables["other_items"]["write_disposition"] == "merge"
-    # the stored-replace variant is truncated even though it cannot be re-derived
+    # the stored-replace variant, its replace pseudo-root and the replace root are all truncated
+    # (the pseudo-root under the now-absent variant cannot be re-derived, yet is truncated because
+    # its stored disposition is replace)
     assert metrics["replace_items"].items_count == 0
-    # the replace pseudo-root under the (now absent) variant cannot be re-derived either, yet is
-    # truncated because its stored disposition is replace
     assert metrics["replace_items__sub_items"].items_count == 0
-    # the replace root is truncated
     assert metrics["items"].items_count == 0
 
 
@@ -1824,3 +2034,580 @@ def test_handle_empty_tables_pseudo_root_refreshed_then_truncated(extract_step: 
     metrics = _extract_resource(extract_step, schema, make_resource("replace", []))
     assert schema.tables[pseudo]["write_disposition"] == "replace"
     assert metrics[pseudo].items_count == 0
+
+
+def test_resource_inputs_default_to_code_location(extract_step: Extract) -> None:
+    """A resource that records no location reports the code it was created from"""
+
+    @dlt.resource
+    def no_inputs():
+        yield [{"id": 1}]
+
+    resource = no_inputs()
+    # the default is only added to the trace, the resource itself recorded nothing
+    assert resource.inputs == []
+
+    # without a source function, the resource function is the location
+    source = DltSource(dlt.Schema("no_inputs"), "module", [resource])
+    load_id = extract_step.extract(source, 20, 1)
+    step_info = extract_step.get_step_info(MockPipeline("buba", first_run=False))  # type: ignore[abstract]
+    resource_ref = "tests.extract.test_extract.test_resource_inputs_default_to_code_location"
+    assert step_info.metrics[load_id][0]["inputs"] == [
+        {
+            "kind": "code",
+            "location": resource_ref + ".<locals>.no_inputs",
+            "resource_name": "no_inputs",
+        }
+    ]
+    assert step_info.asdict()["inputs"] == [
+        {"load_id": load_id, "extract_idx": 0, **step_info.metrics[load_id][0]["inputs"][0]}
+    ]
+
+    @dlt.resource
+    def recorded():
+        resource = dlt.current.resource()
+        resource.add_input(
+            {"kind": "rest_api", "resource_name": resource.name, "location": "https://a.example"}
+        )
+        yield [{"id": 1}]
+
+    @dlt.transformer
+    def enrich(item):
+        yield item
+
+    @dlt.source
+    def shop():
+        return no_inputs, recorded, no_inputs | enrich, dlt.resource([{"id": 1}], name="static")
+
+    # in a source, all resources point at the source function, a recorded location is kept
+    # and a transformer has its parent as an upstream
+    load_id = extract_step.extract(shop(), 20, 1)
+    step_info = extract_step.get_step_info(MockPipeline("buba", first_run=False))  # type: ignore[abstract]
+    source_location = {"kind": "code", "location": resource_ref + ".<locals>.shop"}
+    assert sorted(
+        step_info.metrics[load_id][0]["inputs"], key=lambda location: location["resource_name"]
+    ) == [
+        {**source_location, "resource_name": "no_inputs"},
+        {"kind": "rest_api", "location": "https://a.example", "resource_name": "recorded"},
+        {**source_location, "resource_name": "static"},
+    ]
+
+
+def test_resource_inputs_recorded(extract_step: Extract) -> None:
+    # a resource may join several locations, each is recorded separately
+    @dlt.resource
+    def with_input():
+        resource = dlt.current.resource()
+        resource.add_input(
+            {
+                "kind": "rest_api",
+                "resource_name": resource.name,
+                "location": "https://api.example.com",
+                "version": "v1",
+            }
+        )
+        resource.add_input(
+            {
+                "kind": "dataset",
+                "resource_name": resource.name,
+                "location": "duckdb:///ref.duckdb",
+            }
+        )
+        yield [{"id": 1}]
+
+    # every item filtered out, locations must still be reported
+    @dlt.resource
+    def all_filtered():
+        resource = dlt.current.resource()
+        resource.add_input(
+            {"kind": "files", "resource_name": resource.name, "location": "s3://bucket"}
+        )
+        yield [{"id": 1}]
+
+    source = DltSource(
+        dlt.Schema("inputs"),
+        "module",
+        [with_input(), all_filtered().add_filter(lambda _: False)],
+    )
+    load_id = extract_step.extract(source, 20, 1)
+    step_info = extract_step.get_step_info(MockPipeline("buba", first_run=False))  # type: ignore[abstract]
+
+    inputs = step_info.metrics[load_id][0]["inputs"]
+    assert inputs == [
+        {
+            "kind": "rest_api",
+            "location": "https://api.example.com",
+            "version": "v1",
+            "resource_name": "with_input",
+        },
+        {
+            "kind": "dataset",
+            "location": "duckdb:///ref.duckdb",
+            "resource_name": "with_input",
+        },
+        {"kind": "files", "location": "s3://bucket", "resource_name": "all_filtered"},
+    ]
+    # flattened rows carry the load id and the extract index
+    assert step_info.asdict()["inputs"] == [
+        {"load_id": load_id, "extract_idx": 0, **location} for location in inputs
+    ]
+
+
+def test_resource_inputs_kind_defaults_to_source_name(extract_step: Extract) -> None:
+    @dlt.resource
+    def no_kind():
+        # kind is required by the type, the runtime fallback serves dynamic callers
+        resource = dlt.current.resource()
+        resource.add_input(
+            {"resource_name": resource.name, "location": "sftp://host/path"}  # type: ignore[typeddict-item]
+        )
+        yield [{"id": 1}]
+
+    source = DltSource(dlt.Schema("my_sftp"), "module", [no_kind()])
+    load_id = extract_step.extract(source, 20, 1)
+    step_info = extract_step.get_step_info(MockPipeline("buba", first_run=False))  # type: ignore[abstract]
+    assert step_info.metrics[load_id][0]["inputs"] == [
+        {"location": "sftp://host/path", "kind": "my_sftp", "resource_name": "no_kind"}
+    ]
+
+    # a resource that belongs to no source has no `kind` to default to
+    standalone = dlt.resource([{"id": 1}], name="orders")
+    with pytest.raises(DataLocationKindRequired) as kind_ex:
+        standalone.add_input({"resource_name": "orders", "location": "sftp://host/path"})  # type: ignore[typeddict-item]
+    assert kind_ex.value.resource_name == "orders"
+    assert standalone.inputs == []
+
+
+def test_resource_inputs_of_pipe_root(extract_step: Extract) -> None:
+    """A pipe root feeding a transformer is extracted but not selected, its inputs still count"""
+
+    @dlt.resource
+    def files():
+        resource = dlt.current.resource()
+        resource.add_input(
+            {  # type: ignore[typeddict-unknown-key]
+                "kind": "filesystem",
+                "resource_name": resource.name,
+                "location": "file:///bucket",
+                "glob": "*.csv",
+            },
+            # this instance is piped into a second transformer below, like the filesystem
+            # source it only reports the location of the run in progress
+            replace=True,
+        )
+        yield [{"id": 1}]
+
+    @dlt.transformer
+    def read(item):
+        # a transformer records no inputs of its own, its upstream is an edge in the dag
+        yield item
+
+    source = DltSource(dlt.Schema("piped"), "module", [files | read])
+    assert list(source.selected_resources.keys()) == ["read"]
+
+    load_id = extract_step.extract(source, 20, 1)
+    step_info = extract_step.get_step_info(MockPipeline("buba", first_run=False))  # type: ignore[abstract]
+    metrics = step_info.metrics[load_id][0]
+    assert metrics["inputs"] == [
+        {
+            "kind": "filesystem",
+            "location": "file:///bucket",
+            "glob": "*.csv",
+            "resource_name": "files",
+        }
+    ]
+    assert ("files", "read") in metrics["dag"]
+
+    # a transformer that does read a location of its own is recorded, like a dependent rest_api
+    # endpoint. being fed by `files` is still not an input, only the dag edge says so
+    @dlt.transformer
+    def fetch_detail(item):
+        resource = dlt.current.resource()
+        resource.add_input(
+            {
+                "kind": "rest_api",
+                "resource_name": resource.name,
+                "location": "https://api.example.com",
+            }
+        )
+        yield item
+
+    source = DltSource(dlt.Schema("piped_reader"), "module", [files | fetch_detail])
+    load_id = extract_step.extract(source, 20, 1)
+    step_info = extract_step.get_step_info(MockPipeline("buba", first_run=False))  # type: ignore[abstract]
+    metrics = step_info.metrics[load_id][0]
+    assert metrics["inputs"] == [
+        {
+            "kind": "rest_api",
+            "location": "https://api.example.com",
+            "resource_name": "fetch_detail",
+        },
+        {
+            "kind": "filesystem",
+            "location": "file:///bucket",
+            "glob": "*.csv",
+            "resource_name": "files",
+        },
+    ]
+    assert ("files", "fetch_detail") in metrics["dag"]
+
+
+def test_resource_inputs_are_recorded_as_added(extract_step: Extract) -> None:
+    """Recording is additive, a resource reading the same location on every page says so"""
+
+    @dlt.resource
+    def repeats():
+        for page in range(3):
+            resource = dlt.current.resource()
+            resource.add_input(
+                {"kind": "api", "resource_name": resource.name, "location": "https://example.com"}
+            )
+            yield [{"id": page}]
+
+    source = DltSource(dlt.Schema("repeats"), "module", [repeats()])
+    load_id = extract_step.extract(source, 20, 1)
+    step_info = extract_step.get_step_info(MockPipeline("buba", first_run=False))  # type: ignore[abstract]
+    assert (
+        step_info.metrics[load_id][0]["inputs"]
+        == [{"kind": "api", "location": "https://example.com", "resource_name": "repeats"}] * 3
+    )
+
+
+def test_resource_inputs_survive_cloning(extract_step: Extract) -> None:
+    """Locations recorded on a resource are kept by its bound, renamed and sourced copies"""
+
+    @dlt.resource
+    def orders():
+        yield [{"id": 1}]
+
+    orders.add_input(
+        {"kind": "rest_api", "resource_name": "orders", "location": "https://a.example"}
+    )
+    bound = orders()
+    renamed = orders.with_name("orders_2")
+    assert bound.inputs == renamed.inputs == orders.inputs
+
+    # a copy is independent of the original
+    bound.add_input({"kind": "files", "resource_name": "orders", "location": "s3://bucket"})
+    assert len(orders.inputs) == 1
+
+    source = DltSource(dlt.Schema("cloned"), "module", [orders(), renamed])
+    load_id = extract_step.extract(source, 20, 1)
+    step_info = extract_step.get_step_info(MockPipeline("buba", first_run=False))  # type: ignore[abstract]
+    assert step_info.metrics[load_id][0]["inputs"] == [
+        {"kind": "rest_api", "location": "https://a.example", "resource_name": "orders"},
+        {"kind": "rest_api", "location": "https://a.example", "resource_name": "orders_2"},
+    ]
+
+
+def test_resource_inputs_replace_drops_all_previous() -> None:
+    resource = dlt.resource([{"id": 1}], name="data")
+    resource.add_input({"kind": "api", "resource_name": "data", "location": "https://a.example"})
+    resource.add_input({"kind": "files", "resource_name": "data", "location": "s3://bucket"})
+    assert len(resource.inputs) == 2
+
+    # locations of other kinds go too, replace is not a per kind update
+    resource.add_input(
+        {"kind": "api", "resource_name": "data", "location": "https://b.example"}, replace=True
+    )
+    assert resource.inputs == [
+        {"kind": "api", "resource_name": "data", "location": "https://b.example"}
+    ]
+
+
+def test_resource_inputs_reject_invalid_location() -> None:
+    """A location is recorded when the resource is built, so a bad one fails right there"""
+
+    @dlt.resource
+    def data():
+        yield [{"id": 1}]
+
+    with pytest.raises(TypeErrorWithKnownTypes):
+        data().add_input("not a location")  # type: ignore[arg-type]
+
+    # a bad location does not disturb what was recorded, even when it asks to replace
+    resource = dlt.resource([{"id": 1}], name="data")
+    resource.add_input({"kind": "api", "resource_name": "data", "location": "https://a.example"})
+    with pytest.raises(TypeErrorWithKnownTypes):
+        resource.add_input("not a location", replace=True)  # type: ignore[arg-type]
+    assert len(resource.inputs) == 1
+
+
+MB = 1024 * 1024
+DLT_TABLES = ["_dlt_pipeline_state", "_dlt_loads", "_dlt_version"]
+
+
+def _job_files(
+    table_name: str, sizes: List[int], file_format: str = "typed-jsonl"
+) -> List[DataWriterMetrics]:
+    return [
+        DataWriterMetrics(f"new_jobs/{table_name}.f{idx:03}.0.{file_format}", 1, size, 0.0, 0.0)
+        for idx, size in enumerate(sizes)
+    ]
+
+
+@pytest.mark.parametrize(
+    "files,workers,expected,not_expected",
+    [
+        pytest.param(_job_files("items", [32 * MB - 1]), 4, None, [], id="just-below-threshold"),
+        pytest.param(
+            _job_files("items", [32 * MB]),
+            4,
+            ["dlt extracted 1 file (32.0 MiB)", "use 25% of 4 workers"],
+            [],
+            id="at-threshold",
+        ),
+        pytest.param(_job_files("items", [100 * MB]), 1, None, [], id="single-worker"),
+        # three busy workers use 75% of the capacity
+        pytest.param(_job_files("items", [20 * MB] * 3), 4, None, [], id="idle-worker"),
+        # two equal files use exactly half of the capacity
+        pytest.param(
+            _job_files("items", [20 * MB] * 2),
+            4,
+            ["use 50% of 4 workers", "busiest one gets 20.0 MiB"],
+            [],
+            id="half-capacity",
+        ),
+        pytest.param(
+            _job_files("items", [20 * MB] * 2) + _job_files("other", [1 * MB]),
+            4,
+            None,
+            [],
+            id="just-above-half-capacity",
+        ),
+        pytest.param(
+            _job_files("items", [80 * MB]) + _job_files("other", [4 * MB] * 7),
+            4,
+            ["use 34% of 4 workers", "of `items`."],
+            ["`other`"],
+            id="dominant-file",
+        ),
+        pytest.param(_job_files("items", [8 * MB] * 8), 4, None, [], id="equal-files"),
+        # rotation leaves a small last file, file ids are random so it may sort anywhere
+        pytest.param(
+            _job_files("items", [8 * MB] * 7 + [20 * 1024]), 4, None, [], id="small-file-last"
+        ),
+        # the fifth file doubles the load of one worker, the others stay at exactly half
+        pytest.param(_job_files("items", [8 * MB] * 5), 4, None, [], id="half-load-not-idle"),
+        # files are cut by size, `a` takes three workers and shares the last one with `b`
+        pytest.param(
+            _job_files("a", [10 * MB] * 4) + _job_files("b", [1 * MB] * 4),
+            4,
+            None,
+            [],
+            id="uneven-tables",
+        ),
+        pytest.param(
+            _job_files("items", [100 * MB] * 2, "parquet"), 4, None, [], id="parquet-not-counted"
+        ),
+        # parquet and jsonl files are spread over all workers separately
+        pytest.param(
+            _job_files("arrow", [100 * MB] * 4, "parquet") + _job_files("items", [64 * MB]),
+            4,
+            ["dlt extracted 5 files (64.0 MiB)", "use 25% of 4 workers"],
+            ["`arrow`"],
+            id="parquet-and-one-jsonl",
+        ),
+        pytest.param(
+            _job_files("_dlt_pipeline_state", [100 * MB]) + _job_files("items", [1 * MB]),
+            4,
+            ["use 25% of 4 workers"],
+            ["_dlt_pipeline_state", "to split"],
+            id="dlt-table-not-named",
+        ),
+    ],
+)
+def test_unbalanced_files_warning(
+    files: List[DataWriterMetrics],
+    workers: int,
+    expected: Optional[List[str]],
+    not_expected: List[str],
+) -> None:
+    message = get_unbalanced_files_warning("pipe", "1234.5", files, {}, DLT_TABLES, workers)
+    if expected is None:
+        assert message is None
+        return
+    assert message is not None
+    for fragment in expected:
+        assert fragment in message
+    for fragment in not_expected:
+        assert fragment not in message
+
+
+@pytest.mark.parametrize(
+    "limits,remedy",
+    [
+        pytest.param(
+            (None, None),
+            "Set `file_max_items` or `file_max_bytes` in `[sources.data_writer]`",
+            id="not-set",
+        ),
+        pytest.param(
+            (15000, None), "Lower `file_max_items` (now 15000) or set `file_max_bytes`", id="items"
+        ),
+        pytest.param(
+            (None, 4000000),
+            "Lower `file_max_bytes` (now 4000000) or set `file_max_items`",
+            id="bytes",
+        ),
+        pytest.param(
+            (15000, 4000000),
+            "Lower `file_max_items` (now 15000) or `file_max_bytes` (now 4000000)",
+            id="both",
+        ),
+    ],
+)
+def test_unbalanced_files_warning_remedy(
+    limits: Tuple[Optional[int], Optional[int]], remedy: str
+) -> None:
+    files = _job_files("items", [100 * MB]) + _job_files("other", [100 * MB])
+    message = get_unbalanced_files_warning(
+        "pipe", "1234.5", files, {"items": limits, "other": limits}, DLT_TABLES, 4
+    )
+    assert f"{remedy} to split the files of `items`." in message
+
+
+@pytest.mark.parametrize(
+    "host,command",
+    [
+        ("dlt", "dlt pipeline pipe trace metrics --steps extract -v"),
+        ("dlthub", "dlthub local pipeline trace pipe metrics --steps extract -v"),
+    ],
+)
+def test_unbalanced_files_warning_metrics_command(
+    host: str, command: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr("dlt._workspace.cli.echo._CLI_HOST", host)
+    message = get_unbalanced_files_warning(
+        "pipe", "1234.5", _job_files("items", [100 * MB]), {}, DLT_TABLES, 4
+    )
+    assert f"Run `{command}` after the run to see the extracted files." in message
+
+
+def _rows(count: int) -> Iterator[Dict[str, Any]]:
+    for i in range(count):
+        yield {"id": i, "val": "A" * 20}
+
+
+def _extract_and_warn(
+    extract_step: Extract,
+    sources: List[DltSource],
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+    interactive: bool = False,
+) -> List[str]:
+    monkeypatch.setattr("dlt.extract.utils.NORMALIZE_PARALLEL_MIN_BYTES", 1024)
+    # xdist workers have no `__main__.__file__`, which dlt treats as an interactive session
+    monkeypatch.setattr("dlt.extract.extract.is_interactive", lambda: interactive)
+    # `Pipeline.extract` runs in the section context of its pipeline
+    with inject_section(
+        ConfigSectionContext(pipeline_name="pipe", sections=(known_sections.EXTRACT,))
+    ):
+        for source in sources:
+            extract_step.extract(source, 20, 1)
+            # the pipeline keeps the extracted schemas in its storage
+            extract_step.schema_storage.save_schema(source.schema)
+        with capture_dlt_logger(caplog) as caplog:
+            extract_step.warn_on_unbalanced_files("pipe")
+    return [r.message for r in caplog.records if r.message.startswith("dlt extracted")]
+
+
+@pytest.mark.parametrize(
+    "env,recommended_file_size,expected",
+    [
+        pytest.param(
+            {"NORMALIZE__WORKERS": "4"},
+            None,
+            [
+                "dlt extracted 1 file",
+                "use 25% of 4 workers",
+                (
+                    "Set `file_max_items` or `file_max_bytes` in `[sources.data_writer]` to split"
+                    " the files of `items`."
+                ),
+            ],
+            id="no-rotation",
+        ),
+        pytest.param({}, None, None, id="default-single-worker"),
+        pytest.param({"NORMALIZE__WORKERS": "1"}, None, None, id="single-worker"),
+        pytest.param(
+            {"PIPE__NORMALIZE__WORKERS": "4"},
+            None,
+            ["use 25% of 4 workers"],
+            id="pipeline-section-workers",
+        ),
+        # normalize fails on its own, extract does not
+        pytest.param({"NORMALIZE__WORKERS": "many"}, None, None, id="invalid-workers"),
+        pytest.param(
+            {"NORMALIZE__WORKERS": "4", "DATA_WRITER__FILE_MAX_ITEMS": "100"},
+            None,
+            None,
+            id="even-rotation",
+        ),
+        pytest.param(
+            {"NORMALIZE__WORKERS": "4", "SOURCES__DATA_WRITER__FILE_MAX_ITEMS": "1500"},
+            None,
+            [
+                # the first file holds 1500 of 2000 rows
+                "% of 4 workers",
+                (
+                    "Lower `file_max_items` (now 1500) or set `file_max_bytes` to split the files"
+                    " of `items`."
+                ),
+            ],
+            id="items-limit-too-high",
+        ),
+        pytest.param(
+            {"NORMALIZE__WORKERS": "4", "SOURCES__DATA_WRITER__FILE_MAX_BYTES": "100000000"},
+            None,
+            ["Lower `file_max_bytes` (now 100000000) or set `file_max_items`"],
+            id="bytes-limit-too-high",
+        ),
+        pytest.param(
+            {
+                "NORMALIZE__WORKERS": "4",
+                "SOURCES__MODULE__ROTATE__DATA_WRITER__FILE_MAX_ITEMS": "1500",
+            },
+            None,
+            ["Lower `file_max_items` (now 1500) or set `file_max_bytes`"],
+            id="source-section-limit",
+        ),
+        # the normalize section rotates normalized files, not the extracted ones
+        pytest.param(
+            {"NORMALIZE__WORKERS": "4", "NORMALIZE__DATA_WRITER__FILE_MAX_ITEMS": "100"},
+            None,
+            ["Set `file_max_items` or `file_max_bytes` in `[sources.data_writer]`"],
+            id="normalize-section-ignored",
+        ),
+        pytest.param(
+            {"NORMALIZE__WORKERS": "4"},
+            100000000,
+            ["Lower `file_max_bytes` (now 100000000) or set `file_max_items`"],
+            id="destination-file-size",
+        ),
+    ],
+)
+def test_extract_warns_on_unbalanced_files(
+    extract_step: Extract,
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+    env: Dict[str, str],
+    recommended_file_size: Optional[int],
+    expected: Optional[List[str]],
+) -> None:
+    os.environ.update(env)
+    caps = DestinationCapabilitiesContext.generic_capabilities()
+    caps.recommended_file_size = recommended_file_size
+    items = dlt.resource(_rows(2000), name="items")
+
+    with Container().injectable_context(caps):
+        messages = _extract_and_warn(
+            extract_step, [DltSource(dlt.Schema("rotate"), "module", [items])], monkeypatch, caplog
+        )
+
+    if expected is None:
+        assert messages == []
+        return
+    assert len(messages) == 1
+    for fragment in expected:
+        assert fragment in messages[0]

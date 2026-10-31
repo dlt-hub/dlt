@@ -322,6 +322,17 @@ class TestRESTClient:
 
         assert_pagination(list(pages_iter))
 
+    def test_oauth_jwt_auth_without_scopes(self):
+        auth = OAuthJWTAuth(
+            client_id="test-client-id",
+            private_key=TEST_PRIVATE_KEY,
+            auth_endpoint="https://api.example.com/oauth/token",
+            session=Client().session,
+        )
+
+        assert auth.scopes is None
+        assert "scope" not in auth.create_jwt_payload()
+
     def test_oauth_jwt_auth_success(self, rest_client: RESTClient):
         auth = OAuthJWTAuth(
             client_id="test-client-id",

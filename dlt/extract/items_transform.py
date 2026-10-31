@@ -23,7 +23,7 @@ from dlt.extract.utils import (
     wrap_iterator,
 )
 
-from dlt.extract.items import SupportsPipe
+from dlt.extract.items import HintsMeta, SupportsPipe
 
 
 ItemTransformFunctionWithMeta = Callable[[TDataItem, str], TAny]
@@ -166,7 +166,7 @@ class ValidateItem(ItemTransform[TDataItem, Dict[str, Any]]):
         """Computes table schema enforced by this validator. For dynamic (item dependent) or
         schemas with discriminator field use item and meta.
 
-        Return None if no authoratitative schema can be computed
+        Return None if no authoritative schema can be computed
         """
         return None
 
@@ -182,15 +182,31 @@ class LimitItem(ItemTransform[TDataItem, Dict[str, Any]]):
         self.max_time = max_time
         self.count_rows = count_rows
 
+    def __eq__(self, other: object) -> bool:
+        """Compares limit settings, ignores the iteration state."""
+        if not isinstance(other, LimitItem):
+            return NotImplemented
+        return (self.max_items, self.max_time, self.count_rows) == (
+            other.max_items,
+            other.max_time,
+            other.count_rows,
+        )
+
+    def __hash__(self) -> int:
+        return hash((self.max_items, self.max_time, self.count_rows))
+
     def bind(self, pipe: SupportsPipe) -> "LimitItem":
         # we also wrap iterators to make them stoppable
         if isinstance(pipe.gen, Iterator):
             pipe.replace_gen(wrap_iterator(pipe.gen))
 
+        self.pipe = pipe
         self.gen = pipe.gen
         self.count = 0
         self.exhausted = False
         self.start_time = time.monotonic()
+        if self.max_items == 0:
+            pipe.cut_off(pipe.gen_idx)
 
         return self
 
@@ -214,6 +230,10 @@ class LimitItem(ItemTransform[TDataItem, Dict[str, Any]]):
         if self.exhausted:
             return None
 
+        # an empty list that carries hints is not a page
+        if isinstance(meta, HintsMeta) and isinstance(item, list) and not item:
+            return item
+
         if self.count_rows:
             self.count += count_rows_in_items(item)
         else:
@@ -229,6 +249,8 @@ class LimitItem(ItemTransform[TDataItem, Dict[str, Any]]):
             self.exhausted = True
             if inspect.isgenerator(self.gen):
                 self.gen.close()
+            # items still in flight must not pass the steps before the limit, ie. incremental
+            self.pipe.cut_off(next(i for i in range(len(self.pipe)) if self.pipe[i] is self))
 
             # if max items is not 0, we return the last item
             # otherwise never return anything

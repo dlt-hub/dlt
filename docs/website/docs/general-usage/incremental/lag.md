@@ -3,19 +3,30 @@ title: Lag / Attribution window
 description: Use lag to refresh data within a specific time window
 keywords: [incremental loading, lag, attribution window]
 ---
+# Lag / Attribution window
 
 In many cases, certain data should be reacquired during incremental loading. For example, you may want to always capture the last 7 days of data when fetching daily analytics reports, or refresh Slack message replies with a moving window of 7 days. This is where the concept of "lag" or "attribution window" comes into play.
 
 The `lag` parameter is a float that supports several types of incremental cursors: `datetime`, `date`, `integer`, and `float`. It can only be used with `last_value_func` set to `min` or `max` (default is `max`).
 
-### How `lag` works
+## How `lag` works
 
 - **Datetime cursors**: `lag` is the number of seconds added or subtracted from the `last_value` loaded.
 - **Date cursors**: `lag` represents days.
 - **Numeric cursors (integer or float)**: `lag` respects the given unit of the cursor.
 
-This flexibility allows `lag` to adapt to different data contexts.
+The unit comes from the cursor type you **declare**, not from the format of the values in your data:
 
+1. the `Incremental` type argument: `dlt.sources.incremental[datetime]("created_at", lag=3600)`
+2. the type of `initial_value`: `"2024-01-01"` declares a date cursor, `"2024-01-01T00:00:00Z"` a datetime one
+3. only when neither is present, the cursor values in the data decide
+
+Only the lag computation coerces the last cursor value to the declared type, rows and stored state
+are left as they are, and the lagged value keeps the shape of the data. A date cursor takes the day of
+`"2024-05-07T10:00:00Z"` in the context timezone (UTC unless configured), lags it in days and hands back
+the start of that day, `"2024-04-09T00:00:00Z"` for 28 days, or its end with `last_value_func=min`, so
+the whole day stays in range. A datetime cursor turns `"2024-05-07"` into midnight of that day. A value
+that does not parse to the declared type raises an error.
 
 ### Example using `datetime` incremental cursor with `merge` as `write_disposition`
 
@@ -27,6 +38,8 @@ This example demonstrates how to use a `datetime` cursor with a `lag` parameter,
 This setup demonstrates how `lag` ensures that a defined period of data remains refreshed, capturing updates or changes within the attribution window.
 
 ```py
+import duckdb
+
 pipeline = dlt.pipeline(
     destination=dlt.destinations.duckdb(credentials=duckdb.connect(":memory:")),
 )

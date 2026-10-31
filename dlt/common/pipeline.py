@@ -50,16 +50,19 @@ from dlt.common.schema.typing import (
 )
 from dlt.common.storages.load_package import ParsedLoadJobFileName
 from dlt.common.storages.load_storage import LoadPackageInfo
-from dlt.common.time import ensure_pendulum_datetime_utc, precise_time
-from dlt.common.typing import DictStrAny, StrAny, SupportsHumanize, TColumnNames, NotRequired
+from dlt.common.time import ensure_pendulum_datetime, precise_time
+from dlt.common.typing import (
+    DictStrAny,
+    StrAny,
+    SupportsHumanize,
+    TColumnNames,
+    TRefreshMode,
+    NotRequired,
+)
 from dlt.common.data_writers.writers import TLoaderFileFormat
 from dlt.common.utils import RowCounts, merge_row_counts
 from dlt.common.versioned_state import TVersionedState
 from dlt.common.runtime.collector_base import Collector
-
-
-# TRefreshMode = Literal["full", "replace"]
-TRefreshMode = Literal["drop_sources", "drop_resources", "drop_data"]
 
 
 class _StepInfo(NamedTuple):
@@ -143,7 +146,18 @@ class StepInfo(SupportsHumanize, Generic[TStepMetricsCo]):
             # complete but failed job will not raise any exceptions
             failed_jobs = load_package.jobs["failed_jobs"]
             jobs_str = "no failed jobs" if not failed_jobs else f"{len(failed_jobs)} FAILED job(s)!"
-            msg += f"\nLoad package {load_package.load_id} is {cstr} and contains {jobs_str}"
+            retried_jobs = [
+                job for job in load_package.jobs["new_jobs"] if job.job_file_info.retry_count > 0
+            ]
+            if retried_jobs:
+                jobs_str += f" and {len(retried_jobs)} job(s) pending retry"
+            refresh_str = f" with refresh '{load_package.refresh}'" if load_package.refresh else ""
+            msg += (
+                f"\nLoad package {load_package.load_id}{refresh_str} is {cstr} and contains"
+                f" {jobs_str}"
+            )
+            if load_package.has_pending_transitions:
+                msg += ". Some jobs finished but were not yet moved (pending transitions)"
             if verbosity > 0:
                 for failed_job in failed_jobs:
                     msg += (
@@ -151,7 +165,7 @@ class StepInfo(SupportsHumanize, Generic[TStepMetricsCo]):
                     )
             if verbosity > 1:
                 msg += "\nPackage details:\n"
-                msg += load_package.asstr() + "\n"
+                msg += load_package.asstr(verbosity) + "\n"
         return msg
 
     @staticmethod
@@ -211,6 +225,7 @@ class ExtractInfo(StepInfo[ExtractMetrics], _ExtractInfo):
             "resource_metrics": [],
             "dag": [],
             "hints": [],
+            "inputs": [],
         }
         for load_id, metrics_list in self.metrics.items():
             for idx, metrics in enumerate(metrics_list):
@@ -226,11 +241,16 @@ class ExtractInfo(StepInfo[ExtractMetrics], _ExtractInfo):
                         for edge in metrics["dag"]
                     ]
                 )
-                load_metrics["hints"].extend(
-                    [
-                        {**extend, "resource_name": name, **hints}
-                        for name, hints in metrics["hints"].items()
-                    ]
+                for name, hints in metrics["hints"].items():
+                    hints_row = {**extend, "resource_name": name, **hints}
+                    if nested_hints := hints.get("nested_hints"):
+                        hints_row["nested_hints"] = [
+                            {**extend, "resource_name": name, **nested} for nested in nested_hints
+                        ]
+                    load_metrics["hints"].append(hints_row)
+                # traces restored from an older dlt have no inputs
+                load_metrics["inputs"].extend(
+                    [{**extend, **location} for location in metrics.get("inputs", [])]
                 )
                 load_metrics["job_metrics"].extend(
                     self.writer_metrics_asdict(metrics["job_metrics"], extend=extend)
@@ -334,7 +354,7 @@ class LoadInfo(StepInfo[LoadMetrics], _LoadInfo):
         d = super().asdict()
         # transform metrics
         d.pop("metrics")
-        load_metrics: Dict[str, List[Any]] = {"job_metrics": []}
+        load_metrics: Dict[str, List[Any]] = {"job_metrics": [], "outputs": []}
         for load_id, metrics_list in self.metrics.items():
             # one set of metrics per package id
             assert len(metrics_list) == 1
@@ -347,19 +367,35 @@ class LoadInfo(StepInfo[LoadMetrics], _LoadInfo):
                         **job_metrics._asdict(),
                     }
                 )
+            # traces restored from an older dlt have no outputs
+            load_metrics["outputs"].extend(
+                [{"load_id": load_id, **location} for location in metrics.get("outputs", [])]
+            )
 
         d.update(load_metrics)
         return d
 
     def asstr(self, verbosity: int = 0) -> str:
-        msg = f"Pipeline {self.pipeline.pipeline_name} load step completed in "
-        if self.started_at:
-            elapsed = self.finished_at - self.started_at
-            msg += humanize.precisedelta(elapsed)
+        name = self.pipeline.pipeline_name
+        if self.started_at and self.finished_at:
+            elapsed = humanize.precisedelta(self.finished_at - self.started_at)
+            msg = f"Pipeline {name} load step finished in {elapsed}"
+        elif self.started_at:
+            elapsed = humanize.precisedelta(
+                datetime.datetime.now(datetime.timezone.utc) - self.started_at
+            )
+            msg = f"Pipeline {name} load step started {elapsed} ago and did not finish"
         else:
-            msg += "---"
+            msg = f"Pipeline {name} load step did not start"
+        loaded_count = sum(1 for package in self.load_packages if package.state == "loaded")
+        total = len(self.loads_ids)
+        packages_str = (
+            f"{total} load package(s) were loaded"
+            if loaded_count == total
+            else f"{loaded_count} of {total} load package(s) were loaded"
+        )
         msg += (
-            f"\n{len(self.loads_ids)} load package(s) were loaded to destination"
+            f"\n{packages_str} to destination"
             f" {self.destination_name} and into dataset {self.dataset_name}\n"
         )
         if self.staging_name:
@@ -422,7 +458,7 @@ class WithStepInfo(ABC, Generic[TStepMetrics, TStepInfo]):
     def _step_info_update_metrics(
         self, load_id: str, metrics: TStepMetrics, immutable: bool = False
     ) -> None:
-        metrics["started_at"] = ensure_pendulum_datetime_utc(self._current_load_started)
+        metrics["started_at"] = ensure_pendulum_datetime(self._current_load_started)
         step_metrics = self._load_id_metrics[load_id]
         if immutable or len(step_metrics) == 0:
             step_metrics.append(metrics)
@@ -439,7 +475,7 @@ class WithStepInfo(ABC, Generic[TStepMetrics, TStepInfo]):
         # update finished at
         assert self._current_load_id is not None
         if finished:
-            metrics["finished_at"] = ensure_pendulum_datetime_utc(precise_time())
+            metrics["finished_at"] = ensure_pendulum_datetime(precise_time())
             self._current_load_id = None
             self._current_load_started = None
 
@@ -536,6 +572,10 @@ class SupportsPipeline(Protocol):
     """Stores last "good" run context, where run ends with successful loading of the data"""
     collector: Collector
     """A collector that tracks the progress of the pipeline"""
+
+    @property
+    def encryption_seed(self) -> str:
+        """Master secret derived from `pipeline_salt`. dlt encrypts load package secrets with it"""
 
     @property
     def has_pending_data(self) -> bool:

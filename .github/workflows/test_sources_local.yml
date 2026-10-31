@@ -51,10 +51,13 @@ jobs:
       run:
         shell: bash
     runs-on: blacksmith-8vcpu-ubuntu-2404
+    env:
+      # Prevent implicit resyncs by `uv run`; this is ignored by explicit `uv sync` commands.
+      UV_NO_SYNC: "1"
 
     steps:
       - name: Check out
-        uses: actions/checkout@master
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
 
       - name: Start postgres
         run: docker compose -f "tests/load/sources/sql_database/docker-compose.yml" up -d --wait postgres

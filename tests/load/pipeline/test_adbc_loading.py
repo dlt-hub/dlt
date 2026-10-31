@@ -39,6 +39,8 @@ def test_adbc_detection(destination_config: DestinationTestConfiguration) -> Non
         driver = "sqlite"
     elif driver == "sqlalchemy_mysql":
         driver = "mysql"
+    elif driver == "sqlalchemy_duckdb":
+        pytest.skip("ADBC ingestion not implemented for duckdb via sqlalchemy")
 
     assert has_adbc_driver(driver)[0] is True
 

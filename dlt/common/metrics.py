@@ -1,6 +1,20 @@
 import datetime  # noqa: I251
-from typing import Any, Dict, List, NamedTuple, Optional, Tuple  # noqa: 251
-from dlt.common.typing import TypedDict
+from typing import (
+    Any,
+    Callable,
+    Dict,
+    List,
+    Mapping,
+    NamedTuple,
+    Optional,
+    Sequence,
+    Tuple,
+    TypeVar,
+)  # noqa: 251
+from dlt.common.typing import NotRequired, TypedDict
+from dlt.common.utils import digest128
+
+TJobKey = TypeVar("TJobKey")
 
 
 class DataWriterMetrics(NamedTuple):
@@ -9,8 +23,11 @@ class DataWriterMetrics(NamedTuple):
     file_size: int
     created: float
     last_modified: float
+    files_count: Optional[int] = None
+    """Number of files the metrics sum up. None in metrics restored from traces of dlt versions
+    before 1.32, which did not store it."""
 
-    def __add__(self, other: Tuple[object, ...], /) -> Tuple[object, ...]:  # type: ignore[override]
+    def __add__(self, other: Tuple[object, ...], /) -> "DataWriterMetrics":
         if isinstance(other, DataWriterMetrics):
             return DataWriterMetrics(
                 self.file_path if self.file_path == other.file_path else "",
@@ -19,8 +36,29 @@ class DataWriterMetrics(NamedTuple):
                 self.file_size + other.file_size,
                 min(self.created, other.created),
                 max(self.last_modified, other.last_modified),
+                # a sum with an unknown count is unknown
+                (
+                    None
+                    if self.files_count is None or other.files_count is None
+                    else self.files_count + other.files_count
+                ),
             )
         return NotImplemented
+
+
+EMPTY_DATA_WRITER_METRICS = DataWriterMetrics("", 0, 0, 2**32, 0.0, 0)
+
+
+def aggregate_job_metrics(
+    job_metrics: Mapping[TJobKey, DataWriterMetrics],
+    key: Callable[[TJobKey], str],
+) -> Dict[str, DataWriterMetrics]:
+    """Sum writer metrics grouped by `key`, independent of input order."""
+    result: Dict[str, DataWriterMetrics] = {}
+    for job_key, metrics in job_metrics.items():
+        group_key = key(job_key)
+        result[group_key] = result.get(group_key, EMPTY_DATA_WRITER_METRICS) + metrics
+    return result
 
 
 class DataWriterAndCustomMetrics(DataWriterMetrics):
@@ -33,10 +71,11 @@ class DataWriterAndCustomMetrics(DataWriterMetrics):
         file_size: int,
         created: float,
         last_modified: float,
+        files_count: Optional[int] = None,
         custom_metrics: Dict[str, Any] = None,
     ) -> "DataWriterAndCustomMetrics":
         self = super(DataWriterAndCustomMetrics, cls).__new__(
-            cls, file_path, items_count, file_size, created, last_modified
+            cls, file_path, items_count, file_size, created, last_modified, files_count
         )
         self.custom_metrics = custom_metrics or {}
         return self
@@ -72,6 +111,59 @@ class ExtractDataInfo(TypedDict):
     data_type: str
 
 
+class TDataLocation(TypedDict):
+    """A logical data source or target: a dataset of tables, an API of endpoints, a bucket of files.
+
+    One entry per location. What a resource touched inside it is listed by the `kind`-specific
+    subclass. Only facts that some locations genuinely lack are not required, so a row keeps the
+    same shape whatever it describes.
+    """
+
+    kind: str
+    """Location type: `dataset`, `sql_database`, `filesystem`, `rest_api`, `code`, or a custom value."""
+    resource_name: str
+    """Resource that read from or wrote to this location, authoritative when metrics are collected."""
+    location: NotRequired[str]
+    """Non-secret scope of the location, e.g. `postgresql://example.com:5432`, `s3://bucket`, or
+    `module.source_function` for `code`.
+
+    The key is absent when the location has no public address, for example a reverse ETL sink.
+    """
+    version: NotRequired[str]
+    """Version of the location's contents as a whole."""
+
+
+class TSchemaReference(TypedDict):
+    name: str
+    version_hash: str
+
+
+class TDatasetDataLocation(TDataLocation):
+    """A dlt dataset: one or more schemas, holding tables, in a destination."""
+
+    schemas: List[TSchemaReference]
+    """Schemas grouping the tables, each carrying its own version hash."""
+    tables: List[str]
+    """Tables touched, as plain names - dlt qualifies tables by dataset, not by schema."""
+    destination_type: str
+    destination_name: str
+    destination_fingerprint: str
+    """Identifies destinations whose `location` is not public, ie. motherduck. May be empty."""
+    casefold: str
+    """Name of the casefolding function the destination applies: `upper`, `lower` or `str`."""
+    case_sensitive: bool
+    """Whether the destination generates case sensitive identifiers, as adjusted at runtime."""
+    dataset_name: NotRequired[str]
+    """Logical dataset name as configured by the user, e.g. `My_DataSet`. Absent for sinks."""
+    physical_dataset_name: NotRequired[str]
+    """Normalized name as it exists in the store, e.g. `my_data_set`. Absent for sinks."""
+
+
+def data_location_version(schemas: Sequence[TSchemaReference]) -> str:
+    """Hashes the version hashes of `schemas` into a single version of the location contents."""
+    return digest128("".join(sorted(schema.get("version_hash") or "" for schema in schemas)))
+
+
 class ExtractMetrics(StepMetrics):
     schema_name: str
     job_metrics: Dict[str, DataWriterMetrics]
@@ -84,6 +176,8 @@ class ExtractMetrics(StepMetrics):
     """A resource dag where elements of the list are graph edges"""
     hints: Dict[str, Dict[str, Any]]
     """Hints passed to the resources"""
+    inputs: List[TDataLocation]
+    """Locations read from, one entry per (resource, location)"""
 
 
 class NormalizeMetrics(StepMetrics):
@@ -102,9 +196,14 @@ class LoadJobMetrics(NamedTuple):
     state: str
     remote_url: Optional[str]
     retry_count: int = 0
-    followup_jobs: Optional[List[str]] = None
+    followup_jobs: Optional[Sequence[str]] = ()
+    file_size: Optional[int] = None
+    """Bytes of the job file on disk. `None` in traces of older dlt versions."""
 
 
 class LoadMetrics(StepMetrics):
     job_metrics: Dict[str, LoadJobMetrics]
     dataset_name: Optional[str]
+    """Physical dataset name, normalized as it exists in the destination"""
+    outputs: List[TDatasetDataLocation]
+    """Locations written to, one entry per (resource, location)"""

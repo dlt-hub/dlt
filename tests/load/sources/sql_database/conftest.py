@@ -79,6 +79,12 @@ def mssql_db(request: pytest.FixtureRequest) -> Iterator[MSSQLSourceDB]:
     yield from _create_mssql_db(**kwargs)
 
 
+@pytest.fixture(scope="function")
+def mssql_db_with_decimals(mssql_db: MSSQLSourceDB) -> MSSQLSourceDB:
+    mssql_db.create_decimals_table()
+    return mssql_db
+
+
 @pytest.fixture(scope="package")
 def oracle_db(request: pytest.FixtureRequest) -> Iterator[OracleSourceDB]:
     kwargs = getattr(request, "param", {})

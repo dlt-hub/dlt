@@ -3,12 +3,14 @@ from typing import Any, Dict, Iterable, List, Optional, Type, Union
 from fsspec import AbstractFileSystem
 
 import dlt
+from dlt.common import logger
 from dlt.common.configuration import resolve_type
 from dlt.common.configuration.specs import known_sections
 from dlt.common.configuration.specs.config_section_context import ConfigSectionContext
+from dlt.common.metrics import TDataLocation
 from dlt.common.storages.fsspec_filesystem import fsspec_from_config
 from dlt.common.storages import FilesystemConfigurationWithLocalFiles
-from dlt.common.typing import TDataItem
+from dlt.common.typing import NotRequired, TDataItem
 
 from dlt.sources import DltResource
 from dlt.sources.config import configspec, with_config
@@ -27,11 +29,40 @@ class FilesystemConfigurationResource(FilesystemConfigurationWithLocalFiles):
     file_glob: Optional[str] = "*"
     files_per_page: int = DEFAULT_CHUNK_SIZE
     extract_content: bool = False
+    fetch_file_info: bool = False
 
     @resolve_type("credentials")
     def resolve_credentials_type(self) -> Type[CredentialsConfiguration]:
         # also allow AbstractFileSystem to be directly passed
         return Union[self.PROTOCOL_CREDENTIALS.get(self.protocol) or Optional[CredentialsConfiguration], AbstractFileSystem]  # type: ignore[return-value]
+
+
+class TFilesystemDataLocation(TDataLocation):
+    """A bucket or folder holding files matched by a glob."""
+
+    glob: NotRequired[str]
+
+
+def record_bucket_input(bucket_url: str, file_glob: str) -> None:
+    """Records the bucket and glob the currently running resource lists files from"""
+
+    try:
+        resource = dlt.current.resource()
+        resource.add_input(
+            TFilesystemDataLocation(
+                kind="filesystem",
+                resource_name=resource.name,
+                location=(
+                    FilesystemConfiguration.make_file_url(bucket_url)
+                    if FilesystemConfiguration.is_local_path(bucket_url)
+                    else bucket_url
+                ),
+                glob=file_glob,
+            ),
+            replace=True,
+        )
+    except Exception as ex:
+        logger.debug(f"Could not record input location for bucket `{bucket_url}`: {ex}")
 
 
 def fsspec_from_resource(filesystem_instance: DltResource) -> AbstractFileSystem:
