@@ -13,6 +13,7 @@ from dlt.common.utils import uniq_id
 
 from dlt.pipeline.exceptions import PipelineStepFailed
 from dlt.sources import DltResource
+from dlt.sources.credentials import ConnectionStringCredentials
 
 from tests.load.sources.sql_database.utils import (
     assert_extracted_uuids_are_strings,
@@ -57,7 +58,24 @@ def make_pipeline(destination_name: TDestinationReferenceArg) -> dlt.Pipeline:
     )
 
 
-@pytest.mark.parametrize("backend", ["sqlalchemy", "pyarrow", "pandas", "connectorx"])
+def backend_credentials(
+    mssql_db: MSSQLSourceDB, backend: TableBackend
+) -> ConnectionStringCredentials:
+    """Swaps in the mssql-python dialect for `mssql_arrow`, the only one exposing an Arrow cursor."""
+    if backend != "mssql_arrow":
+        return mssql_db.credentials
+    url = sa.engine.make_url(mssql_db.credentials.to_native_representation())
+    url = url.set(drivername="mssql+mssqlpython").difference_update_query(["driver"])
+    try:
+        url.get_dialect()
+    except sa.exc.NoSuchModuleError:
+        pytest.skip("mssql_arrow needs the mssql+mssqlpython dialect from SQLAlchemy 2.1")
+    return ConnectionStringCredentials(url.render_as_string(hide_password=False))
+
+
+@pytest.mark.parametrize(
+    "backend", ["sqlalchemy", "pyarrow", "pandas", "connectorx", "mssql_arrow"]
+)
 @pytest.mark.parametrize("reflection_level", ["minimal", "full", "full_with_precision"])
 def test_all_data_types(
     mssql_db: MSSQLSourceDB,
@@ -69,7 +87,7 @@ def test_all_data_types(
         # without a reflected type nothing turns the strings back into timestamps
         request.applymarker(pytest.mark.xfail(strict=True, reason=PANDAS_MIXED_OFFSETS))
     source = sql_database(
-        credentials=mssql_db.credentials,
+        credentials=backend_credentials(mssql_db, backend),
         schema=mssql_db.schema,
         reflection_level=reflection_level,
         backend=backend,
@@ -110,7 +128,9 @@ def test_all_data_types(
         assert columns["some_smalldatetime"] == ntz_dt
 
 
-@pytest.mark.parametrize("backend", ["sqlalchemy", "pyarrow", "pandas", "connectorx"])
+@pytest.mark.parametrize(
+    "backend", ["sqlalchemy", "pyarrow", "pandas", "connectorx", "mssql_arrow"]
+)
 @pytest.mark.parametrize("reflection_level", ["minimal", "full", "full_with_precision"])
 def test_sql_table_incremental_datetime_ntz(
     mssql_db: MSSQLSourceDB,
@@ -120,7 +140,7 @@ def test_sql_table_incremental_datetime_ntz(
     if backend == "connectorx":
         pytest.importorskip("sqlalchemy", minversion="2.0")
     table = sql_table(
-        credentials=mssql_db.credentials,
+        credentials=backend_credentials(mssql_db, backend),
         table="app_user",
         schema=mssql_db.schema,
         backend=backend,
@@ -165,6 +185,7 @@ def test_sql_table_incremental_datetime_ntz(
                 reason=CONNECTORX_DATETIMEOFFSET,
             ),
         ),
+        "mssql_arrow",
     ],
 )
 @pytest.mark.parametrize("reflection_level", ["minimal", "full", "full_with_precision"])
@@ -176,7 +197,7 @@ def test_sql_table_incremental_datetime_tz(
     if backend == "connectorx":
         pytest.importorskip("sqlalchemy", minversion="2.0")
     table = sql_table(
-        credentials=mssql_db.credentials,
+        credentials=backend_credentials(mssql_db, backend),
         table="app_user",
         schema=mssql_db.schema,
         backend=backend,
@@ -245,7 +266,7 @@ def test_sql_table_high_datetime(
         )
 
 
-@pytest.mark.parametrize("backend", ["pyarrow", "sqlalchemy", "pandas"])
+@pytest.mark.parametrize("backend", ["pyarrow", "sqlalchemy", "pandas", "mssql_arrow"])
 def test_uniqueidentifier_data_type(
     mssql_db: MSSQLSourceDB,
     backend: TableBackend,
@@ -262,7 +283,7 @@ def test_uniqueidentifier_data_type(
 
     # reuse sql_table resource for both loads
     table = sql_table(
-        credentials=mssql_db.credentials,
+        credentials=backend_credentials(mssql_db, backend),
         table="app_user",
         schema=mssql_db.schema,
         backend=backend,
@@ -306,7 +327,9 @@ def test_uniqueidentifier_data_type(
     assert len(rows_after_merge) == rc + 10
 
 
-@pytest.mark.parametrize("backend", ["sqlalchemy", "pyarrow", "pandas", "connectorx"])
+@pytest.mark.parametrize(
+    "backend", ["sqlalchemy", "pyarrow", "pandas", "connectorx", "mssql_arrow"]
+)
 def test_uniqueidentifier_yields_str(
     mssql_db: MSSQLSourceDB,
     backend: TableBackend,
@@ -318,7 +341,7 @@ def test_uniqueidentifier_yields_str(
         pytest.importorskip("sqlalchemy", minversion="2.0")
 
     table = sql_table(
-        credentials=mssql_db.credentials,
+        credentials=backend_credentials(mssql_db, backend),
         table="app_user",
         schema=mssql_db.schema,
         backend=backend,
