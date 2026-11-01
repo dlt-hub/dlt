@@ -594,7 +594,7 @@ class CsvWriter(DataWriter):
                 " e.g. to `replace` to write such characters anyway.",
             )
         # count rows that got written
-        self.items_count += sum(len(row) for row in items)
+        self.items_count += len(items)
 
     def close(self) -> None:
         self.writer = None
