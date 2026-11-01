@@ -48,6 +48,15 @@ def test_flatten_fix_field_name(norm: RelationalNormalizer) -> None:
     ) in lists
 
 
+def test_flatten_preserves_field_order(norm: RelationalNormalizer) -> None:
+    # nested dicts are flattened where they are read, so the columns appear in the order of the
+    # document and not after the fields that follow them
+    row = {"a": {"x": 1, "y": 2}, "b": 3, "c": {"z": 4}, "l": [1, 2]}
+    flattened_row, lists = norm._flatten("mock_table", row, 1000)
+    assert list(flattened_row.keys()) == ["a__x", "a__y", "b", "c__z"]
+    assert list(lists.keys()) == [("l",)]
+
+
 def test_preserve_json_value(norm: RelationalNormalizer) -> None:
     # add table with json column
     norm.schema.update_table(
@@ -232,14 +241,14 @@ def test_yields_parent_relation(norm: RelationalNormalizer) -> None:
         ("table__f__o", ("table", "f"), ("o",)),
         # "table__f__b" is not yielded as it is fully flattened into table__f
         ("table__f__b__a", ("table", "f"), ("b", "a")),
-        # table__e is yielded it however only contains linking information
-        ("table__e", ("table",), ("e",)),
-        ("table__e__o", ("table", "e"), ("o",)),
-        ("table__e__b__a", ("table", "e"), ("b", "a")),
         # same for table__d -> fully flattened into table
         ("table__d__a", ("table",), ("d", "a")),
         ("table__d__b__a", ("table",), ("d", "b", "a")),
         ("table__d__b__a_2", ("table",), ("d", "b", "a_2")),
+        # table__e is yielded it however only contains linking information
+        ("table__e", ("table",), ("e",)),
+        ("table__e__o", ("table", "e"), ("o",)),
+        ("table__e__b__a", ("table", "e"), ("b", "a")),
     ]
     parents = list(r[0] for r in rows)
     assert parents == expected_parents
@@ -865,12 +874,12 @@ def test_normalize_and_shorten_deterministically() -> None:
     tag = NamingConvention._compute_tag(
         "short_ident_1__short_ident_2__short_ident_3", NamingConvention._DEFAULT_COLLISION_PROB
     )
-    assert tag in root_data_keys[1]
+    assert tag in root_data_keys[0]
     # long:SO+LONG:_>16 shortened on normalized name
     tag = NamingConvention._compute_tag(
         "long+long:SO+LONG:_>16", NamingConvention._DEFAULT_COLLISION_PROB
     )
-    assert tag in root_data_keys[0]
+    assert tag in root_data_keys[1]
     # table name in second row
     table_name = rows[1][0][0]
     tag = NamingConvention._compute_tag(
