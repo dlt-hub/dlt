@@ -708,6 +708,35 @@ def test_remove_nullability(postgres_db: PostgresSourceDB) -> None:
     assert len(data) == postgres_db.table_infos["chat_message"]["row_count"]
 
 
+def test_remove_nullability_pyarrow_primary_key_does_not_warn(
+    postgres_db: PostgresSourceDB, caplog: Any
+) -> None:
+    read_table = sql_table(
+        table="chat_message",
+        credentials=postgres_db.credentials,
+        schema=postgres_db.schema,
+        backend="pyarrow",
+        reflection_level="full_with_precision",
+        table_adapter_callback=remove_nullability_adapter,
+    )
+
+    table_schema = read_table.compute_table_schema()
+    id_column = table_schema["columns"]["id"]
+    assert id_column["primary_key"] is True
+    assert id_column["nullable"] is False
+
+    pipeline = make_pipeline("duckdb")
+    with capture_dlt_logger(caplog) as caplog:
+        pipeline.run(read_table)
+
+    warning_messages = [
+        record.message
+        for record in caplog.records
+        if "when merging arrow schema" in record.message
+    ]
+    assert warning_messages == []
+
+
 @pytest.mark.parametrize("backend", ["sqlalchemy", "pandas", "pyarrow", "connectorx"])
 @pytest.mark.parametrize("row_order", ["asc", "desc", None])
 @pytest.mark.parametrize("last_value_func", [min, max, lambda x: max(x)])
