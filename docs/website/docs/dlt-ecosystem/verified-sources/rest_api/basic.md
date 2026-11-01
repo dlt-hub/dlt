@@ -1295,12 +1295,12 @@ For more details on headers configuration and dynamic placeholders, see the [hea
 
 You can also use different placeholder variants depending on your needs:
 
-| Placeholder                   | Description                                                                                                                                                 |
-| ----------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `{incremental.start_value}`   | The value to use as the starting point for this request (either the initial value or the last tracked maximum value)                                        |
-| `{incremental.initial_value}` | Always uses the initial value specified in the configuration                                                                                                |
-| `{incremental.last_value}`    | The last seen value (same as start_value in most cases, see the [incremental loading](../../../general-usage/incremental/cursor.md) guide for more details) |
-| `{incremental.end_value}`     | The end value if specified in the configuration                                                                                                             |
+| Placeholder                   | Description                                                                                                                                                                                                                                       |
+| ----------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `{incremental.start_value}`   | The value to use as the starting point for this request (either the initial value or the last tracked maximum value)                                                                                                                              |
+| `{incremental.initial_value}` | Always uses the initial value specified in the configuration                                                                                                                                                                                      |
+| `{incremental.last_value}`    | The current cursor value when the request is built. On top-level resources this equals `start_value`; on dependent resources it advances as items are yielded (see the [incremental loading](../../../general-usage/incremental/cursor.md) guide) |
+| `{incremental.end_value}`     | The end value if specified in the configuration                                                                                                                                                                                                   |
 
 ### Legacy method: Incremental loading in `params` (DEPRECATED)
 
