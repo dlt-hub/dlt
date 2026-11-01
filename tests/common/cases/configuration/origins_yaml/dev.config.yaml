@@ -1,0 +1,6 @@
+dev_only: dev
+shared: from_dev
+
+tbl:
+  shared_key: from_dev
+  from_dev: 2
