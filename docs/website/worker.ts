@@ -93,4 +93,19 @@ const config: ResolveConfigFn = (env) => ({
   postProcessor: postProcessor,
 });
 
-export default instrument(handler, config);
+// console.log lines are shipped to the traffic-logs Axiom dataset by Cloudflare's log export,
+// next to its own request row (same trace_id), which carries no duration
+const timedHandler = {
+  async fetch(request, env, ctx) {
+    const startedAt = Date.now();
+    const res = await handler.fetch(request, env, ctx);
+    if (
+      !/\.(?:css|js|mjs|map|png|jpg|jpeg|gif|svg|ico|webp|woff2?|ttf|eot)(?:$|\?)/i.test(new URL(request.url).pathname)
+    ) {
+      console.log(JSON.stringify({ event: "docs_request", duration_ms: Date.now() - startedAt }));
+    }
+    return res;
+  },
+};
+
+export default instrument(timedHandler, config);
