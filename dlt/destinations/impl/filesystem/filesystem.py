@@ -110,6 +110,7 @@ from dlt.destinations.impl.filesystem.iceberg_adapter import (
 from dlt.destinations import path_utils
 from dlt.destinations.fs_client import FSClientBase
 from dlt.destinations.utils import (
+    replace_strategy_not_available,
     verify_schema_merge_disposition,
     verify_schema_replace_disposition,
     verify_unsupported_merge_options,
@@ -1033,7 +1034,10 @@ class FilesystemClient(
             replace_strategy = resolve_replace_strategy(
                 table, self.config.replace_strategy, self.capabilities
             )
-            assert replace_strategy, f"Must be able to get replace strategy for {table_name}"
+            if not replace_strategy:
+                raise replace_strategy_not_available(
+                    self.schema, table_name, self.config.replace_strategy, self.capabilities
+                )
             table["x-replace-strategy"] = replace_strategy  # type: ignore[typeddict-unknown-key]
         if self.is_dlt_table(table["name"]):
             table.pop("table_format", None)
