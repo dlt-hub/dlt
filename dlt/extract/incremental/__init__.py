@@ -224,6 +224,7 @@ class Incremental(
         """Becomes true on the first item that is out of range of `start_value`. I.e. when using `max` this is a value that is lower than `start_value`"""
 
         self._transformers: Dict[Type[IncrementalTransform], IncrementalTransform] = {}
+        self._active_transformer: Optional[IncrementalTransform] = None
         self._bound_pipe: SupportsPipe = None
         """Bound pipe"""
         self.range_start = range_start
@@ -736,6 +737,7 @@ class Incremental(
         self._cached_state_start_value = self._cached_state["last_value"]
         # Clear transforms so we get new instances
         self._transformers.clear()
+        self._active_transformer = None
         return self
 
     def can_close(self) -> bool:
@@ -832,6 +834,18 @@ class Incremental(
             return rows
 
         transformer = self._get_transform(rows)
+        if self._active_transformer is not None and self._active_transformer is not transformer:
+            # Keep the run-start boundary separate from the evolving cursor and hashes.
+            previous = self._active_transformer
+            transformer.start_value = previous.start_value
+            transformer.start_unique_hashes = previous.start_unique_hashes
+            transformer.start_hashes_legacy = previous.start_hashes_legacy
+            transformer.last_value = previous.last_value
+            transformer.unique_hashes = previous.unique_hashes
+            transformer.unique_hashes_legacy = previous.unique_hashes_legacy
+            transformer.end_value = previous.end_value
+            transformer.seen_data = previous.seen_data
+        self._active_transformer = transformer
         if isinstance(rows, list):
             rows = [
                 item
@@ -871,6 +885,9 @@ class Incremental(
 
             # add directly computed hashes
             unique_hashes.update(transformer.unique_hashes)
+            # Materialize JSON boundary rows before another format updates the cursor.
+            transformer.unique_hashes = unique_hashes
+            transformer.last_rows = []
             cached_state["unique_hashes"] = list(unique_hashes)
             final_hash_count = len(cached_state["unique_hashes"])
             self._incremental_metrics["final_unique_hashes_count"] = final_hash_count
