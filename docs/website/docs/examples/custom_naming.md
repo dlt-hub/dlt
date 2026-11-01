@@ -50,7 +50,7 @@ if __name__ == "__main__":
     load_info = pipeline.run([{"StückId": 1}], table_name="Ausrüstung")
     print(load_info)
     with pipeline.sql_client() as client:
-        # NOTE: we quote case sensitive identifers
+        # NOTE: we quote case sensitive identifiers
         with client.execute_query('SELECT "StückId" FROM "Ausrüstung"') as cur:
             print(cur.description)
             print(cur.fetchone())
