@@ -1,11 +1,19 @@
 """Tests for Microsoft Fabric Warehouse destination configuration"""
 
+import base64
+import json
 import os
+import sys
+import time
 from typing import Optional, cast
+from unittest.mock import MagicMock
 
 import pytest
 
+from mssql_python import TokenProvider
+
 from dlt.common.configuration import resolve_configuration
+from dlt.common.configuration.exceptions import ConfigurationException
 from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.destination.typing import PreparedTableSchema
 from dlt.common.schema import Schema
@@ -15,6 +23,11 @@ from dlt.destinations.impl.fabric.factory import fabric, FabricTypeMapper
 from dlt.destinations.impl.fabric.configuration import (
     FabricCredentials,
     FabricClientConfiguration,
+)
+from dlt.common.runtime.fab_notebookutils import (
+    FabNotebookUtilsCredential,
+    is_fab_notebookutils_available,
+    _decode_jwt_expiry,
 )
 
 # mark all tests as essential, do not remove
@@ -66,10 +79,11 @@ def test_fabric_credentials_odbc_dsn() -> None:
 
     # Verify Fabric-specific parameters are added
     assert dsn_dict["AUTHENTICATION"] == "ActiveDirectoryServicePrincipal"
-    assert dsn_dict["LongAsMax"] == "yes"
+    assert "LongAsMax" not in dsn_dict
     assert dsn_dict["UID"] == "test-client-id@test-tenant-id"
     assert dsn_dict["PWD"] == "test-client-secret"
-    assert dsn_dict["DRIVER"] == "{ODBC Driver 18 for SQL Server}"
+    # mssql-python installs and manages its own driver dependency, so the DSN carries no DRIVER key
+    assert "DRIVER" not in dsn_dict
     assert (
         dsn_dict["SERVER"]
         == "abc12345-6789-def0-1234-56789abcdef0.datawarehouse.fabric.microsoft.com,1433"
@@ -141,21 +155,12 @@ def test_fabric_type_mapper() -> None:
     assert "datetimeoffset" not in result.lower()
 
 
-def test_fabric_credentials_drivername() -> None:
-    """Test that Fabric credentials use mssql+pyodbc drivername"""
-    creds = FabricCredentials()
-    # FabricCredentials uses mssql+pyodbc for SQLAlchemy compatibility
-    assert creds.drivername == "mssql+pyodbc"
-
-
 def test_fabric_credentials_missing_service_principal() -> None:
-    """Test that Service Principal fields can trigger default credentials fallback"""
+    """Test that credentials can be built without Service Principal fields set"""
     creds = FabricCredentials()
     creds.host = "test.datawarehouse.fabric.microsoft.com"
     creds.database = "testdb"
 
-    # When Service Principal fields are missing, on_partial should attempt to use default credentials
-    # We can't test actual Azure default credentials in unit tests, but we can verify the structure
     assert creds.host == "test.datawarehouse.fabric.microsoft.com"
     assert creds.database == "testdb"
 
@@ -192,8 +197,9 @@ def test_fabric_credentials_no_driver_validation() -> None:
     assert creds.database == "test_db"
 
 
-def test_fabric_credentials_longasmax_always_yes() -> None:
-    """Test that LONGASMAX is always set to 'yes' for UTF-8 support"""
+def test_fabric_credentials_longasmax_absent() -> None:
+    """Test that LongAsMax is never emitted: mssql-python handles long/max types natively
+    and rejects unknown DSN keywords."""
     creds = FabricCredentials()
     creds.host = "test.datawarehouse.fabric.microsoft.com"
     creds.database = "testdb"
@@ -201,9 +207,9 @@ def test_fabric_credentials_longasmax_always_yes() -> None:
     creds.azure_client_id = "test-client"
     creds.azure_client_secret = "test-secret"
 
-    # Get ODBC DSN and verify LONGASMAX is set to yes
+    # Get ODBC DSN and verify LongAsMax is absent
     dsn_dict = creds.get_odbc_dsn_dict()
-    assert dsn_dict["LongAsMax"] == "yes"
+    assert "LongAsMax" not in dsn_dict
 
 
 def test_fabric_credentials_authentication_method() -> None:
@@ -253,3 +259,435 @@ def test_fabric_type_mapper_scales_varchar_precision(data_type: TDataType) -> No
         TColumnSchema, {"name": "c", "data_type": data_type, "precision": 10, "nullable": True}
     )
     assert mapper.to_destination_type(col, table) == "varchar(40)"
+
+
+class _FakeAccessToken:
+    token = "fake-access-token"
+
+
+class _FakeTokenCredential:
+    """Minimal azure-identity-like credential, avoids hitting Azure in unit tests."""
+
+    def get_token(self, *scopes: str, **kwargs: object) -> _FakeAccessToken:
+        return _FakeAccessToken()
+
+
+def _warehouse_credentials(
+    authentication: str | None = None, **kwargs: object
+) -> FabricCredentials:
+    creds = FabricCredentials()
+    creds.host = "test.datawarehouse.fabric.microsoft.com"
+    creds.database = "testdb"
+    if authentication is not None:
+        creds.authentication = authentication
+    for key, value in kwargs.items():
+        setattr(creds, key, value)
+    return creds
+
+
+def test_fabric_authentication_default_is_service_principal() -> None:
+    assert FabricCredentials().authentication == "ActiveDirectoryServicePrincipal"
+
+
+def test_fabric_default_alias_normalizes_in_dsn() -> None:
+    """The `default` alias resolves to the canonical name mssql-python recognizes."""
+    creds = _warehouse_credentials("default")
+    creds.on_partial()
+
+    dsn = creds.get_odbc_dsn_dict()
+    assert dsn["AUTHENTICATION"] == "ActiveDirectoryDefault"
+    assert "UID" not in dsn
+    assert "PWD" not in dsn
+    assert creds.to_odbc_attrs_before() is None
+    assert creds.has_default_credentials() is False
+
+
+@pytest.mark.parametrize(
+    "authentication",
+    ["auto", "cli", "environment", "interactive", "devicecode", "msi", "managedidentity"],
+)
+def test_fabric_unsupported_alias_raises(authentication: str) -> None:
+    """Only the canonical `ActiveDirectory*` names (and the `default` alias) are supported."""
+    creds = _warehouse_credentials(authentication)
+    with pytest.raises(ConfigurationException):
+        creds.on_partial()  # resolves (host+database present) -> on_resolved -> validate raises
+
+
+def test_fabric_service_principal_without_secret_passes_through() -> None:
+    """No secret configured: dlt does not fall back to anything else, same as any other method."""
+    creds = _warehouse_credentials()
+    creds.on_partial()
+
+    dsn = creds.get_odbc_dsn_dict()
+    assert dsn["AUTHENTICATION"] == "ActiveDirectoryServicePrincipal"
+    assert "UID" not in dsn
+    assert "PWD" not in dsn
+    assert creds.to_odbc_attrs_before() is None
+    assert creds.has_default_credentials() is False
+
+
+def test_fabric_service_principal_with_secret() -> None:
+    creds = _warehouse_credentials(
+        azure_tenant_id="t", azure_client_id="c", azure_client_secret="s"
+    )
+    creds.on_partial()
+
+    dsn = creds.get_odbc_dsn_dict()
+    assert dsn["AUTHENTICATION"] == "ActiveDirectoryServicePrincipal"
+    assert dsn["UID"] == "c@t"
+    assert dsn["PWD"] == "s"
+    assert creds.to_odbc_attrs_before() is None
+
+
+@pytest.mark.parametrize(
+    "authentication",
+    [
+        "ActiveDirectoryIntegrated",
+        "ActiveDirectoryInteractive",
+        "ActiveDirectoryMsi",
+        "ActiveDirectoryDefault",
+        "ActiveDirectoryDeviceCode",
+    ],
+)
+def test_fabric_authentication_method_passthrough(authentication: str) -> None:
+    """Written straight to `Authentication=`; dlt builds no credential or attrs_before.
+
+    mssql-python performs the sign-in for every supported method itself.
+    """
+    creds = _warehouse_credentials(authentication)
+    creds.on_partial()
+
+    dsn = creds.get_odbc_dsn_dict()
+    assert dsn["AUTHENTICATION"] == authentication
+    assert "UID" not in dsn
+    assert "PWD" not in dsn
+    assert creds.to_odbc_attrs_before() is None
+    assert creds.has_default_credentials() is False
+
+
+def test_fabric_active_directory_password() -> None:
+    creds = _warehouse_credentials(
+        "ActiveDirectoryPassword", username="user@contoso.com", password="pwd"
+    )
+    creds.on_partial()
+
+    dsn = creds.get_odbc_dsn_dict()
+    assert dsn["AUTHENTICATION"] == "ActiveDirectoryPassword"
+    assert dsn["UID"] == "user@contoso.com"
+    assert dsn["PWD"] == "pwd"
+    assert creds.to_odbc_attrs_before() is None
+
+
+def test_fabric_active_directory_password_requires_username_password() -> None:
+    creds = _warehouse_credentials("ActiveDirectoryPassword")
+    with pytest.raises(ConfigurationException):
+        creds.on_partial()  # on_partial -> resolve() -> on_resolved validates
+
+
+def test_fabric_unsupported_authentication_raises() -> None:
+    creds = _warehouse_credentials("SqlPassword")
+    with pytest.raises(ConfigurationException):
+        creds.on_partial()
+
+
+def test_fabric_to_odbc_attrs_before_always_none() -> None:
+    """mssql-python signs in for every supported authentication method itself: dlt injects
+    nothing, regardless of what's configured."""
+    creds = _warehouse_credentials("ActiveDirectoryDefault")
+    assert creds.to_odbc_attrs_before() is None
+
+    creds = _warehouse_credentials("ActiveDirectoryServicePrincipal")  # no secret set
+    assert creds.to_odbc_attrs_before() is None
+
+
+def test_fabric_resolve_configuration_service_principal_without_secret() -> None:
+    """Resolution succeeds without a Service Principal secret; dlt does not fall back to
+    anything — the DSN just carries the method with no credentials attached."""
+    creds = FabricCredentials()
+    creds.host = "abc.datawarehouse.fabric.microsoft.com"
+    creds.database = "mydb"
+
+    resolved = resolve_configuration(creds)
+
+    assert resolved.is_resolved()
+    assert resolved.to_odbc_attrs_before() is None
+    dsn = resolved.get_odbc_dsn_dict()
+    assert dsn["AUTHENTICATION"] == "ActiveDirectoryServicePrincipal"
+    assert "UID" not in dsn
+    assert "PWD" not in dsn
+
+
+def test_fabric_resolve_configuration_authentication_passthrough() -> None:
+    """A full `resolve_configuration()` round-trip writes the method straight to the DSN."""
+    creds = FabricCredentials()
+    creds.host = "abc.datawarehouse.fabric.microsoft.com"
+    creds.database = "mydb"
+    creds.authentication = "ActiveDirectoryDeviceCode"
+
+    resolved = resolve_configuration(creds)
+
+    assert resolved.is_resolved()
+    assert resolved.to_odbc_attrs_before() is None
+    assert resolved.get_odbc_dsn_dict()["AUTHENTICATION"] == "ActiveDirectoryDeviceCode"
+
+
+class _RaisingTokenCredential:
+    """A TokenCredential whose `get_token` must never be called.
+
+    dlt hands `azure_credential` to mssql-python untouched, so nothing on the dlt side may call
+    it — neither the losing side of a precedence rule nor the winning one.
+    """
+
+    def get_token(self, *scopes: str, **kwargs: object) -> _FakeAccessToken:
+        raise AssertionError("azure_credential.get_token() should not have been called")
+
+
+def test_fabric_access_token_and_azure_credential_default_to_none() -> None:
+    creds = FabricCredentials()
+    assert creds.access_token is None
+    assert creds.azure_credential is None
+
+
+def test_fabric_azure_credential_is_handed_to_the_driver() -> None:
+    """dlt passes the credential object through and never acquires a token itself."""
+    credential = _RaisingTokenCredential()
+    creds = _warehouse_credentials(azure_credential=credential)
+
+    assert creds.to_odbc_token_provider() is credential
+    assert creds.to_odbc_attrs_before() is None
+
+
+def test_fabric_access_token_wins_over_azure_credential() -> None:
+    creds = _warehouse_credentials(
+        access_token="explicit-token", azure_credential=_RaisingTokenCredential()
+    )
+    attrs = creds.to_odbc_attrs_before()
+    assert attrs is not None
+    assert attrs[1256][4:].decode("utf-16-le") == "explicit-token"
+    # the credential must not also reach the driver: it rejects two token sources at once
+    assert creds.to_odbc_token_provider() is None
+
+
+def test_fabric_access_token_takes_precedence_over_default_service_principal() -> None:
+    """access_token bypasses the default ActiveDirectoryServicePrincipal authentication entirely,
+    even though that method is on by default for Fabric and no Service Principal secret is set."""
+    creds = _warehouse_credentials(access_token="explicit-token")
+    creds.on_partial()
+
+    dsn = creds.get_odbc_dsn_dict()
+    assert "AUTHENTICATION" not in dsn
+    assert "UID" not in dsn
+    assert "PWD" not in dsn
+
+    attrs = creds.to_odbc_attrs_before()
+    assert attrs is not None
+    assert attrs[1256][4:].decode("utf-16-le") == "explicit-token"
+
+
+def test_fabric_azure_credential_takes_precedence_over_authentication() -> None:
+    credential = _RaisingTokenCredential()
+    creds = _warehouse_credentials("ActiveDirectoryDeviceCode", azure_credential=credential)
+    creds.on_partial()
+
+    assert creds.has_default_credentials() is False
+
+    dsn = creds.get_odbc_dsn_dict()
+    assert "AUTHENTICATION" not in dsn
+
+    assert creds.to_odbc_token_provider() is credential
+    assert creds.to_odbc_attrs_before() is None
+
+
+def test_fabric_resolve_configuration_access_token_without_service_principal() -> None:
+    creds = FabricCredentials()
+    creds.host = "abc.datawarehouse.fabric.microsoft.com"
+    creds.database = "mydb"
+    creds.access_token = "explicit-token"
+
+    resolved = resolve_configuration(creds)
+
+    assert resolved.is_resolved()
+    assert "AUTHENTICATION" not in resolved.get_odbc_dsn_dict()
+
+
+def _make_jwt(exp: int) -> str:
+    header = base64.urlsafe_b64encode(b'{"alg":"none"}').rstrip(b"=").decode()
+    payload = base64.urlsafe_b64encode(json.dumps({"exp": exp}).encode()).rstrip(b"=").decode()
+    return f"{header}.{payload}.sig"
+
+
+@pytest.fixture()
+def mock_notebookutils():
+    mod = MagicMock()
+    mod.credentials.getToken = MagicMock(return_value=_make_jwt(int(time.time()) + 3600))
+    sys.modules["notebookutils"] = mod
+    yield mod
+    sys.modules.pop("notebookutils", None)
+
+
+@pytest.fixture()
+def no_notebookutils():
+    saved = sys.modules.pop("notebookutils", None)
+    yield
+    if saved is not None:
+        sys.modules["notebookutils"] = saved
+
+
+def test_decode_jwt_expiry_valid() -> None:
+    exp = int(time.time()) + 7200
+    assert _decode_jwt_expiry(_make_jwt(exp)) == exp
+
+
+def test_decode_jwt_expiry_garbage() -> None:
+    assert _decode_jwt_expiry("not-a-jwt") is None
+
+
+def test_notebookutils_get_token(mock_notebookutils: MagicMock) -> None:
+    cred = FabNotebookUtilsCredential("https://database.windows.net/")
+    token = cred.get_token()
+    assert token.token == mock_notebookutils.credentials.getToken.return_value
+    mock_notebookutils.credentials.getToken.assert_called_once_with("https://database.windows.net/")
+
+
+def test_notebookutils_sql_alias(mock_notebookutils: MagicMock) -> None:
+    cred = FabNotebookUtilsCredential("sql")
+    cred.get_token()
+    mock_notebookutils.credentials.getToken.assert_called_once_with("https://database.windows.net/")
+
+
+def test_notebookutils_caches_token(mock_notebookutils: MagicMock) -> None:
+    cred = FabNotebookUtilsCredential("storage")
+    t1 = cred.get_token()
+    t2 = cred.get_token()
+    assert t1 is t2
+    assert mock_notebookutils.credentials.getToken.call_count == 1
+
+
+def test_notebookutils_refreshes_near_expiry(mock_notebookutils: MagicMock) -> None:
+    near_expiry_jwt = _make_jwt(int(time.time()) + 100)
+    fresh_jwt = _make_jwt(int(time.time()) + 3600)
+    mock_notebookutils.credentials.getToken.side_effect = [near_expiry_jwt, fresh_jwt]
+
+    cred = FabNotebookUtilsCredential("storage")
+    t1 = cred.get_token()
+    assert t1.token == near_expiry_jwt
+    t2 = cred.get_token()
+    assert t2.token == fresh_jwt
+    assert mock_notebookutils.credentials.getToken.call_count == 2
+
+
+def test_notebookutils_mssparkutils_fallback(mock_notebookutils: MagicMock) -> None:
+    del mock_notebookutils.credentials.getToken
+    mock_notebookutils.mssparkutils.credentials.getToken = MagicMock(
+        return_value=_make_jwt(int(time.time()) + 3600)
+    )
+
+    cred = FabNotebookUtilsCredential("storage")
+    cred.get_token()
+    mock_notebookutils.mssparkutils.credentials.getToken.assert_called_once()
+
+
+def test_notebookutils_unavailable_raises(no_notebookutils: None) -> None:
+    cred = FabNotebookUtilsCredential("storage")
+    with pytest.raises(ConfigurationException, match="NotebookUtils"):
+        cred.get_token()
+
+
+def test_notebookutils_available_in_fabric(mock_notebookutils: MagicMock) -> None:
+    assert is_fab_notebookutils_available() is True
+
+
+def test_notebookutils_available_outside_fabric(no_notebookutils: None) -> None:
+    assert is_fab_notebookutils_available() is False
+
+
+def test_notebookutils_available_without_credential_api(mock_notebookutils: MagicMock) -> None:
+    del mock_notebookutils.credentials
+    del mock_notebookutils.mssparkutils
+    assert is_fab_notebookutils_available() is False
+
+
+def test_notebookutils_closeable(mock_notebookutils: MagicMock) -> None:
+    """adlfs and the Azure SDK clients close the credential they were handed."""
+    with FabNotebookUtilsCredential("storage") as cred:
+        assert cred.get_token().token
+    cred.close()
+    assert cred.get_token().token
+
+
+def test_notebookutils_importable_from_runtime() -> None:
+    from dlt.common.runtime.fab_notebookutils import FabNotebookUtilsCredential as Cls
+
+    assert Cls is FabNotebookUtilsCredential
+
+
+def test_fabric_notebookutils_creates_credential(mock_notebookutils: MagicMock) -> None:
+    creds = _warehouse_credentials("fab_notebookutils")
+    creds.on_partial()
+    assert isinstance(creds.azure_credential, FabNotebookUtilsCredential)
+
+
+def test_fabric_notebookutils_dsn_has_no_authentication_key(
+    mock_notebookutils: MagicMock,
+) -> None:
+    creds = _warehouse_credentials("fab_notebookutils")
+    creds.on_partial()
+    dsn = creds.get_odbc_dsn_dict()
+    assert "AUTHENTICATION" not in dsn
+    assert "UID" not in dsn
+    assert "PWD" not in dsn
+
+
+def test_fabric_notebookutils_is_handed_to_the_driver(mock_notebookutils: MagicMock) -> None:
+    """The notebook credential reaches mssql-python as `token_provider`, unqueried by dlt."""
+    creds = _warehouse_credentials("fab_notebookutils")
+    creds.on_partial()
+
+    assert creds.to_odbc_token_provider() is creds.azure_credential
+    assert creds.to_odbc_attrs_before() is None
+    mock_notebookutils.credentials.getToken.assert_not_called()
+
+
+def test_fabric_notebookutils_satisfies_the_driver_token_provider_protocol(
+    mock_notebookutils: MagicMock,
+) -> None:
+    """mssql-python calls `get_token(scope)` positionally and reads `.token` off the result.
+
+    The annotation is the static half of the check — `TokenProvider` is the protocol the driver
+    declares for `token_provider=` — and running its own acquisition helper is the runtime half.
+    """
+    # private API (not in __all__/.pyi); scoped so a rename only breaks this test
+    from mssql_python.auth import acquire_token_from_credential
+
+    provider: TokenProvider = FabNotebookUtilsCredential("sql")
+
+    # the helper is annotated with azure-identity's stricter `TokenCredential`, while the driver
+    # documents (and `TokenProvider` describes) the broader `get_token(scope)` contract
+    token_struct, expires_on = acquire_token_from_credential(provider)  # type: ignore[arg-type]
+
+    raw_token = token_struct[4:].decode("utf-16-le")
+    assert raw_token == mock_notebookutils.credentials.getToken.return_value
+    assert expires_on > time.time()
+    # the audience is bound at construction; the scope the driver passes is accepted and ignored
+    mock_notebookutils.credentials.getToken.assert_called_once_with("https://database.windows.net/")
+
+
+def test_fabric_notebookutils_does_not_replace_explicit_azure_credential(
+    mock_notebookutils: MagicMock,
+) -> None:
+    explicit = _FakeTokenCredential()
+    creds = _warehouse_credentials("fab_notebookutils", azure_credential=explicit)
+    creds.on_partial()
+    assert creds.azure_credential is explicit
+
+
+def test_fabric_access_token_precedence_over_notebookutils(
+    mock_notebookutils: MagicMock,
+) -> None:
+    creds = _warehouse_credentials("fab_notebookutils", access_token="explicit-token")
+    creds.on_partial()
+    attrs = creds.to_odbc_attrs_before()
+    assert attrs is not None
+    assert attrs[1256][4:].decode("utf-16-le") == "explicit-token"
+    assert creds.to_odbc_token_provider() is None
+    mock_notebookutils.credentials.getToken.assert_not_called()
