@@ -1,28 +1,43 @@
 """Configuration for Fabric Warehouse destination - extends Synapse configuration with COPY INTO support"""
 
 from typing import Optional, Final, ClassVar, Dict, Any, List
-from dlt.common.configuration import configspec
+from dlt.common.configuration import configspec, NotResolved
 from dlt.common.configuration.exceptions import ConfigurationValueError
 from dlt.common.configuration.specs import AzureServicePrincipalCredentials
 from dlt.common.destination.client import DestinationClientDwhWithStagingConfiguration
-from dlt.common.exceptions import MissingDependencyException
+from dlt.common.runtime.fab_notebookutils import FabNotebookUtilsCredential
+from dlt.common.typing import TSecretStrValue, Annotated
 from dlt.common.utils import digest128
-from dlt import version
+from dlt.destinations.impl.mssql.configuration import (
+    apply_authentication_to_dsn,
+    build_access_token_attrs_before,
+    select_token_provider,
+    strip_token_incompatible_keys,
+    validate_authentication,
+)
 
-_AZURE_STORAGE_EXTRA = f"{version.DLT_PKG_NAME}[az]"
+# Fabric Warehouse only supports Entra ID authentication, so it defaults to Service Principal.
+_DEFAULT_AUTHENTICATION = "ActiveDirectoryServicePrincipal"
 
 
 @configspec(init=False)
 class FabricCredentials(AzureServicePrincipalCredentials):
-    """Credentials for Microsoft Fabric Warehouse with Service Principal authentication.
+    """Credentials for Microsoft Fabric Warehouse.
 
-    Fabric Warehouse requires Azure AD Service Principal authentication.
-    Inherits from AzureServicePrincipalCredentials for Service Principal fields and
-    automatic fallback to DefaultAzureCredential.
+    Supports several Entra ID authentication methods, selected through `authentication`:
+    `ActiveDirectoryServicePrincipal` (default), `ActiveDirectoryPassword`,
+    `ActiveDirectoryIntegrated`, `ActiveDirectoryInteractive`, `ActiveDirectoryMsi`,
+    `ActiveDirectoryDefault` (alias `default`), `ActiveDirectoryDeviceCode`. All are passed
+    straight through as `Authentication=` in the DSN — mssql-python performs the sign-in.
+
+    `fab_notebookutils` is the exception: not an mssql-python method, so dlt builds a credential
+    backed by the Fabric NotebookUtils API and hands it to the driver as `token_provider`.
+
+    Alternatively, `access_token` or `azure_credential` can be injected directly, bypassing
+    `authentication` entirely (see their docstrings for precedence).
+
+    Inherits from AzureServicePrincipalCredentials for the Service Principal fields.
     """
-
-    drivername: str = "mssql+pyodbc"
-    """SQLAlchemy driver name for SQL Server/Fabric."""
 
     host: str = None
     """Fabric Warehouse host (e.g., abc12345-6789-def0-1234-56789abcdef0.datawarehouse.fabric.microsoft.com)"""
@@ -36,46 +51,77 @@ class FabricCredentials(AzureServicePrincipalCredentials):
     connect_timeout: int = 15
     """Connection timeout in seconds (default: 15)"""
 
+    authentication: str = _DEFAULT_AUTHENTICATION
+    """Authentication method, passed straight through as `Authentication=` in the DSN:
+    `ActiveDirectoryServicePrincipal` (default), `ActiveDirectoryPassword`,
+    `ActiveDirectoryIntegrated`, `ActiveDirectoryInteractive`, `ActiveDirectoryMsi`,
+    `ActiveDirectoryDefault` (alias `default`), `ActiveDirectoryDeviceCode`. Fabric runtime:
+    `fab_notebookutils`, whose credential dlt builds and hands to the driver."""
+
+    username: str | None = None
+    """User principal name, used with `ActiveDirectoryPassword` authentication."""
+
+    password: TSecretStrValue | None = None
+    """Password, used with `ActiveDirectoryPassword` authentication."""
+
+    access_token: Optional[TSecretStrValue] = None
+    """Pre-acquired Entra ID access token, injected as-is. Takes precedence over `azure_credential`
+    and `authentication`. Use it for sovereign clouds, whose scope `azure_credential` cannot reach"""
+
+    azure_credential: Annotated[Optional[Any], NotResolved()] = None
+    """A `TokenCredential` injected at runtime, e.g. `DefaultAzureCredential()`, handed to
+    mssql-python as `token_provider`. Takes precedence over `authentication` but not over
+    `access_token`. The driver acquires the token for the Azure commercial SQL scope only"""
+
     # Override to make optional - not needed for Fabric Warehouse credentials (only for staging)
     azure_storage_account_name: Optional[str] = None
     """Not used for Fabric Warehouse credentials (only staging credentials need this)"""
 
     def on_partial(self) -> None:
-        """Enable fallback to DefaultAzureCredential if explicit credentials not provided."""
-        try:
-            from azure.identity import DefaultAzureCredential
-        except ModuleNotFoundError:
-            raise MissingDependencyException(self.__class__.__name__, [_AZURE_STORAGE_EXTRA])
+        """Resolve once host and database are known.
 
-        # If no explicit Service Principal credentials, use default credentials
-        if not self.azure_client_id or not self.azure_client_secret or not self.azure_tenant_id:
-            self._set_default_credentials(DefaultAzureCredential())
-            # Resolve if we have warehouse connection details (not storage account name)
-            if self.host and self.database:
-                self.resolve()
+        Fabric always has an `authentication` value set (default: Service Principal), so this
+        resolves as soon as the connection target is known. `on_resolved` validates. Auth logic
+        is shared with `MsSqlCredentials`.
+        """
+        if self.authentication == "fab_notebookutils" and self.azure_credential is None:
+            self.azure_credential = FabNotebookUtilsCredential(audience="sql")
+        # Resolve if we have the warehouse connection details (not the storage account name)
+        if self.host and self.database:
+            self.resolve()
+
+    def on_resolved(self) -> None:
+        """Validate the configured authentication method."""
+        validate_authentication(self)
 
     def get_odbc_dsn_dict(self) -> Dict[str, Any]:
-        """Build ODBC DSN dictionary with Fabric-specific settings."""
-        params = {
-            "DRIVER": "{ODBC Driver 18 for SQL Server}",
+        """Build ODBC DSN dictionary with Fabric-specific settings.
+
+        mssql-python installs and manages its own driver dependency, so no DRIVER key is emitted.
+        """
+        params: dict[str, Any] = {
             "SERVER": f"{self.host},{self.port}",
             "DATABASE": self.database,
-            "AUTHENTICATION": "ActiveDirectoryServicePrincipal",
-            "LongAsMax": "yes",  # Required for UTF-8 collation support
+            # The mssql-python driver handles long/max types (e.g. varchar(max)) natively,
+            # so no LongAsMax keyword is needed.
             "Encrypt": "yes",
             "TrustServerCertificate": "no",
         }
-
-        # Add Service Principal credentials if provided
-        if self.azure_client_id and self.azure_tenant_id and self.azure_client_secret:
-            params["UID"] = f"{self.azure_client_id}@{self.azure_tenant_id}"
-            params["PWD"] = str(self.azure_client_secret)
-
+        apply_authentication_to_dsn(self, params)
         return params
 
+    def to_odbc_attrs_before(self) -> Optional[Dict[int, bytes]]:
+        """Return `attrs_before` with the pre-acquired `access_token`, or None."""
+        return build_access_token_attrs_before(self)
+
+    def to_odbc_token_provider(self) -> Optional[Any]:
+        """Return the `azure_credential` mssql-python acquires tokens from, or None."""
+        return select_token_provider(self)
+
     def to_odbc_dsn(self) -> str:
-        """Build ODBC connection string for pyodbc."""
-        params = self.get_odbc_dsn_dict()
+        """Build the ODBC connection string."""
+        # no free-form query passthrough here today, so this only guards a future one
+        params = strip_token_incompatible_keys(self, self.get_odbc_dsn_dict())
         return ";".join(f"{k}={v}" for k, v in params.items())
 
     def to_native_credentials(self) -> Optional[Any]:
@@ -164,7 +210,7 @@ class FabricClientConfiguration(DestinationClientDwhWithStagingConfiguration):
     - Latin1_General_100_BIN2_UTF8 (default, case-sensitive)
     - Latin1_General_100_CI_AS_KS_WS_SC_UTF8 (case-insensitive)
 
-    Both have UTF-8 encoding. LongAsMax=yes is automatically configured.
+    Both have UTF-8 encoding. Long/max types are handled natively by the driver.
     """
 
     def data_location(self) -> str:

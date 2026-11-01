@@ -150,7 +150,7 @@ mssql:
   outputs:
     analytics:
       type: sqlserver
-      driver: "{{ env_var('DLT__CREDENTIALS__DRIVER') }}"
+      driver: "{{ env_var('DLT__CREDENTIALS__DRIVER', 'ODBC Driver 18 for SQL Server') }}"
       server: "{{ env_var('DLT__CREDENTIALS__HOST') }}"
       port: "{{ env_var('DLT__CREDENTIALS__PORT') | as_number }}"
       database: "{{ env_var('DLT__CREDENTIALS__DATABASE') }}"
@@ -166,7 +166,7 @@ synapse:
   outputs:
     analytics:
       type: synapse
-      driver: "{{ env_var('DLT__CREDENTIALS__DRIVER') }}"
+      driver: "{{ env_var('DLT__CREDENTIALS__DRIVER', 'ODBC Driver 18 for SQL Server') }}"
       server: "{{ env_var('DLT__CREDENTIALS__HOST') }}"
       port: "{{ env_var('DLT__CREDENTIALS__PORT') | as_number }}"
       database: "{{ env_var('DLT__CREDENTIALS__DATABASE') }}"
