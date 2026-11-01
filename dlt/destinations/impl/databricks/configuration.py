@@ -36,6 +36,8 @@ class DatabricksCredentials(CredentialsConfiguration):
     access_token: Optional[TSecretStrValue] = None
     client_id: Optional[TSecretStrValue] = None
     client_secret: Optional[TSecretStrValue] = None
+    oidc_token_env: Optional[str] = None
+    oidc_token_filepath: Optional[str] = None
     http_headers: Optional[Dict[str, str]] = None
     session_configuration: Optional[Dict[str, Any]] = None
     """Dict of session parameters that will be passed to `databricks.sql.connect`"""
@@ -53,6 +55,8 @@ class DatabricksCredentials(CredentialsConfiguration):
         "client_id",
         "client_secret",
         "access_token",
+        "oidc_token_env",
+        "oidc_token_filepath",
     ]
 
     def on_resolved(self) -> None:
@@ -63,7 +67,8 @@ class DatabricksCredentials(CredentialsConfiguration):
         except Exception:
             w = None
 
-        if not ((self.client_id and self.client_secret) or self.access_token):
+        if not (self.client_id or self.access_token):
+            default_auth_error: Optional[Exception] = None
             if w is not None:
                 try:
                     # attempt context authentication via notebook token
@@ -80,14 +85,21 @@ class DatabricksCredentials(CredentialsConfiguration):
                 try:
                     self.access_token = w.config.authenticate
                     logger.info(f"Will attempt to use default auth of type {w.config.auth_type}")
-                except Exception:
-                    pass
+                except Exception as ex:
+                    default_auth_error = ex
 
             if not self.access_token:
+                reason = (
+                    f" Default authentication attempt failed with: {default_auth_error}"
+                    if default_auth_error
+                    else ""
+                )
                 raise ConfigurationValueError(
-                    "Authentication failed: No valid authentication method detected. "
-                    "Provide either `client_id` and `client_secret` for OAuth authentication, "
-                    "or `access_token` for token-based authentication."
+                    "Authentication failed: No valid authentication method detected. Provide"
+                    " `client_id` and `client_secret` for OAuth M2M authentication, `client_id`"
+                    " alone for OIDC workload federation (see"
+                    " https://docs.databricks.com/aws/en/dev-tools/auth/oauth-federation-policy#workload),"
+                    f" or `access_token` for token-based authentication.{reason}"
                 )
 
         if not self.server_hostname or not self.http_path:
@@ -155,6 +167,18 @@ class DatabricksCredentials(CredentialsConfiguration):
         )
         return cast(Callable[[], Dict[str, str]], oauth_service_principal(config))
 
+    def _get_federated_oidc_credentials(self) -> Optional[Callable[[], Dict[str, str]]]:
+        """Builds a credentials provider for OIDC workload federation, keyed on `client_id`."""
+        from databricks.sdk.core import Config
+
+        config = Config(
+            host=f"https://{self.server_hostname}",
+            client_id=self.client_id,
+            oidc_token_env=self.oidc_token_env,
+            oidc_token_filepath=self.oidc_token_filepath,
+        )
+        return cast(Callable[[], Dict[str, str]], config.authenticate)
+
     def to_connector_params(self) -> Dict[str, Any]:
         session_configuration = dict(self.session_configuration or {})
         # the connector ignores the `TIMEZONE` SQL parameter here, only the Spark conf takes effect
@@ -178,6 +202,8 @@ class DatabricksCredentials(CredentialsConfiguration):
 
         if self.client_id and self.client_secret:
             conn_params["credentials_provider"] = self._get_oauth_credentials
+        elif self.client_id:
+            conn_params["credentials_provider"] = self._get_federated_oidc_credentials
         elif callable(self.access_token):
             # this is w.config.authenticator
             conn_params["credentials_provider"] = lambda: self.access_token
