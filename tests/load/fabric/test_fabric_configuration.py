@@ -1,11 +1,18 @@
 """Tests for Microsoft Fabric Warehouse destination configuration"""
 
+import base64
+import json
 import os
+import struct
+import sys
+import time
 from typing import Optional, cast
+from unittest.mock import MagicMock
 
 import pytest
 
 from dlt.common.configuration import resolve_configuration
+from dlt.common.configuration.exceptions import ConfigurationException
 from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.destination.typing import PreparedTableSchema
 from dlt.common.schema import Schema
@@ -16,6 +23,12 @@ from dlt.destinations.impl.fabric.configuration import (
     FabricCredentials,
     FabricClientConfiguration,
 )
+from dlt.common.runtime.fab_notebookutils import (
+    FabNotebookUtilsCredential,
+    is_fab_notebookutils_available,
+    _decode_jwt_expiry,
+)
+from dlt.destinations.impl.mssql.configuration import get_access_token, uses_token_authentication
 
 # mark all tests as essential, do not remove
 pytestmark = pytest.mark.essential
@@ -253,3 +266,385 @@ def test_fabric_type_mapper_scales_varchar_precision(data_type: TDataType) -> No
         TColumnSchema, {"name": "c", "data_type": data_type, "precision": 10, "nullable": True}
     )
     assert mapper.to_destination_type(col, table) == "varchar(40)"
+
+
+class _FakeAccessToken:
+    token = "fake-access-token"
+
+
+class _FakeTokenCredential:
+    """Minimal azure-identity-like credential, avoids hitting Azure in unit tests."""
+
+    def get_token(self, *scopes: str, **kwargs: object) -> _FakeAccessToken:
+        return _FakeAccessToken()
+
+
+def _warehouse_credentials(
+    authentication: str | None = None, **kwargs: object
+) -> FabricCredentials:
+    creds = FabricCredentials()
+    creds.host = "test.datawarehouse.fabric.microsoft.com"
+    creds.database = "testdb"
+    if authentication is not None:
+        creds.authentication = authentication
+    for key, value in kwargs.items():
+        setattr(creds, key, value)
+    return creds
+
+
+def test_fabric_authentication_default_is_service_principal() -> None:
+    assert FabricCredentials().authentication == "ActiveDirectoryServicePrincipal"
+
+
+@pytest.mark.parametrize(
+    "authentication,expected",
+    [
+        ("default", "DefaultAzureCredential"),
+        ("ActiveDirectoryDefault", "DefaultAzureCredential"),
+        ("ActiveDirectoryDeviceCode", "DeviceCodeCredential"),
+    ],
+)
+def test_fabric_azure_identity_credential_mapping(authentication: str, expected: str) -> None:
+    """Each azure-identity method maps to the right credential and skips the DSN AUTHENTICATION."""
+    creds = _warehouse_credentials(authentication)
+    creds.on_partial()
+
+    assert type(creds.default_credentials()).__name__ == expected
+
+    dsn = creds.get_odbc_dsn_dict()
+    assert "AUTHENTICATION" not in dsn
+    assert "UID" not in dsn
+    assert "PWD" not in dsn
+    assert dsn["LongAsMax"] == "yes"
+
+
+@pytest.mark.parametrize(
+    "authentication",
+    ["auto", "cli", "environment", "interactive", "devicecode", "msi", "managedidentity"],
+)
+def test_fabric_removed_dlt_custom_alias_raises(authentication: str) -> None:
+    """The old dlt-custom lowercase aliases were replaced by native ODBC/azure-identity names."""
+    creds = _warehouse_credentials(authentication)
+    with pytest.raises(ConfigurationException):
+        creds.on_partial()  # resolves (host+database present) -> on_resolved -> validate raises
+
+
+def test_fabric_service_principal_without_secret_falls_back_to_token() -> None:
+    """Default method without a Service Principal secret injects a DefaultAzureCredential token."""
+    creds = _warehouse_credentials()
+    creds.on_partial()
+
+    assert uses_token_authentication(creds) is True
+    assert type(creds.default_credentials()).__name__ == "DefaultAzureCredential"
+    assert "AUTHENTICATION" not in creds.get_odbc_dsn_dict()
+
+
+def test_fabric_service_principal_with_secret_is_driver_native() -> None:
+    """Default method with a Service Principal secret authenticates through the ODBC driver."""
+    creds = _warehouse_credentials(
+        azure_tenant_id="t", azure_client_id="c", azure_client_secret="s"
+    )
+    creds.on_partial()
+
+    assert uses_token_authentication(creds) is False
+    dsn = creds.get_odbc_dsn_dict()
+    assert dsn["AUTHENTICATION"] == "ActiveDirectoryServicePrincipal"
+    assert dsn["UID"] == "c@t"
+    assert dsn["PWD"] == "s"
+    assert creds.to_odbc_attrs_before() is None
+
+
+@pytest.mark.parametrize(
+    "authentication",
+    ["ActiveDirectoryIntegrated", "ActiveDirectoryInteractive", "ActiveDirectoryMsi"],
+)
+def test_fabric_driver_native_passthrough(authentication: str) -> None:
+    creds = _warehouse_credentials(authentication)
+    creds.on_partial()
+
+    dsn = creds.get_odbc_dsn_dict()
+    assert dsn["AUTHENTICATION"] == authentication
+    assert "UID" not in dsn
+    assert "PWD" not in dsn
+    assert creds.to_odbc_attrs_before() is None
+
+
+def test_fabric_active_directory_password() -> None:
+    creds = _warehouse_credentials(
+        "ActiveDirectoryPassword", username="user@contoso.com", password="pwd"
+    )
+    creds.on_partial()
+
+    dsn = creds.get_odbc_dsn_dict()
+    assert dsn["AUTHENTICATION"] == "ActiveDirectoryPassword"
+    assert dsn["UID"] == "user@contoso.com"
+    assert dsn["PWD"] == "pwd"
+    assert creds.to_odbc_attrs_before() is None
+
+
+def test_fabric_active_directory_password_requires_username_password() -> None:
+    creds = _warehouse_credentials("ActiveDirectoryPassword")
+    with pytest.raises(ConfigurationException):
+        creds.on_partial()  # on_partial -> resolve() -> on_resolved validates
+
+
+def test_fabric_unsupported_authentication_raises() -> None:
+    creds = _warehouse_credentials("SqlPassword")
+    with pytest.raises(ConfigurationException):
+        creds.on_partial()
+
+
+def test_fabric_to_odbc_attrs_before_token_struct() -> None:
+    """The injected token follows the SQL_COPT_SS_ACCESS_TOKEN struct layout."""
+    creds = _warehouse_credentials("default")
+    creds._set_default_credentials(_FakeTokenCredential())
+
+    attrs = creds.to_odbc_attrs_before()
+    assert attrs is not None
+    token_struct = attrs[1256]  # SQL_COPT_SS_ACCESS_TOKEN
+    length = struct.unpack("<I", token_struct[:4])[0]
+    assert length == len(token_struct) - 4
+    assert token_struct[4:].decode("utf-16-le") == "fake-access-token"
+
+
+def test_fabric_resolve_configuration_token_authentication() -> None:
+    """Resolution succeeds without a Service Principal secret for token authentication."""
+    creds = FabricCredentials()
+    creds.host = "abc.datawarehouse.fabric.microsoft.com"
+    creds.database = "mydb"
+    creds.authentication = "ActiveDirectoryDeviceCode"
+
+    resolved = resolve_configuration(creds)
+
+    assert resolved.is_resolved()
+    assert uses_token_authentication(resolved) is True
+    assert type(resolved.default_credentials()).__name__ == "DeviceCodeCredential"
+    assert "AUTHENTICATION" not in resolved.get_odbc_dsn_dict()
+
+
+class _RaisingTokenCredential:
+    """A TokenCredential whose `get_token` must never be called (used to prove precedence)."""
+
+    def get_token(self, *scopes: str, **kwargs: object) -> _FakeAccessToken:
+        raise AssertionError("azure_credential.get_token() should not have been called")
+
+
+def test_fabric_access_token_and_azure_credential_default_to_none() -> None:
+    creds = FabricCredentials()
+    assert creds.access_token is None
+    assert creds.azure_credential is None
+
+
+def test_fabric_get_access_token_uses_azure_credential() -> None:
+    creds = _warehouse_credentials(azure_credential=_FakeTokenCredential())
+    assert get_access_token(creds) == "fake-access-token"
+
+
+def test_fabric_get_access_token_prefers_access_token_over_azure_credential() -> None:
+    creds = _warehouse_credentials(
+        access_token="explicit-token", azure_credential=_RaisingTokenCredential()
+    )
+    assert get_access_token(creds) == "explicit-token"
+
+
+def test_fabric_access_token_takes_precedence_over_default_service_principal() -> None:
+    """access_token bypasses the default ActiveDirectoryServicePrincipal authentication entirely,
+    even though that method is on by default for Fabric and no Service Principal secret is set."""
+    creds = _warehouse_credentials(access_token="explicit-token")
+    creds.on_partial()
+
+    assert uses_token_authentication(creds) is True
+    dsn = creds.get_odbc_dsn_dict()
+    assert "AUTHENTICATION" not in dsn
+    assert "UID" not in dsn
+    assert "PWD" not in dsn
+
+    attrs = creds.to_odbc_attrs_before()
+    assert attrs is not None
+    assert attrs[1256][4:].decode("utf-16-le") == "explicit-token"
+
+
+def test_fabric_azure_credential_takes_precedence_over_authentication() -> None:
+    creds = _warehouse_credentials(
+        "ActiveDirectoryDeviceCode", azure_credential=_FakeTokenCredential()
+    )
+    creds.on_partial()
+
+    # setup_token_credential must skip the azure-identity DefaultAzureCredential machinery
+    assert creds.has_default_credentials() is False
+    assert uses_token_authentication(creds) is True
+
+    dsn = creds.get_odbc_dsn_dict()
+    assert "AUTHENTICATION" not in dsn
+
+    attrs = creds.to_odbc_attrs_before()
+    assert attrs is not None
+    assert attrs[1256][4:].decode("utf-16-le") == "fake-access-token"
+
+
+def test_fabric_resolve_configuration_access_token_without_service_principal() -> None:
+    creds = FabricCredentials()
+    creds.host = "abc.datawarehouse.fabric.microsoft.com"
+    creds.database = "mydb"
+    creds.access_token = "explicit-token"
+
+    resolved = resolve_configuration(creds)
+
+    assert resolved.is_resolved()
+    assert uses_token_authentication(resolved) is True
+    assert "AUTHENTICATION" not in resolved.get_odbc_dsn_dict()
+
+
+def _make_jwt(exp: int) -> str:
+    header = base64.urlsafe_b64encode(b'{"alg":"none"}').rstrip(b"=").decode()
+    payload = base64.urlsafe_b64encode(json.dumps({"exp": exp}).encode()).rstrip(b"=").decode()
+    return f"{header}.{payload}.sig"
+
+
+@pytest.fixture()
+def mock_notebookutils():
+    mod = MagicMock()
+    mod.credentials.getToken = MagicMock(return_value=_make_jwt(int(time.time()) + 3600))
+    sys.modules["notebookutils"] = mod
+    yield mod
+    sys.modules.pop("notebookutils", None)
+
+
+@pytest.fixture()
+def no_notebookutils():
+    saved = sys.modules.pop("notebookutils", None)
+    yield
+    if saved is not None:
+        sys.modules["notebookutils"] = saved
+
+
+def test_decode_jwt_expiry_valid() -> None:
+    exp = int(time.time()) + 7200
+    assert _decode_jwt_expiry(_make_jwt(exp)) == exp
+
+
+def test_decode_jwt_expiry_garbage() -> None:
+    assert _decode_jwt_expiry("not-a-jwt") is None
+
+
+def test_notebookutils_get_token(mock_notebookutils: MagicMock) -> None:
+    cred = FabNotebookUtilsCredential("https://database.windows.net/")
+    token = cred.get_token()
+    assert token.token == mock_notebookutils.credentials.getToken.return_value
+    mock_notebookutils.credentials.getToken.assert_called_once_with("https://database.windows.net/")
+
+
+def test_notebookutils_sql_alias(mock_notebookutils: MagicMock) -> None:
+    cred = FabNotebookUtilsCredential("sql")
+    cred.get_token()
+    mock_notebookutils.credentials.getToken.assert_called_once_with("https://database.windows.net/")
+
+
+def test_notebookutils_caches_token(mock_notebookutils: MagicMock) -> None:
+    cred = FabNotebookUtilsCredential("storage")
+    t1 = cred.get_token()
+    t2 = cred.get_token()
+    assert t1 is t2
+    assert mock_notebookutils.credentials.getToken.call_count == 1
+
+
+def test_notebookutils_refreshes_near_expiry(mock_notebookutils: MagicMock) -> None:
+    near_expiry_jwt = _make_jwt(int(time.time()) + 100)
+    fresh_jwt = _make_jwt(int(time.time()) + 3600)
+    mock_notebookutils.credentials.getToken.side_effect = [near_expiry_jwt, fresh_jwt]
+
+    cred = FabNotebookUtilsCredential("storage")
+    t1 = cred.get_token()
+    assert t1.token == near_expiry_jwt
+    t2 = cred.get_token()
+    assert t2.token == fresh_jwt
+    assert mock_notebookutils.credentials.getToken.call_count == 2
+
+
+def test_notebookutils_mssparkutils_fallback(mock_notebookutils: MagicMock) -> None:
+    del mock_notebookutils.credentials.getToken
+    mock_notebookutils.mssparkutils.credentials.getToken = MagicMock(
+        return_value=_make_jwt(int(time.time()) + 3600)
+    )
+
+    cred = FabNotebookUtilsCredential("storage")
+    cred.get_token()
+    mock_notebookutils.mssparkutils.credentials.getToken.assert_called_once()
+
+
+def test_notebookutils_unavailable_raises(no_notebookutils: None) -> None:
+    cred = FabNotebookUtilsCredential("storage")
+    with pytest.raises(ConfigurationException, match="NotebookUtils"):
+        cred.get_token()
+
+
+def test_notebookutils_available_in_fabric(mock_notebookutils: MagicMock) -> None:
+    assert is_fab_notebookutils_available() is True
+
+
+def test_notebookutils_available_outside_fabric(no_notebookutils: None) -> None:
+    assert is_fab_notebookutils_available() is False
+
+
+def test_notebookutils_available_without_credential_api(mock_notebookutils: MagicMock) -> None:
+    del mock_notebookutils.credentials
+    del mock_notebookutils.mssparkutils
+    assert is_fab_notebookutils_available() is False
+
+
+def test_notebookutils_closeable(mock_notebookutils: MagicMock) -> None:
+    """adlfs and the Azure SDK clients close the credential they were handed."""
+    with FabNotebookUtilsCredential("storage") as cred:
+        assert cred.get_token().token
+    cred.close()
+    assert cred.get_token().token
+
+
+def test_notebookutils_importable_from_runtime() -> None:
+    from dlt.common.runtime.fab_notebookutils import FabNotebookUtilsCredential as Cls
+
+    assert Cls is FabNotebookUtilsCredential
+
+
+def test_fabric_notebookutils_creates_credential(mock_notebookutils: MagicMock) -> None:
+    creds = _warehouse_credentials("fab_notebookutils")
+    creds.on_partial()
+    assert isinstance(creds.azure_credential, FabNotebookUtilsCredential)
+
+
+def test_fabric_notebookutils_dsn_has_no_authentication_key(
+    mock_notebookutils: MagicMock,
+) -> None:
+    creds = _warehouse_credentials("fab_notebookutils")
+    creds.on_partial()
+    dsn = creds.get_odbc_dsn_dict()
+    assert "AUTHENTICATION" not in dsn
+    assert "UID" not in dsn
+    assert "PWD" not in dsn
+
+
+def test_fabric_notebookutils_attrs_before(mock_notebookutils: MagicMock) -> None:
+    creds = _warehouse_credentials("fab_notebookutils")
+    creds.on_partial()
+    attrs = creds.to_odbc_attrs_before()
+    assert attrs is not None
+    token_struct = attrs[1256]
+    length = struct.unpack("<I", token_struct[:4])[0]
+    assert length == len(token_struct) - 4
+
+
+def test_fabric_notebookutils_does_not_replace_explicit_azure_credential(
+    mock_notebookutils: MagicMock,
+) -> None:
+    explicit = _FakeTokenCredential()
+    creds = _warehouse_credentials("fab_notebookutils", azure_credential=explicit)
+    creds.on_partial()
+    assert creds.azure_credential is explicit
+
+
+def test_fabric_access_token_precedence_over_notebookutils(
+    mock_notebookutils: MagicMock,
+) -> None:
+    creds = _warehouse_credentials("fab_notebookutils", access_token="explicit-token")
+    creds.on_partial()
+    assert get_access_token(creds) == "explicit-token"
