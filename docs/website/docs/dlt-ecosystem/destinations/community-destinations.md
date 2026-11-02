@@ -76,7 +76,6 @@ Hotdata is a high-concurrency SQL execution layer built on Apache DataFusion for
 Code:
 [https://github.com/hotdata-dev/hotdata-dlt-destination](https://github.com/hotdata-dev/hotdata-dlt-destination)
 
-
 ## Redis through ADBC
 
 [`adbc-driver-redis`](https://github.com/redis/redis-adbc-driver) supplies an
