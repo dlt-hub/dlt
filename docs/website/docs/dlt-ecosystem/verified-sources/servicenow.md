@@ -271,7 +271,7 @@ of the ServiceNow instance with the Table API.
 
 ### Source `servicenow_source`
 
-```py
+```py notype
 @dlt.source(name="servicenow")
 def servicenow_source(
     credentials: ServiceNowAuth = dlt.secrets.value,
@@ -288,6 +288,7 @@ def servicenow_source(
     max_partitions: int = 10,
     defer_table_reflect: bool = False,
 ) -> Iterable[DltResource]:
+    ...
 ```
 
 `servicenow_source` returns a `servicenow_table` resource for each table in `tables`, with the name
@@ -307,7 +308,7 @@ of `sys_db_object` and one of `sys_dictionary`. dlt reads the tables in parallel
 
 ### Resource `servicenow_table`
 
-```py
+```py notype
 def servicenow_table(
     credentials: ServiceNowAuth = dlt.secrets.value,
     table: str = dlt.config.value,
@@ -329,6 +330,7 @@ def servicenow_table(
     merge_key: TColumnNames = None,
     defer_table_reflect: bool = False,
 ) -> DltResource:
+    ...
 ```
 
 dlt reads the config of a table from `sources.servicenow.<table>`, for example
@@ -400,7 +402,7 @@ dlt reads the config of a table from `sources.servicenow.<table>`, for example
 
 1. Configure the pipeline. Give the pipeline name, the destination and the dataset name:
 
-   ```py
+   ```py notype
    pipeline = dlt.pipeline(
        pipeline_name="servicenow",
        destination="duckdb",
@@ -410,7 +412,7 @@ dlt reads the config of a table from `sources.servicenow.<table>`, for example
 
 1. To load selected tables with encoded queries, pass `tables` and `encoded_queries`:
 
-   ```py
+   ```py notype
    source = servicenow_source(
        tables=["incident", "change_request", "sys_user"],
        encoded_queries={"incident": "active=true", "change_request": "active=true"},
@@ -421,7 +423,7 @@ dlt reads the config of a table from `sources.servicenow.<table>`, for example
 
 1. To load a table with selected fields, use `servicenow_table`:
 
-   ```py
+   ```py notype
    incident = servicenow_table(
        table="incident",
        included_columns=["number", "short_description", "state", "priority"],
@@ -431,7 +433,7 @@ dlt reads the config of a table from `sources.servicenow.<table>`, for example
 
 1. To load all records of a table again, use `write_disposition="replace"`:
 
-   ```py
+   ```py notype
    print(pipeline.run(servicenow_table(table="cmdb_ci", write_disposition="replace")))
    ```
 
@@ -441,7 +443,7 @@ To load a large table over several runs, limit the pages of each run with `add_l
 the records by the cursor with `row_order="asc"`. As a result, each run continues where the
 previous run stopped. When a run loads no records, stop the loop:
 
-```py
+```py notype
 incident = servicenow_table(
     table="incident",
     page_size=10000,
@@ -476,7 +478,7 @@ ServiceNow splits rotated tables, for example `syslog` and `sys_email`, into sha
 `sys_created_on`. To read only the latest shards, use an incremental on `sys_created_on` and the
 `append` write disposition:
 
-```py
+```py notype
 syslog = servicenow_table(
     table="syslog",
     incremental=dlt.sources.incremental("sys_created_on"),
