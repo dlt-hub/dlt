@@ -245,9 +245,9 @@ records.
 
 - `"pyarrow"` parses the CSV results with `pyarrow` and yields Arrow tables. dlt loads these tables as
   Parquet. This backend is much faster on large sObjects.
-- `"python"` reads the CSV results with the Python standard library and yields dicts of strings. dlt
-  converts them to the column types when it normalizes the data. This backend does not import
-  `pyarrow`.
+- `"python"` reads the CSV results with the Python standard library and yields dicts of values with
+  the column types. If the backend cannot convert a value, the value stays a string. dlt converts
+  these strings when it normalizes the data. This backend does not import `pyarrow`.
 
 Both backends load the same values and types.
 
