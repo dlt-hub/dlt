@@ -3,6 +3,7 @@ from typing import (
     Any,
     AnyStr,
     ClassVar,
+    Generator,
     Iterator,
     Optional,
     Sequence,
@@ -43,10 +44,12 @@ class DremioCursorImpl(DBApiCursorImpl):
             return self.arrow(chunk_size=chunk_size).to_pandas()
         return super().df(chunk_size=chunk_size, **kwargs)
 
-    def arrow(self, chunk_size: int = None, **kwargs: Any) -> Optional["DataFrame"]:
-        if chunk_size is None:
-            return self.native_cursor.fetch_arrow_table()
-        return self.native_cursor.iter_arrow_tables(chunk_size)
+    def iter_arrow(self, chunk_size: int) -> Generator[pyarrow.Table, None, None]:
+        if not chunk_size:
+            yield self.native_cursor.fetch_arrow_table()
+            return
+        while (table := self.native_cursor.iter_arrow_tables(chunk_size)) is not None:
+            yield table
 
 
 class DremioSqlClient(SqlClientBase[pydremio.DremioConnection]):
