@@ -290,11 +290,15 @@ class PipelineTasksGroup(TaskGroup):
 
         # use task logger
         if self.use_task_logger:
-            ti = get_current_context()["ti"]
-            # AF3 RuntimeTaskInstance has no .log — task output is captured
-            # by the supervisor via stdout/stderr so no redirect needed
-            if hasattr(ti, "log"):
-                logger.LOGGER = ti.log
+            if _AIRFLOW_VERSION.major >= 3:
+                run_context = Container()[PluggableRunContext].context
+                runtime_config = run_context.runtime_config
+                runtime_config.log_output = "propagate"
+                run_context.initialize_runtime(runtime_config)
+            else:
+                ti = get_current_context()["ti"]
+                if hasattr(ti, "log"):
+                    logger.LOGGER = ti.log
 
         # apply run-specific config for this run only, with no process-global side effects
         run_config_values: Dict[str, Any] = {}
