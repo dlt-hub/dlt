@@ -1,10 +1,13 @@
 import os
 
 import dlt
+import pytest
 import sqlalchemy as sa
 from sqlalchemy import text
 from dlt.destinations import sqlalchemy as dlt_sqlalchemy
+from dlt.common.destination.exceptions import WriteDispositionNotSupported
 from dlt.common.utils import uniq_id
+from dlt.pipeline.exceptions import PipelineStepFailed
 
 from tests.pipeline.utils import assert_load_info
 
@@ -151,3 +154,22 @@ def test_merge_with_main_dataset() -> None:
     # verify merge result via the dataset interface
     rows = pipeline.dataset().items.select("id", "val").order_by("id").fetchall()
     assert [tuple(row) for row in rows] == [(1, "a"), (2, "b2"), (3, "c")]
+
+
+def test_merge_without_supported_strategies_raises() -> None:
+    """merge on a destination without merge strategies fails with `WriteDispositionNotSupported`"""
+    local_dir = dlt.current.run_context().local_dir
+    credentials = f"sqlite:///{os.path.join(local_dir, 'test_no_merge.db')}"
+
+    @dlt.resource(name="items", primary_key="id", write_disposition="merge")
+    def items():
+        yield [{"id": 1}]
+
+    pipeline = dlt.pipeline(
+        pipeline_name="test_sqlite_no_merge" + uniq_id(),
+        destination=dlt_sqlalchemy(credentials, supported_merge_strategies=[]),
+    )
+
+    with pytest.raises(PipelineStepFailed) as pip_ex:
+        pipeline.run(items())
+    assert isinstance(pip_ex.value.__context__, WriteDispositionNotSupported)
