@@ -337,6 +337,33 @@ def test_get_generic_type_argument_from_instance() -> None:
     instance = SimpleNamespace(__orig_class__=Optional[Foo[Any]])
     assert get_generic_type_argument_from_instance(instance, 1) is int
 
+    # a generic used bare carries no argument: fall back to Any instead of indexing
+    # past the end of the (empty) argument tuple
+    instance = SimpleNamespace(__orig_class__=Foo)
+    assert get_generic_type_argument_from_instance(instance) is Any
+    # and sample_value can still be inferred from, which indexing prevented
+    assert get_generic_type_argument_from_instance(instance, 1) is int
+
+
+def test_bare_incremental_annotation_does_not_raise() -> None:
+    import pendulum
+
+    from dlt.extract.incremental import Incremental
+
+    class BareIncremental(Incremental[Any]):
+        pass
+
+    # an Incremental created for a bare `incremental` annotation has no generic argument
+    inc = BareIncremental("id")
+    assert inc.get_incremental_value_type() is Any
+
+    # with a cursor value to infer from, the type still comes through
+    inc = BareIncremental("id", initial_value=pendulum.datetime(2024, 1, 1))
+    assert inc.get_incremental_value_type() is pendulum.DateTime
+
+    # the parameterized form keeps working
+    assert Incremental[pendulum.DateTime]("id").get_incremental_value_type() is pendulum.DateTime
+
 
 def test_get_type_globals() -> None:
     import sys
