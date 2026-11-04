@@ -857,6 +857,14 @@ def test_export_fails_on_pins_below_floors(
     assert needs in result.stderr
 
 
+def test_resolved_main_installs_with_launcher_specs(tmp_path: Path) -> None:
+    """A resolved main pins every package, so a launcher spec it never saw can contradict it."""
+    result = _export_with_deps(["dlt[hub]", "dlthub"], "requirements-resolved")
+    launcher_specs = result["launcher_requirements"][LAUNCHER_JOB]
+    compiled = _run_uv_compile([*result["groups"][MAIN_GROUP], *launcher_specs], tmp_path)
+    assert compiled.returncode == 0, compiled.stderr
+
+
 def test_dlt_extra_specs() -> None:
     s3 = dlt_extra_specs("s3")
     assert set(s3) == set(_S3_NAMES)
