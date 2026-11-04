@@ -1,0 +1,5 @@
+global_dev_only: global dev
+shared: from_global_dev
+
+gtbl:
+  key: from_global_dev
