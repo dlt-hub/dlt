@@ -74,6 +74,10 @@ OUTPUT_TOOL_NAME = "final_result"
 UNBOUNDED_RETRIES = 10_000
 """Retry budget given to pydantic-ai when the run has no turn limit."""
 
+MCP_INIT_TIMEOUT = 60.0
+"""Seconds the workspace MCP server gets to answer the first handshake. pydantic-ai allows 5,
+which a cold container that has to import dlt and fastmcp first can miss."""
+
 GATEWAY_PREFIX = "gateway/"
 
 DEFAULT_URL_ARG = "base_url"
@@ -342,6 +346,7 @@ class PydanticAILoop(AgentLoop):
                 transport,
                 id=MCP_SERVER_ID,
                 tool_error_behavior="retry" if self.tool_retries else "failed",
+                init_timeout=MCP_INIT_TIMEOUT,
             )
         ]
 
