@@ -3,6 +3,8 @@ import dlt, os, pytest
 from dlt.common.utils import uniq_id
 from pytest_mock import MockerFixture
 
+from dlt.common.destination.utils import resolve_replace_strategy
+from dlt.common.schema.exceptions import SchemaCorruptedException
 from dlt.common.schema.typing import REPLACE_STRATEGIES, TLoaderReplaceStrategy
 from dlt.destinations.sql_jobs import SqlStagingReplaceFollowupJob
 from dlt.pipeline.exceptions import PipelineStepFailed
@@ -17,7 +19,7 @@ from tests.load.utils import (
     destinations_configs,
     DestinationTestConfiguration,
 )
-from tests.load.pipeline.utils import skip_if_unsupported_replace_strategy
+from tests.load.pipeline.utils import get_sample_table, skip_if_unsupported_replace_strategy
 
 
 @pytest.mark.parametrize(
@@ -709,6 +711,39 @@ def test_replace_staging_empty_resource_aborted_package_keeps_data(
     info = pipeline.run(items([]), **destination_config.run_kwargs)
     assert_load_info(info)
     assert load_table_counts(pipeline, "items") == {"items": 0}
+
+
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(local_filesystem_configs=True, default_sql_configs=True),
+    ids=lambda x: x.name,
+)
+@pytest.mark.parametrize("replace_strategy", REPLACE_STRATEGIES)
+def test_unsupported_replace_strategy_raises(
+    destination_config: DestinationTestConfiguration, replace_strategy: TLoaderReplaceStrategy
+) -> None:
+    """Requesting a replace strategy the destination does not support fails with
+    `SchemaCorruptedException`, not a bare assert."""
+    if resolve_replace_strategy(
+        get_sample_table(destination_config, "replace"),
+        replace_strategy,
+        destination_config.raw_capabilities(),
+    ):
+        pytest.skip(f"Destination {destination_config.name} supports {replace_strategy}")
+
+    os.environ["DESTINATION__REPLACE_STRATEGY"] = replace_strategy
+    pipeline = destination_config.setup_pipeline("replace_unsupported", dev_mode=True)
+
+    @dlt.resource(write_disposition="replace")
+    def items() -> Any:
+        yield [{"id": 1}]
+
+    with pytest.raises(PipelineStepFailed) as pip_ex:
+        pipeline.run(items(), **destination_config.run_kwargs)
+    assert isinstance(pip_ex.value.__context__, SchemaCorruptedException)
+    assert f"Requested replace strategy {replace_strategy} not available" in str(
+        pip_ex.value.__context__
+    )
 
 
 @pytest.mark.parametrize(
