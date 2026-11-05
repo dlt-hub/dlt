@@ -122,6 +122,7 @@ class InvalidFilesystemLayout(DestinationTerminalException):
         extra_placeholders: Sequence[str],
         invalid_placeholders: Sequence[str],
         unused_placeholders: Sequence[str],
+        details: str = None,
     ) -> None:
         self.invalid_placeholders = invalid_placeholders
         self.extra_placeholders = extra_placeholders
@@ -129,10 +130,14 @@ class InvalidFilesystemLayout(DestinationTerminalException):
         self.unused_placeholders = unused_placeholders
         self.layout = layout
 
-        message = (
-            f"`{layout=:}` expected placeholders: `{expected_placeholders}` "
-            f"Missing placeholders: `{invalid_placeholders}` "
-        )
+        message = f"`{layout=:}` "
+        if invalid_placeholders:
+            message += (
+                f"expected placeholders: `{expected_placeholders}` "
+                f"Missing placeholders: `{invalid_placeholders}` "
+            )
+        if details:
+            message += details + " "
 
         if extra_placeholders:
             message += f"Extra placeholders specified: `{extra_placeholders}` "
