@@ -1,5 +1,5 @@
 from datetime import datetime, timezone  # noqa: I251
-from typing import List, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 from zoneinfo import ZoneInfo
 
 import pytest
@@ -15,6 +15,7 @@ from dlt.common.configuration.container import Container
 from dlt.common.configuration.specs.timezone_context import TimezoneContext
 
 from dlt.destinations.path_utils import (
+    check_layout,
     create_path,
     prepare_datetime_params,
     get_table_prefix_layout,
@@ -22,7 +23,10 @@ from dlt.destinations.path_utils import (
     get_file_format_and_compression,
 )
 
-from dlt.destinations.exceptions import InvalidFilesystemLayout, CantExtractTablePrefix
+from dlt.destinations.exceptions import (
+    CantExtractTablePrefix,
+    InvalidFilesystemLayout,
+)
 from tests.common.storages.utils import start_loading_file, load_storage
 
 
@@ -467,6 +471,11 @@ def test_get_table_prefix_layout() -> None:
         ("{table_name}/", "{table_name}/"),
         # slash before the next placeholder suffices
         ("{schema_name}/{table_name}/{load_id}.{ext}", "{schema_name}/{table_name}/"),
+        # file named after the table, the end of the file name separates it
+        ("{table_name}{ext}", "{table_name}"),
+        ("{schema_name}/{table_name}{ext}", "{schema_name}/{table_name}"),
+        # the first {table_name} defines the prefix
+        ("{table_name}/{table_name}{ext}", "{table_name}/"),
     ],
 )
 def test_get_table_prefix_layout_table_name_at_end(layout: str, expected_prefix: str) -> None:
@@ -478,9 +487,46 @@ def test_get_table_prefix_layout_table_name_at_end(layout: str, expected_prefix:
 
 
 @pytest.mark.parametrize(
+    "layout,extra_placeholders,is_valid",
+    [
+        ("{table_name}.{ext}", None, True),
+        ("{table_name}/_{ext}", None, True),
+        ("{load_id}/{ext}/{table_name}", None, True),
+        ("{table_name}{ext}", None, False),
+        ("{table_name}/{file_id}{ext}", None, False),
+        ("{table_name}{ext}", {"ext": "dat"}, False),
+        ("{table_name}{ext}", {"ext": dummy_callback}, False),
+        # to support usecases like in #4402
+        ("{table_name}{ext}", {"ext": ""}, True),
+        ("{table_name}/{load_id}-{file_id}{ext}", {"ext": ""}, True),
+    ],
+    ids=[
+        "dot_separator",
+        "literal_separator",
+        "ext_as_folder",
+        "ext_after_table_name",
+        "ext_after_file_id",
+        "non_empty_ext",
+        "callable_ext",
+        "empty_ext_after_table_name",
+        "empty_ext_after_file_id",
+    ],
+)
+def test_check_layout_unseparated_ext(
+    layout: str, extra_placeholders: Optional[Dict[str, Any]], is_valid: bool
+) -> None:
+    """A non-empty `ext` needs a literal separator before it."""
+    if is_valid:
+        check_layout(layout, extra_placeholders)
+    else:
+        with pytest.raises(InvalidFilesystemLayout):
+            check_layout(layout, extra_placeholders)
+
+
+@pytest.mark.parametrize(
     "layout",
-    ["{table_name}/", "{schema_name}/{table_name}/", "{table_name}/_{ext}"],
-    ids=["table_folder_only", "schema_and_table_folder", "underscore_file_name"],
+    ["{table_name}/", "{schema_name}/{table_name}/", "{table_name}/_{ext}", "{table_name}{ext}"],
+    ids=["table_folder_only", "schema_and_table_folder", "underscore_file_name", "table_file"],
 )
 def test_table_own_folder_rejects_hidden_file_name(layout: str) -> None:
     """A destination that reads a folder as a table skips files starting with '.' or '_'."""
