@@ -22,7 +22,7 @@ AWESOME_REPO = "https://github.com/sindresorhus/awesome.git"
 JAFFLE_SHOP_REPO = "https://github.com/dbt-labs/jaffle_shop.git"
 PRIVATE_REPO = "git@github.com:scale-vector/rasa_bot_experiments.git"
 PRIVATE_REPO_WITH_ACCESS = "git@github.com:scale-vector/test_private_repo.git"
-CONTEXT_REPO = "https://github.com/dlt-hub/dlthub-ai-workbench.git"
+CONTEXT_REPO = "https://github.com/dlt-hub/dlthub-ai-harness.git"
 
 
 def test_ssh_key_context() -> None:
