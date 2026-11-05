@@ -425,12 +425,13 @@ def test_dependency_map_workbench(workbench_repo: str) -> None:
     toolkits, _ = fetch_workbench_toolkits(base)
     dep_map = build_toolkits_dependency_map(toolkits)
     for name in KNOWN_TOOLKITS:
-        if name == "init":
-            assert dep_map[name] == [], "init should have no dependencies"
-        else:
-            assert "init" in dep_map[name], "%s should depend on init" % name
+        assert name in dep_map, "%s missing from workbench" % name
     for name in dep_map:
-        resolve_toolkit_dependencies(name, dep_map)
+        resolved = resolve_toolkit_dependencies(name, dep_map)
+        if name == "init":
+            assert resolved == [], "init should have no dependencies"
+        else:
+            assert "init" in resolved, "%s should depend on init" % name
 
     # every plugin.json must link to the license; only `workbench/` is checked out
     for name in toolkits:
