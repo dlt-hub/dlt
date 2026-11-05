@@ -6,7 +6,7 @@ keywords: [cursor, claude, codex, llm, data exploration, transformations, marimo
 # Explore and Transform your data with dltHub AI Harness
 
 :::info
-The [dltHub AI Harness](../ai-harness/introduction.md) is a part of the dltHub platform. View the license [here](https://github.com/dlt-hub/dlthub-ai-workbench/blob/master/LICENSE).
+The [dltHub AI Harness](../ai-harness/introduction.md) is a part of the dltHub platform. View the license [here](https://github.com/dlt-hub/dlthub-ai-harness/blob/master/LICENSE).
 :::
 
 ## Overview
