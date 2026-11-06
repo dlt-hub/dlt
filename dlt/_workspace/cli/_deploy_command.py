@@ -73,6 +73,8 @@ def deploy_command(
 
 
 class GithubActionDeployment(BaseDeployment):
+    deployment_method = DeploymentMethods.github_actions.value
+
     def __init__(
         self,
         pipeline_script_path: str,
@@ -199,8 +201,7 @@ class GithubActionDeployment(BaseDeployment):
         fmt.echo(
             "* The dependencies that will be used to run the pipeline are stored in %s. If you"
             " change add more dependencies, remember to refresh your deployment by running the same"
-            " 'deploy' command again."
-            % fmt.bold(self.artifacts["requirements_txt_name"])
+            " 'deploy' command again." % fmt.bold(self.artifacts["requirements_txt_name"])
         )
         fmt.echo()
         if len(self.secret_envs) == 0 and len(self.envs) == 0:
@@ -263,6 +264,8 @@ class GithubActionDeployment(BaseDeployment):
 
 
 class AirflowDeployment(BaseDeployment):
+    deployment_method = DeploymentMethods.airflow_composer.value
+
     def __init__(
         self,
         pipeline_script_path: str,
