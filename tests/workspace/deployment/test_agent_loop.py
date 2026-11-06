@@ -57,6 +57,7 @@ from dlt._workspace.deployment.agent.loops.claude_sdk import (
     classify_tool,
 )
 from dlt._workspace.deployment.agent.loops.pydantic_ai import (
+    MCP_INIT_TIMEOUT,
     OUTPUT_TOOL_NAME,
     UNBOUNDED_RETRIES,
     PydanticAILoop,
@@ -835,6 +836,15 @@ def test_pydantic_loop_hands_the_prompt_over_verbatim(workspace: Any) -> None:
 
     assert "{{helper(x)}}" in rendered
     assert cast(Any, messages[0]).instructions == rendered
+
+
+def test_workspace_server_gets_time_to_start(workspace: Any) -> None:
+    """A cold container imports dlt before the server can answer, so pydantic-ai's 5s is too tight."""
+
+    loop = _loop(workspace, PydanticAILoop)
+    init_timeout = loop._build_toolsets()[0].client._init_timeout
+    assert init_timeout == MCP_INIT_TIMEOUT
+    assert init_timeout > 5
 
 
 @pytest.mark.parametrize("retries", [0, 2], ids=["no-budget", "budget"])
