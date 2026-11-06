@@ -1,7 +1,11 @@
 """Tests for Fabric Warehouse table builder and SQL generation"""
+from pathlib import Path
+from typing import cast
+
 import pytest
 import sqlfluff
 
+from dlt.common.destination.typing import PreparedTableSchema
 from dlt.common.utils import uniq_id
 from dlt.common.schema import Schema
 
@@ -153,6 +157,52 @@ def test_fabric_capabilities() -> None:
     from dlt.destinations.impl.fabric.factory import FabricTypeMapper
 
     assert isinstance(caps.type_mapper, type) and issubclass(caps.type_mapper, FabricTypeMapper)
+
+    # Unlike Synapse, Fabric Warehouse supports DDL transactions and
+    # `ALTER SCHEMA ... TRANSFER`, so the `staging-optimized` replace strategy is available
+    assert caps.supports_ddl_transactions is True
+    assert "staging-optimized" in caps.supported_replace_strategies
+
+
+def test_fabric_staging_optimized_replace_uses_alter_schema_transfer(client: FabricClient) -> None:
+    """Test that the 'staging-optimized' replace strategy generates an ALTER SCHEMA ...
+    TRANSFER job (like mssql), not the generic truncate-and-insert job that Synapse falls
+    back to for every replace strategy.
+    """
+    table_chain = cast(
+        list[PreparedTableSchema],
+        [{"name": "event_test_table", "x-replace-strategy": "staging-optimized"}],
+    )
+    jobs = client._create_replace_followup_jobs(table_chain)
+    assert len(jobs) == 1
+
+    sql = Path(jobs[0].new_file_path()).read_text(encoding="utf-8")
+    assert "ALTER SCHEMA" in sql
+    assert "TRANSFER" in sql
+    assert "DROP TABLE IF EXISTS" in sql
+
+
+def test_fabric_insert_from_staging_replace_unaffected(client: FabricClient) -> None:
+    """Test that the existing 'insert-from-staging' replace strategy still uses the
+    generic truncate-and-insert job, i.e. enabling 'staging-optimized' didn't change it.
+    """
+    table_chain = cast(
+        list[PreparedTableSchema],
+        [
+            {
+                "name": "event_test_table",
+                "x-replace-strategy": "insert-from-staging",
+                "columns": {c["name"]: c for c in TABLE_UPDATE},
+            }
+        ],
+    )
+    jobs = client._create_replace_followup_jobs(table_chain)
+    assert len(jobs) == 1
+
+    sql = Path(jobs[0].new_file_path()).read_text(encoding="utf-8")
+    assert "ALTER SCHEMA" not in sql
+    assert "TRUNCATE TABLE" in sql
+    assert "INSERT INTO" in sql
 
 
 @pytest.fixture
