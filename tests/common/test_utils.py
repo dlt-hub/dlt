@@ -23,6 +23,7 @@ from dlt.common.utils import (
     map_nested_dicts_in_place,
     reveal_pseudo_secret,
     obfuscate_pseudo_secret,
+    sanitize_location_url,
     get_module_name,
     get_full_callable_name,
     get_main_module_name,
@@ -638,3 +639,31 @@ def test_simple_repr() -> None:
     repr_ = simple_repr("name", foo=object(), bar=32.0)
 
     assert isinstance(repr_, str)
+
+
+@pytest.mark.parametrize(
+    "url,expected",
+    [
+        # Userinfo is dropped.
+        ("memory://alice:hunter2@bucket/data", "memory://bucket/data"),
+        ("sftp://alice:hunter2@host:2222/data", "sftp://host:2222/data"),
+        # Sensitive query parameters are masked.
+        (
+            "https://example.com/data?token=abc&foo=bar",
+            "https://example.com/data?token=***&foo=bar",
+        ),
+        # abfss username is the container name, not a credential.
+        (
+            "abfss://container@account.dfs.core.windows.net/path",
+            "abfss://container@account.dfs.core.windows.net/path",
+        ),
+        (
+            "abfss://alice:hunter2@account.dfs.core.windows.net/path?sig=abc",
+            "abfss://account.dfs.core.windows.net/path?sig=***",
+        ),
+        # Untouched URLs stay untouched.
+        ("s3://bucket/data", "s3://bucket/data"),
+    ],
+)
+def test_sanitize_location_url(url: str, expected: str) -> None:
+    assert sanitize_location_url(url) == expected
