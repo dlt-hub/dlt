@@ -32,10 +32,10 @@ class SupportsDataAccess(Protocol):
         ...
 
     def df(self, chunk_size: Optional[int] = None) -> Optional[DataFrame]:
-        """Fetches the results as arrow table. Uses the native pandas implementation of the destination client cursor if available.
+        """Fetches the results as data frame. Uses the native pandas implementation of the destination client cursor if available.
 
         Args:
-            chunk_size (Optional[int]): The number of rows to fetch for this call. Defaults to None which will fetch all rows.
+            chunk_size (Optional[int]): The target number of rows to fetch for this call, the actual number depends on the destination. Defaults to None which will fetch all rows.
 
         Returns:
             Optional[DataFrame]: A data frame with query results.
@@ -46,7 +46,7 @@ class SupportsDataAccess(Protocol):
         """Fetches the results as arrow table. Uses the native arrow implementation of the destination client cursor if available.
 
         Args:
-            chunk_size (Optional[int]): The number of rows to fetch for this call. Defaults to None which will fetch all rows.
+            chunk_size (Optional[int]): The target number of rows to fetch for this call, the actual number depends on the destination. Defaults to None which will fetch all rows.
 
         Returns:
             Optional[ArrowTable]: An arrow table with query results.
@@ -54,10 +54,10 @@ class SupportsDataAccess(Protocol):
         ...
 
     def iter_df(self, chunk_size: int) -> Generator[DataFrame, None, None]:
-        """Iterates over data frames of 'chunk_size' items. Uses the native pandas implementation of the destination client cursor if available.
+        """Iterates over data frames of about 'chunk_size' items. Uses the native pandas implementation of the destination client cursor if available.
 
         Args:
-            chunk_size (int): The number of rows to fetch for each iteration.
+            chunk_size (int): The target number of rows to fetch for each iteration, the actual chunk size depends on the destination.
 
         Returns:
             Generator[DataFrame, None, None]: A generator of data frames with query results.
@@ -65,10 +65,10 @@ class SupportsDataAccess(Protocol):
         ...
 
     def iter_arrow(self, chunk_size: int) -> Generator[ArrowTable, None, None]:
-        """Iterates over arrow tables of 'chunk_size' items. Uses the native arrow implementation of the destination client cursor if available.
+        """Iterates over arrow tables of about 'chunk_size' items. Uses the native arrow implementation of the destination client cursor if available.
 
         Args:
-            chunk_size (int): The number of rows to fetch for each iteration.
+            chunk_size (int): The target number of rows to fetch for each iteration, the actual chunk size depends on the destination.
 
         Returns:
             Generator[ArrowTable, None, None]: A generator of arrow tables with query results.
