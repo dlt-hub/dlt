@@ -217,6 +217,9 @@ instance saved with an earlier timestamp.
 Each run reads the records changed before the time of the ServiceNow instance when the run started.
 The next run reads the records that changed during the run. As a result, all pages and `sys_id`
 ranges of a run select the same records, whatever the ServiceNow instance writes during the run.
+Scripts and imports that write system fields can set `sys_updated_on` to a time in the future. dlt
+loads such a record only after the instance clock passes this time, or after the record changes
+again. A run with `write_disposition="replace"` and no `start_date` also loads it.
 
 With `write_disposition="replace"`, each run loads all records again, or the records changed since
 `start_date`.
@@ -518,7 +521,9 @@ dlt logs each page at the `INFO` level with the time that the ServiceNow instanc
 ### Fields and records that the user cannot read
 
 - If the user cannot read a field, dlt loads the field as null. These nulls replace the values that
-  dlt loaded before. dlt logs a warning with the names of these fields.
+  dlt loaded before. dlt logs a warning with the names of these fields. To load these fields, grant
+  the user read access to them. To skip them, set `excluded_columns` of
+  [`servicenow_table`](#resource-servicenow_table).
 - If the user cannot read the cursor field, dlt raises an error. Without the cursor values,
   incremental loading cannot continue.
 - ServiceNow applies row ACLs after it limits a page. As a result, a page of hidden records is

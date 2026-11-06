@@ -478,8 +478,9 @@ not work yet.
 ### Throughput
 
 Salesforce runs each Bulk API query as a job. A job usually needs 5-30 seconds before it returns
-data, even for small sObjects. `salesforce_source` runs the jobs of all resources in parallel, five at
-a time by default. To run more at once, set the number of extract workers:
+data, even for small sObjects. dlt runs the jobs of all resources of one source in parallel, five at
+a time by default. This applies to `salesforce_source` and to the `salesforce_table` resources that
+you pass to one `pipeline.run`. To run more at once, set the number of extract workers:
 
 ```toml
 [extract]
@@ -567,6 +568,12 @@ Loaded values can be different from the values that were entered in Salesforce:
 Salesforce keeps deleted records in the recycle bin for 15 days. If records are deleted and purged
 between two runs, dlt does not delete them from the destination. Run the pipeline more often, or
 reload in full.
+
+If a user deletes an opportunity product (`OpportunityLineItem`) without its opportunity, the
+product skips the recycle bin. Salesforce purges it within days, often before the next run reads it.
+To delete these products from the destination, reload `opportunity_line_item` regularly with
+`write_disposition="replace"`. Opportunity products deleted together with their opportunity stay in
+the recycle bin for the same time as their opportunity.
 
 ### Upgrade from an earlier version
 

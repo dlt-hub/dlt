@@ -167,6 +167,7 @@ def jira(
 - The next runs load the issues updated since the previous run. Jira search is eventually
   consistent. For this reason, each run reads the last 10 minutes of the previous run again with a
   [lag](../../general-usage/incremental/lag.md).
+- The next run loads the issues that were updated after the current run started.
 - `dlt` [merges](../../general-usage/merge-loading.md) issues on `id`, so each issue keeps its
   latest version.
 
@@ -292,9 +293,9 @@ custom field, you can join `issue_fields.id` to the column names of `issues`.
 
 ### Source `jira_search`
 
-This source returns an `issues` resource that loads the issues found by several JQL queries
-([Jira Query Language](https://support.atlassian.com/jira-service-management-cloud/docs/use-advanced-search-with-jira-query-language-jql/)).
-It replaces its table on each run.
+This source returns a `jira_search` resource that loads the issues found by several JQL queries
+([Jira Query Language](https://support.atlassian.com/jira-service-management-cloud/docs/use-advanced-search-with-jira-query-language-jql/))
+into the `jira_search` table. It replaces its table on each run.
 
 ```py
 from typing import Iterable, List, Optional
@@ -308,6 +309,10 @@ def jira_search(
     page_size: Optional[int] = None,
     jql_queries: List[str] = dlt.config.value,
     page_limit: Optional[int] = None,
+    chunk_size: Optional[int] = None,
+    bulk_fetch_size: Optional[int] = None,
+    included_columns: Optional[List[str]] = None,
+    excluded_columns: Optional[List[str]] = None,
 ) -> Iterable[DltResource]:
     ...
 ```
@@ -316,10 +321,18 @@ def jira_search(
 - `jql_queries`: The JQL queries to run. Jira rejects a query without a filtering clause, for example
   a query that only sorts.
 - `page_limit`: The maximum number of search pages to read per query.
+- `chunk_size`, `bulk_fetch_size`, `included_columns`, `excluded_columns`: As in the
+  [`issues` resource](#resource-issues).
 
 Issues load as in the [`issues` resource](#resource-issues), with the `query_index` of the query
 that found them. An issue that two queries find loads twice. The primary key is `id` and
-`query_index`.
+`query_index`. Because the table is not `issues`, you can load `jira` and `jira_search` into the
+same dataset. To load the results into another table, rename the resource:
+
+```py notype
+search = jira_search(jql_queries=["project = DEV AND issuetype = Epic"])
+pipeline.run(search.jira_search.with_name("epics"))
+```
 
 ## Customization
 
@@ -415,7 +428,8 @@ If you wish to create your own pipelines, you can leverage source and resource m
    load_info = pipeline.run(source)
    ```
 
-1. To load the issues that JQL queries find into a table that `dlt` replaces on each run:
+1. To load the issues that JQL queries find into the `jira_search` table, which `dlt` replaces on
+   each run:
 
    ```py notype
    queries = [
@@ -488,8 +502,11 @@ with the issues updated since the previous run.
 
 ### Configure issues in `config.toml`
 
-You can set the arguments of `jira` and `jira_issues` in `.dlt/config.toml`. The arguments of
-`jira_issues` go in the `sources.jira.issues` section:
+You can set the arguments of `jira` and `jira_issues` in `.dlt/config.toml`. The `jira` source
+accepts only `jql`, `start_date`, `incremental` and `write_disposition` as arguments for its
+`issues` resource. Set the other arguments of `jira_issues`, for example `chunk_size`,
+`bulk_fetch_size`, `included_columns`, `excluded_columns` and `lag`, in the `sources.jira.issues`
+section:
 
 ```toml
 [sources.jira]
@@ -500,6 +517,9 @@ start_date = "2024-01-01"
 included_columns = ["summary", "status", "assignee", "updated"]
 lag = 60
 ```
+
+You can also set these arguments with environment variables, for example
+`SOURCES__JIRA__ISSUES__CHUNK_SIZE=100`.
 
 ### Reset the incremental state
 
@@ -519,6 +539,9 @@ the pipeline. To load the changelogs of older issues, reset the state of `issues
 
 ### Large loads
 
+- The extract workers fetch pages of `chunk_size` issues in parallel, 5 at a time by default. To
+  fetch more pages at once, set `workers` in the `[extract]` section of `config.toml`, for example
+  to `10`.
 - To normalize and load in parallel, set `file_max_items` in the `[sources.data_writer]` section,
   for example to `100000`. See
   [file rotation](../../reference/performance.md#controlling-intermediary-file-size-and-rotation).
@@ -529,8 +552,9 @@ the pipeline. To load the changelogs of older issues, reset the state of `issues
 
 ## Upgrade from previous versions
 
-Version 1.0.0 has breaking changes. The
+Version 1.0.0 has breaking changes. In version 1.1.0, `jira_search` loads into the `jira_search`
+table instead of `issues`. The
 [changelog](https://github.com/dlt-hub/verified-sources/blob/master/sources/jira/README.md#changelog)
-in the README of the source lists them with the upgrade steps.
+in the README of the source lists the changes with the upgrade steps.
 
 <!--@@@DLT_TUBA jira-->

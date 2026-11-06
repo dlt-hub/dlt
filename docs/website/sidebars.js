@@ -196,6 +196,7 @@ const sidebars = {
             "dlt-ecosystem/verified-sources/salesforce",
             "dlt-ecosystem/verified-sources/scrapy",
             "dlt-ecosystem/verified-sources/servicenow",
+            "dlt-ecosystem/verified-sources/sharepoint",
             "dlt-ecosystem/verified-sources/shopify",
             "dlt-ecosystem/verified-sources/slack",
             "dlt-ecosystem/verified-sources/strapi",
