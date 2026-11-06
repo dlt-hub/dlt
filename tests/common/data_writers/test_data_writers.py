@@ -51,6 +51,60 @@ def jsonl_writer() -> Iterator[DataWriter]:
         yield JsonlWriter(f)
 
 
+@pytest.fixture
+def csv_writer() -> Iterator[DataWriter]:
+    with io.BytesIO() as f:
+        yield CsvWriter(f)
+
+
+def test_simple_csv_writer() -> None:
+    rows = [{"a": "x", "b": 1}, {"a": "y", "b": 2}]
+    with io.BytesIO() as f:
+        writer = CsvWriter(f)
+        writer.write_all(row_to_column_schemas(rows[0]), rows)
+        lines = f.getvalue().split(b"\n")
+    assert lines[0] == b'"a","b"'
+    assert lines[1] == b'"x",1'
+    assert lines[2] == b'"y",2'
+    assert lines[-1] == b""
+    assert len(lines) == 4
+
+
+def test_csv_writer_counts_rows_not_cells(csv_writer: _BytesIOWriter) -> None:
+    # regression for https://github.com/dlt-hub/dlt/issues/4461
+    rows = [
+        {"a": "x", "b": 1, "c": 1.5},
+        {"a": "y", "b": 2, "c": 2.5},
+        {"a": "z", "b": 3, "c": 3.5},
+    ]
+    csv_writer.write_all(row_to_column_schemas(rows[0]), rows)
+    assert csv_writer.items_count == len(rows)
+
+
+def test_csv_writer_items_count_matches_jsonl_writer(
+    csv_writer: _BytesIOWriter, jsonl_writer: _BytesIOWriter
+) -> None:
+    # the same rows must produce the same items_count in every writer
+    rows = [
+        {"a": "x", "b": 1, "c": 1.5},
+        {"a": "y", "b": 2, "c": 2.5},
+        {"a": "z", "b": 3, "c": 3.5},
+    ]
+    csv_writer.write_all(row_to_column_schemas(rows[0]), rows)
+    jsonl_writer.write_all(None, rows)
+    assert csv_writer.items_count == jsonl_writer.items_count == len(rows)
+
+
+def test_csv_writer_items_count_accumulates_across_calls(csv_writer: _BytesIOWriter) -> None:
+    rows = [{"a": 1}, {"a": 2}]
+    schema = row_to_column_schemas(rows[0])
+    csv_writer.write_all(schema, rows)
+    csv_writer.write_data([{"a": 3}])
+    # an empty page does not change the count
+    csv_writer.write_data([])
+    assert csv_writer.items_count == 3
+
+
 def test_simple_insert_writer(insert_writer: _StringIOWriter) -> None:
     rows = load_json_case("simple_row")
     insert_writer.write_all(row_to_column_schemas(rows[0]), rows)
