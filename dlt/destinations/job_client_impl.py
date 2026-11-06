@@ -884,8 +884,11 @@ WHERE """
     def _delete_schema_in_storage(self, schema: Schema) -> None:
         """
         Delete all stored versions with the same name as given schema.
-        Fails silently if versions table does not exist
+        Does nothing if versions table does not exist
         """
+        # check first, a failed statement would abort the ddl transaction on some destinations
+        if not self.get_storage_table(self.schema.version_table_name)[0]:
+            return
         name = self.sql_client.make_qualified_table_name(self.schema.version_table_name)
         (c_schema_name,) = self._norm_and_escape_columns("schema_name")
         self.sql_client.execute_sql(f"DELETE FROM {name} WHERE {c_schema_name} = %s", schema.name)
