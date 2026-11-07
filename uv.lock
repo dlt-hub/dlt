@@ -2476,8 +2476,8 @@ ducklake = [
 ]
 fabric = [
     { name = "adlfs" },
+    { name = "mssql-python" },
     { name = "pyarrow" },
-    { name = "pyodbc" },
 ]
 filesystem = [
     { name = "botocore" },
@@ -2521,7 +2521,7 @@ motherduck = [
     { name = "pyarrow" },
 ]
 mssql = [
-    { name = "pyodbc" },
+    { name = "mssql-python" },
 ]
 oracle = [
     { name = "oracledb" },
@@ -2571,8 +2571,8 @@ sqlalchemy = [
 ]
 synapse = [
     { name = "adlfs" },
+    { name = "mssql-python" },
     { name = "pyarrow" },
-    { name = "pyodbc" },
 ]
 weaviate = [
     { name = "weaviate-client" },
@@ -2758,6 +2758,9 @@ requires-dist = [
     { name = "jsonpath-ng", specifier = ">=1.8.0" },
     { name = "lancedb", marker = "extra == 'lance'", specifier = ">=0.33.0" },
     { name = "lancedb", marker = "extra == 'lancedb'", specifier = ">=0.22.0" },
+    { name = "mssql-python", marker = "extra == 'fabric'", specifier = ">=1.13.0" },
+    { name = "mssql-python", marker = "extra == 'mssql'", specifier = ">=1.13.0" },
+    { name = "mssql-python", marker = "extra == 'synapse'", specifier = ">=1.13.0" },
     { name = "oracledb", marker = "extra == 'oracle'", specifier = ">=3.4.1" },
     { name = "orjson", marker = "platform_python_implementation != 'PyPy' and sys_platform != 'emscripten'", specifier = ">=3.6.7,!=3.9.11,!=3.9.12,!=3.9.13,!=3.9.14,!=3.10.1,<4" },
     { name = "orjson", marker = "platform_python_implementation != 'PyPy' and sys_platform != 'emscripten'", specifier = ">=3.10.1" },
@@ -2792,9 +2795,6 @@ requires-dist = [
     { name = "pyiceberg", marker = "extra == 'pyiceberg'", specifier = ">=0.9.1" },
     { name = "pyiceberg-core", marker = "extra == 'pyiceberg'", specifier = ">=0.6.0" },
     { name = "pylance", marker = "extra == 'lance'", specifier = ">=6.0.1,<8" },
-    { name = "pyodbc", marker = "extra == 'fabric'", specifier = ">=4.0.39" },
-    { name = "pyodbc", marker = "extra == 'mssql'", specifier = ">=4.0.39" },
-    { name = "pyodbc", marker = "extra == 'synapse'", specifier = ">=4.0.39" },
     { name = "pytz", specifier = ">=2022.6" },
     { name = "pywin32", marker = "sys_platform == 'win32'", specifier = ">=306" },
     { name = "pyyaml", specifier = ">=5.4.1" },
@@ -6161,8 +6161,8 @@ name = "mssql-python"
 version = "1.14.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "azure-identity", marker = "python_full_version >= '3.11' and python_full_version < '3.13'" },
-    { name = "mssql-python-odbc", marker = "python_full_version >= '3.11' and python_full_version < '3.13'" },
+    { name = "azure-identity" },
+    { name = "mssql-python-odbc" },
 ]
 wheels = [
     { url = "https://files.pythonhosted.org/packages/9d/96/1b100cf1b5c5e20f2e70c0436c4397c80f54216fb87adfeaff996cd4a1d0/mssql_python-1.14.0-cp310-cp310-macosx_15_0_universal2.whl", hash = "sha256:4eb9bbc82c073136702bca7e8f1784c2a88033cff7beb5ab316accbf750b2632", size = 9926665, upload-time = "2026-08-28T11:06:53.209Z" },
