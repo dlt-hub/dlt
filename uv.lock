@@ -2726,7 +2726,7 @@ requires-dist = [
     { name = "clickhouse-driver", marker = "extra == 'clickhouse'", specifier = ">=0.2.7" },
     { name = "cron-descriptor", marker = "extra == 'cli'", specifier = ">=1.2.32" },
     { name = "croniter", specifier = ">=6.0.0" },
-    { name = "databricks-sdk", marker = "extra == 'databricks'", specifier = ">=0.38.0" },
+    { name = "databricks-sdk", marker = "extra == 'databricks'", specifier = ">=0.55.0" },
     { name = "databricks-sql-connector", marker = "python_full_version >= '3.13' and extra == 'databricks'", specifier = ">=3.6.0" },
     { name = "databricks-sql-connector", marker = "python_full_version < '3.13' and extra == 'databricks'", specifier = ">=2.9.3" },
     { name = "databricks-zerobus-ingest-sdk", marker = "(platform_machine == 'aarch64' and sys_platform == 'linux' and extra == 'databricks') or (platform_machine == 'x86_64' and sys_platform == 'linux' and extra == 'databricks') or (platform_machine == 'AMD64' and sys_platform == 'win32' and extra == 'databricks') or (platform_machine == 'x86_64' and sys_platform == 'win32' and extra == 'databricks')", specifier = ">=1.2.0" },
