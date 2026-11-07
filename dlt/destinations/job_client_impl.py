@@ -353,9 +353,12 @@ class SqlJobClientBase(WithSqlClient, JobClientBase, WithStateSync):
 
         Args:
             tables: Names of tables to drop.
-            delete_schema: If True, also delete all versions of the current schema from storage
+            delete_schema: If True, also delete all versions of the current schema from storage.
+                Skipped when the version table does not exist.
         """
         self._set_query_tags(operation="drop_tables")
+        # read metadata outside of the transaction so it cannot abort or conflict with the drops
+        delete_schema = delete_schema and self.get_storage_table(self.schema.version_table_name)[0]
         with self.maybe_ddl_transaction():
             self.sql_client.drop_tables(*tables)
             if delete_schema:
@@ -882,10 +885,7 @@ WHERE """
         return StorageSchemaInfo(row[4], row[3], row[0], row[1], inserted_at, schema_str)
 
     def _delete_schema_in_storage(self, schema: Schema) -> None:
-        """
-        Delete all stored versions with the same name as given schema.
-        Fails silently if versions table does not exist
-        """
+        """Deletes all stored versions with the same name as `schema`."""
         name = self.sql_client.make_qualified_table_name(self.schema.version_table_name)
         (c_schema_name,) = self._norm_and_escape_columns("schema_name")
         self.sql_client.execute_sql(f"DELETE FROM {name} WHERE {c_schema_name} = %s", schema.name)
