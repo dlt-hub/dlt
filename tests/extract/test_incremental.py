@@ -233,6 +233,154 @@ def test_unique_keys_are_deduplicated(item_type: TestDataItemFormat) -> None:
     assert rows == [(1, "a"), (2, "b"), (3, "c"), (3, "d"), (3, "e"), (3, "f"), (4, "g")]
 
 
+@pytest.mark.parametrize("item_type", ["arrow-table", "pandas"])
+@pytest.mark.parametrize("object_first", [True, False])
+@pytest.mark.parametrize("last_value_func", [min, max])
+def test_mixed_formats_share_incremental_state(
+    item_type: TestDataItemFormat,
+    object_first: bool,
+    last_value_func: Any,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Both file formats share a table schema, including the metadata columns added to JSON rows.
+    monkeypatch.setenv("NORMALIZE__PARQUET_NORMALIZER__ADD_DLT_ID", "true")
+    monkeypatch.setenv("NORMALIZE__PARQUET_NORMALIZER__ADD_DLT_LOAD_ID", "true")
+    formats: Tuple[TestDataItemFormat, TestDataItemFormat] = (
+        ("object", item_type) if object_first else (item_type, "object")
+    )
+    last_values = []
+
+    @dlt.resource(primary_key="id", write_disposition="append")
+    def some_data(
+        data,
+        created_at=dlt.sources.incremental("created_at", last_value_func=last_value_func),
+    ):
+        for index, row in enumerate(data):
+            yield from data_to_item_format(formats[index % 2], [row])
+            last_values.append(created_at.last_value)
+
+    p = dlt.pipeline(
+        pipeline_name="p" + uniq_id(),
+        destination=dlt.destinations.duckdb(credentials=duckdb.connect(":memory:")),
+    )
+
+    def assert_state(last_value: int, ids: List[int]) -> None:
+        state = some_data.state["incremental"]["created_at"]
+        assert state["last_value"] == last_value
+        assert set(state["unique_hashes"]) == {digest_dedup_value(id_) for id_ in ids}
+
+    def rows() -> List[Tuple[int, int]]:
+        with p.sql_client() as client:
+            with client.execute_query("SELECT id, created_at FROM some_data ORDER BY id") as cur:
+                return cur.fetchall()
+
+    # Both transforms contribute hashes at the same boundary, including when switching back.
+    data = [{"id": id_, "created_at": 1} for id_ in (1, 2, 3)]
+    p.run(some_data(data))
+    assert rows() == [(1, 1), (2, 1), (3, 1)]
+    assert_state(1, [1, 2, 3])
+
+    p.run(some_data(data))
+    assert rows() == [(1, 1), (2, 1), (3, 1)]
+    assert_state(1, [1, 2, 3])
+
+    # A new row at the unchanged boundary is accepted and added to the shared hashes.
+    data.append({"id": 4, "created_at": 1})
+    p.run(some_data(data))
+    assert rows() == [(1, 1), (2, 1), (3, 1), (4, 1)]
+    assert_state(1, [1, 2, 3, 4])
+
+    next_value = 2 if last_value_func is max else 0
+    data = [
+        {"id": 5, "created_at": next_value},
+        {"id": 1, "created_at": 1},
+        {"id": 6, "created_at": next_value},
+        {"id": 7, "created_at": 1},
+    ]
+    last_values.clear()
+    p.run(some_data(data))
+    # Switching to a transform processing older rows must not move the cursor backwards.
+    assert last_values == [next_value] * len(data)
+    assert_state(next_value, [5, 6])
+    expected_rows = [(1, 1), (2, 1), (3, 1), (4, 1), (5, next_value), (6, next_value), (7, 1)]
+    assert rows() == expected_rows
+
+    p.run(some_data(data))
+    assert rows() == expected_rows
+    assert_state(next_value, [5, 6])
+
+
+@pytest.mark.parametrize("object_first", [True, False])
+@pytest.mark.parametrize("advance_cursor", [True, False])
+@pytest.mark.parametrize("legacy", [True, False])
+def test_mixed_formats_keep_initial_hashes(
+    object_first: bool, advance_cursor: bool, legacy: bool
+) -> None:
+    formats: Tuple[TestDataItemFormat, TestDataItemFormat] = (
+        ("object", "arrow-table") if object_first else ("arrow-table", "object")
+    )
+    incremental = bind_state(
+        Incremental("created_at", primary_key="id"),
+        1,
+        unique_hashes=[digest_dedup_value(1, legacy=legacy)],
+    )
+
+    def transform(item_type: TestDataItemFormat, row: Dict[str, int]) -> List[Dict[str, int]]:
+        item = data_to_item_format(item_type, [row])[0]
+        result = incremental(item)
+        if result is None:
+            return []
+        if isinstance(result, pa.Table):
+            return result.to_pylist()
+        assert isinstance(result, dict)
+        return [result]
+
+    new_row = {"id": 2, "created_at": 2 if advance_cursor else 1}
+    assert transform(formats[0], new_row) == [new_row]
+    # A lazily created transform must use the hashes from the start of the extraction.
+    assert transform(formats[1], {"id": 1, "created_at": 1}) == []
+    # Boundary deduplication removes previous-run rows, not duplicates within this run.
+    assert transform(formats[1], new_row) == [new_row]
+    assert incremental.last_value == new_row["created_at"]
+    assert set(incremental._cached_state["unique_hashes"]) == {
+        digest_dedup_value(id_, legacy=legacy and not advance_cursor)
+        for id_ in ([2] if advance_cursor else [1, 2])
+    }
+
+
+@pytest.mark.parametrize("object_first", [True, False])
+def test_mixed_formats_share_datetime_cursor(object_first: bool) -> None:
+    incremental = bind_state(
+        Incremental("created_at", primary_key="id"),
+        datetime(2024, 1, 1, tzinfo=timezone.utc),
+        unique_hashes=[digest_dedup_value(1)],
+    )
+    data = [
+        {"id": 2, "created_at": datetime(2024, 1, 3)},
+        {"id": 3, "created_at": datetime(2024, 1, 2)},
+        {"id": 1, "created_at": datetime(2024, 1, 1)},
+        {"id": 4, "created_at": datetime(2024, 1, 3)},
+    ]
+    actual: List[Dict[str, Any]] = []
+    with Container().injectable_context(TimezoneContext("UTC")):
+        for index, row in enumerate(data):
+            item = row if (index % 2 == 0) == object_first else pa.Table.from_pylist([row])
+            result = incremental(item)
+            if isinstance(result, pa.Table):
+                actual.extend(result.to_pylist())
+            elif result is not None:
+                assert isinstance(result, dict)
+                actual.append(result)
+            # The first transform adapts persisted state to naive input and advances the cursor.
+            # Switching formats must retain both that adaptation and the cursor's progress.
+            assert incremental.last_value == datetime(2024, 1, 3)
+    assert actual == [data[0], data[1], data[3]]
+    assert set(incremental._cached_state["unique_hashes"]) == {
+        digest_dedup_value(2),
+        digest_dedup_value(4),
+    }
+
+
 def test_pandas_index_as_dedup_key() -> None:
     from dlt.common.libs.pandas import pandas_to_arrow, pandas as pd
 
