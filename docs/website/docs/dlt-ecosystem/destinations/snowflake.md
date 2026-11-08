@@ -86,7 +86,7 @@ Snowflake destination accepts these authentication types:
 - Password authentication
 - [Key pair authentication](https://docs.snowflake.com/en/user-guide/key-pair-auth)
 - OAuth authentication
-- Snowflake-provided OAuth token authentication (Snowpark Container Services)
+- [Connections from `connections.toml`](#use-a-connection-from-connectionstoml), including the connection Snowflake mounts in Snowpark Container Services
 
 The **password authentication** is not any different from other databases like Postgres or Redshift. `dlt` follows the same syntax as the [SQLAlchemy dialect](https://docs.snowflake.com/en/developer-guide/python-connector/sqlalchemy#required-parameters).
 
@@ -143,21 +143,6 @@ or in the connection string as query parameters.
 
 In the case of external authentication, you need to find documentation for your OAuth provider. Refer to Snowflake [OAuth](https://docs.snowflake.com/en/user-guide/oauth-intro) for more details.
 
-**Snowflake-provided OAuth token authentication** is the recommended way to authenticate when running `dlt` in Snowpark Container Services. If `authenticator` is set to `oauth` and `host` or `token` is **not** passed, `dlt` will look for the [Snowflake-provided OAuth token](https://docs.snowflake.com/en/developer-guide/snowpark-container-services/additional-considerations-services-jobs#connecting-with-a-snowflake-provided-oauth-token):
-
- ```toml
-[destination.snowflake.credentials]
-database = "dlt_data"
-authenticator = "oauth"
-# host and token not specified
-```
-
-or
-
-```toml
-destination.snowflake.credentials="snowflake:///dlt_data?authenticator=oauth"  # host and token not specified
-```
-
 In **Workload Identity Federation (WIF)** authentication, set `authenticator` to
 `WORKLOAD_IDENTITY` and pass `workload_identity_provider` as `AWS`, `AZURE`, `GCP`,
 or `OIDC`. For `OIDC`, also set `token`. Requires `snowflake-connector-python>=3.17.0`.
@@ -170,6 +155,28 @@ host = "kgiotue-wn98412"
 authenticator = "WORKLOAD_IDENTITY"
 workload_identity_provider = "AWS"
 ```
+
+### Use a connection from `connections.toml`
+
+Use a connection of the Snowflake CLI or Python connector by name instead of configuring credentials:
+
+```toml
+[destination.snowflake.credentials]
+connection_name = "dev"
+# optional: override the database, warehouse or role of the connection
+database = "dlt_data"
+```
+
+The connector loads the connection from
+[`connections.toml`](https://docs.snowflake.com/en/developer-guide/python-connector/python-connector-connect#connecting-using-the-connections-toml-file)
+in `SNOWFLAKE_HOME` (default `~/.snowflake`). Other credentials (`host`, `username`, `password`, keys, tokens) next to
+`connection_name` are a configuration error.
+
+Without any credentials configured, `dlt` uses the connector's **default connection** when there is one
+(`SNOWFLAKE_DEFAULT_CONNECTION_NAME`, `default_connection_name` in `config.toml` or `[default]`). In **Snowpark
+Container Services** that is the connection Snowflake mounts into the container: configure nothing.
+
+The [dbt runner](../transformations/dbt/dbt.md) gets the password, key pair or OAuth token of the connection.
 
 ### Additional connection options
 
