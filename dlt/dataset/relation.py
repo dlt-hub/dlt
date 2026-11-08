@@ -57,6 +57,7 @@ from dlt.common.schema import utils as schema_utils
 from dlt.common.typing import Self, TSortOrder, TypedDict
 from dlt.common.exceptions import ValueErrorWithKnownValues
 from dlt.dataset import lineage
+from dlt.dataset.exceptions import LineageFailedException
 from dlt.destinations.sql_client import (
     SqlClientBase,
     TAttachInfo,
@@ -1187,13 +1188,22 @@ class Relation(WithSqlClient):
             sqlglot_schema = lineage.create_sqlglot_schema(
                 all_schemas, dialect=self.destination_dialect
             )
-            columns, qualified_query = lineage.compute_columns_schema(
-                # use dlt schema compliant query so lineage works on non case folded identifiers
-                self.sqlglot_expression,
-                sqlglot_schema,
-                dialect=self.destination_dialect,
-                allow_partial=self._allow_partial_lineage,
-            )
+            try:
+                columns, qualified_query = lineage.compute_columns_schema(
+                    # use dlt schema compliant query so lineage works on non case folded identifiers
+                    self.sqlglot_expression,
+                    sqlglot_schema,
+                    dialect=self.destination_dialect,
+                    allow_partial=self._allow_partial_lineage,
+                )
+            except LineageFailedException as ex:
+                # `to_sql` and `__str__` compute lineage again, only the raw expression is safe here
+                ex.dataset_name = self._dataset.dataset_name
+                if ex.reason != "not_select":
+                    ex.notes = lineage.describe_unknown_tables(
+                        self.sqlglot_expression, all_schemas, self._dataset.dataset_name
+                    )
+                raise
             self._lineage_cache = _RelationLineage(key, sqlglot_schema, columns, qualified_query)
         return self._lineage_cache
 
