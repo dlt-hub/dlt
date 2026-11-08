@@ -32,6 +32,7 @@ from dlt.extract.exceptions import (
     ResourceExtractionError,
 )
 from dlt.extract.extract import ExtractStorage, Extract
+from dlt.extract.extractors import _set_exception_context
 from dlt.extract.utils import get_unbalanced_files_warning
 from dlt.extract.hints import TResourceNestedHints, make_hints, make_nested_hints
 from dlt.extract.items_transform import ValidateItem, MetricsItem
@@ -557,6 +558,44 @@ def test_nested_hints_table_name(extract_step: Extract) -> None:
     extract_step.extract(source, 20, 1)
     assert "events_table" in source.schema.tables
     assert source.schema.tables["events_table__data_blob"]["columns"]["date"]["data_type"] == "date"
+
+
+class _ContextError(Exception):
+    def __init__(self, resource_name: Optional[str] = None) -> None:
+        super().__init__("boom")
+        self.resource_name = resource_name
+
+    @property
+    def table_name(self) -> Optional[str]:
+        # read only: the extractor must ignore that it cannot be set
+        return None
+
+
+@pytest.mark.parametrize("preset", [None, "other"], ids=["empty", "preset"])
+def test_extract_sets_resource_context_on_exception(
+    extract_step: Extract, preset: Optional[str]
+) -> None:
+    def raising_columns(item: Any) -> Any:
+        raise _ContextError(preset)
+
+    @dlt.resource(table_name=lambda item: "letters_table", columns=raising_columns)
+    def letters():
+        yield from "ABC"
+
+    source = DltSource(dlt.Schema("letters"), "module", [letters])
+    with pytest.raises(_ContextError) as ex:
+        extract_step.extract(source, 20, 1)
+    # an empty resource name is set, a preset one is kept
+    assert ex.value.resource_name == (preset or "letters")
+
+
+def test_set_exception_context() -> None:
+    ex = _ContextError()
+    _set_exception_context(ex, resource_name="res", table_name="tab", other="x")
+    assert ex.resource_name == "res"
+    # read only attribute is skipped, unknown attribute is not added
+    assert ex.table_name is None
+    assert not hasattr(ex, "other")
 
 
 def test_extract_metrics_on_exception_no_flush(extract_step: Extract) -> None:

@@ -1,4 +1,5 @@
-from typing import Any, Union
+import pickle
+from typing import Any, Dict, Union
 
 import sqlglot
 
@@ -205,10 +206,177 @@ def test_compute_columns_schema(
 
 
 @pytest.mark.parametrize(
+    "sql_query,expected",
+    [
+        (
+            "SELECT t.col_nope FROM table_1 AS t",
+            {
+                "reason": "unknown_column",
+                "column": "col_nope",
+                "qualifier": "t",
+                "fragments": [
+                    "is not known in table `table_1` (alias `t`)",
+                    "Known columns of table `table_1` (alias `t`) (2): col_varchar, col_bool",
+                ],
+            },
+        ),
+        (
+            "SELECT t.col_varcha FROM table_1 AS t",
+            {
+                "reason": "unknown_column",
+                "suggestions": ["col_varchar"],
+                "fragments": ["Did you mean: `col_varchar`?"],
+            },
+        ),
+        (
+            "WITH c AS (SELECT col_int FROM table_2) SELECT c.col_nope FROM c",
+            {
+                "reason": "unknown_column",
+                "qualifier": "c",
+                "sources": {"c": ("CTE `c`", ["col_int"])},
+            },
+        ),
+        (
+            "SELECT s.col_nope FROM (SELECT col_int FROM table_2) AS s",
+            {"reason": "unknown_column", "sources": {"s": ("subquery `s`", ["col_int"])}},
+        ),
+        (
+            QUERY_KNOWN_TABLE_AND_UNKNOWN_COLUM_SELECT,
+            {
+                "reason": "column_not_found",
+                "column": "col_unknown",
+                "source_keys": ["table_1"],
+                "fragments": ["is not found in any source of the query: table `table_1`"],
+            },
+        ),
+        (
+            "SELECT col_bool FROM table_1 JOIN table_2 ON table_1.col_varchar = table_2.col_int",
+            {
+                "reason": "ambiguous_column",
+                "column": "col_bool",
+                "source_keys": ["table_1", "table_2"],
+                "fragments": ["is ambiguous", "Known columns of table `table_2`"],
+            },
+        ),
+        (
+            "SELECT x.col_bool FROM table_1",
+            {
+                "reason": "unknown_qualifier",
+                "qualifier": "x",
+                "column": "col_bool",
+                "fragments": ["`x.col_bool` refers to `x` which is not a table, alias or CTE"],
+            },
+        ),
+        (
+            QUERY_UNKNOWN_TABLE_AND_COLUMN_SELECT,
+            {
+                "reason": "unknown_table",
+                "column": "col_unknown",
+                "unknown_sources": ["table_unknown"],
+                "fragments": ["columns of table `table_unknown` are not known to dlt"],
+            },
+        ),
+        (
+            QUERY_UNKNOWN_TABLE_STAR_SELECT,
+            {
+                "reason": "unresolved_star",
+                "unknown_sources": ["table_unknown"],
+                "fragments": ["`*` cannot be expanded"],
+            },
+        ),
+        (
+            QUERY_KNOWN_AND_UNKNOWN_JOIN_STAR_SELECT,
+            {
+                "reason": "unresolved_star",
+                "unknown_sources": ["table_unknown"],
+                "fragments": ["columns of table `table_unknown` are not known"],
+            },
+        ),
+        (QUERY_DROP, {"reason": "not_select", "fragments": ["is not a SELECT statement."]}),
+    ],
+    ids=[
+        "qualified_unknown_column",
+        "qualified_unknown_column_suggestion",
+        "cte_unknown_column",
+        "subquery_unknown_column",
+        "unqualified_not_found",
+        "ambiguous_column",
+        "unknown_qualifier",
+        "unknown_table_unqualified_column",
+        "star_unknown_table",
+        "star_known_and_unknown_join",
+        "not_select",
+    ],
+)
+def test_lineage_failure_message(
+    sqlglot_schema: SQLGlotSchema, sql_query: str, expected: Dict[str, Any]
+) -> None:
+    with pytest.raises(LineageFailedException) as exc:
+        lineage.compute_columns_schema(sqlglot.parse_one(sql_query), sqlglot_schema, DIALECT)
+    ex = exc.value
+    assert ex.reason == expected["reason"]
+    for field in ("column", "qualifier", "suggestions"):
+        if field in expected:
+            assert getattr(ex, field) == expected[field]
+    for key in expected.get("source_keys", []):
+        assert key in ex.sources
+    for key in expected.get("unknown_sources", []):
+        assert ex.sources[key][1] is None
+    for key, source in expected.get("sources", {}).items():
+        assert ex.sources[key] == source
+    msg = str(ex)
+    assert "Failed to resolve SQL query against the schema received" in msg
+    assert "Query (duckdb):" in msg
+    for fragment in expected.get("fragments", []):
+        assert fragment in msg
+
+
+def test_lineage_failure_ambiguous_table() -> None:
+    schema = ensure_schema(
+        {
+            "db": {"table_1": {"col": sge.DataType.build("BIGINT", dialect=DIALECT)}},
+            "db2": {"table_1": {"col": sge.DataType.build("BIGINT", dialect=DIALECT)}},
+        }
+    )
+    with pytest.raises(LineageFailedException) as exc:
+        lineage.compute_columns_schema(
+            sqlglot.parse_one("SELECT col FROM table_1"), schema, DIALECT
+        )
+    assert exc.value.reason == "ambiguous_table"
+    assert exc.value.qualifier == "table_1"
+    assert exc.value.datasets == ["db", "db2"]
+    assert "exists in several datasets: `db`, `db2`" in str(exc.value)
+    # a qualified table resolves
+    columns, _ = lineage.compute_columns_schema(
+        sqlglot.parse_one("SELECT col FROM db2.table_1"), schema, DIALECT
+    )
+    assert columns == {"col": {"name": "col", "data_type": "bigint"}}
+
+
+def test_lineage_failure_pickles(sqlglot_schema: SQLGlotSchema) -> None:
+    with pytest.raises(LineageFailedException) as exc:
+        lineage.compute_columns_schema(
+            sqlglot.parse_one("SELECT t.col_nope FROM table_1 AS t"), sqlglot_schema, DIALECT
+        )
+    ex = exc.value
+    ex.resource_name = "res"
+    ex.table_name = "tab"
+    unpickled = pickle.loads(pickle.dumps(ex))
+    assert unpickled.reason == "unknown_column"
+    assert unpickled.sources == ex.sources
+    assert str(unpickled) == str(ex)
+    assert str(ex).startswith("In resource `res` (table `tab`): Failed to resolve")
+    # structured fields are exposed to the exception traces
+    assert ex.attrs()["resource_name"] == "res"
+    assert ex.attrs()["sources"] == ex.sources
+
+
+@pytest.mark.parametrize(
     "sql_query,expected_dlt_schema",
     [
         (QUERY_UNKNOWN_TABLE_AND_COLUMN_SELECT, {"col_unknown": {"name": "col_unknown"}}),
         (QUERY_KNOWN_TABLE_AND_UNKNOWN_COLUM_SELECT, {"col_unknown": {"name": "col_unknown"}}),
+        ("SELECT t.col_unknown FROM table_1 AS t", {"col_unknown": {"name": "col_unknown"}}),
         (
             "SELECT col_varchar, col_unknown FROM table_1",
             {
@@ -245,6 +413,7 @@ def test_compute_columns_schema(
     ids=[
         "unknown_table_unqualified_column",
         "known_table_unknown_column",
+        "known_table_qualified_unknown_column",
         "known_and_unknown_column",
         "unknown_table_star",
         "unknown_table_star_and_literal",
