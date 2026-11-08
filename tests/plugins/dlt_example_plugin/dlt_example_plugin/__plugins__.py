@@ -1,8 +1,9 @@
 import os
 import argparse
-from typing import Any, ClassVar, Dict, Optional, Type
+from typing import Any, ClassVar, Dict, Optional, Sequence, Type
 
 from dlt.common.configuration import plugins
+from dlt.common.configuration.providers import ConfigProvider
 from dlt.common.configuration.specs.pluggable_run_context import RunContextBase
 from dlt._workspace.cli import SupportsCliCommand
 from dlt.common.runtime.run_context import RunContext, DOT_DLT
@@ -190,7 +191,7 @@ class TWorkspaceSwitchCommand(SupportsCliCommand):
         print(f"t_workspace switch: target={args.target}")
 
 
-@plugins.hookimpl(specname="plug_cli")
+@plugins.hookimpl(specname="plug_cli", tryfirst=True)
 def plug_cli_t_info_a(host: str) -> Optional[Type[SupportsCliCommand]]:
     if host != "dlthub":
         return None
@@ -216,3 +217,36 @@ def plug_cli_t_workspace_switch(host: str) -> Optional[Type[SupportsCliCommand]]
     if host != "dlthub":
         return None
     return TWorkspaceSwitchCommand
+
+
+class TAiStatusCheckCommand(SupportsCliCommand):
+    """Extends `dlthub ai status` with an additional check."""
+
+    command: str = "status"
+    parent = "ai"
+    help_string: str = "Show AI setup status"
+    compose = "extend"
+
+    def configure_parser(self, parser: argparse.ArgumentParser) -> None:
+        raise AssertionError("dlt `ai status` must configure the parser")
+
+    def execute(self, args: argparse.Namespace) -> None:
+        print("t_ai_status check: ok")
+
+
+@plugins.hookimpl(specname="plug_cli")
+def plug_cli_t_ai_status(host: str) -> Optional[Type[SupportsCliCommand]]:
+    if host != "dlthub":
+        return None
+    return TAiStatusCheckCommand
+
+
+@plugins.hookimpl(specname="plug_config_providers")
+def plug_config_providers_impl() -> Sequence[ConfigProvider]:
+    from dlt.common.configuration.providers.doc import CustomLoaderDocProvider
+
+    return [
+        CustomLoaderDocProvider(
+            "example_plugin", lambda: {"example_plugin": {"api_key": "from-plugin"}}
+        )
+    ]

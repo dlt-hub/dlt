@@ -25,6 +25,7 @@ from dlt._workspace.cli.commands import (
 
 class AiCommand(SupportsCliCommand):
     command = "ai"
+    compose: TCliCommandCompose = "additive"
     help_string = "Use AI-powered development tools and utilities"
     # docs_url =
     description = "Configure your LLM-enabled IDE and MCP server."
@@ -32,14 +33,9 @@ class AiCommand(SupportsCliCommand):
     def configure_parser(self, ai_cmd: argparse.ArgumentParser) -> None:
         self.parser = ai_cmd
 
+        # additive parent declares the subparsers action so plugin sub-subcommands can find it
         ai_subparsers = ai_cmd.add_subparsers(
             title="Available subcommands", dest="operation", required=False
-        )
-
-        # status command
-        ai_subparsers.add_parser(
-            "status",
-            help="Show AI setup status: dlt version, agent, toolkits, readiness checks",
         )
 
         # init command
@@ -225,7 +221,6 @@ class AiCommand(SupportsCliCommand):
             DEFAULT_AI_WORKBENCH_REPO,
         )
         from dlt._workspace.cli.dlthub.ai import (
-            ai_status_command,
             ai_init_command,
             ai_mcp_run_command,
             ai_mcp_install_command,
@@ -237,9 +232,8 @@ class AiCommand(SupportsCliCommand):
             ai_toolkit_info_command,
         )
 
-        if args.operation == "status":
-            ai_status_command()
-        elif args.operation == "init":
+        # `status` and other plugin sub-subcommands are dispatched by the composer via `args.execute`
+        if args.operation == "init":
             ai_init_command(
                 agent=args.agent,
                 location=args.location,
@@ -310,6 +304,25 @@ class AiCommand(SupportsCliCommand):
                 )
         else:
             self.parser.print_usage()
+
+
+class AiStatusCommand(SupportsCliCommand):
+    """`dlthub ai status` — plugins add their own checks with `compose="extend"`."""
+
+    command = "status"
+    parent = "ai"
+    compose: TCliCommandCompose = "extend"
+    help_string = "Show AI setup status: dlt version, agent, toolkits, readiness checks"
+    description: Optional[str] = None
+    docs_url: Optional[str] = None
+
+    def configure_parser(self, parser: argparse.ArgumentParser) -> None:
+        self.parser = parser
+
+    def execute(self, args: argparse.Namespace) -> None:
+        from dlt._workspace.cli.dlthub.ai import ai_status_command
+
+        ai_status_command()
 
 
 def _add_common_run_args(

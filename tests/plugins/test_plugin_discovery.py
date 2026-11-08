@@ -7,6 +7,7 @@ import shutil
 import importlib
 from typing import Any, Dict, List, Optional, Set, Type
 
+import dlt
 from dlt.common.configuration.container import Container
 from dlt.common.configuration.specs.pluggable_run_context import PluggableRunContext
 from dlt.common.destination import DestinationReference
@@ -81,6 +82,13 @@ def test_example_plugin() -> None:
     assert run_context.get_plugin_modules() == ["dlt_example_plugin", "dlt"]
     assert context.local_dir.startswith(context.data_dir)
     assert context.local_dir.endswith("tmp")
+
+
+def test_config_providers_hook() -> None:
+    # the plugin provider is added with the extras of the run context
+    providers = Container()[PluggableRunContext].providers
+    assert "example_plugin" in providers
+    assert dlt.secrets["example_plugin.api_key"] == "from-plugin"
 
 
 def test_run_context_passthrough() -> None:
@@ -230,8 +238,17 @@ def test_compose_extend_runs_all_executes(
 ) -> None:
     _build_and_run(monkeypatch, "dlthub", ["t_info", "--detailed"])
     out = capsys.readouterr().out
-    assert "t_info A: detailed=True" in out
-    assert "t_info B: detailed=True" in out
+    # `tryfirst` plugin configures the parser and executes first
+    assert out.index("t_info A: detailed=True") < out.index("t_info B: detailed=True")
+
+
+def test_compose_extend_ai_status(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    _build_and_run(monkeypatch, "dlthub", ["ai", "status"])
+    out = capsys.readouterr().out
+    # dlt status prints first, plugin checks follow
+    assert out.index("dlt ") < out.index("t_ai_status check: ok")
 
 
 def test_compose_additive_adds_subcommand(
