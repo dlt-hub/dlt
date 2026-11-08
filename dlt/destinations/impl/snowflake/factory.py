@@ -229,9 +229,11 @@ class snowflake(Destination[SnowflakeClientConfiguration, "SnowflakeClient"]):
         """Create an ibis snowflake backend for the client's dataset."""
         from dlt.helpers.ibis import ibis
 
+        conn_params = client.config.credentials.to_connector_params()
+        conn_params.setdefault("enable_server_session_keep_alive_auto_detection", False)
         return ibis.snowflake.connect(
             schema=client.sql_client.fully_qualified_dataset_name(),
-            **client.config.credentials.to_connector_params(),
+            **conn_params,
             create_object_udfs=False,
         )
 
