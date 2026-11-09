@@ -8,7 +8,6 @@ import re
 import shutil
 import subprocess
 import sys
-from itertools import chain
 from pathlib import Path
 from typing import Any, BinaryIO, Dict, Final, List, Optional, Sequence, Set
 
@@ -525,23 +524,32 @@ def _compile_requirements_file(workspace_root: Path, file_path: Path) -> List[st
     """Export a `requirements.txt` / `requirements.in` file as sorted PEP 508 specs."""
     # with uv: `uv pip compile --universal` for a resolved, platform-independent
     # lockset. without uv: pure-Python parse, specs returned as authored
-    if is_uv_available():
-        compile_args = ["pip", "compile", "--universal", "--no-header", "--no-annotate"]
-        # launchers install next to main, so its pins must come from a resolution that saw them.
-        # constraining by that resolution keeps main to the workspace's own packages
-        launcher_specs = chain.from_iterable(_launcher_specs().values())
-        resolved_with_launchers = _run_uv(
+    if not is_uv_available():
+        return _parse_requirements_file(file_path)
+    compile_args = ["pip", "compile", "--universal", "--no-header", "--no-annotate"]
+    # the job specs install next to main, so its pins come from a resolution that saw them. other
+    # launchers stay out: a workspace that never runs them must not fail on their floors
+    job_specs = _launcher_specs()[LAUNCHER_JOB]
+    try:
+        resolved = _run_uv(
             [*compile_args, file_path.name, "-"],
             cwd=workspace_root,
-            stdin="\n".join(launcher_specs),
+            stdin="\n".join(job_specs),
         )
-        stdout = _run_uv(
-            [*compile_args, file_path.name, "--constraint", "-"],
-            cwd=workspace_root,
-            stdin=resolved_with_launchers,
-        )
-        return _parse_uv_output(stdout)
-    return _parse_requirements_file(file_path)
+    except WorkspaceRequirementsError as ex:
+        raise WorkspaceRequirementsError(
+            f"{file_path.name} does not resolve with the launcher specs"
+            f" {', '.join(job_specs)}:\n{ex}"
+        ) from ex
+    # the constraint keeps main to the workspace's own packages. unnamed paths and `-e` lines
+    # cannot be constraints
+    constraints = _parse_dep_list(_parse_uv_output(resolved))
+    stdout = _run_uv(
+        [*compile_args, file_path.name, "--constraint", "-"],
+        cwd=workspace_root,
+        stdin="\n".join(constraints),
+    )
+    return _parse_uv_output(stdout)
 
 
 def _parse_requirements_file(file_path: Path) -> List[str]:
