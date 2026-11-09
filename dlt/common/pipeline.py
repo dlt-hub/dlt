@@ -95,29 +95,19 @@ class StepInfo(SupportsHumanize, Generic[TStepMetricsCo]):
         if not self.metrics:
             return None
         try:
-            return min(
-                m["started_at"]
-                for l_m in self.metrics.values()
-                for m in l_m
-                if m["started_at"] is not None
-            )
+            return min(m["started_at"] for l_m in self.metrics.values() for m in l_m)
         except ValueError:
             return None
 
     @property
     def finished_at(self) -> datetime.datetime:
-        """Returns the latest end date of all collected metrics, skipping unfinished packages"""
+        """Returns the latest end date of all collected metrics or None if any package did not finish"""
         if not self.metrics:
             return None
-        try:
-            return max(
-                m["finished_at"]
-                for l_m in self.metrics.values()
-                for m in l_m
-                if m["finished_at"] is not None
-            )
-        except ValueError:
+        finished_at = [m["finished_at"] for l_m in self.metrics.values() for m in l_m]
+        if not finished_at or None in finished_at:
             return None
+        return max(finished_at)
 
     @property
     def is_empty(self) -> bool:

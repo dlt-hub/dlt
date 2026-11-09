@@ -683,20 +683,23 @@ def test_run_step_with_exception_not_filtered_in_asdict() -> None:
 
 def test_trace_with_finished_and_failed_load_packages() -> None:
     """Load step where one package finishes and a later one fails must survive asdict()."""
-    # two sources produce two load packages writing the same table, the second one fails
-    # terminally because "x" can't be loaded into the BIGINT column created by the first
-    source_a = dlt.source(lambda: dlt.resource([{"id": 1}], name="t"), name="a")
-    source_b = dlt.source(lambda: dlt.resource([{"id": "x"}], name="t"), name="b")
-    pipeline = dlt.pipeline("trace_failed_" + uniq_id(), destination="duckdb", dev_mode=True)
+    os.environ["DESTINATION__DUMMY__FAIL_TABLE_NAMES"] = '["failing"]'
+    pipeline = dlt.pipeline("trace_failed_" + uniq_id(), destination="dummy")
+    # two sources produce two load packages, only the second one fails
+    source_a = dlt.source(lambda: dlt.resource([1, 2], name="loading"), name="a")
+    source_b = dlt.source(lambda: dlt.resource([3, 4], name="failing"), name="b")
     with pytest.raises(PipelineStepFailed):
         pipeline.run([source_a(), source_b()])
 
     load_info = pipeline.last_trace.last_load_info
     assert len(load_info.loads_ids) == 2
-    finished = [m[0]["finished_at"] for m in load_info.metrics.values()]
-    assert None in finished
-    assert load_info.finished_at == max(f for f in finished if f is not None)
-    assert load_info.started_at is not None
+    first_package, failed_package = (
+        load_info.metrics[load_id][0] for load_id in load_info.loads_ids
+    )
+    assert first_package["finished_at"] is not None
+    assert failed_package["finished_at"] is None
+    # a step with an unfinished package is not finished
+    assert load_info.finished_at is None
 
     assert_trace_serializable(pipeline.last_trace)
 
