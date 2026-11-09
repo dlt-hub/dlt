@@ -960,8 +960,8 @@ def test_filesystem_can_read_from_any_duckdb_engine(url1: str, url2: str, expect
         pytest.param("az://c/p", True, id="az"),
         pytest.param("abfss://c@a.dfs.core.windows.net/p", True, id="abfss"),
         pytest.param("hf://datasets/d", True, id="hf"),
-        pytest.param("gs://b/p", False, id="gs"),
-        pytest.param("gcs://b/p", False, id="gcs"),
+        pytest.param("gs://b/p", True, id="gs"),
+        pytest.param("gcs://b/p", True, id="gcs"),
         pytest.param("memory://m", False, id="memory"),
         pytest.param("sftp://h/p", False, id="sftp"),
         pytest.param("gdrive://f", False, id="gdrive"),
@@ -981,6 +981,21 @@ def test_filesystem_attachable_only_for_protocols_with_duckdb_secrets(
     assert duck.can_read_from(fs) is attachable
     # a same-location join needs no attach, so it stays possible either way
     assert fs.can_read_from(FilesystemDestinationClientConfiguration(bucket_url=bucket_url))
+
+
+@pytest.mark.parametrize(
+    "version,attachable",
+    [pytest.param("1.3.2", False, id="duckdb-1.3"), pytest.param("1.4.0", True, id="duckdb-1.4")],
+)
+def test_filesystem_gs_attachable_since_duckdb_1_4(
+    monkeypatch: pytest.MonkeyPatch, version: str, attachable: bool
+) -> None:
+    """duckdb < 1.4.0 reads gs with fsspec, so a foreign engine cannot attach it."""
+    import duckdb
+
+    monkeypatch.setattr(duckdb, "__version__", version)
+    fs = FilesystemDestinationClientConfiguration(bucket_url="gs://b/p")
+    assert (fs.attach_type() is not None) is attachable
 
 
 def test_filesystem_can_never_write() -> None:
@@ -1357,9 +1372,9 @@ def test_can_read_from_is_asymmetric() -> None:
     attachable = FilesystemDestinationClientConfiguration(
         bucket_url=os.path.join(root, "bucket")
     )._bind_dataset_name("ds")
-    # only fsspec registers gs in this process, so no query engine can attach it
+    # only fsspec registers sftp in this process, so no query engine can attach it
     not_attachable = FilesystemDestinationClientConfiguration(
-        bucket_url="gs://bucket/path"
+        bucket_url="sftp://host/path"
     )._bind_dataset_name("ds")
 
     assert attachable.attach_type() == "duckdb"

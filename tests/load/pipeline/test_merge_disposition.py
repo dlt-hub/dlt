@@ -2663,6 +2663,50 @@ def test_merge_rejected_before_load(
 
 @pytest.mark.parametrize(
     "destination_config",
+    destinations_configs(
+        table_format_local_configs=True, supports_merge=True, with_table_format="delta"
+    ),
+    ids=lambda x: x.name,
+)
+@pytest.mark.parametrize(
+    "disposition,columns",
+    [
+        ({"strategy": "cdc", "destination_scope": "{table}.bucket = 'new'"}, {}),
+        ({"strategy": "cdc"}, {"deleted": {"hard_delete": True, "data_type": "bool"}}),
+        ({"strategy": "upsert"}, {"deleted": {"hard_delete": True, "data_type": "bool"}}),
+        ({"strategy": "upsert", "source_filter": "{staging_table}.bucket = 'new'"}, {}),
+    ],
+    ids=["cdc_scope", "cdc_hard_delete", "upsert_hard_delete", "upsert_filter"],
+)
+def test_delta_merge_with_declared_nested_table(
+    destination_config: DestinationTestConfiguration,
+    disposition: Dict[str, Any],
+    columns: Dict[str, Any],
+) -> None:
+    """Delta rejects merge conditions and `hard_delete` with nested tables. A nested table that
+    `nested_hints` declares but that has no data does not count, so the merge loads."""
+    write_disposition: Any = {"disposition": "merge", **disposition}
+    nested_hints: Any = {"children": dlt.mark.make_nested_hints(columns=[{"name": "c"}])}
+
+    @dlt.resource(
+        name="items",
+        primary_key="id",
+        columns=columns,
+        table_format="delta",
+        write_disposition=write_disposition,
+        nested_hints=nested_hints,
+    )
+    def items():
+        yield [{"id": 1, "bucket": "new", "deleted": False}]
+
+    p = destination_config.setup_pipeline("merge_declared_nested", dev_mode=True)
+    assert_load_info(p.run(items(), **destination_config.run_kwargs))
+    assert "items__children" in p.default_schema.tables
+    assert load_table_counts(p, "items") == {"items": 1}
+
+
+@pytest.mark.parametrize(
+    "destination_config",
     destinations_configs(default_sql_configs=True, supports_merge=True, subset=LOCAL_DESTINATIONS),
     ids=lambda x: x.name,
 )

@@ -17,7 +17,7 @@ To deploy a pipeline with GCP Cloud Functions, navigate to the directory on your
 
   - Run the following command to initialize the verified source with Notion and create a pipeline example with BigQuery as the target.
 
-     ```sh
+     ```cli
      dlt init notion bigquery
      ```
 

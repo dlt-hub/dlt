@@ -9,7 +9,7 @@ keywords: [MotherDuck, duckdb, destination, data warehouse, DuckLake]
 
 To install the dlt library with MotherDuck dependencies:
 
-```sh
+```cli
 pip install "dlt[motherduck]"
 ```
 
@@ -30,13 +30,13 @@ or export the **LOAD__WORKERS=3** env variable. See more in [performance](../../
 
 1. Initialize a project with a pipeline that loads to MotherDuck by running
 
-```sh
+```cli
 dlt init chess motherduck
 ```
 
 2. Install the necessary dependencies for MotherDuck by running
 
-```sh
+```cli
 pip install -r requirements.txt
 ```
 

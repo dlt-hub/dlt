@@ -38,7 +38,7 @@ password = "phoenix"
 
 You also need the psycopg2 driver installed:
 
-```bash
+```cli
 pip install psycopg2-binary
 ```
 
@@ -78,7 +78,7 @@ Where to find the file:
 
 NOTE. You need the `dlt[sql-database]` extra installed:
 
-```bash
+```cli
 pip install "dlt[sql-database]"
 ```
 

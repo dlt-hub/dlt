@@ -587,12 +587,23 @@ def get_full_obj_class_name(obj: Any) -> str:
 
 
 def get_full_callable_name(f: AnyFun) -> str:
+    """Returns `module.qualname` of `f`. Callables defined in a module run with `python -m` are
+    named after that module, not `__main__`.
+    """
     module = f.__module__
     name = get_callable_name(f, name_attr="__qualname__")
     # exclude 'builtins' for built-in types.
     if module is None or module == "builtins":
         return name
+    if module == "__main__":
+        module = get_main_module_name()
     return module + "." + name
+
+
+def get_main_module_name() -> str:
+    """Returns the name the `__main__` module was run under with `python -m`, else `__main__`"""
+    main = sys.modules.get("__main__")
+    return getattr(getattr(main, "__spec__", None), "name", None) or "__main__"
 
 
 def obfuscate_pseudo_secret(pseudo_secret: str, pseudo_key: bytes) -> str:

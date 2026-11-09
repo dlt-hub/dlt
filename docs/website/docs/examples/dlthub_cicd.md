@@ -99,7 +99,7 @@ This guide is a starting point. The workflow can be tailored to your organizatio
 
 Here's an overview of the files found in the repository:
 
-```text
+```tree
 ├── .github/workflows/           # GitHub Actions workflows
 │   ├── pr-checks.yaml           # lint, type-check, test; optional staging deploy
 │   └── prod-deploy.yaml         # deploy to production on push to `main`
@@ -173,7 +173,7 @@ Prerequisites:
     :::info
     You may need to upgrade the dltHub client. Run this command, then rerun the above:
 
-    ```shell
+    ```cli
     uv sync --upgrade-package dlthub-client
     ```
 

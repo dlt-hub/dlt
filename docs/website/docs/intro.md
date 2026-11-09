@@ -27,14 +27,14 @@ dlt is designed to be easy to use, flexible, and scalable:
 
 To get started with dlt, install the library using pip (use [clean virtual environment](reference/installation) for your experiments!):
 
-```sh
+```cli
 pip install dlt
 ```
 
 :::tip Working with the dltHub platform?
 If you want the managed platform, the dltHub AI Harness, transformations, and data quality features, get started here:
 
-```sh
+```cli
 uvx dlthub-start@latest
 ```
 

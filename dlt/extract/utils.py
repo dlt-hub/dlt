@@ -1,6 +1,10 @@
 import inspect
 from typing import (
+    TYPE_CHECKING,
     Callable,
+    Collection,
+    Dict,
+    Mapping,
     Optional,
     Tuple,
     Union,
@@ -17,8 +21,13 @@ from typing import (
 from collections.abc import Mapping as C_Mapping
 from functools import wraps
 
+import humanize
+
 from dlt.common.data_writers import TDataItemFormat
 from dlt.common.json import json
+from dlt.common.metrics import DataWriterMetrics
+from dlt.common.storages.job_metrics import metrics_by_job
+from dlt.common.storages.normalize_storage import group_worker_files
 from dlt.common.time import datetime_to_timestamp_us
 from dlt.common.libs import (
     get_pandas_module,
@@ -42,7 +51,12 @@ from dlt.common.typing import (
     TColumnNames,
     NoneType,
 )
-from dlt.common.utils import get_callable_name, digest128
+from dlt.common.utils import (
+    get_callable_name,
+    get_full_callable_name,
+    get_main_module_name,
+    digest128,
+)
 
 from dlt.extract.exceptions import (
     InvalidResourceDataTypeIsNone,
@@ -50,6 +64,14 @@ from dlt.extract.exceptions import (
     InvalidStepFunctionArguments,
 )
 from dlt.extract.items import TTableHintTemplate
+
+if TYPE_CHECKING:
+    from dlt.common.libs.pyarrow import pyarrow as pa
+
+NORMALIZE_PARALLEL_MIN_BYTES = 32 * 1024 * 1024
+"""Data to normalize below this size takes seconds, so idle normalize workers are not reported"""
+NORMALIZE_PARALLEL_MIN_USAGE = 0.5
+"""Files are reported as unbalanced when normalize would use at most this share of its workers"""
 
 
 def get_data_item_format(items: TDataItems) -> TDataItemFormat:
@@ -79,6 +101,19 @@ def get_data_item_format(items: TDataItems) -> TDataItemFormat:
     except IndexError:
         pass
     return "object"
+
+
+def get_arrow_fields(items: TDataItems) -> Dict[str, "pa.Field"]:
+    """Returns arrow fields of `items` by name, later items override earlier ones."""
+    from dlt.common.libs.pyarrow import pyarrow
+
+    fields: Dict[str, "pa.Field"] = {}
+    for item in items if isinstance(items, list) else [items]:
+        for field in item.schema:
+            # null fields do not create columns
+            if not pyarrow.types.is_null(field.type):
+                fields[field.name] = field
+    return fields
 
 
 def resolve_column_value(
@@ -363,6 +398,77 @@ def make_schema_with_default_name(pipeline_name: str) -> str:
     return normalize_schema_name(schema_name)
 
 
+def get_unbalanced_files_warning(
+    pipeline_name: str,
+    load_id: str,
+    files: Sequence[DataWriterMetrics],
+    file_limits: Mapping[str, Tuple[Optional[int], Optional[int]]],
+    dlt_tables: Collection[str],
+    workers: int,
+) -> Optional[str]:
+    """Returns a warning if `files` leave at least half of the normalize `workers` capacity idle.
+
+    `file_limits` maps table names to `file_max_items` and `file_max_bytes` of their writers.
+    """
+    from dlt._workspace.cli.echo import cli_cmd
+
+    if workers <= 1:
+        return None
+    sizes: Dict[str, int] = {}
+    # file size stands for processing time. normalize links or copies all files except typed-jsonl
+    costs: Dict[str, int] = {}
+    tables: Dict[str, str] = {}
+    for job, metrics in metrics_by_job(files).items():
+        file_name = job.file_name()
+        sizes[file_name] = metrics.file_size
+        costs[file_name] = metrics.file_size if job.file_format == "typed-jsonl" else 0
+        tables[file_name] = job.table_name
+    total = sum(costs.values())
+    if total < NORMALIZE_PARALLEL_MIN_BYTES:
+        return None
+
+    groups = group_worker_files(list(sizes), workers, sizes)
+    loads = [sum(costs[file_name] for file_name in group) for group in groups]
+    busiest = max(loads)
+    # the busiest worker sets the run time, the others idle once they are done
+    usage = total / (workers * busiest)
+    if usage > NORMALIZE_PARALLEL_MIN_USAGE:
+        return None
+
+    message = (
+        f"dlt extracted {len(costs)} {'file' if len(costs) == 1 else 'files'}"
+        f" ({humanize.naturalsize(total, binary=True)}) into load package {load_id}."
+        f" Normalize would use {usage:.0%} of {workers} workers, the busiest one gets"
+        f" {humanize.naturalsize(busiest, binary=True)}."
+    )
+    # the table with most data on the busiest worker is the one to split
+    busiest_costs: Dict[str, int] = {}
+    for file_name in groups[loads.index(busiest)]:
+        table_name = tables[file_name]
+        busiest_costs[table_name] = busiest_costs.get(table_name, 0) + costs[file_name]
+    table_name = max(busiest_costs, key=busiest_costs.__getitem__)
+    if table_name not in dlt_tables:
+        max_items, max_bytes = file_limits.get(table_name, (None, None))
+        if max_items is None and max_bytes is None:
+            remedy = "Set `file_max_items` or `file_max_bytes` in `[sources.data_writer]`"
+        elif max_bytes is None:
+            remedy = f"Lower `file_max_items` (now {max_items}) or set `file_max_bytes`"
+        elif max_items is None:
+            remedy = f"Lower `file_max_bytes` (now {max_bytes}) or set `file_max_items`"
+        else:
+            remedy = (
+                f"Lower `file_max_items` (now {max_items}) or `file_max_bytes` (now {max_bytes})"
+            )
+        message += f" {remedy} to split the files of `{table_name}`."
+    metrics_cmd = cli_cmd(f"pipeline {pipeline_name} trace metrics --steps extract -v")
+    message += (
+        f" Run `{metrics_cmd}` after the run to see the extracted files."
+        " See https://dlthub.com/docs/reference/performance"
+        "#controlling-intermediary-file-size-and-rotation"
+    )
+    return message
+
+
 class dynstr(str):
     """Dynamic string which will generate final value when called"""
 
@@ -379,3 +485,30 @@ class dynstr(str):
 
     def __call__(self, param: Any) -> str:
         return self.dyn(param)
+
+
+def get_code_ref(data: Any) -> Optional[str]:
+    """Returns the fully qualified name of the function `data` is or was created from.
+
+    Returns `None` for data that is not a function or a generator, and for anonymous code like
+    lambdas or generator expressions, whose names are not unique within a module.
+    """
+    if inspect.isfunction(data):
+        ref = get_full_callable_name(data)
+    elif inspect.isgenerator(data) or inspect.isasyncgen(data):
+        # a generator keeps its function name but not its module, take it from the frame
+        frame = data.gi_frame if inspect.isgenerator(data) else data.ag_frame
+        if frame is None:
+            return None
+        module = frame.f_globals.get("__name__")
+        if not module:
+            return None
+        if module == "__main__":
+            module = get_main_module_name()
+        ref = module + "." + data.__qualname__
+    else:
+        return None
+    # every `<lambda>` or `<genexpr>` in a module has the same name and would join unrelated code
+    if any(part.startswith("<") and part != "<locals>" for part in ref.split(".")):
+        return None
+    return ref

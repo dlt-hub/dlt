@@ -63,7 +63,7 @@ This way, all the dependencies for your current project will be isolated from pa
 
 Create a new virtual environment in your working folder. This will create a `./venv` directory where your virtual environment will be stored:
 
-```sh
+```cli
 uv venv --python 3.10
 ```
 
@@ -78,7 +78,7 @@ source .venv/bin/activate
 
 Create a new virtual environment in your working folder. This will create a `./venv` directory where your virtual environment will be stored:
 
-```sh
+```cli
 uv venv --python 3.10
 ```
 
@@ -110,7 +110,7 @@ C:\> .\venv\Scripts\activate
 
 To install or upgrade to the newest version of `dlt` in your virtual environment, run:
 
-```sh
+```cli
 uv pip install -U dlt
 ```
 
@@ -118,13 +118,13 @@ Here are some additional installation examples:
 
 To install dlt with DuckDB support:
 
-```sh
+```cli
 uv pip install "dlt[duckdb]"
 ```
 
 To install a specific version of dlt (for example, versions before 0.5.0):
 
-```sh
+```cli
 uv pip install "dlt<0.5.0"
 ```
 

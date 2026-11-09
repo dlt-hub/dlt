@@ -57,7 +57,7 @@ class LanceDBLoadJob(RunnableLoadJob, HasFollowupJobs):
                 self._job_client.dataset_name,
             )
             merge_strategy = resolve_merge_strategy(
-                {self._load_table["name"]: self._load_table}, self._load_table
+                {self._load_table["name"]: self._load_table}, self._load_table, is_prepared=True
             )
 
         with open(self._file_path, mode="rb") as f:

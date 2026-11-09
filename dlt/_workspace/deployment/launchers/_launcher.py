@@ -9,7 +9,9 @@ from typing import Any, Dict, List, Optional, Tuple
 from dlt.common import json
 from dlt.common.configuration import resolve_configuration
 from dlt.common.configuration.specs import known_sections
+from dlt.common.configuration.specs.pluggable_run_context import ProfilesRunContext
 from dlt.common.configuration.utils import add_config_dict_to_env
+from dlt.common.runtime.run_context import active
 from dlt.common.time import set_context_timezone
 
 from dlt._workspace import known_sections as ws_known_sections
@@ -97,6 +99,19 @@ def set_config_env_vars(sections: Tuple[str, ...], config: Dict[str, Any]) -> No
         add_config_dict_to_env(config, sections, overwrite_keys=True)
 
 
+def activate_profile(entry_point: TRuntimeEntryPoint) -> None:
+    """Activates the profile of `entry_point` in this process and in the processes it starts."""
+
+    profile = entry_point.get("profile")
+    if not profile:
+        return
+    os.environ[WORKSPACE__PROFILE] = profile
+    # a run context created before the env var was set keeps its profile until switched
+    ctx = active()
+    if isinstance(ctx, ProfilesRunContext) and ctx.profile != profile:
+        ctx.switch_profile(profile)
+
+
 def apply_job_configuration(entry_point: TRuntimeEntryPoint) -> None:
     """Updates unset job behavior settings in `entry_point` from configuration.
 
@@ -120,11 +135,7 @@ def apply_job_configuration(entry_point: TRuntimeEntryPoint) -> None:
 
 
 def prepare_run_env(entry_point: TRuntimeEntryPoint) -> None:
-    """Set profile, interval and pipeline refresh env vars, before user code runs."""
-    profile = entry_point.get("profile")
-    if profile:
-        os.environ[WORKSPACE__PROFILE] = profile
-
+    """Set interval and pipeline refresh env vars, before user code runs."""
     iv_start = entry_point.get("interval_start")
     iv_end = entry_point.get("interval_end")
     if iv_start and iv_end:

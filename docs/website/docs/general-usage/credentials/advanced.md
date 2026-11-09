@@ -103,30 +103,20 @@ Benefits:
 
 This hierarchical structure efficiently handles simple cases while supporting more complex scenarios, such as multiple sources with different credentials or multiple pipelines sharing configuration in the same project.
 
-```text
-pipeline_name
-    |
-    |-sources
-        |-<source 1 module name>
-            |-<source function 1 name>
-                |- {all source and resource options and secrets}
-            |-<source function 2 name>
-                |- {all source and resource options and secrets}
-        |-<source 2 module>
-            |...
-
-        |-extract
-            |- extract options for resources i.e., parallelism settings, maybe retries
-    |-destination
-        |- <destination name>
-            |- {destination options}
-                |-credentials
-                    |-{credentials options}
-    |-schema
-        |-<schema name>
-            |-schema settings: not implemented but I'll let people set nesting level, name convention, normalizer, etc. here
-    |-load
-    |-normalize
+```tree
+<pipeline_name>                  # optional, scopes everything below to one pipeline
+├── sources
+│   ├── <source_module>
+│   │   ├── <source_function>    # options and secrets of the source and its resources
+│   │   └── <source_function>
+│   └── <source_module>
+├── destination
+│   └── <destination_name>       # destination options
+│       └── credentials
+├── extract                      # e.g. parallelism
+├── normalize
+├── load
+└── schema                       # e.g. naming convention
 ```
 
 When using TOML files, this structure is represented as nested sections with dotted keys. For environment variables and other config providers, the layout is flattened using double underscores (e.g., `PIPELINE_NAME__SOURCES__MODULE_NAME__FUNCTION_NAME__OPTION`).

@@ -31,7 +31,7 @@ Create a dedicated workspace instead of using the Playground when any of these a
 
 You can create a workspace in the platform UI at [app.dlthub.com](https://app.dlthub.com), or from the CLI:
 
-```sh
+```cli
 uv run dlthub login
 uv run dlthub workspace connect "<name>" --create
 ```

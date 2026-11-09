@@ -25,14 +25,14 @@ This tutorial is for you if you need to load data files like JSONL, CSV, and Par
 
 To help you get started quickly, dlt provides some handy CLI commands. One of these commands will help you set up a new dlt project:
 
-```sh
+```cli
 dlt init filesystem duckdb
 ```
 
 This command creates a project that loads data from a file system into a DuckDB database. You can easily switch out duckdb for any other [supported destinations](../dlt-ecosystem/destinations).
 After running this command, your project will have the following structure:
 
-```text
+```tree
 filesystem_pipeline.py
 requirements.txt
 .dlt/
@@ -207,13 +207,13 @@ Load package 1726074108.8017762 is LOADED and contains no failed jobs
 
 Now that the pipeline has run successfully, let's explore the data loaded into DuckDB. dlt comes with a built-in browser application that allows you to interact with the data. To enable it, run the following command:
 
-```sh
+```cli
 pip install marimo
 ```
 
 Next, run the following command to start the data browser:
 
-```sh
+```cli
 dlt pipeline hospital_data_pipeline show
 ```
 

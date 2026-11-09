@@ -13,13 +13,13 @@ This page walks through building a small dashboard against a loaded dlt dataset 
 
 Add Streamlit to your workspace dependencies:
 
-```sh
+```cli
 uv add streamlit
 ```
 
 The example below reads from the `sample_shop_pipeline` that `uvx dlthub-start@latest` scaffolds (see [Deploy your first pipeline](../getting-started/onboarding.md)). The dashboard needs that data already loaded against the same destination it'll read from:
 
-```sh
+```cli
 # Load locally (dev profile, DuckDB) so the dashboard works under `dlthub local serve`
 uv run dlthub local run load_sample_shop
 
@@ -79,7 +79,7 @@ st.bar_chart(by_store)
 
 ## Run it locally
 
-```sh
+```cli
 uv run dlthub local serve sample_shop_dashboard.py
 ```
 
@@ -119,14 +119,14 @@ __all__ = ["load_sample_shop", "sample_shop_dashboard"]
 
 Then deploy and serve:
 
-```sh
+```cli
 uv run dlthub deploy                                       # publishes manifest + uploads code
 uv run dlthub serve sample_shop_dashboard.py               # boots the app remotely, opens URL
 ```
 
 `dlthub serve` runs the app behind the workspace's auth — only your account can open the link. To create a publicly shareable URL:
 
-```sh
+```cli
 uv run dlthub job publish sample_shop_dashboard.py         # public URL
 uv run dlthub job unpublish sample_shop_dashboard.py       # revoke
 ```

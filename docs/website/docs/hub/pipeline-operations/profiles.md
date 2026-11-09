@@ -25,13 +25,13 @@ Before you start, make sure you have followed the [installation instructions](..
 
 [Scaffold](../ingestion/init.md) a workspace with `uvx dlthub-init@latest`, then add a pipeline to it from inside the workspace:
 
-```sh
+```cli
 dlthub pipeline init pokemon_api duckdb
 ```
 
 Once initialized, the workspace exposes the extended CLI surface, including profile-aware commands:
 
-```sh
+```cli
 dlthub profile
 dlthub local
 ```
@@ -58,7 +58,7 @@ The `dev` profile is active by default when you create a workspace. The others b
 
 View available profiles:
 
-```sh
+```cli
 dlthub profile list
 ```
 
@@ -67,13 +67,13 @@ dlthub profile list
 To change environments locally, **pin the desired profile**.
 This makes it the default for subsequent `dlthub local …` commands:
 
-```sh
+```cli
 dlthub local profile use prod
 ```
 
 You can verify your current profile:
 
-```sh
+```cli
 dlthub profile info
 ```
 
@@ -87,7 +87,7 @@ rm .dlt/profile-name
 You can pin a profile with any name, not just those from the predefined list. This allows you to create as many profiles as you need.
 You can also pin a profile that doesn't yet have profile-specific TOML files and add those files later.
 
-```sh
+```cli
 dlthub -v local info
 ```
 
@@ -96,7 +96,7 @@ This command lists all expected file locations from which `dlt` reads profile se
 
 Once pinned, you can run your pipeline as usual through the local runner:
 
-```sh
+```cli
 dlthub local pipeline run pokemon_api_pipeline
 ```
 
@@ -149,7 +149,7 @@ pipeline = dlt.pipeline(
 
 Run it locally:
 
-```sh
+```cli
 dlthub local pipeline run pokemon_api_pipeline
 ```
 
@@ -168,7 +168,7 @@ credentials = "md:///dlt_data?motherduck_token=...."
 
 Pin and activate the profile:
 
-```sh
+```cli
 dlthub local profile use prod
 ```
 
@@ -176,7 +176,7 @@ dlthub local profile use prod
 
 Before running your pipeline in production, you can verify that the credentials and dataset configuration work correctly:
 
-```sh
+```cli
 dlthub --debug local pipeline sync pokemon_api_pipeline --destination warehouse --dataset-name pokemon_api_data
 ```
 
@@ -197,7 +197,7 @@ Now run your pipeline script to load data into MotherDuck:
 
 #### Run the pipeline with the `prod` profile
 
-```sh
+```cli
 dlthub local pipeline run pokemon_api_pipeline
 ```
 
@@ -206,7 +206,7 @@ Pipeline state will be stored in `.dlt/state/prod/`.
 
 Once the pipeline completes, open the **Workspace Dashboard** with:
 
-```sh
+```cli
 dlthub local show
 ```
 
@@ -221,19 +221,19 @@ Note that the dltHub platform will automatically use the `prod` profile you just
 
 ### List profiles
 
-```sh
+```cli
 dlthub profile list
 ```
 
 ### Show the current profile
 
-```sh
+```cli
 dlthub profile info
 ```
 
 ### Clean the workspace (useful in dev)
 
-```sh
+```cli
 dlthub local clean
 ```
 

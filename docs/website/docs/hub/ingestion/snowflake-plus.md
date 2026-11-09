@@ -37,7 +37,7 @@ This destination is available starting from dltHub version 0.9.0. It fully suppo
 
 Install the `dlt` package with the `snowflake` extra:
 
-```sh
+```cli
 pip install "dlt[hub,snowflake]"
 ```
 
@@ -56,7 +56,7 @@ GRANT USAGE ON EXTERNAL VOLUME <external_volume_name> TO ROLE <role_name>;
 
 5. If you don't have a dltHub workspace yet, scaffold one with `uvx dlthub-init@latest` (see the [installation guide](../getting-started/installation.md)). Then, from inside the workspace, add a Snowflake pipeline:
 
-```sh
+```cli
 dlthub pipeline init sql_database snowflake
 ```
 

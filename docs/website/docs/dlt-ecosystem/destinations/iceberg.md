@@ -19,13 +19,13 @@ dlt leverages `pyiceberg`'s `load_catalog` function to be able to work with the 
 
 You need Python version 3.10 or higher and the `pyiceberg` package to use this format:
 
-```sh
+```cli
 pip install "dlt[pyiceberg]"
 ```
 
 You also need `sqlalchemy>=2.0.18`:
 
-```sh
+```cli
 pip install 'sqlalchemy>=2.0.18'
 ```
 
@@ -358,6 +358,18 @@ iceberg_tables = get_iceberg_tables(pipeline)
 # execute operations on Table objects
 # etc.
 ```
+
+## Data access
+
+[`pipeline.dataset()`](../../general-usage/dataset-access/dataset) reads iceberg tables with DuckDB. You get the data as Pandas DataFrames, PyArrow tables, or Python tuples, and you can [join](../../general-usage/dataset-access/dataset.md#join-related-tables) relations, also with [datasets on other destinations](../../general-usage/dataset-access/dataset.md#cross-destination-joins-with-duckdb):
+
+```py
+dataset = pipeline.dataset()
+# read an iceberg table as a PyArrow table
+items = dataset.table("items").arrow()
+```
+
+DuckDB reads the bucket with a secret that `dlt` creates from your credentials. Read how `dlt` [refreshes a secret with an expiring token](duckdb.md#cloud-storage-secrets), for example on `gs` buckets.
 
 ## Google Cloud Storage authentication
 

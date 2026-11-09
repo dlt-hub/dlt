@@ -5,6 +5,7 @@ from dlt.common.configuration import resolve_configuration
 from dlt._workspace import known_sections as ws_known_sections
 from dlt._workspace.deployment.configuration import StreamlitConfiguration
 from dlt._workspace.deployment.launchers._launcher import (
+    activate_profile,
     apply_job_configuration,
     exec_process,
     get_run_args_base_path,
@@ -22,6 +23,7 @@ def run(entry_point: TRuntimeEntryPoint) -> None:
     module_name = entry_point["module"]
     section = module_name.rsplit(".", 1)[-1]
     sections = (ws_known_sections.JOBS, section)
+    activate_profile(entry_point)
     apply_job_configuration(entry_point)
     prepare_run_env(entry_point)
     set_config_env_vars(sections, entry_point.get("config", {}))

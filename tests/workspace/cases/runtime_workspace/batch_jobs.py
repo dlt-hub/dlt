@@ -144,14 +144,6 @@ def epoch_override_job(run_context: TJobRunContext):
 
 
 @job
-def profile_aware(run_context: TJobRunContext):
-    """Job that reads the workspace profile env var set by the launcher."""
-    import os
-
-    return f"profile={os.environ.get('WORKSPACE__PROFILE', '')}"
-
-
-@job
 def auto_refresh_pipeline():
     """Job that creates a pipeline and reports its refresh mode."""
     p = dlt.pipeline(f"auto_refresh_{uniq_id()}")

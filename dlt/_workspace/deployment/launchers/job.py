@@ -39,6 +39,7 @@ from dlt._workspace.deployment.typing import (
 )
 from dlt.extract.incremental.context import TimeIntervalContext
 from dlt._workspace.deployment.launchers._launcher import (
+    activate_profile,
     apply_job_configuration,
     get_run_args_port,
     parse_launcher_args,
@@ -223,8 +224,9 @@ def run(
         Any: The job's `TJobResult` when it declared one with `run.result`, otherwise the
         return value of the job function.
     """
-    # fill unset job settings from config, then set env vars - both before user module
-    # import so pipelines created at import time pick them up
+    # switch the profile, fill unset job settings from config, then set env vars - all before
+    # user module import so pipelines created at import time pick them up
+    activate_profile(entry_point)
     apply_job_configuration(entry_point)
     # env is emitted as well so processes the job starts inherit the run settings, the contexts
     # entered below scope the same settings in-process

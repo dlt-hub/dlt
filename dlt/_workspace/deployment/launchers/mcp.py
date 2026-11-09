@@ -9,6 +9,7 @@ from dlt.common.libs import is_instance_lib
 from dlt._workspace import known_sections as ws_known_sections
 from dlt._workspace.deployment.configuration import McpConfiguration
 from dlt._workspace.deployment.launchers._launcher import (
+    activate_profile,
     apply_job_configuration,
     get_run_args_port,
     parse_launcher_args,
@@ -67,6 +68,7 @@ def run(entry_point: TRuntimeEntryPoint) -> None:
     module_name = entry_point["module"]
     section = module_name.rsplit(".", 1)[-1]
     sections = (ws_known_sections.JOBS, section)
+    activate_profile(entry_point)
     apply_job_configuration(entry_point)
     prepare_run_env(entry_point)
     set_config_env_vars(sections, entry_point.get("config", {}))

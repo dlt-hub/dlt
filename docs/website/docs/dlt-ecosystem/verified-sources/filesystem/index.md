@@ -110,7 +110,7 @@ To get started with your data pipeline, follow these steps:
 
 1. Enter the following command:
 
-   ```sh
+   ```cli
    dlt init filesystem duckdb
    ```
 
@@ -619,6 +619,23 @@ while not pipeline.run(fs_.with_name("files").add_limit(1)).is_empty:
 ```
 
 **Note that you must set row_order on incremental to not miss a file**:
+
+You can also limit a reader or the `readers` source. dlt sets the limit on the `filesystem` resource. As a result, each run reads one page of files:
+
+```py
+import dlt
+from dlt.sources.filesystem import filesystem, read_csv
+
+incremental_ = dlt.sources.incremental("modification_date", row_order="asc")  # type: ignore
+fs_ = filesystem(bucket_url=bucket_url, file_glob="csv/*", incremental=incremental_, files_per_page=1)
+reader = (fs_ | read_csv()).with_name("records")
+
+# read one file in each run
+while not pipeline.run(reader.add_limit(1)).is_empty:
+    print(pipeline.last_trace.last_load_info)  # ty: ignore[unresolved-attribute]
+```
+
+The limit counts pages of files, not chunks of the reader. dlt reads each file to the end. To set the size of a run, use `files_per_page`. The `chunksize` of the reader controls only the memory use.
 
 ### 7. Filter files
 

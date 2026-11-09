@@ -56,7 +56,7 @@ You can find the full example code in [this repository](https://github.com/dlt-h
 
 1. Install Dagster and the embedded ELT package using pip:
 
-    ```sh
+    ```cli
     pip install dagster dagster-webserver dagster-dg-cli
     pip install dagster-dlt
     ```

@@ -5,7 +5,7 @@ keywords: [transformation, dataset, sql, pipeline, ibis, arrow]
 ---
 # Transformations: Reshape data after loading
 
-`dlt transformations` build new tables or full datasets from datasets that dlt has _already_ ingested. You write and run them in the same fashion as dlt sources and resources. A transformation needs data that you already loaded to a data location, for example a local duckdb database, a bucket, or a warehouse. dlt supports transformations on every SQL destination, and on every filesystem and bucket format.
+[dltHub Transformations](https://dlthub.com/products/transformations) build new tables or full datasets from data that dlt has _already_ ingested. You write and run them in the same fashion as dlt sources and resources. A transformation needs data that you already loaded to a data location, for example a local DuckDB database, a bucket, or a warehouse. dlt supports transformations on every SQL destination, and on every filesystem and bucket format.
 
 You create them with the `@dlt.hub.transformation` decorator. This decorator has the same signature as the `@dlt.resource` decorator, but it yields a SQL query with the resulting
 column schema, rather than data items. dlt transformations support the same write_dispositions per destination as dlt resources do.
@@ -416,7 +416,7 @@ dlt can join datasets that live on **different** destinations, when both use Duc
 - `lance`, `lancedb`
 - `filesystem`, including Hugging Face `hf://` buckets and the `delta` and `iceberg` open table formats
 
-`filesystem` qualifies for the `file`, `s3`, `az`, `abfss`, and `hf` protocols. dlt cannot attach `gs`, `sftp`, or `gdrive`, because those protocols read their data through an fsspec filesystem that only the local process holds.
+`filesystem` qualifies for the `file`, `s3`, `az`, `abfss`, `gs`, `gcs` (DuckDB 1.4.0 or later), and `hf` protocols. dlt cannot attach `sftp` or `gdrive`, because those protocols read their data through an fsspec filesystem that only the local process holds.
 
 How the join runs depends on whether the **output** engine can write:
 

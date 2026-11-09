@@ -93,7 +93,7 @@ Here are the typical ways to configure MongoDB and their connection URLs:
    exit
    ```
 
-> Note the database and collection names for future source configuration.
+> You need the database and collection names to configure the source.
 
 ### Prepare your data
 
@@ -115,7 +115,7 @@ To get started with your data pipeline, follow these steps:
 
 1. Enter the following command:
 
-   ```sh
+   ```cli
    dlt init mongodb duckdb
    ```
 
@@ -127,8 +127,7 @@ To get started with your data pipeline, follow these steps:
 1. If you'd like to use a different destination, simply replace `duckdb` with the name of your
    preferred [destination](../destinations).
 
-1. After running this command, a new directory will be created with the necessary files and
-   configuration settings to get started.
+1. The command creates a directory with the files and the config that the pipeline needs.
 
 ### Add credentials
 
@@ -150,7 +149,7 @@ To get started with your data pipeline, follow these steps:
    add credentials for your chosen destination, ensuring proper routing of your data to the final
    destination.
 
-1. Next, store your configuration details in the `.dlt/config.toml`.
+1. Next, store your config in the `.dlt/config.toml`.
 
    Here's what the `config.toml` looks like:
 
@@ -173,7 +172,7 @@ For more information, read the [General Usage: Credentials.](../../general-usage
 1. Before running the pipeline, ensure that you have installed all the necessary dependencies by
    running the command:
 
-   ```sh
+   ```cli
    pip install -r requirements.txt
    ```
 
@@ -186,12 +185,12 @@ For more information, read the [General Usage: Credentials.](../../general-usage
 1. Once the pipeline has finished running, you can verify that everything loaded correctly by using
    the following command:
 
-   ```sh
+   ```cli
    dlt pipeline <pipeline_name> show
    ```
 
-   For example, the `pipeline_name` for the above pipeline example is `local_mongo`, you may also
-   use any custom name instead.
+   For example, the `pipeline_name` of the pipeline example is `local_mongo`. You can use a
+   different name.
 
 For more information, read the guide on [how to run a pipeline](../../walkthroughs/run-a-pipeline).
 
@@ -205,7 +204,7 @@ For more information, read the guide on [how to run a pipeline](../../walkthroug
 This function loads data from a MongoDB database, yielding one or multiple collections to be retrieved.
 
 ```py
-from typing import Iterable
+from typing import Any, Iterable, Literal, Mapping
 from dlt.extract import DltResource
 
 @dlt.source
@@ -215,26 +214,64 @@ def mongodb(
     collection_names: list[str] | None = dlt.config.value,
     incremental: dlt.sources.incremental | None = None,  # type: ignore[type-arg]
     write_disposition: str | None = dlt.config.value,
+    parallel: bool | None = dlt.config.value,
+    limit: int | None = None,
+    filter_: dict[str, Any] | None = None,
+    projection: Mapping[str, Any] | Iterable[str] | None = None,
+    pymongoarrow_schema: Any | None = None,
+    chunk_size: int | None = 10000,
+    backend: Literal["python", "pyarrow"] = "python",
+    on_inferred_type_mismatch: Literal["ignore", "warn", "raise"] = "ignore",
+    partition_size_bytes: int = 16 * 1024 * 1024,
 ) -> Iterable[DltResource]:
    ...
 ```
 
-`connection_url`: MongoDB connection URL.
+`connection_url`: The MongoDB connection URL.
 
-`database`: Database name (defaults if unspecified).
+`database`: The database name. If you do not set it, the source uses the default database of the
+connection URL.
 
-`collection_names`: Names of desired collections; loads all if not specified.
+`collection_names`: The collections to load. If you do not set them, the source loads all
+collections except `system.*`.
 
-`incremental`: Option for incremental data loading.
+`incremental`: The incremental cursor of each collection, see
+[Incremental loading](#incremental-loading).
 
-`write_disposition`: Writing mode: "replace", "append", or "merge".
+`write_disposition`: The write disposition: "replace", "append", or "merge".
 
-### Source `mongo_collection`
+`parallel`: If `True`, the source reads partitions of each collection at the same time, see
+[Parallel reads](#parallel-reads).
 
-This function fetches a single collection from a MongoDB database using PyMongo.
+`limit`: The maximum number of documents that the source reads from each collection.
+
+`filter_`: A MongoDB query filter. The source adds the incremental filter to it.
+
+`projection`: The fields to read, as a list of names or as a MongoDB projection. The source always
+reads the field of the incremental cursor.
+
+`pymongoarrow_schema`: The types of the fields for the `pyarrow` backend, see
+[pyarrow backend](#pyarrow-backend).
+
+`chunk_size`: The number of documents in each batch. A parallel read loads each partition as one
+batch.
+
+`backend`: "python" (default) yields lists of dicts. "pyarrow" yields Arrow tables, see
+[pyarrow backend](#pyarrow-backend).
+
+`on_inferred_type_mismatch`: What the `pyarrow` backend does with values that do not have the type
+of their field: "ignore" (default), "warn", or "raise".
+
+`partition_size_bytes`: The maximum size of a partition of a parallel read, 16 MiB by default.
+
+### Resource `mongodb_collection`
+
+This resource reads one collection. It takes the arguments of the `mongodb` source, with
+`collection` in place of `collection_names`.
 
 ```py
-from dlt.common.data_writers import TDataItemFormat
+from typing import Any, Iterable, Literal, Mapping
+from dlt.extract import DltResource
 
 def mongodb_collection(
     connection_url: str = dlt.secrets.value,
@@ -242,12 +279,24 @@ def mongodb_collection(
     collection: str = dlt.config.value,
     incremental: dlt.sources.incremental | None = None,  # type: ignore[type-arg]
     write_disposition: str | None = dlt.config.value,
-    data_item_format: TDataItemFormat | None = "object",
-) -> Any:
+    parallel: bool | None = False,
+    limit: int | None = None,
+    chunk_size: int | None = 10000,
+    backend: Literal["python", "pyarrow"] = "python",
+    filter_: dict[str, Any] | None = None,
+    projection: Mapping[str, Any] | Iterable[str] | None = dlt.config.value,
+    pymongoarrow_schema: Any | None = None,
+    on_inferred_type_mismatch: Literal["ignore", "warn", "raise"] = "ignore",
+    partition_size_bytes: int = 16 * 1024 * 1024,
+    data_item_format: Literal["object", "arrow"] | None = None,
+) -> DltResource:
    ...
 ```
 
-`collection`: Name of the collection to load.
+`collection`: The name of the collection to load.
+
+`data_item_format`: Deprecated. "object" selects the `python` backend and "arrow" selects the
+`pyarrow` backend.
 
 ## Customization
 
@@ -260,7 +309,7 @@ If you wish to create your own pipelines, you can leverage source and resource m
    ```py
    pipeline = dlt.pipeline(
        pipeline_name="mongodb_pipeline",  # Use a custom name if desired
-       destination="duckdb",  # Choose the appropriate destination (e.g., duckdb, redshift, post)
+       destination="duckdb",  # Choose the appropriate destination, for example duckdb, redshift or postgres
        dataset_name="mongodb_data"  # Use a custom name if desired
    )
    ```
@@ -297,7 +346,7 @@ If you wish to create your own pipelines, you can leverage source and resource m
    load_data = mongodb_collection(
        collection="movies",
        incremental=dlt.sources.incremental(
-           "lastupdated", initial_value=pendulum.DateTime(2020, 9, 10, 0, 0, 0)
+           "lastupdated", initial_value=datetime(2020, 9, 10, tzinfo=timezone.utc)
      ))
 
    load_info = pipeline.run(load_data, write_disposition="merge")
@@ -340,18 +389,179 @@ If you wish to create your own pipelines, you can leverage source and resource m
    print(info)
    ```
 
-1. To load a selected collection, using Apache Arrow for data conversion:
+1. To load a selected collection as Arrow tables:
 
    ```py notype
-   # Load collection "movies", using Apache Arrow for conversion
+   # Load collection "movies" with the pyarrow backend
    movies = mongodb_collection(
       collection="movies",
-      data_item_format="arrow",
+      backend="pyarrow",
    )
 
    # Run the pipeline
    info = pipeline.run(movies)
    print(info)
    ```
+
+## Incremental loading
+
+The source sends the incremental cursor to the server as a query filter. The filter uses
+`initial_value`, `end_value`, `range_start`, `range_end`, and `on_cursor_value_missing="include"`.
+A `projection` always includes the field of the cursor.
+
+If you set `row_order`, the server sorts the documents by the cursor. The direction of the order
+depends on `last_value_func`: "asc" gives ascending values for `max` and descending values for
+`min`.
+
+With `row_order`, you can load a large collection in chunks with `add_limit`. Each run continues
+from the last value of the cursor. Set `parallel=False` for this, because a parallel read has no
+order.
+
+## Primary key
+
+The resources use `_id` as the primary key. Views and time series collections can return documents
+without `_id`, and the load then fails. Set another primary key, or none:
+
+```py notype
+measurements = mongodb_collection(collection="measurements")
+measurements.apply_hints(primary_key=())
+```
+
+## Optimization
+
+Three settings change the speed of a load: network compression, the `pyarrow` backend, and parallel
+reads. This table shows the time to read one collection from MongoDB Atlas over the internet. The
+time of the slowest combination is 100%:
+
+| Backend   | Parallel reads | No compression    | zstd compression (default) |
+| --------- | -------------- | ----------------- | -------------------------- |
+| `python`  | no             | 100%              | 39% (2.6x faster)          |
+| `python`  | 8 workers      | 60% (1.7x faster) | 18% (5.5x faster)          |
+| `pyarrow` | no             | 96%               | 26% (3.9x faster)          |
+| `pyarrow` | 8 workers      | 59% (1.7x faster) | 14% (7.4x faster)          |
+
+A server on the same machine or network gives different results. With a local server, the CPU sets
+the speed, not the network. Compression makes these loads about 30% slower.
+
+This table shows the time to read one collection from a MongoDB server on the same machine, without
+compression. The time of the slowest combination is 100%:
+
+| Backend   | No parallel reads | 4 workers         | 8 workers         |
+| --------- | ----------------- | ----------------- | ----------------- |
+| `python`  | 85% (1.2x faster) | 96%               | 100%              |
+| `pyarrow` | 33% (3x faster)   | 15% (6.6x faster) | 13% (7.7x faster) |
+
+The `pyarrow` backend parses the documents in worker processes, and each process uses one CPU core.
+The `python` backend parses the documents in threads, which do not make it faster on a local server.
+
+### Network compression
+
+By default, the MongoDB server sends BSON documents without compression. The source asks the
+server to compress the documents with zstd, snappy, or zlib. pymongo uses the first compressor that
+the server supports and that is installed.
+
+The requirements of the source install zstd. zlib is part of the Python standard library.
+Compression uses CPU time on the server and on the client.
+
+To use a different compressor, set `compressors` in the connection URL. The source then does not
+change it:
+
+```text
+connection_url = "mongodb+srv://dbuser:passwd@cluster.mongodb.net/?compressors=zlib"
+```
+
+If the server is on the same machine or network, disable the compression. Add `compressors=` without
+a value to the connection URL:
+
+```text
+connection_url = "mongodb://dbuser:passwd@host.or.ip:27017/?compressors="
+```
+
+### pyarrow backend
+
+With `backend="pyarrow"`, the source parses the documents into Arrow tables with
+[pymongoarrow](https://www.mongodb.com/docs/languages/python/pymongo-arrow-driver/current/). This
+backend is faster than the `python` backend.
+
+To use the `pyarrow` backend, install `pymongoarrow`:
+
+```sh
+pip install pymongoarrow
+```
+
+If `pymongoarrow` is not installed, the source logs a warning and uses the `python` backend. The
+source works with `pymongoarrow` 1.5 and later, except 1.6.0 to 1.6.3. Each `pymongoarrow` release
+works with one version of `pyarrow`.
+
+Both backends load the same values:
+
+* ObjectIds load as strings of 24 hexadecimal characters, also in nested documents and arrays.
+* Dates load as timestamps in UTC.
+* Decimal128 values load as text. For decimals, set the type of the field to `pa.decimal128` in
+  `pymongoarrow_schema`.
+* Binary values load as binary. JavaScript code loads as text.
+* Nested documents become columns up to `max_table_nesting`, for example `address__city`.
+
+Arrays load as nested tables with the `python` backend. With the `pyarrow` backend, arrays load as
+`json` columns. On destinations that support nested types, for example `filesystem` with Parquet,
+they load as nested types. To change the backend of a loaded collection, load it again, for example
+with `refresh="drop_resources"`.
+
+pymongoarrow gets the type of a field from its first value. It converts numbers of other types to
+this type, for example 2.5 loads as 2 in an integer field. It loads values of other types as null.
+The source does the same when the type of a field changes between batches. The
+`on_inferred_type_mismatch` argument sets what the source does then:
+
+* "ignore" (default) loads these values without a warning.
+* "warn" loads these values and logs a warning.
+* "raise" stops the load with `FieldTypeMismatchError`.
+
+"warn" and "raise" parse each batch a second time and need `pymongoarrow` 1.9 or later.
+
+To set the types of the fields yourself, set `pymongoarrow_schema`. The source then reads only these
+fields. With `pymongoarrow` 1.9 or later, values that do not match the schema stop the load with
+`FieldTypeMismatchError`.
+
+### Parallel reads
+
+With `parallel=True`, the source splits each collection into partitions of `_id` values. Then it
+reads the partitions at the same time. A partition holds about `partition_size_bytes` of documents.
+The source computes the number of documents from the average document size of the collection.
+Partitions are smaller, down to 1 MiB, when each extract worker gets fewer than 8 partitions.
+
+The `workers` setting of the `extract` config sets the number of partitions that the source reads at
+the same time, for all collections together. The default is 5. To read 8 partitions at the same
+time, set `workers` in `config.toml`:
+
+```toml
+[extract]
+workers = 8
+```
+
+The source sizes the partitions from this config. The `workers` argument of `pipeline.extract` does
+not change the size of the partitions.
+
+With the `pyarrow` backend, worker processes parse the partitions. Each extract worker starts one
+worker process, so all collections share at most `workers` processes. Each worker process uses one
+CPU core. Thus, more workers give a faster load until the network or the server sets the speed.
+
+With the `python` backend, threads parse the documents. Python runs these threads one at a time.
+Thus, parallel reads make the `python` backend faster only if the network sets the speed.
+
+The source reads a collection in one query in these cases:
+
+* Views, time series collections, and small collections.
+* A `limit`.
+* The server rejects the queries that plan the partitions, for example `$where` in `filter_`. The
+  source then logs a warning.
+
+With a filter, for example an incremental with a last value, the source counts and samples the
+matching documents to plan the partitions. To make this fast, create an index on the cursor field.
+
+If the `_id` values of a collection have different BSON types, the source splits the most common
+type into partitions. It reads each other type in one query.
+
+The worker processes of the `pyarrow` backend start with the Python interpreter of the pipeline. If
+the pipeline runs in an embedded interpreter, for example uWSGI, set `parallel=False`.
 
 <!--@@@DLT_TUBA mongodb-->

@@ -295,6 +295,24 @@ def test_local_pipeline_run_argparse_present() -> None:
     assert args.refresh is True
 
 
+def test_local_pipeline_trace_metrics_argparse() -> None:
+    """`local pipeline trace <name> metrics` parses the action and the steps."""
+    cmd = LocalWorkspaceCommand()
+    parser = argparse.ArgumentParser(prog="dlthub local")
+    cmd.configure_parser(parser)
+    args = parser.parse_args(
+        ["pipeline", "trace", "my_pipe", "metrics", "--steps", "extract", "normalize"]
+    )
+    assert args.operation == "trace"
+    assert args.pipeline_name == "my_pipe"
+    assert args.action == "metrics"
+    assert args.steps == ["extract", "normalize"]
+    # plain trace keeps working without the action
+    args = parser.parse_args(["pipeline", "trace", "my_pipe"])
+    assert args.action is None
+    assert args.steps is None
+
+
 def test_local_run_file_no_short_form() -> None:
     """`-f` is no longer a short alias for --deployment (reserved for future --follow)."""
     cmd = LocalWorkspaceCommand()

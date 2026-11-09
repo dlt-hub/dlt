@@ -241,6 +241,10 @@ tables:
         description: File last modification time as unix timestamp
         data_type: double
         nullable: true
+      files_count:
+        description: Number of files the metrics sum up
+        data_type: bigint
+        nullable: true
       load_id:
         data_type: text
         nullable: true
@@ -287,6 +291,10 @@ tables:
         description: File last modification time as unix timestamp
         data_type: double
         nullable: true
+      files_count:
+        description: Number of files the metrics sum up
+        data_type: bigint
+        nullable: true
       load_id:
         data_type: text
         nullable: true
@@ -330,6 +338,10 @@ tables:
       last_modified:
         description: File last modification time as unix timestamp
         data_type: double
+        nullable: true
+      files_count:
+        description: Number of files the metrics sum up
+        data_type: bigint
         nullable: true
       load_id:
         data_type: text
@@ -764,6 +776,10 @@ tables:
         description: File last modification time as unix timestamp
         data_type: double
         nullable: true
+      files_count:
+        description: Number of files the metrics sum up
+        data_type: bigint
+        nullable: true
       load_id:
         data_type: text
         nullable: true
@@ -809,6 +825,10 @@ tables:
       last_modified:
         description: File last modification time as unix timestamp
         data_type: double
+        nullable: true
+      files_count:
+        description: Number of files the metrics sum up
+        data_type: bigint
         nullable: true
       load_id:
         data_type: text
@@ -879,6 +899,10 @@ tables:
         data_type: text
         nullable: true
       retry_count:
+        data_type: bigint
+        nullable: true
+      file_size:
+        description: Bytes of the job file on disk
         data_type: bigint
         nullable: true
     parent: trace__steps

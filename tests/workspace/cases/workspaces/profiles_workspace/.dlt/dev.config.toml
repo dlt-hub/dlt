@@ -1,0 +1,6 @@
+[destination.filesystem]
+bucket_url="memory:///dev_bucket"
+
+[jobs.profile_jobs.config_probe]
+days=1
+incremental_mode="interval"

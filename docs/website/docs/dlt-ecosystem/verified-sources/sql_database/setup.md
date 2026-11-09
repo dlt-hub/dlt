@@ -13,7 +13,7 @@ To connect to your SQL database using `dlt`, follow these steps:
 
 1. Initialize a `dlt` project in the current working directory by running the following command:
 
-    ```sh 
+    ```cli 
     dlt init sql_database duckdb
     ```
 
@@ -52,14 +52,14 @@ If you'd like to use a different destination, simply replace `duckdb` with the n
 
 4. Install any necessary dependencies
 
-    ```sh
+    ```cli
     pip install -r requirements.txt
     ```
 
     :::note
     To [load data more efficiently using pyarrow](./configuration#pyarrow), you'll also need to install `pyarrow`, `numpy`, and `pandas`.
 
-    ```sh
+    ```cli
     pip install pyarrow numpy pandas
     ```
 
@@ -76,7 +76,7 @@ If you'd like to use a different destination, simply replace `duckdb` with the n
 
 6. Make sure everything is loaded as expected with
 
-    ```sh
+    ```cli
     dlt pipeline <pipeline_name> show
     ```
 

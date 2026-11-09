@@ -59,6 +59,7 @@ from dlt.common.schema import Schema, TSchemaTables
 from dlt.common.schema.utils import (
     get_columns_names_with_prop,
     get_nested_tables,
+    has_table_seen_data,
     is_nested_table,
 )
 from dlt.common.storages import FileStorage, fsspec_from_config
@@ -905,11 +906,14 @@ class FilesystemClient(
                 exception_log.append(TableFormatNotSupported(table_format, table["name"], message))
             if table_format == "delta":
                 merge_strategy = resolve_merge_strategy(
-                    self.schema.tables, table, self.capabilities
+                    self.schema.tables, table, self.capabilities, is_prepared=True
                 )
                 # the job merges each Delta table alone, so root row conditions miss nested rows
-                has_nested_tables = bool(
-                    get_nested_tables(self.schema.tables, table["name"], include_self=False)
+                has_nested_tables = any(
+                    has_table_seen_data(nested_table)
+                    for nested_table in get_nested_tables(
+                        self.schema.tables, table["name"], include_self=False
+                    )
                 )
                 if merge_strategy == "cdc":
                     if get_columns_names_with_prop(table, "merge_key"):
@@ -1015,7 +1019,9 @@ class FilesystemClient(
             if table["write_disposition"] in ("merge", "replace"):
                 table["write_disposition"] = "append"
             table.pop("table_format", None)
-        merge_strategy = resolve_merge_strategy(self.schema.tables, table, self.capabilities)
+        merge_strategy = resolve_merge_strategy(
+            self.schema.tables, table, self.capabilities, is_prepared=True
+        )
         if table["write_disposition"] == "merge":
             if merge_strategy is None:
                 # no supported merge strategies, fall back to append

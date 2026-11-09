@@ -60,6 +60,9 @@ from dlt.extract.exceptions import (
 )
 from dlt.extract.incremental import Incremental, TIncrementalConfig
 from dlt.extract.items import TFunHintTemplate, TTableHintTemplate, TableNameMeta
+
+# moved to `dlt.extract.items`, imported for backward compatibility
+from dlt.extract.items import HintsMeta
 from dlt.extract.items_transform import ValidateItem
 from dlt.extract.utils import ensure_table_schema_columns, ensure_table_schema_columns_hint
 from dlt.extract.validation import create_item_validator
@@ -95,18 +98,6 @@ class TResourceHints(TResourceHintsBase, total=False):
     validator: ValidateItem
     original_columns: Optional[TTableHintTemplate[TAnySchemaColumns]]
     additional_table_hints: Optional[Dict[str, TTableHintTemplate[Any]]]
-
-
-class HintsMeta:
-    __slots__ = ("hints", "create_table_variant")
-
-    def __init__(
-        self,
-        hints: TResourceHints,
-        create_table_variant: bool,
-    ) -> None:
-        self.hints = hints
-        self.create_table_variant = create_table_variant
 
 
 NATURAL_CALLABLES = ["incremental", "validator", "original_columns"]

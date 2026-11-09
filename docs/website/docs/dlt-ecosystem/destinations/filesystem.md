@@ -11,7 +11,7 @@ The filesystem destination stores data in remote file systems and cloud storage 
 
 Install the dlt library with filesystem dependencies:
 
-```sh
+```cli
 pip install "dlt[filesystem]"
 ```
 
@@ -21,7 +21,7 @@ This installs the `s3fs` and `botocore` packages.
 
 You may also install the dependencies independently. Try:
 
-```sh
+```cli
 pip install dlt
 pip install s3fs
 ```
@@ -35,7 +35,7 @@ so pip does not fail on backtracking.
 
 Let's start by initializing a new dlt project as follows:
 
-```sh
+```cli
 dlt init chess filesystem
 ```
 
@@ -49,7 +49,7 @@ This command will initialize your pipeline with chess as the source and AWS S3 a
 
 The command above creates a sample `secrets.toml` and requirements file for an AWS S3 bucket. You can install those dependencies by running:
 
-```sh
+```cli
 pip install -r requirements.txt
 ```
 
@@ -738,7 +738,9 @@ When a load generates a new state, for example when using incremental loads, a n
 ## Data access
 
 `filesystem` implements [`sql_client`](../transformations/sql.md#the-filesystem-sql-client) which provides read only
-SQL access to files and iceberg/delta tables with duckdb dialect. This also enables [`pipeline.dataset()`](../../general-usage/dataset-access/dataset), giving you Python-native access to loaded data as Pandas DataFrames, PyArrow tables, or Python tuples.
+SQL access to files and iceberg/delta tables with duckdb dialect. This also enables [`pipeline.dataset()`](../../general-usage/dataset-access/dataset), giving you Python-native access to loaded data as Pandas DataFrames, PyArrow tables, or Python tuples. You can [join](../../general-usage/dataset-access/dataset.md#join-related-tables) relations, also with [datasets on other destinations](../../general-usage/dataset-access/dataset.md#cross-destination-joins-with-duckdb).
+
+DuckDB reads the bucket with a secret that `dlt` creates from your credentials. Read how `dlt` [refreshes a secret with an expiring token](duckdb.md#cloud-storage-secrets), for example on `gs` buckets.
 
 By default views that are created are "frozen" to minimize reading from bucket.
 You can enable views autorefresh:

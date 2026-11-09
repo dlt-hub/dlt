@@ -144,7 +144,7 @@ You can also notify Slack whenever a load surfaces new tables or columns. The dl
 
 ### Deploy and trigger
 
-```sh
+```cli
 uv run dlthub deploy                            # syncs code + prod secret
 uv run dlthub run my_job                        # triggers the job, posts to Slack on completion
 ```

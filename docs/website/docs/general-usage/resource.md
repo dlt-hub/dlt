@@ -565,7 +565,7 @@ dlt.pipeline(destination="duckdb").run(my_resource().add_limit(max_items=10, max
 Some notes about the `add_limit`:
 
 1. `add_limit` does not skip any items. It closes the iterator/generator that produces data after the limit is reached.
-2. You cannot limit transformers. They should process all the data they receive fully to avoid inconsistencies in generated datasets.
+2. dlt sets the limit of a transformer on the resource at the top of the transformer chain. That resource and all its transformers receive the limited data. Transformers process all the data that they receive. dlt does not limit a transformer that is not bound to a resource, and logs a warning.
 3. Async resources with a limit added may occasionally produce one item more than the limit on some runs. This behavior is not deterministic.
 4. Calling add limit on a resource will replace any previously set limits settings.
 5. For time-limited resources, the timer starts when the first item is processed. When resources are processed sequentially (FIFO mode), each resource's time limit applies also sequentially. In the default round robin mode, the time limits will usually run concurrently.

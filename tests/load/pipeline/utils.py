@@ -106,7 +106,10 @@ def skip_if_unsupported_merge_strategy(
     sample_table["x-merge-strategy"] = merge_strategy  # type: ignore[typeddict-unknown-key]
     try:
         resolve_merge_strategy(
-            {"sample_table": sample_table}, sample_table, destination_config.raw_capabilities()
+            {"sample_table": sample_table},
+            sample_table,
+            destination_config.raw_capabilities(),
+            is_prepared=False,
         )
     except DestinationCapabilitiesException:
         pytest.skip(

@@ -27,7 +27,7 @@ dltHub is commercial. Use is governed by the [license](../license.md).
 
 Run this command in an empty directory. The directory name becomes your project package name:
 
-```sh
+```cli
 uvx dlthub-start@latest
 ```
 
@@ -66,7 +66,7 @@ Accept the launch, and the agent continues in the same terminal. If you decline,
 
 ### What you got
 
-```text
+```tree
 starter-test/
 ├── pyproject.toml      # project dependencies and configuration
 ├── pipeline.py         # sample REST API pipeline
@@ -86,7 +86,7 @@ The agent now uses the dltHub [platform toolkit](https://github.com/dlt-hub/dlth
 
 First, it deploys the workspace by syncing your files and registering the jobs defined in `__deployment__.py`:
 
-```sh
+```cli
 uv run dlthub deploy
 ```
 
@@ -100,7 +100,7 @@ The scaffold ships three jobs: `load_sample_shop` (the pipeline), `onboarding_su
 
 Then it runs the pipeline on the platform and follows the logs until it finishes:
 
-```sh
+```cli
 uv run dlthub run load_sample_shop -f
 ```
 
@@ -119,13 +119,13 @@ Finally, the agent opens the `onboarding_success` notebook. This Marimo notebook
 After the first successful run, you can rerun the pipeline or open your workspace in the dltHub UI.
 To rerun the pipeline on the managed platform and follow its logs until it finishes, run:
 
-```sh
+```cli
 uv run dlthub run load_sample_shop -f
 ``` 
 
 To open the connected workspace in your browser, run:
 
-```sh
+```cli
 uv run dlthub show
 ```
 
@@ -218,7 +218,7 @@ def load_sample_shop():
     ...
 ```
 
-```sh
+```cli
 uv run dlthub deploy
 ```
 
@@ -275,7 +275,7 @@ The CLI never writes into a non-empty directory. It picks a fresh one alongside 
 
 Rerun with `--verbose` to see subprocess output:
 
-```sh
+```cli
 uvx dlthub-start@latest my-workspace --verbose
 ```
 

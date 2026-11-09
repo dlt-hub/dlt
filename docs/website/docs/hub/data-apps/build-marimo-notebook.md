@@ -13,13 +13,13 @@ This page walks through building a notebook against a loaded dlt dataset and dep
 
 Add marimo to your workspace dependencies:
 
-```sh
+```cli
 uv add marimo
 ```
 
 The example below reads from the `sample_shop_pipeline` that `uvx dlthub-start@latest` scaffolds (see [Deploy your first pipeline](../getting-started/onboarding.md)). The notebook needs that data already loaded against the same destination it'll read from:
 
-```sh
+```cli
 # Load locally (dev profile, DuckDB) so the notebook works under `dlthub local serve`
 uv run dlthub local run load_sample_shop
 
@@ -99,13 +99,13 @@ Three things make this file a deployable notebook rather than an ordinary script
 
 Edit the notebook in marimo's own editor while you build it:
 
-```sh
+```cli
 uv run marimo edit sample_shop_notebook.py
 ```
 
 Then run it the way the platform will, as a workspace job:
 
-```sh
+```cli
 uv run dlthub local serve sample_shop_notebook.py
 ```
 
@@ -151,14 +151,14 @@ Importing the module, rather than a decorated function, is what turns it into a 
 
 Then deploy and serve:
 
-```sh
+```cli
 uv run dlthub deploy                                    # publishes manifest + uploads code
 uv run dlthub serve sample_shop_notebook.py             # boots the notebook remotely, opens URL
 ```
 
 `dlthub serve` runs the notebook behind the workspace's auth, so only members of your workspace can open the link, including [viewers](../platform-capabilities/users-and-roles.md), who may launch interactive jobs. To create a publicly shareable URL:
 
-```sh
+```cli
 uv run dlthub job publish sample_shop_notebook          # public URL
 uv run dlthub job unpublish sample_shop_notebook        # revoke
 ```

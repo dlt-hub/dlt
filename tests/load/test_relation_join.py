@@ -8,7 +8,6 @@ import pytest
 import dlt
 from dlt import Pipeline
 from dlt.common.destination import Destination
-from dlt.common.storages.configuration import FilesystemConfiguration
 from dlt.common.utils import uniq_id
 from dlt.dataset.relation import TJoinType
 from dlt.extract.hints import make_hints
@@ -25,6 +24,7 @@ from tests.load.read_dataset_fixtures import (
 )
 from tests.load.utils import (
     DestinationTestConfiguration,
+    GCS_BUCKET,
     HF_BUCKET,
     destinations_configs,
     drop_pipeline_data,
@@ -273,38 +273,37 @@ def test_cross_dataset_explicit_join(
     assert casefold(ds_a.sql_client.dataset_name) in sql, sql
     assert casefold(ds_b.sql_client.dataset_name) in sql, sql
 
-    config = ds_a.destination_client.config
-    skip = isinstance(config, FilesystemConfiguration) and config.protocol == "gs"
-    if not skip:
-        _assert_users_purchases(joined)
+    _assert_users_purchases(joined)
 
 
 @pytest.mark.parametrize(
     "destination_config",
-    destinations_configs(all_buckets_filesystem_configs=True, bucket_subset=(HF_BUCKET,)),
+    destinations_configs(
+        all_buckets_filesystem_configs=True, bucket_subset=(HF_BUCKET, GCS_BUCKET)
+    ),
     ids=lambda x: x.name,
 )
-def test_cross_destination_attach_join_hf(
+def test_cross_destination_attach_join(
     destination_config: DestinationTestConfiguration,
 ) -> None:
-    """A local duckdb primary joins a Hugging Face dataset. The test reads the join and then
+    """A local duckdb primary joins a bucket dataset. The test reads the join and then
     materializes it.
 
-    dlt must have a credential to attach `hf://`. Lazy materialization therefore also covers a
-    secret that dlt encrypts into the `.model` file and the load job decrypts.
+    dlt must have a credential to attach `hf://` and `gs://`. Lazy materialization therefore also
+    covers a secret that dlt encrypts into the `.model` file and the load job decrypts.
     """
     suffix = uniq_id()
     primary = dlt.pipeline(
-        "attach_hf_primary_" + suffix,
+        "attach_primary_" + suffix,
         destination=dlt.destinations.duckdb(
-            os.path.join(get_test_storage_root(), f"attach_hf_{suffix}.duckdb")
+            os.path.join(get_test_storage_root(), f"attach_{suffix}.duckdb")
         ),
         dataset_name="ds_primary",
     )
     primary.run(crm(0), **destination_config.run_kwargs)
 
     foreign = destination_config.setup_pipeline(
-        "attach_hf_foreign_" + suffix, dataset_name="ds_hf_" + suffix, dev_mode=True
+        "attach_foreign_" + suffix, dataset_name="ds_foreign_" + suffix, dev_mode=True
     )
     foreign.run(inventory(), **destination_config.run_kwargs)
 

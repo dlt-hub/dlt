@@ -13,7 +13,7 @@ To load data from Postgres, use the [SQL database](../verified-sources/sql_datab
 
 To install the dlt library with PostgreSQL dependencies, run:
 
-```sh
+```cli
 pip install "dlt[postgres]"
 ```
 
@@ -23,13 +23,13 @@ pip install "dlt[postgres]"
 
 1. Initialize a project with a pipeline that loads to Postgres by running:
 
-```sh
+```cli
 dlt init chess postgres
 ```
 
 2. Install the necessary dependencies for Postgres by running:
 
-```sh
+```cli
 pip install -r requirements.txt
 ```
 
@@ -146,7 +146,7 @@ dbc install postgresql
 
 Installation via Python package is supported as well:
 
-```sh
+```cli
 pip install adbc-driver-postgresql
 ```
 

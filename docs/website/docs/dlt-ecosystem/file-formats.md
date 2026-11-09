@@ -19,7 +19,7 @@ To set the pipeline's loader file format, you can either:
 
 To use this format, you need the `pyarrow` package. You can get this package as a `dlt` extra as well:
 
-```sh
+```cli
 pip install "dlt[parquet]"
 ```
 

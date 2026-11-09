@@ -16,7 +16,7 @@ Both methods require a configured workspace — see [Workspace setup](workspace-
 
 The fastest way to run an existing script on the dltHub platform is to point `run` or `serve` at a Python file:
 
-```sh
+```cli
 # run the batch script locally first to catch missing dependencies or broken config
 dlthub local run fruitshop_pipeline.py
 
@@ -150,7 +150,7 @@ You can also define decorated jobs **inline** in `__deployment__.py` — useful 
 
 This is the central command for manifest-based deployment. It reads `__deployment__.py`, generates a manifest, and syncs it to the dltHub platform:
 
-```sh
+```cli
 dlthub deploy
 ```
 
@@ -176,7 +176,7 @@ Removing a job from `__deployment__.py` does not delete it — it archives it, p
 
 #### Preview before deploying
 
-```sh
+```cli
 # see what would change without applying
 dlthub deploy --dry-run
 
@@ -188,7 +188,7 @@ dlthub deploy --show-manifest
 
 Once deployed, scheduled jobs run automatically. You can also run them by hand — and run the local counterpart first whenever you want to debug locally:
 
-```sh
+```cli
 # run a specific job by name (ad-hoc, syncs code first)
 dlthub local run load_commits         # locally
 dlthub run load_commits -f            # in the cloud
@@ -220,16 +220,16 @@ For diagnosing failed runs, viewing logs, and dashboards, see [Monitoring and de
 
 You can update code without changing secrets and vice versa. Use these commands to sync them independently:
 
-```sh
+```cli
 # Sync code and configuration without reconciling the manifest
 dlthub workspace deployment sync       # sync only code
 dlthub workspace configuration sync    # sync only configuration
 
 # List and inspect previous versions
 dlthub workspace deployment list
-dlthub workspace deployment info [version_number]
+dlthub workspace deployment [<deployment_version_no>] info
 dlthub workspace configuration list
-dlthub workspace configuration info [version]
+dlthub workspace configuration [<configuration_version_no>] info
 ```
 
 See the [CLI reference](../command-line-interface.md) for the full set of deployment and job commands.
@@ -251,7 +251,7 @@ For a one-off remote execution without scheduling you don't strictly need this t
 
 Either let the router pick it when you tell your agent "let's deploy," or install explicitly:
 
-```sh
+```cli
 uv run dlthub ai toolkit install dlthub-platform
 ```
 
@@ -311,7 +311,7 @@ __all__ = ["load_fruitshop"]
 
 **3. `deploy-workspace`**: the agent first runs `uv run dlthub deploy --dry-run` to preview the manifest changes, then, after you approve:
 
-```sh
+```cli
 uv run dlthub deploy
 ```
 

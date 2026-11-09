@@ -13,7 +13,7 @@ This page walks through four stages: scaffolding a workspace, running a pipeline
 
 If you don't have `uv` yet, follow the [uv installation guide](https://docs.astral.sh/uv/getting-started/installation/). Then scaffold a workspace:
 
-```sh
+```cli
 uvx dlthub-init@latest
 ```
 
@@ -23,7 +23,7 @@ This creates the `.dlt/.workspace` marker that activates workspace mode, along w
 
 Any regular dlt pipeline can be run on the platform without a deployment file. Given a `pipeline.py` with a top-level `pipeline.run(...)` call:
 
-```sh
+```cli
 uv run dlthub run pipeline.py
 ```
 
@@ -57,13 +57,13 @@ __all__ = ["ingest_breweries"]
 
 Deploy with:
 
-```sh
+```cli
 uv run dlthub deploy
 ```
 
 To trigger a run, invoke the job by name:
 
-```sh
+```cli
 uv run dlthub run ingest_breweries
 ```
 

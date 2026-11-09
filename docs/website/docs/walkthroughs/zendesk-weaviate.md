@@ -31,13 +31,13 @@ We're going to use some ready-made components from the [sources](../dlt-ecosyste
 
 2. Install dlt with Weaviate support
 
-    ```sh
+    ```cli
     pip install "dlt[weaviate]"
     ```
 
 3. Install dlt Zendesk verified source
 
-    ```sh
+    ```cli
     dlt init zendesk weaviate
     ```
 

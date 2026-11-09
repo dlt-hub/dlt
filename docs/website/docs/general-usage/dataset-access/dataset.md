@@ -500,7 +500,7 @@ Cross-dataset joins:
 - require an explicit `on` condition: the auto mode does not span datasets
 - are rejected when the two relations live in different data locations. DuckDB query engines are the exception — see [Cross-destination joins with DuckDB](#cross-destination-joins-with-duckdb)
 - are not supported on SQLite (via the `sqlalchemy` destination)
-- work on filesystem destinations only for protocols DuckDB can authenticate with SQL: `file`, `s3`, `az`, `abfss`, and `hf`
+- work on filesystem destinations only for protocols DuckDB can authenticate with SQL: `file`, `s3`, `az`, `abfss`, `gs`, `gcs` (DuckDB 1.4.0 or later) and `hf`
 
 Two datasets can share a table name, for example a `users` table in each. Then give one side a stable alias, with `dataset.query("SELECT * FROM users AS alias_name")`. Refer to that alias in `on`. Without an alias, `join()` cannot tell the two tables apart and raises.
 
@@ -576,7 +576,7 @@ arrow_table = customers_relation.select("id", "name").limit(50).arrow()
 
 If you install the [ibis](https://ibis-project.org/) library, you can use ibis expressions to modify your queries.
 
-```sh
+```cli
 pip install ibis-framework
 ```
 
@@ -1068,7 +1068,7 @@ Not every destination that `dlt` supports has an equivalent Ibis backend. Native
 
 Install the `ibis-framework` package with the Ibis extra for your destination. This example installs the DuckDB backend:
 
-```sh
+```cli
 pip install ibis-framework[duckdb]
 ```
 
@@ -1111,7 +1111,7 @@ This page shows how dlt, marimo, and [ibis](../../dlt-ecosystem/transformations/
 
 To install marimo and ibis with the duckdb extras, run the following command:
 
-```sh
+```cli
 pip install marimo "ibis-framework[duckdb]"
 ```
 

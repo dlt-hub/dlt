@@ -69,7 +69,7 @@ Please make sure the `dlt` library is installed. Refer to the [installation guid
 
 Enter the following command in your terminal:
 
-```sh
+```cli
 dlt init rest_api duckdb
 ```
 
@@ -110,7 +110,7 @@ github_token = "your_github_token"
 
 1. Install the required dependencies by running the following command:
 
-   ```sh
+   ```cli
    pip install -r requirements.txt
    ```
 
@@ -122,7 +122,7 @@ github_token = "your_github_token"
 
 3. Verify that everything loaded correctly by using the following command:
 
-   ```sh
+   ```cli
    dlt pipeline rest_api show
    ```
 
@@ -946,6 +946,32 @@ By default, dependent resources fetch child data for each parent item sequential
 ```
 
 See [Per-resource parallelization](./advanced.md#per-resource-parallelization-for-dependent-resources) for more details.
+
+#### Limit dependent resources
+
+To fetch a few pages of each parent resource, for example during development, call `add_limit` on the source. Dependent resources receive only the items from those pages. The limit also applies when the parent resource has `"selected": False`:
+
+```py
+import dlt
+from dlt.sources.rest_api import rest_api_source
+
+source = rest_api_source({
+    "client": {"base_url": "https://api.github.com/repos/dlt-hub/dlt/"},
+    "resources": [
+        "issues",
+        {
+            "name": "issue_comments",
+            "endpoint": {"path": "issues/{resources.issues.number}/comments"},
+        },
+    ],
+})
+
+# fetch 10 pages of issues and the comments of those issues
+pipeline = dlt.pipeline(pipeline_name="github", destination="duckdb")
+pipeline.run(source.add_limit(10))
+```
+
+dlt sets the limit of a dependent resource on its parent. For example, `source.resources["issue_comments"].add_limit(10)` limits `issues` to 10 pages. As a result, `issues` and all its dependent resources load from the same pages. The limit counts pages of the parent resource, not requests of the dependent resource. One page of issues can produce many comment requests.
 
 ### Define a resource which is not a REST endpoint
 

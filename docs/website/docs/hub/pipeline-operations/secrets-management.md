@@ -69,7 +69,7 @@ You can also configure this with environment variables. See [Activate Google Sec
 
 ### 4. Deploy and run
 
-```sh
+```cli
 uv run dlthub deploy
 uv run dlthub run my_job
 ```

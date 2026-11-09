@@ -34,7 +34,7 @@ Here's the link to the notebook:
 
 Alternatively, to create a data enrichment pipeline, you can start by creating the following directory structure:
 
-```text
+```tree
 user_device_enrichment/
 ├── .dlt/
 │   └── secrets.toml
@@ -268,7 +268,7 @@ The first step is to register on [SerpAPI](https://serpapi.com/) and obtain the 
 1. Install necessary dependencies for the preferred
    [destination](../../dlt-ecosystem/destinations/), for example, duckdb:
 
-   ```sh
+   ```cli
    pip install "dlt[duckdb]"
    ```
 
@@ -280,7 +280,7 @@ The first step is to register on [SerpAPI](https://serpapi.com/) and obtain the 
 
 1. To ensure that everything loads as expected, use the command:
 
-   ```sh
+   ```cli
    dlt pipeline <pipeline_name> show
    ```
 

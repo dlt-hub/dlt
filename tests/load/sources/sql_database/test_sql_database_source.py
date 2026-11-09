@@ -125,8 +125,8 @@ def test_pyarrow_applies_hints_before_extract(
     )
 
     pipeline = make_pipeline("duckdb")
-    # Use count_rows so empty Arrow Table (0 rows) for defered-reflect doesn't count toward limit
-    load_info = pipeline.run(table.add_limit(1, count_rows=True))
+    # the hints item of the deferred reflection is not counted into the limit
+    load_info = pipeline.run(table.add_limit(1))
 
     # verify
     # 1: pipeline schema
@@ -188,7 +188,7 @@ def test_apply_hints_column_order(
                 "date_col": {"data_type": "date"},
             },
         )
-        items = list(resource.add_limit(1, count_rows=True))
+        items = list(resource.add_limit(1))
         for item in items:
             # pandas DataFrames are converted to arrow for type checking
             if hasattr(item, "columns") and hasattr(item, "index") and len(item.index) > 0:
@@ -221,7 +221,7 @@ def test_apply_hints_column_order(
         },
     )
     pipeline = make_pipeline("duckdb")
-    load_info = pipeline.run(resource2.add_limit(1, count_rows=True))
+    load_info = pipeline.run(resource2.add_limit(1))
     assert_load_info(load_info)
 
     with pipeline.sql_client() as client:
@@ -260,7 +260,7 @@ def test_non_snake_case_columns(
         },
     )
 
-    items = list(resource.add_limit(1, count_rows=True))
+    items = list(resource.add_limit(1))
 
     # extract column names from the first non-empty data item
     keys = None
@@ -292,7 +292,7 @@ def test_non_snake_case_columns(
         defer_table_reflect=defer_table_reflect,
     )
     pipeline = make_pipeline("duckdb")
-    load_info = pipeline.run(resource2.add_limit(1, count_rows=True))
+    load_info = pipeline.run(resource2.add_limit(1))
     assert_load_info(load_info)
 
     with pipeline.sql_client() as client:
@@ -338,7 +338,7 @@ def test_pyarrow_normalized_hints_on_camel_case_columns(
 
     pipeline = make_pipeline("duckdb")
     with capture_dlt_logger(caplog) as caplog:
-        load_info = pipeline.run(resource.add_limit(1, count_rows=True))
+        load_info = pipeline.run(resource.add_limit(1))
     assert_load_info(load_info)
 
     # warning was emitted about unmatched columns

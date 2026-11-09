@@ -25,7 +25,7 @@ To make it easy to reproduce, we will be loading data from the [public MySQL RFa
 
 Initialize a new dlt project in your current working directory using the `dlt init` command:
 
-```sh
+```cli
 dlt init sql_database duckdb
 ```
 
@@ -33,7 +33,7 @@ This is a handy CLI command that creates files and folders required for a SQL Da
 
 After running this command, your project will have the following structure:
 
-```text
+```tree
 ├── .dlt
 │   ├── config.toml
 │   └── secrets.toml
@@ -128,13 +128,13 @@ Before running the pipeline, make sure to install all the necessary dependencies
 
 1. **General dependencies**: These are the general dependencies needed by the `sql_database` source.
 
-    ```sh
+    ```cli
     pip install -r requirements.txt
     ```
 
 2. **Database-specific dependencies**: In addition to the general dependencies, you will also need to install `pymysql` to connect to the MySQL database in this tutorial:
 
-    ```sh
+    ```cli
     pip install pymysql
     ```
 
@@ -154,13 +154,13 @@ This will create the file `sql_to_duckdb_pipeline.duckdb` in your dlt project di
 
 dlt comes with a built-in browser dashboard that allows you to interact with the loaded data. To enable it, run the following command:
 
-```sh
+```cli
 pip install marimo
 ```
 
 Next, run the following command to launch the data browser app:
 
-```sh
+```cli
 dlt pipeline sql_to_duckdb_pipeline show
 ```
 

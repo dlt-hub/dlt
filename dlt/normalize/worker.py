@@ -14,7 +14,6 @@ from dlt.common.destination.utils import prepare_load_table
 from dlt.common.metrics import DataWriterMetrics
 from dlt.common.schema.utils import new_table
 from dlt.common.typing import TLoaderFileFormat
-from dlt.common.utils import chunks
 from dlt.common.schema.typing import TStoredSchema, TTableSchema
 from dlt.common.storages import (
     NormalizeStorage,
@@ -25,6 +24,9 @@ from dlt.common.storages import (
 )
 from dlt.common.schema import TSchemaUpdate, Schema
 from dlt.common.normalizers.json import helpers as normalize_helpers
+
+# moved to `dlt.common.storages.normalize_storage`, imported for backward compatibility
+from dlt.common.storages.normalize_storage import group_worker_files
 
 from dlt.normalize.configuration import NormalizeConfiguration
 from dlt.normalize.exceptions import NormalizeJobFailed
@@ -41,24 +43,6 @@ class TWorkerRV(NamedTuple):
     schema_updates: List[TSchemaUpdate]
     file_metrics: List[DataWriterMetrics]
     null_only_columns: Dict[str, Set[str]]
-
-
-def group_worker_files(files: Sequence[str], no_groups: int) -> List[Sequence[str]]:
-    # sort files so the same tables are in the same worker
-    files = list(sorted(files))
-
-    chunk_size = max(len(files) // no_groups, 1)
-    chunk_files = list(chunks(files, chunk_size))
-    # distribute the remainder files to existing groups starting from the end
-    remainder_l = len(chunk_files) - no_groups
-    l_idx = 0
-    while remainder_l > 0:
-        idx = 0
-        for idx, file in enumerate(reversed(chunk_files.pop())):
-            chunk_files[-l_idx - idx - remainder_l].append(file)  # type: ignore
-        remainder_l -= 1
-        l_idx = idx + 1
-    return chunk_files
 
 
 def w_normalize_files(

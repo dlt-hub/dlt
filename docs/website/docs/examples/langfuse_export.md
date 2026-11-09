@@ -35,7 +35,7 @@ password = "langfuse"
 
 You also need the psycopg2 driver installed:
 
-```sh
+```cli
 pip install psycopg2-binary
 ```
 

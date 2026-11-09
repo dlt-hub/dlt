@@ -11,9 +11,12 @@ from typing import (
 from dlt.common.jsonpath import TAnyJsonPath
 from dlt.common.exceptions import TerminalException
 from dlt.common.destination.exceptions import SchemaUpdateError
+from dlt.common.schema import Schema
 from dlt.common.schema.typing import TSimpleRegex
+from dlt.common.schema.utils import get_nested_tables, is_nested_table
 from dlt.common.pipeline import pipeline_state as current_pipeline_state, TRefreshMode
 from dlt.common.storages.load_package import TLoadPackageDropTablesState
+from dlt.common.utils import clone_dict_nested
 from dlt.pipeline.exceptions import (
     PipelineNeverRan,
     PipelineStepFailed,
@@ -206,6 +209,11 @@ def prepare_refresh_source(
         state_paths="*" if refresh == "drop_sources" else [],
         state_only=only_truncate,
     )
+    if refresh == "drop_resources" and drop_result.info["tables"]:
+        # like on the first run, dropped tables start from their import schema definition
+        import_schema = pipeline._schema_storage.load_import_schema(source.schema.name)
+        if import_schema:
+            add_import_tables(source.schema, import_schema, drop_result.info["tables"])
     load_package_state: TLoadPackageDropTablesState = {"refresh": refresh}
     if drop_result.modified_tables:
         if only_truncate:
@@ -215,3 +223,13 @@ def prepare_refresh_source(
             # if any tables should be dropped, we force state to extract
             force_state_extract(pipeline_state)
     return load_package_state
+
+
+def add_import_tables(schema: Schema, import_schema: Schema, table_names: Sequence[str]) -> None:
+    """Adds tables `table_names` of `import_schema` to `schema`, parents before nested tables."""
+    for table in import_schema.data_tables(include_incomplete=True):
+        if is_nested_table(table):
+            continue
+        for chain_table in get_nested_tables(import_schema.tables, table["name"]):
+            if chain_table["name"] in table_names:
+                schema.update_table(clone_dict_nested(chain_table))  # type: ignore[type-var]

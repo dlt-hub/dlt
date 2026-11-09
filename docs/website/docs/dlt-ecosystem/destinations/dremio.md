@@ -9,7 +9,7 @@ keywords: [dremio, iceberg, aws, glue catalog]
 
 To install the dlt library with Dremio and s3 dependencies:
 
-```sh
+```cli
 pip install "dlt[dremio,s3]"
 ```
 
@@ -21,7 +21,7 @@ pip install "dlt[dremio,s3]"
 
 Let's start by initializing a new dlt project as follows:
 
-   ```sh
+   ```cli
    dlt init chess dremio
    ```
 
@@ -33,7 +33,7 @@ Let's start by initializing a new dlt project as follows:
 
 First, install dependencies by running:
 
-```sh
+```cli
 pip install -r requirements.txt
 ```
 

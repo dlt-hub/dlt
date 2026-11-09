@@ -156,9 +156,7 @@ def _all_bucket_configs() -> List[DestinationTestConfiguration]:
     finally:
         if restore_filesystem:
             ACTIVE_DESTINATIONS.discard("filesystem")
-    # gs:// authenticates only via service account which duckdb cannot use, so it falls back to
-    # fsspec (an order of magnitude slower). access the same bucket through the s3 compatibility
-    # layer (s3:// + interop keys) so duckdb reads/writes natively.
+    # also access the gs:// bucket through the s3 compatibility layer (s3:// + interop keys)
     if configs and GCS_BUCKET:
         configs.append(
             DestinationTestConfiguration(

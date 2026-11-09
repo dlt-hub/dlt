@@ -144,7 +144,7 @@ When the pipeline is first run, the destination dataset and `user_comments` tabl
 
 You can inspect the pipeline state with the [`dlt pipeline` command](../reference/command-line-interface.md#dlt-pipeline):
 
-```sh
+```cli
 dlt pipeline -v chess_pipeline info
 ```
 

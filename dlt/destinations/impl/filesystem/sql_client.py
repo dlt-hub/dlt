@@ -83,12 +83,11 @@ class FilesystemSqlClient(WithTableScanners):
         if not super().create_secret(
             scope, credentials, secret_name=secret_name, persist_secrets=persist_secrets
         ):
-            # native google storage implementation is not supported..
             if protocol in ["gs", "gcs"]:
-                logger.warn(
-                    "For gs/gcs access via duckdb please use the gs/gcs s3 compatibility layer if"
-                    " possible (not supported when using `iceberg` table format). Falling back to"
-                    " fsspec."
+                logger.warning(
+                    "Native gs/gcs access requires duckdb >= 1.4.0. Falling back to fsspec which"
+                    " degrades scanning performance (not supported when using `iceberg` table"
+                    " format). Upgrade duckdb or use the gs/gcs s3 compatibility layer."
                 )
                 # `_register_filesystem` unregisters first: duckdb >= 1.5 errors on re-registering an
                 # already-registered filesystem, and our setup re-runs on every borrow/return cycle

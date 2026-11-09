@@ -219,7 +219,7 @@ Export to a JSON string. This is useful for passing between services, store to a
 schema_json = pipeline.default_schema.to_pretty_json()
 ```
 
-```sh
+```cli
 # `chess_pipeline` is the name of the pipeline
 dlt pipeline chess_pipeline schema --format json
 ```
@@ -502,7 +502,7 @@ Export to a YAML string. It serves the same purposes a JSON export. The conversi
 schema_yaml = pipeline.default_schema.to_pretty_yaml()
 ```
 
-```sh
+```cli
 # `chess_pipeline` is the name of the pipeline
 dlt pipeline chess_pipeline schema --format yaml
 ```
@@ -715,7 +715,7 @@ Note that the conversion is lossy. You can't fully recreate `dlt.Schema` from a 
 schema_dbml = pipeline.default_schema.to_dbml()
 ```
 
-```sh
+```cli
 # `chess_pipeline` is the name of the pipeline
 dlt pipeline chess_pipeline schema --format dbml
 ```
@@ -842,7 +842,7 @@ Note that the conversion is lossy. You can't fully recreate `dlt.Schema` from a 
 schema_dot = pipeline.default_schema.to_dot()
 ```
 
-```sh
+```cli
 # `chess_pipeline` is the name of the pipeline
 dlt pipeline chess_pipeline schema --format dot
 ```
@@ -1286,7 +1286,7 @@ Note that the conversion is lossy. You can't fully recreate `dlt.Schema` from a 
 schema_mermaid = pipeline.default_schema.to_mermaid()
 ```
 
-```sh
+```cli
 # `chess_pipeline` is the name of the pipeline
 dlt pipeline chess_pipeline schema --format mermaid
 ```

@@ -24,7 +24,7 @@ The `lancedb` destination will be phased out in favor of `lance`.
 
 ### Install dlt with `lance` dependencies
 
-```sh
+```cli
 pip install "dlt[lance]"
 ```
 
@@ -142,7 +142,7 @@ The destination uses a Directory Namespace by default. Two concepts are configur
 
 The logical layout of the default (colocated) case is:
 
-```text
+```tree
 bucket_url/
 └── namespace_name/                ← root namespace directory (default: "dlt_lance_root")
     ├── __manifest/                ← catalog tracking namespaces and tables

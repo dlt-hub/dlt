@@ -13,7 +13,7 @@ Starting from scratch instead? Use `uvx dlthub-start@latest`, which scaffolds a 
 
 Initialize the workspace:
 
-```sh
+```cli
 uvx dlthub-init@latest
 ```
 
@@ -23,14 +23,14 @@ The `.dlt/.workspace` marker activates [profile support](./profiles.md) and enab
 
 ## 2. Log in to the dltHub platform
 
-```sh
+```cli
 dlthub login
 ```
 
 This opens a GitHub OAuth device flow and authenticates the current user. Then bind this repo to a remote workspace:
 
-```sh
-dlthub workspace connect [<name_or_id>] [--org-id <id>]
+```cli
+dlthub workspace connect [<workspace>] [--org-id <org_id>]
 ```
 
 With no argument, an interactive picker is shown, grouped by organization. The chosen `workspace_id` (and `organization_id`, on the first connect) is persisted to `.dlt/config.toml`. To list workspaces you have access to, use `dlthub workspace list`.
@@ -49,7 +49,7 @@ Connecting multiple local repositories to the same remote workspace is not yet s
 
 ## 3. Add pipelines
 
-```sh
+```cli
 dlthub pipeline init <source> <destination>
 ```
 
@@ -80,7 +80,7 @@ See [profiles in dltHub](./profiles.md) for the full reference.
 
 Configuration files live in the `.dlt/` directory:
 
-```text
+```tree
 .dlt/
 ├── .workspace              # Marker file enabling profiles + the `dlthub` CLI
 ├── config.toml             # Workspace-wide config (all profiles)

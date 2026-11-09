@@ -17,6 +17,8 @@ from dlt.common.destination.utils import (
 )
 from dlt.common.schema import Schema
 from dlt.common.schema.typing import TTableFormat
+from dlt.destinations import filesystem
+from dlt.destinations.impl.filesystem.configuration import FilesystemDestinationClientConfiguration
 from dlt.destinations.utils import (
     get_resource_for_adapter,
     verify_schema_merge_disposition,
@@ -146,6 +148,71 @@ def test_verify_unsupported_merge_options(write_disposition: str) -> None:
                 " `resource.add_filter()` instead."
             ),
         ]
+
+
+@pytest.mark.parametrize("root_strategy", ["delete-insert", "upsert"])
+def test_verify_nested_destination_scope(root_strategy: str, caplog: Any) -> None:
+    """A nested table with its own destination scope is verified against its prepared root
+    table. A staging filesystem appends the files of an Iceberg table, so it accepts the scope.
+    A merging destination needs `delete-insert` and a destination scope on the root table.
+    Without its root table in the load, the nested table is not verified."""
+    nested_scope: Any = {
+        "disposition": "merge",
+        "strategy": "delete-insert",
+        "destination_scope": "day = 1",
+    }
+    root_disposition: Any = (
+        nested_scope
+        if root_strategy == "delete-insert"
+        else {"disposition": "merge", "strategy": root_strategy}
+    )
+
+    @dlt.resource(
+        primary_key="id",
+        columns={"id": {"data_type": "bigint"}},
+        table_format="iceberg",
+        write_disposition=root_disposition,
+        nested_hints={"lines": dlt.mark.make_nested_hints(write_disposition=nested_scope)},
+    )
+    def events():
+        yield [{"id": 1, "day": 1, "lines": [{"line": 1}]}]
+
+    schema = Schema("test")
+    resource = events()
+    schema.update_table(resource.compute_table_schema())
+    for nested_table in resource.compute_nested_table_schemas("events", schema.naming):
+        schema.update_table(nested_table)
+    table_names = ["events", "events__lines"]
+
+    staging_config = FilesystemDestinationClientConfiguration(
+        as_staging_destination=True
+    )._bind_dataset_name(dataset_name="staging")
+    staging_client = filesystem("memory:///staging").client(schema, staging_config)
+    staged_tables = staging_client.verify_schema(only_tables=table_names)
+    assert {t["name"]: t["write_disposition"] for t in staged_tables} == {
+        "events": "append",
+        "events__lines": "append",
+    }
+
+    caps = Destination.from_reference("duckdb").capabilities()
+    load_tables = [
+        prepare_load_table(schema.tables, schema.tables[name], caps) for name in table_names
+    ]
+    exceptions = verify_schema_merge_disposition(schema, load_tables, caps)
+    if root_strategy == "delete-insert":
+        assert exceptions == []
+    else:
+        assert [str(e) for e in exceptions] == [
+            "In schema `test`: Nested table `events__lines` has `destination_scope`. dlt uses it"
+            " only with the `delete-insert` merge strategy and when the root table `events` has"
+            " `destination_scope`."
+        ]
+
+    with capture_dlt_logger(caplog):
+        assert verify_schema_merge_disposition(schema, load_tables[1:], caps) == []
+    assert (
+        "dlt did not verify the `destination_scope` of nested table `events__lines`" in caplog.text
+    )
 
 
 @pytest.mark.parametrize(

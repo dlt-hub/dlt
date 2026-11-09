@@ -1,6 +1,6 @@
 from copy import copy
 from functools import lru_cache, partial
-from typing import Set, Dict, Any, Optional, List, Union, TYPE_CHECKING
+from typing import Set, Dict, Any, Optional, List, Tuple, Union, TYPE_CHECKING
 
 from dlt.common.configuration import known_sections, resolve_configuration, with_config
 from dlt.common import logger, json
@@ -25,10 +25,11 @@ from dlt.common.schema.typing import (
 from dlt.common.libs.sqlglot import filter_select_column_names
 from dlt.common.normalizers.json import helpers as normalize_helpers
 
-from dlt.extract.hints import HintsMeta, TResourceHints
+from dlt.extract.hints import TResourceHints
 from dlt.extract.resource import DltResource
-from dlt.extract.items import DataItemWithMeta, TableNameMeta
+from dlt.extract.items import DataItemWithMeta, HintsMeta, TableNameMeta
 from dlt.extract.storage import ExtractorItemStorage
+from dlt.extract.utils import get_arrow_fields
 from dlt.normalize.configuration import ItemsNormalizerConfiguration
 
 if TYPE_CHECKING:
@@ -224,7 +225,9 @@ class Extractor:
             if table_name in self._filtered_tables:
                 continue
             # allow to cache dynamic table hints if only table name is dynamic
-            if table_name not in self._table_contracts or resource.has_other_dynamic_hints:
+            if resource.has_other_dynamic_hints or not self._is_table_cached(
+                resource, table_name, item
+            ):
                 item = self._compute_and_update_tables(
                     resource, table_name, item, TableNameMeta(table_name)
                 )
@@ -238,13 +241,17 @@ class Extractor:
     def _write_to_static_table(
         self, resource: DltResource, table_name: str, items: TDataItems, meta: Any
     ) -> None:
-        if table_name not in self._table_contracts:
+        if not self._is_table_cached(resource, table_name, items):
             items = self._compute_and_update_tables(resource, table_name, items, meta)
         if table_name not in self._filtered_tables:
             if isinstance(meta, ImportFileMeta):
                 self._import_item(table_name, resource.name, meta)
             else:
                 self._write_item(table_name, resource.name, items)
+
+    def _is_table_cached(self, resource: DltResource, table_name: str, items: TDataItems) -> bool:
+        """Tells if `table_name` was computed and `items` may be written without computing it"""
+        return table_name in self._table_contracts
 
     def _compute_tables(
         self, resource: DltResource, items: TDataItems, meta: Any
@@ -378,6 +385,8 @@ class ArrowExtractor(Extractor):
     def __init__(self, *args: Any, **kwargs: Any) -> None:
         super().__init__(*args, **kwargs)
         self._normalize_config = self._retrieve_normalize_config()
+        self._computed_arrow_fields: Dict[str, Tuple[str, Dict[str, "pa.Field"]]] = {}
+        """Resource name and arrow fields of items that last computed each table"""
 
     def _retrieve_normalize_config(self) -> ItemsNormalizerConfiguration:
         """Get normalizer settings that are used here"""
@@ -388,40 +397,38 @@ class ArrowExtractor(Extractor):
 
     def write_items(self, resource: DltResource, items: TDataItems, meta: Any) -> None:
         items_list = items if isinstance(items, list) else [items]
+        super().write_items(resource, [_to_arrow_table(item) for item in items_list], meta)
 
-        static_table_name = self._get_static_table_name(resource, meta)
-        items = [
-            # 2. remove columns and rows in data contract filters
-            self._apply_contract_filters(_to_arrow_table(item), resource, static_table_name)
-            for item in items_list
-        ]
-        super().write_items(resource, items, meta)
+    def _is_table_cached(self, resource: DltResource, table_name: str, items: TDataItems) -> bool:
+        if not super()._is_table_cached(resource, table_name, items):
+            return False
+        computed = self._computed_arrow_fields.get(table_name)
+        if computed is None or computed[0] != resource.name:
+            return False
+        # columns come from arrow fields so items with fields outside of them compute the table again
+        for name, field in get_arrow_fields(items).items():
+            computed_field = computed[1].get(name)
+            if computed_field is None or not computed_field.equals(field):
+                return False
+        return True
 
-    def _write_to_static_table(
-        self, resource: DltResource, table_name: str, items: TDataItems, meta: Any
-    ) -> None:
-        # contract cache not supported for arrow tables
-        self._reset_contracts_cache()
-        super()._write_to_static_table(resource, table_name, items, meta)
-
-    def _apply_contract_filters(
-        self, item: "TAnyArrowItem", resource: DltResource, static_table_name: Optional[str]
-    ) -> "TAnyArrowItem":
+    def _apply_contract_filters(self, item: "TAnyArrowItem", table_name: str) -> "TAnyArrowItem":
         """Removes the columns (discard value) or rows (discard rows) as indicated by contract filters."""
         from dlt.common.libs import pyarrow
 
-        # convert arrow schema names into normalized names
-        rename_mapping = pyarrow.get_normalized_arrow_fields_mapping(item.schema, self.naming)
-        # find matching columns and delete by original name
-        table_name = static_table_name or self._get_dynamic_table_name(resource, item)
         filtered_columns = self._filtered_columns.get(table_name)
         if filtered_columns:
+            # convert arrow schema names into normalized names
+            rename_mapping = pyarrow.get_normalized_arrow_fields_mapping(item.schema, self.naming)
             # remove rows where columns have non null values
             # create a mask where rows will be False if any of the specified columns are non-null
             mask = None
             rev_mapping = {v: k for k, v in rename_mapping.items()}
+            # skip columns that were filtered for earlier items but are not in this one
             for column in [
-                name for name, mode in filtered_columns.items() if mode == "discard_row"
+                name
+                for name, mode in filtered_columns.items()
+                if mode == "discard_row" and name in rev_mapping
             ]:
                 is_null = pyarrow.pyarrow.compute.is_null(item[rev_mapping[column]])
                 mask = is_null if mask is None else pyarrow.pyarrow.compute.and_(mask, is_null)
@@ -451,15 +458,17 @@ class ArrowExtractor(Extractor):
         from dlt.common.libs import pyarrow
 
         columns = columns or self.schema.get_table_columns(table_name)
-        # Note: `items` is always a list here due to the conversion in `write_table`
+        # tables with dynamic names receive a single item
+        items_list = items if isinstance(items, list) else [items]
         items = [
             pyarrow.normalize_py_arrow_item(
-                item,
+                # contract filters are known after the table was computed
+                self._apply_contract_filters(item, table_name),
                 columns,
                 self.naming,
                 self._caps,
             )
-            for item in items
+            for item in items_list
         ]
 
         if self._normalize_config.add_dlt_load_id:
@@ -563,10 +572,8 @@ class ArrowExtractor(Extractor):
     def _compute_and_update_tables(
         self, resource: DltResource, root_table_name: str, items: TDataItems, meta: Any
     ) -> TDataItems:
+        # contract filters are computed again for `items`
+        self._filtered_columns.pop(root_table_name, None)
         items = super()._compute_and_update_tables(resource, root_table_name, items, meta)
-
-        if not isinstance(items, list):
-            # filter data item as filters could be updated in compute table
-            items = [items]
-        items = [self._apply_contract_filters(item, resource, root_table_name) for item in items]
+        self._computed_arrow_fields[root_table_name] = (resource.name, get_arrow_fields(items))
         return items

@@ -14,7 +14,7 @@ This destination helps you load data into Qdrant from [dlt resources](../../gene
 
 1. To use Qdrant as a destination, make sure `dlt` is installed with the `qdrant` extra:
 
-```sh
+```cli
 pip install "dlt[qdrant]"
 ```
 

@@ -15,7 +15,7 @@ It will also allow you to simply get a path to the files of your normalized data
 
 To install `dlt` without additional dependencies:
 
-```sh
+```cli
 pip install dlt
 ```
 

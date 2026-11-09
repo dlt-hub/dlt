@@ -1005,3 +1005,39 @@ def test_incremental_boundary_hashes_stable_after_dlt_update(test_storage: FileS
         new_hashes = _incremental_state(pipeline)["unique_hashes"]
         assert len(new_hashes) == 1
         assert len(new_hashes[0]) == 12
+
+
+def test_trace_of_newer_dlt_is_ignored_by_older_dlt(test_storage: FileStorage) -> None:
+    """1.32 added fields to the trace metrics. dlt 1.31 cannot unpickle such a trace and ignores
+    it, and the current dlt reads the trace that 1.31 writes afterwards."""
+    shutil.copytree(
+        "tests/pipeline/cases/github_pipeline", get_test_storage_root(), dirs_exist_ok=True
+    )
+    with test_workspace({"DESTINATION__DUCKDB__CREDENTIALS": "duckdb:///test_trace_compat.duckdb"}):
+        pipeline = dlt.pipeline("trace_compat", destination="duckdb", dataset_name="trace_data")
+        assert_load_info(pipeline.run([{"id": 1}], table_name="items"))
+        assert pipeline.last_trace is not None
+
+        with Venv.create(tempfile.mkdtemp(), ["dlt[duckdb]==1.31.0"]) as venv:
+            # force a compatible duckdb so both versions can open the same database file
+            venv.install_deps(venv.context, ["duckdb==" + pkg_version("duckdb")])
+            try:
+                # the trace of the current version is ignored, the pipeline keeps working
+                output = venv.run_script("trace_compat_pipeline.py", "read")
+                print(output)
+                assert "TRACE: None" in output
+                output = venv.run_script("trace_compat_pipeline.py", "run")
+                print(output)
+            except CalledProcessError as cpe:
+                print(f"script output: {cpe.output}")
+                raise
+        assert "TRACE: None" not in output
+
+        # the trace written by 1.31 loads, it has no files count
+        pipeline = dlt.attach("trace_compat")
+        trace = pipeline.last_trace
+        assert trace is not None
+        extract_info = trace.last_extract_info
+        extract_metrics = extract_info.metrics[extract_info.loads_ids[0]][0]
+        assert extract_metrics["table_metrics"]["items"].files_count is None
+        assert load_table_counts(pipeline, "items") == {"items": 2}
