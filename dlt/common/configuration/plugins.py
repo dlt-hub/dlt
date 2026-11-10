@@ -2,6 +2,7 @@ import functools
 import os
 import warnings
 from typing import (
+    TYPE_CHECKING,
     Any,
     Callable,
     ClassVar,
@@ -23,6 +24,9 @@ import importlib.metadata
 from dlt.common.configuration.specs.base_configuration import ContainerInjectableContext
 from dlt.common.configuration.specs.pluggable_run_context import RunContextBase
 from dlt.common.known_env import DLT_DISABLE_PLUGINS
+
+if TYPE_CHECKING:
+    from dlt.common.configuration.providers.provider import ConfigProvider
 
 hookspec = pluggy.HookspecMarker("dlt")
 hookimpl = pluggy.HookimplMarker("dlt")
@@ -248,4 +252,16 @@ def plug_agent_loop(loop_type: str) -> Optional[Type[SupportsAgentLoop]]:
     Returns:
         Optional[Type[SupportsAgentLoop]]: Loop class to instantiate, or `None` when the
         plugin does not implement the requested loop.
+    """
+
+
+@hookspec()
+def plug_config_providers() -> Optional[Sequence["ConfigProvider"]]:
+    """Spec for plugin hook that contributes config providers to the run context.
+
+    A run context calls it when it adds its extra providers, in every process that uses dlt.
+    Providers that need settings must resolve them from the initial providers (env, toml).
+
+    Returns:
+        Optional[Sequence[ConfigProvider]]: Providers to add, or `None` to add none.
     """
