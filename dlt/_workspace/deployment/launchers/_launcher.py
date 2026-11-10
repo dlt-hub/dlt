@@ -4,13 +4,14 @@ import importlib.util
 import os
 import subprocess
 import sys
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, Iterator, List, Optional, Set, Tuple
 
 from dlt.common import json
 from dlt.common.configuration import resolve_configuration
 from dlt.common.configuration.specs import known_sections
 from dlt.common.configuration.specs.pluggable_run_context import ProfilesRunContext
 from dlt.common.configuration.utils import add_config_dict_to_env
+from dlt.common.exceptions import TerminalException, TransientException
 from dlt.common.runtime.run_context import active
 from dlt.common.time import set_context_timezone
 
@@ -20,6 +21,62 @@ from dlt._workspace._known_env import WORKSPACE__PROFILE
 from dlt._workspace.deployment._job_ref import parse_job_ref
 from dlt._workspace.deployment.configuration import JobConfiguration
 from dlt._workspace.deployment.typing import TRuntimeEntryPoint, resolve_incremental_mode
+
+
+EXIT_TERMINAL_ERROR = 1
+"""Failed run that is terminal, or any failure not identified as transient. This is the default."""
+
+EXIT_TRANSIENT_ERROR = 2
+"""Failed run whose chain identifies a transient failure and no terminal one."""
+
+
+def _exception_chain(exc: BaseException) -> Iterator[BaseException]:
+    """Yields `exc` and the cause or context chain a traceback reports.
+
+    An explicit cause is followed. Otherwise the unsuppressed context is followed.
+    Each exception is yielded once, so a cyclic chain stops.
+    """
+    seen: Set[int] = set()
+    current: Optional[BaseException] = exc
+    while current is not None and id(current) not in seen:
+        seen.add(id(current))
+        yield current
+        cause = current.__cause__
+        if isinstance(cause, BaseException):
+            current = cause
+            continue
+        context = current.__context__
+        if not current.__suppress_context__ and isinstance(context, BaseException):
+            current = context
+            continue
+        current = None
+
+
+def failure_exit_code(exc: BaseException) -> int:
+    """Launcher status for a failed run.
+
+    A `TerminalException` on the reported chain selects `EXIT_TERMINAL_ERROR`
+    even when a `TransientException` is also present. The chain is the explicit
+    cause, or the unsuppressed context when there is no cause.
+    `EXIT_TRANSIENT_ERROR` is returned only when that chain identifies a
+    transient failure and no terminal one. Every other failure returns
+    `EXIT_TERMINAL_ERROR`.
+
+    Args:
+        exc (BaseException): Failure raised by the run.
+
+    Returns:
+        int: `EXIT_TERMINAL_ERROR` or `EXIT_TRANSIENT_ERROR`.
+    """
+    saw_transient = False
+    for item in _exception_chain(exc):
+        if isinstance(item, TerminalException):
+            return EXIT_TERMINAL_ERROR
+        if isinstance(item, TransientException):
+            saw_transient = True
+    if saw_transient:
+        return EXIT_TRANSIENT_ERROR
+    return EXIT_TERMINAL_ERROR
 
 
 def use_utf8_output() -> None:

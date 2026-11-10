@@ -3,6 +3,7 @@
 from datetime import timezone
 import asyncio
 import inspect
+import traceback
 from contextlib import nullcontext
 from functools import partial
 from typing import Any, Callable, ContextManager, Dict, List, Mapping, Optional, Tuple, Type, cast
@@ -41,6 +42,7 @@ from dlt.extract.incremental.context import TimeIntervalContext
 from dlt._workspace.deployment.launchers._launcher import (
     activate_profile,
     apply_job_configuration,
+    failure_exit_code,
     get_run_args_port,
     parse_launcher_args,
     prepare_run_env,
@@ -311,7 +313,19 @@ def run(
 
 
 def run_and_print_result(run_launcher: Callable[[], Any]) -> None:
-    """Runs a launcher and prints the job result, also for an aborted job."""
+    """Runs a launcher and prints the job result, also for an aborted job.
+
+    A failed run prints its traceback and exits `EXIT_TERMINAL_ERROR`, unless the
+    failure is explicitly transient, in which case it exits `EXIT_TRANSIENT_ERROR`.
+    An aborted job is re-raised.
+
+    Args:
+        run_launcher (Callable[[], Any]): Starts the launcher and returns its result.
+
+    Raises:
+        JobAbortedException: The job ended itself without completing.
+        SystemExit: The job failed.
+    """
     # set before the run so output printed during it is UTF-8 too
     use_utf8_output()
     try:
@@ -321,6 +335,10 @@ def run_and_print_result(run_launcher: Callable[[], Any]) -> None:
             print_job_result(ex.result)
         # an abort ends the process
         raise
+    except Exception as ex:
+        # leave BaseException control flow (SystemExit, KeyboardInterrupt, GeneratorExit) alone
+        traceback.print_exception(ex)
+        raise SystemExit(failure_exit_code(ex))
     if is_job_result(result):
         print_job_result(cast(TJobResult, result))
     elif result is not None:
