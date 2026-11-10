@@ -11,6 +11,7 @@ from dlt.common.utils import clone_dict_nested
 
 from dlt._workspace.access import ACCESS_AXIS_VERBS
 from dlt._workspace.exceptions import InvalidWorkspaceFile, WorkspaceFileEngineNoUpgradePath
+from dlt._workspace.run_context import display_path
 from dlt._workspace.settings_files import (
     load_yaml_file,
     profiles_with_settings,
@@ -232,6 +233,11 @@ def get_workspace_file(context: RunContextBase) -> str:
     return context.get_setting(WORKSPACE_FILE_NAME)
 
 
+def shown_workspace_file(context: RunContextBase) -> str:
+    """The workspace file as messages show it, see `display_path`."""
+    return display_path(get_workspace_file(context), context.run_dir)
+
+
 def _profiles_in_use(context: RunContextBase) -> List[str]:
     """Profiles that a workspace definition without profiles keeps on migration: those with
     settings files and the one recorded in `.dlt/profile-name`."""
@@ -250,25 +256,26 @@ def load_workspace_definition(context: RunContextBase) -> TWorkspaceDefinition:
         WorkspaceFileEngineNoUpgradePath: The definition was written by a newer dlt.
     """
     path = get_workspace_file(context)
+    shown = shown_workspace_file(context)
     try:
         doc = load_yaml_file(path)
     except ValueError as ex:
-        raise InvalidWorkspaceFile(path, [str(ex)]) from ex
+        raise InvalidWorkspaceFile(shown, [str(ex)]) from ex
     # only an empty file is migrated: the migration replaces the content
     if doc and "engine_version" not in doc:
-        raise InvalidWorkspaceFile(path, ["`engine_version` is missing, set `engine_version: 1`"])
+        raise InvalidWorkspaceFile(shown, ["`engine_version` is missing, set `engine_version: 1`"])
     from_engine = doc.get("engine_version", 0)
     if not isinstance(from_engine, int):
         raise InvalidWorkspaceFile(
-            path, [f"`engine_version` must be an integer, not {from_engine!r}"]
+            shown, [f"`engine_version` must be an integer, not {from_engine!r}"]
         )
     migrated = from_engine != WORKSPACE_ENGINE_VERSION
     if migrated:
         migrate_workspace_definition(
-            doc, from_engine, WORKSPACE_ENGINE_VERSION, path, _profiles_in_use(context)
+            doc, from_engine, WORKSPACE_ENGINE_VERSION, shown, _profiles_in_use(context)
         )
     restore_stored_workspace_definition(doc)
-    validate_workspace_definition(doc, path)
+    validate_workspace_definition(doc, shown)
     if migrated:
         # a read-only settings dir keeps the empty file, the next load migrates again
         try:

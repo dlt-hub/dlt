@@ -20,14 +20,6 @@ class WorkspaceRunContextNotAvailable(RunContextNotAvailable, WorkspaceException
         super().__init__(run_dir, msg)
 
 
-def _add_profile_remedy(path: str) -> str:
-    return (
-        "To declare an environment, run `dlthub profile add-environment <name>`. It is deployed"
-        " with `<name>-write`. To add a profile to an environment, run `dlthub profile add <name>"
-        f" --access <none|read|write> --env <environment>`. You can also edit `{path}`."
-    )
-
-
 def _environments(environments: Sequence[str]) -> str:
     return ", ".join(environments) if environments else "none declared"
 
@@ -163,8 +155,9 @@ class EnvironmentNotDeclared(ProfileException):
         self.path = path
         self.environments = list(environments)
         super().__init__(
-            f"`{env}` is not an environment declared in `{path}`. Environments:"
-            f" {_environments(environments)}. {_add_profile_remedy(path)}"
+            f"`{env}` is not an environment declared in `{path}` (declared:"
+            f" {_environments(environments)}). Declare it with `dlthub profile add-environment"
+            f" {env}`."
         )
 
 
@@ -179,7 +172,10 @@ class NoEnvironment(ProfileException):
             f" Name one with `--environment`: {', '.join(environments)}. Or set `default: true`"
             f" on one under `environments` in `{path}`."
             if environments
-            else f" No environment is declared in `{path}`. {_add_profile_remedy(path)}"
+            else (
+                f" No environment is declared in `{path}`. Declare one with `dlthub profile"
+                " add-environment <name>`."
+            )
         )
         super().__init__(
             f"The active profile `{active_profile}` is a local profile, so it selects no"

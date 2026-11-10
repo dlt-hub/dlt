@@ -258,7 +258,8 @@ def test_invalid_workspace_file(content: str, errors: List[str]) -> None:
         _write_workspace_file(ctx, content)
         with pytest.raises(InvalidWorkspaceFile) as exc:
             _ = ctx.profile_definitions
-        _assert_invalid(exc.value, path, errors)
+        # the message shows the file relative to the workspace, the working dir is in it
+        _assert_invalid(exc.value, DEFINITION_PATH, errors)
         # an invalid file is left as it is
         with open(path, encoding="utf-8") as f:
             assert f.read() == content

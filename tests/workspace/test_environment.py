@@ -109,7 +109,7 @@ def test_add_environments() -> None:
         # refused: a declared environment, a declared profile, an invalid name
         with pytest.raises(EnvironmentAlreadyExists) as exc:
             declare_environment(ctx, "ci")
-        assert path in str(exc.value)
+        assert os.path.join(".dlt", WORKSPACE_FILE_NAME) in str(exc.value)
         with pytest.raises(ProfileAlreadyExists):
             add_environments(
                 ctx,
@@ -185,11 +185,13 @@ def test_select_environment_not_declared(name: str, profile: str) -> None:
         with pytest.raises(EnvironmentNotDeclared) as exc:
             select_environment(name)
         assert (exc.value.env, exc.value.environments) == (name, ["prod", "ci"])
-        message = str(exc.value)
-        path = ctx.get_setting(WORKSPACE_FILE_NAME)
-        assert f"`{name}` is not an environment declared in `{path}`." in message
-        assert "Environments: prod, ci." in message
-        assert "dlthub profile add-environment <name>" in message
+        path = os.path.join(".dlt", WORKSPACE_FILE_NAME)
+        assert (
+            str(exc.value)
+            == f"`{name}` is not an environment declared in `{path}` (declared: prod, ci)."
+            " Declare it"
+            f" with `dlthub profile add-environment {name}`."
+        )
 
 
 def test_select_environment_without_default() -> None:
@@ -467,7 +469,7 @@ def test_connect_with_legacy_settings() -> None:
         with pytest.raises(OrganizationMismatch) as exc:
             connect_remote_workspace(ctx, "stg", workspace_id="stg-ws-id-2", organization_id="o-2")
         assert exc.value.connected == "org-id"
-        assert exc.value.path == ctx.settings_dir
+        assert exc.value.path == ".dlt"
         assert "[runtime]" in str(exc.value)
         # an undeclared environment is refused
         with pytest.raises(EnvironmentNotDeclared) as not_declared:

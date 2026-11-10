@@ -38,10 +38,10 @@ from dlt._workspace.workspace_definition import (
     default_profile,
     environment_definition,
     environment_of_profile,
-    get_workspace_file,
     is_profile_declared,
     load_workspace_definition,
     profile_definition,
+    shown_workspace_file,
 )
 from dlt._workspace.providers import ProfileConfigTomlProvider, ProfileSecretsTomlProvider
 from dlt._workspace.run_context import (
@@ -233,7 +233,7 @@ class WorkspaceRunContext(ProfilesRunContext):
             if not is_profile_declared(doc, profile):
                 raise ProfileNotDeclared(
                     profile,
-                    get_workspace_file(self),
+                    shown_workspace_file(self),
                     list(doc["environments"]),
                     self._profile_source(profile),
                     list(declared_profiles(doc)),

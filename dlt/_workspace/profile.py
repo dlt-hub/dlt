@@ -25,11 +25,11 @@ from dlt._workspace.workspace_definition import (
     PROFILE_NAME_RE,
     declared_profiles,
     default_profile,
-    get_workspace_file,
     is_profile_declared,
     load_workspace_definition,
     profile_data_access,
     save_workspace_file,
+    shown_workspace_file,
     validate_workspace_definition,
 )
 
@@ -38,10 +38,7 @@ if TYPE_CHECKING:
 
 DEFAULT_PROFILE = "dev"
 
-PROFILE_ARGUMENT_HELP = (
-    "Profile to run with. Overrides the active profile recorded in `.dlt/profile-name` and"
-    " WORKSPACE__PROFILE."
-)
+PROFILE_ARGUMENT_HELP = "Profile to run with."
 """Help of the `--profile` option of the `dlthub` CLI and of the `profile` argument of MCP tools."""
 
 
@@ -73,7 +70,7 @@ def declare_profiles(
         EnvironmentNotDeclared: `env` is not declared.
         InvalidWorkspaceFile: The declarations are invalid together with the existing ones.
     """
-    path = get_workspace_file(context)
+    path = shown_workspace_file(context)
     # read from disk, so the declarations never leak into the cached content of the context
     doc = load_workspace_definition(context)
     check_new_profiles(doc, path, list(profiles))
@@ -143,7 +140,7 @@ def check_profile_declared(profile: str) -> None:
     if not is_profile_declared(doc, profile):
         raise ProfileNotDeclared(
             profile,
-            get_workspace_file(ctx),
+            shown_workspace_file(ctx),
             list(doc["environments"]),
             profiles=list(declared_profiles(doc)),
         )
