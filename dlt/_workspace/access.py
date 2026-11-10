@@ -5,6 +5,7 @@ from typing import Any, Dict, List, Optional, Sequence, Set, Tuple
 from dlt.common.typing import AnyFun, annotation_metadata, get_args
 
 from dlt._workspace.typing import (
+    TProfileDataAccess,
     TWorkspaceAccess,
     TWorkspaceContextVerb,
     TWorkspaceDataVerb,
@@ -73,6 +74,22 @@ def granted_verbs(access: Optional[TWorkspaceAccess], axis: str) -> Set[str]:
     return set(ACCESS_AXIS_VERBS[axis]) if "all" in verbs else verbs
 
 
+def data_access_level(access: Optional[TWorkspaceAccess]) -> TProfileDataAccess:
+    """Data access that `access` declares: `write` when it grants `write`, else `read`, else
+    `none`."""
+    verbs = granted_verbs(access, "data")
+    if "write" in verbs:
+        return "write"
+    return "read" if "read" in verbs else "none"
+
+
+def data_access_verbs(data_access: str) -> List[TWorkspaceDataVerb]:
+    """Data verbs of a data access level. `write` and `all` include `read`."""
+    if data_access in ("write", "all"):
+        return ["read", "write"]
+    return ["read"] if data_access == "read" else []
+
+
 def format_access(access: TWorkspaceAccess) -> str:
     """Formats `{"data": ["read"], "local": ["write"]}` as `data:read,local:write`."""
     declared: Dict[str, Any] = dict(access or {})
@@ -125,6 +142,8 @@ __all__ = [
     "ACCESS_AXIS_VERBS",
     "ACCESS_AXIS_VOCABULARY",
     "RequiresAccess",
+    "data_access_level",
+    "data_access_verbs",
     "granted_verbs",
     "missing_access",
     "required_access",

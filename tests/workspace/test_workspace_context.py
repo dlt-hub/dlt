@@ -1,20 +1,29 @@
 import os
-import pytest
 import pickle
 import tempfile
+from typing import List, Optional, Sequence
+
+import pytest
 import yaml
 
 import dlt
 from dlt._workspace._known_env import WORKSPACE__PROFILE
 from dlt._workspace._workspace_context import WorkspaceRunContext, switch_context
-from dlt._workspace.cli.dlthub.utils import (
-    check_delete_local_data,
-    delete_local_data,
-    fetch_profiles_list,
+from dlt._workspace.cli.dlthub.utils import check_delete_local_data, delete_local_data
+from dlt._workspace.exceptions import (
+    ProfileNotDeclared,
+    TProfileSource,
+    WorkspaceRunContextNotAvailable,
 )
-from dlt._workspace.exceptions import WorkspaceRunContextNotAvailable
 from dlt._workspace.helpers.runtime.runtime_artifacts import sync_from_runtime
-from dlt._workspace.profile import DEFAULT_PROFILE, read_profile_pin, save_profile_pin
+from dlt._workspace.profile import DEFAULT_PROFILE, add_profiles
+from dlt._workspace.settings_files import load_yaml_file, read_profile_pin, save_profile_pin
+from dlt._workspace.workspace_definition import (
+    WORKSPACE_FILE_NAME,
+    built_in_workspace_definition,
+    load_workspace_definition,
+    stored_workspace_definition,
+)
 from dlt._workspace.run_context import (
     DEFAULT_LOCAL_FOLDER,
     DEFAULT_WORKSPACE_WORKING_FOLDER,
@@ -24,14 +33,19 @@ from dlt._workspace.cli.echo import always_choose
 from dlt.common.configuration.providers import CONFIG_TOML, SECRETS_TOML
 from dlt.common.runtime.exceptions import RunContextNotAvailable
 from dlt.common.runtime.exec_info import get_execution_context
-from dlt.common.runtime.run_context import DOT_DLT, RunContext, global_dir
+from dlt.common.runtime.run_context import DOT_DLT, RunContext
 from dlt.common.schema import Schema
 from dlt.common.utils import custom_environ
 
 from dlt.common.storages.file_storage import FileStorage
 from tests.pipeline.utils import PIPELINE_TEST_CASES_PATH, assert_table_counts
 from tests.utils import clean_test_storage
-from tests.workspace.utils import isolated_workspace
+from tests.workspace.utils import (
+    empty_workspace_file,
+    isolated_workspace,
+    save_definition,
+    touch_settings,
+)
 
 
 def test_legacy_workspace() -> None:
@@ -53,12 +67,6 @@ def test_workspace_settings() -> None:
     with isolated_workspace("default") as ctx:
         assert_workspace_context(ctx, "default", DEFAULT_PROFILE)
         assert_dev_config()
-        assert ctx.configured_profiles() == [DEFAULT_PROFILE]
-        # has dev config
-        assert ctx._profile_has_config(DEFAULT_PROFILE) is True
-        assert ctx._profile_has_config("unknown") is False
-        # no pipelines
-        assert ctx._profile_has_pipelines(DEFAULT_PROFILE) is False
 
 
 def test_workspace_profile() -> None:
@@ -66,9 +74,6 @@ def test_workspace_profile() -> None:
         assert_workspace_context(ctx, "default", "prod")
         # mocked global dir
         assert ctx.global_dir.endswith(".global_dir")
-        assert set(ctx.configured_profiles()) == {"dev", "prod"}
-        assert ctx._profile_has_config("prod") is False
-        assert ctx._profile_has_config("dev") is True
 
         # files for dev profile will be ignores
         assert dlt.config["config_val"] == "config.toml"
@@ -85,11 +90,9 @@ def test_workspace_profile() -> None:
         ctx = dlt.current.workspace()
         assert ctx.profile == "dev"
         assert_workspace_context(ctx, "default", "dev")
-        # standard global dir
-        assert ctx.global_dir == global_dir()
+        # the context of another profile keeps the mocked global dir
+        assert ctx.global_dir.endswith(".global_dir")
         assert_dev_config()
-        assert ctx.configured_profiles() == ["dev"]
-        assert ctx._profile_has_config("dev") is True
 
 
 def test_workspace_trace() -> None:
@@ -181,111 +184,209 @@ def test_workspace_configuration():
         assert ctx.local_dir == os.path.join(ctx.run_dir, ".")
 
 
-def test_pinned_profile() -> None:
+@pytest.mark.parametrize(
+    "recorded,environ,argument,active",
+    [
+        (None, None, None, "dev"),
+        ("prod", None, None, "prod"),
+        (None, "prod", None, "prod"),
+        ("prod", "tests", None, "tests"),
+        ("prod", "tests", "access", "access"),
+    ],
+    ids=[
+        "default",
+        "recorded",
+        "environ-over-default",
+        "environ-over-recorded",
+        "argument-over-environ",
+    ],
+)
+def test_active_profile_precedence(
+    recorded: Optional[str], environ: Optional[str], argument: Optional[str], active: str
+) -> None:
+    """An argument overrides `WORKSPACE__PROFILE`, which overrides the profile recorded in
+    `.dlt/profile-name`, which overrides the default profile."""
     with isolated_workspace("default") as ctx:
-        assert ctx.profile == "dev"
+        if recorded:
+            save_profile_pin(ctx, recorded)
+            assert read_profile_pin(ctx) == recorded
+            # recording a profile creates no settings files
+            assert ctx.configured_profiles() == ["dev"]
+        with custom_environ({WORKSPACE__PROFILE: environ} if environ else {}):
+            ctx = switch_context(ctx.run_dir, profile=argument)
+            assert dlt.current.workspace().profile == active
+            assert_workspace_context(ctx, "default", active)
+        # an override lasts as long as it is given
+        assert switch_context(ctx.run_dir).profile == (recorded or "dev")
+
+
+@pytest.mark.parametrize(
+    "recorded,environ,argument,files,migrated,source",
+    [
+        ("my profile", None, None, (), False, "recorded"),
+        (None, "custom", None, (), False, "environ"),
+        (None, None, "custom", (), False, "argument"),
+        (None, None, "qa", ("qa.config.toml",), True, "argument"),
+    ],
+    ids=["recorded-invalid-name", "environ-typo", "argument-typo", "file-added-after-migration"],
+)
+def test_migration_declares_no_undeclared_profile(
+    recorded: Optional[str],
+    environ: Optional[str],
+    argument: Optional[str],
+    files: Sequence[str],
+    migrated: bool,
+    source: TProfileSource,
+) -> None:
+    """The migration of an empty `.dlt/.workspace` declares no profile that only an argument or
+    `WORKSPACE__PROFILE` names and none with an invalid name. After it, settings files declare
+    nothing."""
+    with isolated_workspace("empty") as ctx:
+        path = ctx.get_setting(WORKSPACE_FILE_NAME)
+        touch_settings(ctx, *files)
+        if recorded:
+            save_profile_pin(ctx, recorded)
+        if not migrated:
+            empty_workspace_file(ctx)
+        undeclared = argument or environ or recorded
+        with custom_environ({WORKSPACE__PROFILE: environ} if environ else {}):
+            with pytest.raises(ProfileNotDeclared) as exc:
+                switch_context(ctx.run_dir, profile=argument)
+        assert (exc.value.name, exc.value.source) == (undeclared, source)
+        assert load_yaml_file(path) == stored_workspace_definition(built_in_workspace_definition())
+        if argument:
+            # declared as a local profile, it loads with the files it had
+            add_profiles(ctx, {argument: {"location": "local", "data_access": "write"}})
+            ctx = switch_context(ctx.run_dir, profile=argument)
+            assert ctx.profile == argument
+            assert ctx.configured_profiles() == ([argument] if files else [])
+
+
+DECLARED_PROFILES = (
+    "Declared profiles: dev, tests, prod, access, analytics, ci-write, ci-read, ci-none."
+)
+
+
+@pytest.mark.parametrize(
+    "source,name,fragments",
+    [
+        (
+            "environ",
+            "nope",
+            ["Set `WORKSPACE__PROFILE` to a declared profile, or unset it.", DECLARED_PROFILES],
+        ),
+        (
+            "environ",
+            "ci",
+            ["Set `WORKSPACE__PROFILE` to a declared profile, or unset it.", DECLARED_PROFILES],
+        ),
+        (
+            "recorded",
+            "nope",
+            [
+                "Remove `.dlt/profile-name` to run with the default profile.",
+                DECLARED_PROFILES,
+                (
+                    "Then, to use `nope`, run `dlthub profile add nope` and `dlthub local profile"
+                    " use nope`."
+                ),
+            ],
+        ),
+        (
+            "recorded",
+            "ci",
+            ["Remove `.dlt/profile-name` to run with the default profile.", DECLARED_PROFILES],
+        ),
+        (
+            "argument",
+            "nope",
+            [
+                "run `dlthub profile add nope --local`",
+                "run `dlthub profile add nope --env <environment>`. Environments: prod, ci.",
+            ],
+        ),
+        ("argument", "ci", [DECLARED_PROFILES]),
+        (
+            "default",
+            "dev",
+            [
+                (
+                    "It is the default profile, and nothing names another one. Name a declared"
+                    " profile with `WORKSPACE__PROFILE`."
+                ),
+                "Declared profiles: tests, prod, access,",
+                "Then declare a local profile with `dlthub profile add dev --local`.",
+            ],
+        ),
+    ],
+    ids=[
+        "environ-undeclared",
+        "environ-environment-name",
+        "recorded-undeclared",
+        "recorded-environment-name",
+        "argument-undeclared",
+        "argument-environment-name",
+        "default-undeclared",
+    ],
+)
+def test_undeclared_profile_fails_on_load(
+    source: TProfileSource, name: str, fragments: List[str]
+) -> None:
+    with isolated_workspace("job_profiles") as ctx:
+        path = ctx.get_setting(WORKSPACE_FILE_NAME)
+        if source == "recorded":
+            save_profile_pin(ctx, name)
+        if source == "default":
+            # no local profile is the default, so dlt assumes `dev`
+            doc = load_workspace_definition(ctx)
+            del doc["local_profiles"]["dev"]
+            save_definition(ctx, doc)
+        with custom_environ({WORKSPACE__PROFILE: name} if source == "environ" else {}):
+            with pytest.raises(ProfileNotDeclared) as exc:
+                if source == "argument":
+                    ctx.switch_profile(name)
+                else:
+                    switch_context(ctx.run_dir)
+        assert (exc.value.name, exc.value.source) == (name, source)
+        message = str(exc.value)
+        assert message.startswith(f"`{name}` is not a profile declared in `{path}`.")
+        for fragment in fragments:
+            assert fragment in message
+        # every source says that an environment name is not a profile name
+        is_environment = f"`{name}` is an environment. Name one of its profiles."
+        assert (is_environment in message) is (name == "ci")
+        # an environment name is never declared as a profile, a typo in the variable neither
+        adds_profile = any("dlthub profile add" in fragment for fragment in fragments)
+        assert ("dlthub profile add" in message) is adds_profile
+        # the failed switch keeps the previous context
+        assert dlt.current.workspace().profile == "dev"
+
+
+def test_available_and_configured_profiles() -> None:
+    with isolated_workspace("default") as ctx:
+        assert set(ctx.available_profiles()) == {"dev", "prod", "tests", "access", "no-access"}
         assert ctx.configured_profiles() == ["dev"]
-        # we pin prod
-        save_profile_pin(ctx, "prod")
-        assert read_profile_pin(ctx) == "prod"
-        # prod is configured profile now
-        assert set(ctx.configured_profiles()) == {"prod", "dev"}
-        # because it is pinned, we still do not see it as special config
-        assert ctx._profile_has_config("prod") is False
-
-        # this is new default profile
-        ctx = switch_context(ctx.run_dir)
-        assert ctx.profile == "prod"
-        ctx = dlt.current.workspace()
-        assert ctx.profile == "prod"
-        assert_workspace_context(ctx, "default", "prod")
-
-
-def test_env_profile_overrides_pin() -> None:
-    """WORKSPACE__PROFILE env var overrides pin file but yields to code."""
-    with isolated_workspace("default") as ctx:
-        save_profile_pin(ctx, "prod")
-        assert read_profile_pin(ctx) == "prod"
-
-        # env var overrides the pin
-        with custom_environ({WORKSPACE__PROFILE: "tests"}):
-            ctx = switch_context(ctx.run_dir)
-            assert ctx.profile == "tests"
-
-        # without env var, pin takes effect again
-        ctx = switch_context(ctx.run_dir)
-        assert ctx.profile == "prod"
-
-
-def test_env_profile_overrides_default() -> None:
-    """WORKSPACE__PROFILE env var overrides the default dev profile."""
-    with isolated_workspace("default") as ctx:
-        assert ctx.profile == "dev"
-
-        with custom_environ({WORKSPACE__PROFILE: "prod"}):
-            ctx = switch_context(ctx.run_dir)
-            assert ctx.profile == "prod"
-
-
-def test_env_profile_yields_to_code() -> None:
-    """Explicit profile kwarg takes precedence over WORKSPACE__PROFILE."""
-    with isolated_workspace("default") as ctx:
-        with custom_environ({WORKSPACE__PROFILE: "prod"}):
-            ctx = switch_context(ctx.run_dir, profile="tests")
-            assert ctx.profile == "tests"
-
-
-def test_fetch_profiles_list() -> None:
-    """fetch_profiles_list returns correct flags through pin and switch scenarios."""
-    with isolated_workspace("default") as ctx:
-        # default workspace: dev is current, nothing pinned
-        profiles = fetch_profiles_list()
-        by_name = {p["name"]: p for p in profiles}
-        assert set(by_name) == {"dev", "prod", "tests", "access"}
-        assert by_name["dev"]["is_current"] is True
-        assert by_name["dev"]["is_pinned"] is False
-        assert by_name["prod"]["is_current"] is False
-        assert all(p["description"] for p in profiles)
-
-        # pin prod and reload — prod becomes current and pinned
-        save_profile_pin(ctx, "prod")
-        ctx = switch_context(ctx.run_dir)
-        by_name = {p["name"]: p for p in fetch_profiles_list()}
-        assert by_name["prod"]["is_pinned"] is True
-        assert by_name["prod"]["is_current"] is True
-        assert by_name["dev"]["is_pinned"] is False
-        assert by_name["dev"]["is_current"] is False
-
-        # pin a custom profile — appears in list with correct description
-        save_profile_pin(ctx, "staging")
-        ctx = switch_context(ctx.run_dir)
-        by_name = {p["name"]: p for p in fetch_profiles_list()}
-        assert "staging" in by_name
-        assert by_name["staging"]["is_pinned"] is True
-        assert by_name["staging"]["is_current"] is True
-        assert by_name["staging"]["description"] == "custom profile"
-
-
-def test_fetch_profiles_list_configured() -> None:
-    """is_configured is True only for profiles with config files or pipelines."""
-    with isolated_workspace("pipelines", profile="tests"):
-        by_name = {p["name"]: p for p in fetch_profiles_list()}
-        # tests and prod have profile-specific config files in this fixture
-        assert by_name["tests"]["is_configured"] is True
-        assert by_name["prod"]["is_configured"] is True
-        # dev and access have no config in this fixture
-        assert by_name["dev"]["is_configured"] is False
-        assert by_name["access"]["is_configured"] is False
+        # settings files alone make no profile available
+        touch_settings(ctx, "staging.config.toml")
+        assert "staging" not in ctx.available_profiles()
+        assert ctx.configured_profiles() == ["dev"]
+        # once declared, the profile is available and configured
+        add_profiles(ctx, {"staging": {"location": "local", "data_access": "write"}})
+        assert set(ctx.available_profiles()) == {
+            "dev",
+            "prod",
+            "tests",
+            "access",
+            "no-access",
+            "staging",
+        }
+        assert ctx.configured_profiles() == ["dev", "staging"]
 
 
 def test_workspace_pipeline() -> None:
     with isolated_workspace("pipelines", profile="tests") as ctx:
         # prod and test have explicit config for profiles
         assert set(ctx.configured_profiles()) == {"tests", "prod"}
-        assert ctx._profile_has_config("tests") is True
-        assert ctx._profile_has_config("prod") is True
-        assert ctx._profile_has_pipelines("tests") is False
-        assert ctx._profile_has_pipelines("prod") is False
 
         # `ducklake_pipeline` configured in config.toml
         pipeline = dlt.pipeline(pipeline_name="ducklake_pipeline")
@@ -301,7 +402,6 @@ def test_workspace_pipeline() -> None:
         assert os.path.isdir(os.path.join(ctx.local_dir, "test_ducklake.files"))
         # make sure that working folder got created
         assert os.path.isdir(os.path.join(ctx.get_data_entity("pipelines"), "ducklake_pipeline"))
-        assert ctx._profile_has_pipelines("tests") is True
 
         # test wipe function
         with always_choose(always_choose_default=False, always_choose_value=True):
@@ -322,14 +422,11 @@ def test_workspace_pipeline() -> None:
         # local files point to prod
         assert os.path.isfile(os.path.join(ctx.local_dir, "prod_ducklake.sqlite"))
         assert os.path.isdir(os.path.join(ctx.local_dir, "prod_ducklake.files"))
-        # both profiles have pipelines
-        assert ctx._profile_has_pipelines("tests") is True
-        assert ctx._profile_has_pipelines("prod") is True
         assert set(ctx.configured_profiles()) == {"prod", "tests"}
 
-        # switch to dev
+        # switch to dev: it has no settings files, pipelines do not configure a profile
         ctx = ctx.switch_profile("dev")
-        assert set(ctx.configured_profiles()) == {"dev", "prod", "tests"}
+        assert set(ctx.configured_profiles()) == {"prod", "tests"}
 
 
 def test_workspace_send_artifacts() -> None:
@@ -383,7 +480,7 @@ def assert_workspace_context(context: WorkspaceRunContext, name_prefix: str, pro
     assert context.name.startswith(name_prefix)
     assert context.profile == profile
     assert context.default_profile == "dev"
-    assert context.profile in context.configured_profiles()
+    assert context.profile in context.available_profiles()
 
     expected_settings = os.path.join(context.run_dir, DOT_DLT)
     assert context.settings_dir == expected_settings
@@ -395,8 +492,6 @@ def assert_workspace_context(context: WorkspaceRunContext, name_prefix: str, pro
     assert context.data_dir == expected_data_dir
     # got created
     assert os.path.isdir(context.data_dir)
-    # is a default dir
-    assert context._has_default_working_dir() is True
 
     # local files: .dlt / data / profile
     expected_local_dir = os.path.join(context.settings_dir, DEFAULT_LOCAL_FOLDER, profile)
