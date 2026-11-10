@@ -13,6 +13,7 @@ from packaging.version import Version
 from dlt.common.time import UTC_NAME, ensure_datetime_in_tz, to_tzinfo
 
 from dlt._workspace._workspace_context import active
+from dlt._workspace.typing import TEnvironmentDefinition
 from dlt._workspace.deployment._job_ref import format_job_label, resolve_job_ref, short_name
 from dlt._workspace.deployment._run_typing import TRunJobInfo
 from dlt._workspace.deployment._trigger_helpers import (
@@ -84,11 +85,12 @@ def promote_deployment_arg(
 
 
 def load_manifest_with_warnings(
-    name_or_path: str, *, use_all: bool = True
+    name_or_path: str, environment: Optional[TEnvironmentDefinition], *, use_all: bool = True
 ) -> Tuple[TJobsDeploymentManifest, str, List[str]]:
-    """Load a manifest, returning `(manifest, manifest_hash, warnings)`."""
+    """Loads a manifest for `environment` and returns `(manifest, manifest_hash, warnings)`.
+    `None` is a local run, see `manifest_from_module`."""
     try:
-        manifest, warnings = manifest_from_module(name_or_path, use_all=use_all)
+        manifest, warnings = manifest_from_module(name_or_path, environment, use_all=use_all)
     except ImportError as exc:
         # the catch is broad because import_module() raises both for missing
         # target modules AND for any import failing inside them
@@ -219,22 +221,6 @@ def select_single_job(
             available = [(j, TTrigger("")) for j in manifest["jobs"]]
         raise NoMatchingJobs(selectors=selectors, available=available)
     return narrow_candidates(candidates, job_ref)
-
-
-def warn_missing_profiles() -> List[str]:
-    """Advisory warnings when recommended profiles (`prod`, `access`) are missing locally."""
-    warnings: List[str] = []
-    try:
-        available = set(active().available_profiles())
-    except Exception:
-        return warnings
-    if "prod" not in available:
-        warnings.append(
-            "No 'prod' profile detected. Batch jobs will use default config/secrets only."
-        )
-    if "access" not in available:
-        warnings.append("No 'access' profile detected. Interactive jobs will use `prod` profile.")
-    return warnings
 
 
 def resolve_refresh(user_refresh: bool, job_def: TJobDefinition) -> Tuple[bool, Optional[str]]:
@@ -450,7 +436,10 @@ def fetch_run_info(
     name_or_path = explicit_deployment if explicit_deployment else DEFAULT_DEPLOYMENT_MODULE
     use_all = explicit_deployment is None
 
-    manifest, _, manifest_warnings = load_manifest_with_warnings(name_or_path, use_all=use_all)
+    # a local run uses the active profile for every job, no job gets a profile of an environment
+    manifest, _, manifest_warnings = load_manifest_with_warnings(
+        name_or_path, None, use_all=use_all
+    )
     jobs: List[TJobDefinition] = manifest.get("jobs", [])
     if not jobs:
         return None

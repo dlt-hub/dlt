@@ -1,6 +1,7 @@
 from typing import TYPE_CHECKING, Dict, List, NamedTuple, Optional, Sequence, Tuple, cast
 
 from dlt._workspace.exceptions import WorkspaceException
+from dlt._workspace.workspace_definition import format_data_access
 
 if TYPE_CHECKING:
     from dlt._workspace.deployment.typing import TJobDefinition, TJobResult
@@ -91,6 +92,126 @@ class ManifestEngineNoUpgradePath(DeploymentValidationError):
             f"No {subject} migration path from engine {from_engine} to {to_engine}. A manifest"
             " written by a newer dlt cannot be downgraded — upgrade dlt to read it.",
             subject=subject,
+        )
+
+
+class ProfileDataAccessNotAvailable(DeploymentValidationError):
+    """The environment that the deployment is made to has no profile with settings files that
+    gives the data access a job declares."""
+
+    # `from_message` skips `__init__`, so the attributes of the profile exceptions default here
+    job_ref: str = None
+    env: str = None
+    data_access: str = None
+    profiles: Dict[str, str] = None
+
+    def __init__(
+        self,
+        job_ref: str,
+        env: str,
+        data_access: str,
+        profiles: Dict[str, str],
+        default: Optional[str] = None,
+    ) -> None:
+        self.job_ref = job_ref
+        self.env = env
+        self.data_access = data_access
+        self.profiles = dict(profiles)
+        if default:
+            problem = (
+                f"and `{default}`, its default profile for it, has no settings files. Create them"
+                f" with `dlthub profile add {default}`."
+            )
+        else:
+            deployed = ", ".join(f"{n} ({format_data_access(a)})" for n, a in profiles.items())
+            problem = (
+                f"and has no profile for it: {deployed}. Declare one with `dlthub profile add"
+                f" {env}-{data_access} --access {data_access} --env {env}`."
+            )
+        super().__init__(
+            f"Job `{job_ref}` declares {format_data_access(data_access)}."
+            f" Environment `{env}` is strict about access {problem}"
+            " Or declare the access that the job needs with `access=` on the job."
+            f" Or set `strict_access: false` on environment `{env}`."
+            " Then the job gets the closest default profile with more data access.",
+            subject=job_ref,
+        )
+
+
+class JobProfileAccessMismatch(DeploymentValidationError):
+    """A job declares a profile that does not give exactly the data access that the job declares,
+    or has no settings files, in an environment that is strict about access."""
+
+    job_ref: str = None
+    profile: str = None
+    profile_data_access: str = None
+    data_access: str = None
+    env: str = None
+
+    def __init__(
+        self,
+        job_ref: str,
+        profile: str,
+        profile_data_access: str,
+        data_access: str,
+        env: str,
+        configured: bool = True,
+    ) -> None:
+        self.job_ref = job_ref
+        self.profile = profile
+        self.profile_data_access = profile_data_access
+        self.data_access = data_access
+        self.env = env
+        if profile_data_access != data_access:
+            problem = (
+                f"Job `{job_ref}` declares profile `{profile}` with"
+                f" {format_data_access(profile_data_access)} and needs"
+                f" {format_data_access(data_access)}."
+            )
+            remedy = (
+                " Declare the access that the job needs with `access=` on the job, or declare a"
+                f" profile with {format_data_access(data_access)} on it."
+            )
+        else:
+            problem = f"Job `{job_ref}` declares profile `{profile}`, which has no settings files."
+            remedy = f" Create them with `dlthub profile add {profile}`."
+        if not configured and profile_data_access != data_access:
+            remedy += f" `{profile}` also has no settings files."
+        super().__init__(
+            f"{problem} Environment `{env}` is strict about access: the profile of a job gives"
+            f" exactly the access that the job declares.{remedy}"
+            f" Or set `strict_access: false` on environment `{env}`.",
+            subject=job_ref,
+        )
+
+
+class JobProfileNotInEnvironment(DeploymentValidationError):
+    """A job declares a profile that is not one of the environment deployed to: undeclared, local
+    or of another environment."""
+
+    job_ref: str = None
+    profile: str = None
+    data_access: str = None
+    env: str = None
+
+    def __init__(
+        self, job_ref: str, profile: str, data_access: str, env: str, profiles: Sequence[str]
+    ) -> None:
+        self.job_ref = job_ref
+        self.profile = profile
+        self.data_access = data_access
+        self.env = env
+        super().__init__(
+            f"Job `{job_ref}` declares profile `{profile}`, which is not a profile of environment"
+            f" `{env}` ({', '.join(profiles)})."
+            " A deployment uses only the profiles of its environment, never a local profile."
+            f" If `{profile}` is not declared, declare it with `dlthub profile add {profile}"
+            f" --access {data_access} --env {env}`: the job needs"
+            f" {format_data_access(data_access)}."
+            " If it belongs to another environment, deploy there with `--environment`, or edit"
+            f" `.dlt/.workspace` and move its declaration to environment `{env}`."
+            f" Or declare a profile of `{env}` on the job with `require={{'profile': ...}}`.",
+            subject=job_ref,
         )
 
 

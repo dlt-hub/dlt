@@ -1,7 +1,10 @@
 """Shared builders for job definitions and manifests used across workspace tests."""
 
-from typing import Any, List, Optional, Sequence
+import os
+from typing import Any, Dict, List, Optional, Sequence
 
+from dlt._workspace._workspace_context import WorkspaceRunContext
+from dlt._workspace.deployment.file_selector import ConfigurationFileSelector
 from dlt._workspace.deployment.launchers import LAUNCHER_JOB
 from dlt._workspace.deployment.typing import (
     MANIFEST_ENGINE_VERSION,
@@ -13,6 +16,24 @@ from dlt._workspace.deployment.typing import (
     TJobType,
     TTrigger,
 )
+from dlt._workspace.typing import TEnvironmentDefinition
+
+MANIFEST_CASES_DIR = os.path.join(os.path.dirname(__file__), "cases", "manifests")
+
+
+def manifest_case_path(name: str) -> str:
+    """Path of a stored manifest under `cases/manifests`, for example `ev1/interval_jobs`."""
+    return os.path.join(MANIFEST_CASES_DIR, name + ".manifest.json")
+
+
+def job_profiles(manifest: TJobsDeploymentManifest) -> Dict[str, Optional[str]]:
+    """The profile that each job of `manifest` runs with, by job ref."""
+    return {j["job_ref"]: j.get("require", {}).get("profile") for j in manifest["jobs"]}
+
+
+def shipped_settings(ctx: WorkspaceRunContext, environment: TEnvironmentDefinition) -> List[str]:
+    """Names of the settings files that a deployment of `ctx` to `environment` ships."""
+    return [rel.as_posix() for _, rel in ConfigurationFileSelector(ctx, environment)]
 
 
 def make_job(

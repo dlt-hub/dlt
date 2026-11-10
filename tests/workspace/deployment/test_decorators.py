@@ -19,6 +19,7 @@ from dlt._workspace.deployment.decorators import JobFactory, interactive, job, p
 from dlt._workspace.deployment.exceptions import InvalidJobName, InvalidJobSection
 from dlt._workspace.deployment.reflection import Entity
 from dlt._workspace.deployment.typing import TJobRunContext, TTrigger
+from dlt._workspace.typing import TWorkspaceAccess
 
 
 # module-level sources and resources for deliver tests
@@ -202,6 +203,33 @@ def test_decorator_display_name_in_expose() -> None:
         pass
 
     assert loader.to_job_definition()["expose"]["display_name"] == "Analytics loader"
+
+
+@pytest.mark.parametrize(
+    "decorator_factory",
+    [
+        lambda access: job(access=access),
+        lambda access: interactive(access=access),
+        lambda access: pipeline_run("p", access=access),
+    ],
+    ids=["job", "interactive", "pipeline_run"],
+)
+def test_decorator_access_in_job_definition(decorator_factory: Any) -> None:
+    """`access=` is what the job declares it needs to run."""
+    access: TWorkspaceAccess = {"data": ["read"], "local": ["read"]}
+
+    @decorator_factory(access)
+    def declares():
+        pass
+
+    assert declares.to_job_definition()["access"] == access
+
+    # a job that declares none gets the access of its job type when the manifest is generated
+    @decorator_factory(None)
+    def declares_none():
+        pass
+
+    assert "access" not in declares_none.to_job_definition()
 
 
 def test_interactive_decorator() -> None:

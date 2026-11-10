@@ -14,6 +14,10 @@ from dlt._workspace.deployment.manifest import (
     save_manifest,
     load_manifest,
     import_deployment_module,
+    resolve_job_profile,
+    legacy_job_profile,
+    job_access,
+    TJobProfile,
 )
 from dlt._workspace.deployment.package_builder import compute_package_content_hash
 from dlt._workspace.deployment.requirements import (
