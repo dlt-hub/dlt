@@ -1169,7 +1169,7 @@ def test_fetch_workbench_base_checks_out_only_the_workbench() -> None:
     repo_storage = FileStorage(os.path.abspath("repo"), makedirs=True)
     repo_storage.create_folder(AI_WORKBENCH_BASE_DIR)
     with patch("dlt.common.libs.git.get_fresh_repo_files", return_value=repo_storage) as fetch:
-        base = fetch_workbench_base("https://github.com/dlt-hub/dlthub-ai-workbench.git", None)
+        base = fetch_workbench_base("https://github.com/dlt-hub/dlthub-ai-harness.git", None)
 
     assert fetch.call_args.kwargs["path"] == AI_WORKBENCH_BASE_DIR
     assert base == Path(repo_storage.make_full_path(AI_WORKBENCH_BASE_DIR))
