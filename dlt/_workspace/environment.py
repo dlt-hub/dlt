@@ -28,14 +28,15 @@ from dlt._workspace.exceptions import (
     OrganizationMismatch,
 )
 from dlt._workspace.profile import activate_profile, check_new_profiles
+from dlt._workspace.run_context import display_path
 from dlt._workspace.typing import TEnvironmentDefinition, TWorkspaceDefinition
 from dlt._workspace.workspace_definition import (
     PROFILE_NAME_RE,
     default_profile,
     environment_profiles,
-    get_workspace_file,
     load_workspace_definition,
     save_workspace_file,
+    shown_workspace_file,
     validate_workspace_definition,
 )
 
@@ -76,7 +77,7 @@ def declare_environments(
         ProfileAlreadyExists: A profile of an environment is declared already.
         InvalidWorkspaceFile: The declarations are invalid together with the existing ones.
     """
-    path = get_workspace_file(context)
+    path = shown_workspace_file(context)
     # read from disk, so the declarations never leak into the cached content of the context
     doc = load_workspace_definition(context)
     declared = doc["environments"]
@@ -123,7 +124,9 @@ def select_environment(name: Optional[str] = None) -> TEnvironmentDefinition:
         return _declared_environment(ctx, name)
     name = ctx.environment or ctx.default_environment
     if not name:
-        raise NoEnvironment(ctx.profile, get_workspace_file(ctx), list(ctx.environment_definitions))
+        raise NoEnvironment(
+            ctx.profile, shown_workspace_file(ctx), list(ctx.environment_definitions)
+        )
     return ctx.get_environment_definition(name)
 
 
@@ -141,7 +144,7 @@ def activate_environment(name: Optional[str] = None) -> TEnvironmentDefinition:
 def _declared_environment(ctx: WorkspaceRunContext, environment: str) -> TEnvironmentDefinition:
     definitions = ctx.environment_definitions
     if environment not in definitions:
-        raise EnvironmentNotDeclared(environment, get_workspace_file(ctx), list(definitions))
+        raise EnvironmentNotDeclared(environment, shown_workspace_file(ctx), list(definitions))
     return definitions[environment]
 
 
@@ -172,7 +175,12 @@ def connect_remote_workspace(
     if organization_id:
         connected = resolved.runtime.organization_id
         if connected and connected != organization_id:
-            raise OrganizationMismatch(environment, connected, organization_id, ctx.settings_dir)
+            raise OrganizationMismatch(
+                environment,
+                connected,
+                organization_id,
+                display_path(ctx.settings_dir, ctx.run_dir),
+            )
         if not connected:
             config.set_value("organization_id", organization_id, None, runtime_section)
             changed = True

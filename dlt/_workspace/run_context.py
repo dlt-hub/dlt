@@ -22,6 +22,19 @@ def default_working_dir(run_dir: str, name: str, profile: str, default_folder: s
     return os.path.join(data_dir, profile)
 
 
+def display_path(path: str, run_dir: str) -> str:
+    """`path` relative to `run_dir` when the working dir is under `run_dir`, else `path`."""
+    run_dir = os.path.abspath(run_dir)
+    path = os.path.abspath(path)
+    try:
+        under = os.path.commonpath([os.getcwd(), run_dir]) == run_dir
+        inside = os.path.commonpath([path, run_dir]) == run_dir
+    except ValueError:
+        # on windows paths on different drives have no common path
+        return path
+    return os.path.relpath(path, run_dir) if under and inside else path
+
+
 def default_name(run_dir: str) -> str:
     run_dir = os.path.abspath(run_dir)
     name = os.path.basename(run_dir.rstrip(os.path.sep)) or "_dlt"

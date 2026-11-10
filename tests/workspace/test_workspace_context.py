@@ -27,6 +27,7 @@ from dlt._workspace.workspace_definition import (
 from dlt._workspace.run_context import (
     DEFAULT_LOCAL_FOLDER,
     DEFAULT_WORKSPACE_WORKING_FOLDER,
+    display_path,
     switch_profile,
 )
 from dlt._workspace.cli.echo import always_choose
@@ -35,7 +36,7 @@ from dlt.common.runtime.exceptions import RunContextNotAvailable
 from dlt.common.runtime.exec_info import get_execution_context
 from dlt.common.runtime.run_context import DOT_DLT, RunContext
 from dlt.common.schema import Schema
-from dlt.common.utils import custom_environ
+from dlt.common.utils import custom_environ, set_working_dir
 
 from dlt.common.storages.file_storage import FileStorage
 from tests.pipeline.utils import PIPELINE_TEST_CASES_PATH, assert_table_counts
@@ -333,7 +334,7 @@ def test_undeclared_profile_fails_on_load(
     source: TProfileSource, name: str, fragments: List[str]
 ) -> None:
     with isolated_workspace("job_profiles") as ctx:
-        path = ctx.get_setting(WORKSPACE_FILE_NAME)
+        path = os.path.join(".dlt", WORKSPACE_FILE_NAME)
         if source == "recorded":
             save_profile_pin(ctx, name)
         if source == "default":
@@ -360,6 +361,23 @@ def test_undeclared_profile_fails_on_load(
         assert ("dlthub profile add" in message) is adds_profile
         # the failed switch keeps the previous context
         assert dlt.current.workspace().profile == "dev"
+
+
+def test_display_path() -> None:
+    with isolated_workspace("default") as ctx:
+        settings = os.path.join(".dlt", WORKSPACE_FILE_NAME)
+        # relative to the workspace root, also from a folder under it
+        assert display_path(ctx.get_setting(WORKSPACE_FILE_NAME), ctx.run_dir) == settings
+        sub_dir = os.path.join(ctx.run_dir, "sub")
+        os.makedirs(sub_dir)
+        with set_working_dir(sub_dir):
+            assert display_path(ctx.get_setting(WORKSPACE_FILE_NAME), ctx.run_dir) == settings
+        # outside of the workspace, and for a path outside of it, the path stays as it is
+        with set_working_dir(os.path.dirname(ctx.run_dir)):
+            path = ctx.get_setting(WORKSPACE_FILE_NAME)
+            assert display_path(path, ctx.run_dir) == path
+        outside = os.path.abspath(os.path.join(ctx.run_dir, "..", "other.toml"))
+        assert display_path(outside, ctx.run_dir) == outside
 
 
 def test_available_and_configured_profiles() -> None:
