@@ -4,7 +4,7 @@
 
 | Concept | Write |
 |---|---|
-| the declaration of what a job may touch | **access** (the `access` block, `TWorkspaceAccess`) |
+| what a job declares it needs to run | **access** (the `access` block, `TWorkspaceAccess`) |
 | one of its three keys, `local`, `data` and `context` | **access axis** |
 | a value on an axis | **verb** |
 | what the runtime or a loop does with the declaration | **grant**, **deny** (verbs) |
@@ -32,11 +32,16 @@
   can; the rest is denied. dlt's docs already write "grant access" 13 times and "denied access"
   twice, so this is the house pairing, not a new one. A loop that supplies more than the
   declaration **over-grants**.
-- **The declaration is a request, not a claim.** A manifest `access` block says what the job wants.
-  Nothing in it is granted until the runtime says so. Say "the job declares", never "the job has".
+- **The declaration is a request, not a claim.** A manifest `access` block says what the job needs
+  to run. Nothing in it is granted until the runtime says so. Say "the job declares", never "the
+  job has".
+- **Every job declares access, not only agent jobs.** The platform grants a job no more than it
+  declares. The `data` axis is the data access of the job, and the profile of the job gives the
+  credentials for it (G10). Never write that `access` only selects tools, or that it is unrelated
+  to the profile. A job without an `access` block declares the data access of its job type.
 - **`access` is the noun, and no synonym joins it.** `permissions`, `scopes`, `capabilities` and
   `entitlements` each name this concept somewhere in the industry; dlt named it `access` before this
-  feature existed — the built-in `access` profile is coarse-grained data access, and `profile_for()`
-  derives that profile from `access.data`. One concept, one word (Rule 1.11).
+  feature existed — the built-in `access` profile is coarse-grained data access. One concept, one
+  word (Rule 1.11).
 - **`tools:` in an `AGENT.md` holds feature groups, not tools.** Write "feature groups" whenever the
   sentence is about that field, or a reader counts 4 tools and gets 19.
