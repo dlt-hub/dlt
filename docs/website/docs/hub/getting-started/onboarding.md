@@ -135,7 +135,7 @@ For ongoing monitoring, open the [workspace observability dashboard](../ingestio
 
 ![Observability dashboard showing pipeline metadata, run history, traces, and loaded datasets](https://storage.googleapis.com/dlt-blog-images/observability-dashboard.png)
 
-To run jobs locally instead, use `dlthub run local`. Local runs use the `dev` [Profile](../pipeline-operations/profiles).
+To run jobs locally instead, use `dlthub local run`. Local runs use the active [profile](../pipeline-operations/profiles.md), `dev` by default.
 
 ## 4. Continue with your own setup
 
@@ -143,7 +143,7 @@ To run jobs locally instead, use `dlthub run local`. Local runs use the `dev` [P
 
 The Playground destination is great for testing but isn't meant for production. For real data, you'll want to load into a destination you own.
 
-You can use profiles to run the same pipeline with different destinations and credentials in development and production. See [Workspace setup](../pipeline-operations/workspace-setup.md) and [Profiles](../pipeline-operations/profiles) for the complete configuration.
+You can use profiles to run the same pipeline with different destinations and credentials in development and production. See [Workspace setup](../pipeline-operations/workspace-setup.md) and [Profiles and environments](../pipeline-operations/profiles.md) for the complete configuration.
 
 Set the destination on the `dlt.pipeline` inside your decorated job. Use a [named destination](../../general-usage/destination.md#use-named-destinations) such as `warehouse` so that the same pipeline code can run against different destinations in `dev` and `prod` profile:
 
@@ -195,7 +195,7 @@ warehouse = "your_warehouse"
 role = "your_role"
 ```
 
-Local runs, via `dlthub run local`, use the `dev` profile, while batch jobs on the dltHub platform use the `prod` profile. The pipeline code therefore remains unchanged while the destination changes between environments.
+Local runs, via `dlthub local run`, use the `dev` profile, while batch jobs on the dltHub platform use the `prod` profile. The pipeline code therefore remains unchanged while the destination changes between profiles.
 
 Supported destinations include
 [MotherDuck](../../dlt-ecosystem/destinations/motherduck.md),

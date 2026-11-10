@@ -18,7 +18,7 @@ Variables are managed on the platform — in the **web app** or with the **CLI**
 
 When the same name exists in both scopes, the **profile value** is used.
 
-On the dltHub platform, [batch jobs](overview.md#batch-vs-interactive) use the `prod` profile and [interactive jobs](overview.md#batch-vs-interactive) use the `access` profile. Profile-scoped variables for those names apply on top of the workspace-wide set. See [Profiles](profiles.md) and [Workspace setup](workspace-setup.md#understanding-workspace-profiles).
+On the dltHub platform, a deployment gives each job the profile of the data access that it declares: in the `prod` environment, `prod` for [batch jobs](overview.md#batch-vs-interactive) and `access` for [interactive jobs](overview.md#batch-vs-interactive). Profile-scoped variables for those names apply on top of the workspace-wide set. See [How a job gets its profile](profiles.md#how-a-job-gets-its-profile) and [Workspace setup](workspace-setup.md#understanding-workspace-profiles).
 
 ## Plain and secret variables
 
