@@ -1,7 +1,7 @@
 """Exit status of a failed job or agent launcher run.
 
 Code 1 is the default for a terminal failure and for any failure that is not
-explicitly transient. Code 2 is only for an explicitly transient failure.
+explicitly transient. Code 75 is only for an explicitly transient failure.
 """
 
 from typing import Any, Callable, List
@@ -209,6 +209,10 @@ def _raise_self_cycle_transient() -> None:
     exc = DestinationTransientException("retry")
     exc.__cause__ = exc
     raise exc
+
+
+def test_transient_exit_matches_ex_tempfail() -> None:
+    assert EXIT_TRANSIENT_ERROR == 75
 
 
 @pytest.mark.parametrize(("run", "exit_code", "stderr_text"), _FAILURE_CASES)

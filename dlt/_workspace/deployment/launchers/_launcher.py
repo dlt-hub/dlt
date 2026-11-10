@@ -26,7 +26,8 @@ from dlt._workspace.deployment.typing import TRuntimeEntryPoint, resolve_increme
 EXIT_TERMINAL_ERROR = 1
 """Failed run that is terminal, or any failure not identified as transient. This is the default."""
 
-EXIT_TRANSIENT_ERROR = 2
+# matches EX_TEMPFAIL from sysexits.h; os.EX_TEMPFAIL is absent on Windows
+EXIT_TRANSIENT_ERROR = 75
 """Failed run whose chain identifies a transient failure and no terminal one."""
 
 
