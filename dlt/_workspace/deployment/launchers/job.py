@@ -316,7 +316,8 @@ def run_and_print_result(run_launcher: Callable[[], Any]) -> None:
     """Runs a launcher and prints the job result, also for an aborted job.
 
     A failed run prints its traceback and exits `EXIT_TERMINAL_ERROR`, unless the
-    failure is explicitly transient, in which case it exits `EXIT_TRANSIENT_ERROR`.
+    failure is a connection or timeout error, in which case it exits
+    `EXIT_TRANSIENT_ERROR`.
     An aborted job is re-raised.
 
     Args:

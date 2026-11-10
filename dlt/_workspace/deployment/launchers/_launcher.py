@@ -4,14 +4,15 @@ import importlib.util
 import os
 import subprocess
 import sys
-from typing import Any, Dict, Iterator, List, Optional, Set, Tuple
+from functools import lru_cache
+from typing import Any, Dict, Iterator, List, Optional, Set, Tuple, Type
 
 from dlt.common import json
 from dlt.common.configuration import resolve_configuration
 from dlt.common.configuration.specs import known_sections
 from dlt.common.configuration.specs.pluggable_run_context import ProfilesRunContext
 from dlt.common.configuration.utils import add_config_dict_to_env
-from dlt.common.exceptions import TerminalException, TransientException
+from dlt.common.exceptions import TerminalException
 from dlt.common.runtime.run_context import active
 from dlt.common.time import set_context_timezone
 
@@ -28,7 +29,7 @@ EXIT_TERMINAL_ERROR = 1
 
 # matches EX_TEMPFAIL from sysexits.h; os.EX_TEMPFAIL is absent on Windows
 EXIT_TRANSIENT_ERROR = 75
-"""Failed run whose chain identifies a transient failure and no terminal one."""
+"""Failed run whose chain contains a connection or timeout error and no terminal failure."""
 
 
 def _exception_chain(exc: BaseException) -> Iterator[BaseException]:
@@ -53,15 +54,26 @@ def _exception_chain(exc: BaseException) -> Iterator[BaseException]:
         current = None
 
 
+@lru_cache(maxsize=1)
+def _retryable_exception_types() -> Tuple[Type[BaseException], ...]:
+    """Connection and timeout types for which repeating the whole run can succeed."""
+    found: List[Type[BaseException]] = [TimeoutError, ConnectionError]
+    try:
+        from requests import exceptions as requests_exceptions
+    except ImportError:
+        return tuple(found)
+    found.append(requests_exceptions.ConnectionError)
+    found.append(requests_exceptions.Timeout)
+    return tuple(found)
+
+
 def failure_exit_code(exc: BaseException) -> int:
     """Launcher status for a failed run.
 
-    A `TerminalException` on the reported chain selects `EXIT_TERMINAL_ERROR`
-    even when a `TransientException` is also present. The chain is the explicit
-    cause, or the unsuppressed context when there is no cause.
-    `EXIT_TRANSIENT_ERROR` is returned only when that chain identifies a
-    transient failure and no terminal one. Every other failure returns
-    `EXIT_TERMINAL_ERROR`.
+    A `TerminalException` on the reported chain selects `EXIT_TERMINAL_ERROR`.
+    `EXIT_TRANSIENT_ERROR` is returned only when that chain contains a concrete
+    connection or timeout failure and no terminal one. Every other failure
+    returns `EXIT_TERMINAL_ERROR`.
 
     Args:
         exc (BaseException): Failure raised by the run.
@@ -69,13 +81,15 @@ def failure_exit_code(exc: BaseException) -> int:
     Returns:
         int: `EXIT_TERMINAL_ERROR` or `EXIT_TRANSIENT_ERROR`.
     """
-    saw_transient = False
+    # ignore TransientException: it also wraps coding errors and bad SQL
+    saw_retryable = False
+    retryable = _retryable_exception_types()
     for item in _exception_chain(exc):
         if isinstance(item, TerminalException):
             return EXIT_TERMINAL_ERROR
-        if isinstance(item, TransientException):
-            saw_transient = True
-    if saw_transient:
+        if isinstance(item, retryable):
+            saw_retryable = True
+    if saw_retryable:
         return EXIT_TRANSIENT_ERROR
     return EXIT_TERMINAL_ERROR
 
