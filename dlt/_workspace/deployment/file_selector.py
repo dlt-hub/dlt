@@ -8,9 +8,12 @@ if TYPE_CHECKING:
     from pathspec import PathSpec
 
 
+from dlt.common.configuration.providers import CONFIG_TOML, SECRETS_TOML
+
 from dlt._workspace._workspace_context import WorkspaceRunContext
 from dlt._workspace.cli.dlthub.ai.utils import TOOLKITS_INDEX_FILE
-from dlt._workspace.profile import LOCAL_PROFILES
+from dlt._workspace.typing import TEnvironmentDefinition
+from dlt._workspace.workspace_definition import WORKSPACE_FILE_NAME, environment_profiles
 
 
 # fallback ignore patterns used when no ignore file is found in the workspace
@@ -32,7 +35,7 @@ DEFAULT_IGNORES: List[str] = [
     ".env",
 ]
 
-SETTINGS_INCLUDES: List[str] = [TOOLKITS_INDEX_FILE]
+SETTINGS_INCLUDES: List[str] = [TOOLKITS_INDEX_FILE, WORKSPACE_FILE_NAME]
 """Settings-dir files that ship with the code. Never anything holding secrets."""
 
 GIT_IGNORES: List[str] = [".git/"]
@@ -183,37 +186,24 @@ class WorkspaceFileSelector(GitignoreFileSelector):
 
     def _base_excludes(self) -> List[str]:
         settings_rel = self.settings_dir.relative_to(self.root_path).as_posix()
-        # the settings dir stays out, except the toolkit index: the agent launcher reads it
-        # on the runner to resolve `<toolkit>:<agent>` refs
+        # the settings dir stays out, except what the runner reads and holds no secrets
         return [f"{settings_rel}/", *(f"!{settings_rel}/{name}" for name in SETTINGS_INCLUDES)]
 
 
 class ConfigurationFileSelector(BaseFileSelector):
-    """Iterates top-level config/secrets TOMLs from the workspace settings dir."""
+    """Iterates the settings files that a deployment to `environment` ships: the shared
+    `config.toml` and `secrets.toml`, and the config and secrets files of the profiles of
+    `environment`. Files of other environments and of local profiles never leave the machine."""
 
-    def __init__(
-        self,
-        context: WorkspaceRunContext,
-        local_profiles: Optional[List[str]] = None,
-    ) -> None:
+    def __init__(self, context: WorkspaceRunContext, environment: TEnvironmentDefinition) -> None:
         self.settings_dir: Path = Path(context.settings_dir).resolve()
-        # files belonging to local-only profiles (`dev`, `tests` by default) are excluded
-        if local_profiles is None:
-            local_profiles = LOCAL_PROFILES
-        # filter out files starting with ie. "dev"
-        self._excluded_prefixes: Tuple[str, ...] = tuple(f"{p}." for p in local_profiles)
+        self._file_names: List[str] = [CONFIG_TOML, SECRETS_TOML]
+        for profile in environment_profiles(environment):
+            self._file_names += [f"{profile}.{CONFIG_TOML}", f"{profile}.{SECRETS_TOML}"]
 
     def __iter__(self) -> Iterator[Tuple[Path, Path]]:
-        """Yield paths of config and secrets files (flat, profile-filtered)."""
-        if not self.settings_dir.exists():
-            return
-        # picks only files directly under `<workspace>/.dlt/`
-        for entry in sorted(self.settings_dir.iterdir()):
-            if not entry.is_file():
-                continue
-            name = entry.name
-            if not (name.endswith("config.toml") or name.endswith("secrets.toml")):
-                continue
-            if name.startswith(self._excluded_prefixes):
-                continue
-            yield entry, Path(name)
+        """Yields the settings files of the environment that exist, sorted by name."""
+        for name in sorted(self._file_names):
+            entry = self.settings_dir / name
+            if entry.is_file():
+                yield entry, Path(name)

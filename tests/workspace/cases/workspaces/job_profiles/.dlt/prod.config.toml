@@ -1,0 +1,2 @@
+[destination.warehouse]
+destination_type = "duckdb"

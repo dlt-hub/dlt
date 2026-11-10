@@ -180,9 +180,6 @@ def test_is_local_module_rejects_site_packages() -> None:
     assert not is_local_module(fastmcp, parent)
 
 
-# ---- module dunders ----
-
-
 def test_module_trigger_appended() -> None:
     """__trigger__ on module appends to detector triggers."""
     mod = import_module(f"{CASES}.marimo_with_trigger")
@@ -214,8 +211,8 @@ def test_module_expose_overrides() -> None:
     assert job_def["expose"] == {"interface": "rest_api"}
 
 
-def test_module_require_sets_require() -> None:
-    """__require__ sets job require spec."""
+def test_module_require_and_access() -> None:
+    """__require__ sets the job require spec and __access__ what the job needs to run."""
     mod = import_module(f"{CASES}.marimo_with_requires")
     with pytest.warns(DltDeprecationWarning, match="require.instance"):
         job_def = detect_module_job(mod)
@@ -225,3 +222,4 @@ def test_module_require_sets_require() -> None:
         "dependency_groups": ["heavy-ml"],
         "instance": {"size": "gpu-a100"},
     }
+    assert job_def["access"] == {"data": ["read", "write"]}

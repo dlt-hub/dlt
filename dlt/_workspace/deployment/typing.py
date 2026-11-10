@@ -343,7 +343,7 @@ class TJobDefinition(TypedDict):
     require: NotRequired[TRequireSpec]
     """Runtime resource requirements."""
     access: NotRequired[TWorkspaceAccess]
-    """Workspace access the job requires. Declared by agent jobs."""
+    """What the job needs to run. Manifest generation sets it on a job that declares none."""
     default_trigger: NotRequired[TTrigger]
     """Primary trigger, computed during manifest generation. Prefers schedule/every triggers."""
     refresh_propagation: NotRequired[TRefreshPolicy]
@@ -463,6 +463,9 @@ class TJobsDeploymentManifest(TypedDict):
     """First line of the deployment module's `__doc__`."""
     tags: NotRequired[List[str]]
     """From `__tags__` of the deployment module."""
+    environment: NotRequired[str]
+    """The environment that the manifest was generated for: every job has one of its profiles in
+    `require.profile`. Absent for a local run."""
     jobs: List[TJobDefinition]
 
 

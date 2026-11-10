@@ -199,7 +199,7 @@ class JobFactory(Generic[TJobFunParams, TJobResult]):
         self.auto_refresh_pipeline_mode: Optional[TRefreshMode] = None
         self.launcher: str = LAUNCHER_JOB
         self.access: Optional[TWorkspaceAccess] = None
-        """What the job may touch."""
+        """What the job needs to run."""
         self.inputs: Optional[Dict[str, Any]] = None
         """JSON Schema of the job arguments."""
         self.output: Optional[Dict[str, Any]] = None
@@ -380,6 +380,7 @@ def _make_job_factory(
     execute: Optional[TExecuteSpec] = None,
     expose: Optional[TJobExposeSpec] = None,
     require: Optional[TRequireSpec] = None,
+    access: Optional[TWorkspaceAccess] = None,
     deliver: Optional[TDeliverTarget] = None,
     interval: Optional[TIntervalSpec] = None,
     freshness: Union[
@@ -432,6 +433,7 @@ def _make_job_factory(
     wrapper.execute = exec_spec
     wrapper.expose = _normalize_expose(expose)
     wrapper.require = require
+    wrapper.access = access
     wrapper.deliver = deliver
     wrapper.interval = interval
     wrapper.freshness = normalize_freshness_constraints(freshness)
@@ -464,6 +466,7 @@ def job(
     execute: Optional[TExecuteSpec] = None,
     expose: Optional[TJobExposeSpec] = None,
     require: Optional[TRequireSpec] = None,
+    access: Optional[TWorkspaceAccess] = None,
     deliver: Optional[TDeliverTarget] = None,
     interval: Optional[TIntervalSpec] = None,
     freshness: Union[
@@ -486,6 +489,7 @@ def job(
     execute: Optional[TExecuteSpec] = None,
     expose: Optional[TJobExposeSpec] = None,
     require: Optional[TRequireSpec] = None,
+    access: Optional[TWorkspaceAccess] = None,
     deliver: Optional[TDeliverTarget] = None,
     interval: Optional[TIntervalSpec] = None,
     freshness: Union[
@@ -507,6 +511,7 @@ def job(
     execute: Optional[TExecuteSpec] = None,
     expose: Optional[TJobExposeSpec] = None,
     require: Optional[TRequireSpec] = None,
+    access: Optional[TWorkspaceAccess] = None,
     deliver: Optional[TDeliverTarget] = None,
     interval: Optional[TIntervalSpec] = None,
     freshness: Union[
@@ -545,6 +550,10 @@ def job(
             `region` (runner placement), `static_egress_ips`
             (static outbound IPs for third-party allowlists).
 
+        access: What the job needs to run, see `TWorkspaceAccess`. Without it, the job
+            type gives the data access: read for interactive jobs, write for batch and
+            stream jobs.
+
         deliver: A `@dlt.source`, standalone `@dlt.resource`, or called source
             instance for delivery association.
 
@@ -582,6 +591,7 @@ def job(
         execute=execute,
         expose=expose,
         require=require,
+        access=access,
         deliver=deliver,
         interval=interval,
         freshness=freshness,
@@ -604,6 +614,7 @@ def interactive(
     execute: Optional[TExecuteSpec] = None,
     expose: Optional[TJobExposeSpec] = None,
     require: Optional[TRequireSpec] = None,
+    access: Optional[TWorkspaceAccess] = None,
     spec: Type[BaseConfiguration] = None,
 ) -> JobFactory[TJobFunParams, TJobResult]: ...
 
@@ -619,6 +630,7 @@ def interactive(
     execute: Optional[TExecuteSpec] = None,
     expose: Optional[TJobExposeSpec] = None,
     require: Optional[TRequireSpec] = None,
+    access: Optional[TWorkspaceAccess] = None,
     spec: Type[BaseConfiguration] = None,
 ) -> Callable[[Callable[TJobFunParams, TJobResult]], JobFactory[TJobFunParams, TJobResult]]: ...
 
@@ -633,6 +645,7 @@ def interactive(
     execute: Optional[TExecuteSpec] = None,
     expose: Optional[TJobExposeSpec] = None,
     require: Optional[TRequireSpec] = None,
+    access: Optional[TWorkspaceAccess] = None,
     spec: Type[BaseConfiguration] = None,
     **kwargs: Unpack[TNoExtraKwargs],
 ) -> Any:
@@ -655,6 +668,9 @@ def interactive(
             into expose automatically.
         require: Runtime resource requirements. Accepts `TRequireSpec` with:
             `dependency_groups`, `profile`, `instance`, `region`, `static_egress_ips`.
+        access: What the job needs to run, see `TWorkspaceAccess`. Without it, the job
+            type gives the data access: read for interactive jobs, write for batch and
+            stream jobs.
         spec: Optional configuration spec class.
 
     Returns:
@@ -681,6 +697,7 @@ def interactive(
         execute=exec_spec,
         expose=full_expose,
         require=require,
+        access=access,
         spec=spec,
         **kwargs,
     )
@@ -695,6 +712,7 @@ def pipeline_run(
     execute: Optional[TExecuteSpec] = None,
     expose: Optional[TJobExposeSpec] = None,
     require: Optional[TRequireSpec] = None,
+    access: Optional[TWorkspaceAccess] = None,
     interval: Optional[TIntervalSpec] = None,
     freshness: Union[
         None, str, TFreshnessConstraint, Sequence[Union[str, TFreshnessConstraint]]
@@ -726,6 +744,10 @@ def pipeline_run(
 
         require: Resource requirements (`TRequireSpec`): `dependency_groups`,
             `profile`, `instance`, `region`, `static_egress_ips`.
+
+        access: What the job needs to run, see `TWorkspaceAccess`. Without it, the job
+            type gives the data access: read for interactive jobs, write for batch and
+            stream jobs.
 
         interval: Overall time range for interval-based scheduling.
 
@@ -772,6 +794,7 @@ def pipeline_run(
             execute=execute,
             expose=full_expose,
             require=require,
+            access=access,
             deliver=deliver,
             interval=interval,
             freshness=freshness,
@@ -1132,7 +1155,7 @@ def agent(
         agent (Union[str, TAgentSpec]): Agent the decorated function starts from. The decorator
             arguments and the function override its fields.
         instructions (str): First user message of every run.
-        access (Optional[TWorkspaceAccess]): What the agent may touch: `local` (`read`, `write`,
+        access (Optional[TWorkspaceAccess]): What the agent needs to run: `local` (`read`, `write`,
             `execute`, `network`, `all`), `data` (`read`, `write`) and `context` (`read`).
             Decorated function only.
         tools (Optional[List[str]]): Feature groups of the dlthub MCP server started for the run,

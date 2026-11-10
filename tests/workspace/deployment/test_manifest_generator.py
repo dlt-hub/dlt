@@ -43,7 +43,7 @@ def test_manifest_round_trip_preserves_require_instance() -> None:
     module = ModuleType("__deployment_instance_test__")
     module.train = train  # type: ignore[attr-defined]
     module.__all__ = ["train"]  # type: ignore[attr-defined]
-    manifest, _ = generate_manifest(module)
+    manifest, _ = generate_manifest(module, None)
 
     buf = BytesIO()
     save_manifest(manifest, buf)
@@ -57,7 +57,7 @@ def test_manifest_round_trip_preserves_require_instance() -> None:
 def test_full_deployment() -> None:
     """Full deployment module discovers all job types."""
     mod = import_module(f"{WORKSPACE}.deployment_full")
-    manifest, warnings = generate_manifest(mod)
+    manifest, warnings = generate_manifest(mod, None)
 
     assert manifest["engine_version"] == MANIFEST_ENGINE_VERSION
     assert manifest["deployment_module"] == f"{WORKSPACE}.deployment_full"
@@ -93,7 +93,7 @@ def test_full_deployment() -> None:
 def test_full_deployment_job_details() -> None:
     """Check individual job properties in full deployment."""
     mod = import_module(f"{WORKSPACE}.deployment_full")
-    manifest, _ = generate_manifest(mod)
+    manifest, _ = generate_manifest(mod, None)
 
     jobs_by_ref = {j["job_ref"]: j for j in manifest["jobs"]}
 
@@ -152,7 +152,7 @@ def test_inputs_and_config_keys_are_one_list() -> None:
     for name in names:
         setattr(module, name, getattr(batch_jobs, name))
     module.__all__ = names  # type: ignore[attr-defined]
-    manifest, _ = generate_manifest(module)
+    manifest, _ = generate_manifest(module, None)
 
     for job_def in manifest["jobs"]:
         declared = set((job_def.get("inputs") or {}).get("properties") or {})
@@ -171,7 +171,7 @@ def test_inputs_and_config_keys_are_one_list() -> None:
 def test_batch_only_deployment() -> None:
     """Deployment with only batch jobs."""
     mod = import_module(f"{WORKSPACE}.deployment_batch_only")
-    manifest, warnings = generate_manifest(mod)
+    manifest, warnings = generate_manifest(mod, None)
 
     user_jobs = _user_jobs(manifest["jobs"])
     assert len(user_jobs) == 3
@@ -184,7 +184,7 @@ def test_batch_only_deployment() -> None:
 def test_deployment_with_unknown_warns() -> None:
     """Unknown items in __all__ produce warnings."""
     mod = import_module(f"{WORKSPACE}.deployment_with_unknown")
-    manifest, warnings = generate_manifest(mod)
+    manifest, warnings = generate_manifest(mod, None)
 
     assert len(_user_jobs(manifest["jobs"])) == 1
     assert any("helper" in w and "not a recognized" in w for w in warnings)
@@ -193,7 +193,7 @@ def test_deployment_with_unknown_warns() -> None:
 def test_deployment_with_local_module() -> None:
     """Plain local module detected as batch job via __all__."""
     mod = import_module(f"{WORKSPACE}.deployment_with_local_module")
-    manifest, warnings = generate_manifest(mod)
+    manifest, warnings = generate_manifest(mod, None)
 
     job_refs = {j["job_ref"] for j in manifest["jobs"]}
     assert "jobs.batch_jobs.backfill" in job_refs
@@ -209,7 +209,7 @@ def test_deployment_with_local_module() -> None:
 def test_chained_triggers_resolved() -> None:
     """Triggers referencing jobs in same deployment are resolved."""
     mod = import_module(f"{WORKSPACE}.deployment_batch_only")
-    manifest, _ = generate_manifest(mod)
+    manifest, _ = generate_manifest(mod, None)
 
     result = validate_manifest(manifest)
     assert result.unresolved_triggers == {}
@@ -218,7 +218,7 @@ def test_chained_triggers_resolved() -> None:
 def test_missing_all_falls_back_to_dict() -> None:
     """Module without __all__ falls back to __dict__ scan with warning."""
     mod = import_module(f"{WORKSPACE}.batch_jobs")
-    manifest, warnings = generate_manifest(mod, use_all=True)
+    manifest, warnings = generate_manifest(mod, None, use_all=True)
 
     assert any("no __all__" in w for w in warnings)
     assert len(manifest["jobs"]) > 0
@@ -245,7 +245,7 @@ def test_use_all_false_with_all_present() -> None:
         return original_detect(m)  # type: ignore[arg-type]
 
     with patch.object(M, "detect_module_job", side_effect=spy_detect_module_job):
-        manifest, warnings = generate_manifest(mod, use_all=False)
+        manifest, warnings = generate_manifest(mod, None, use_all=False)
 
     job_refs = {j["job_ref"] for j in manifest["jobs"]}
     assert "jobs.batch_jobs.backfill" in job_refs
@@ -264,7 +264,7 @@ def test_use_all_false_with_all_present() -> None:
 def test_ad_hoc_batch_jobs() -> None:
     """Ad-hoc deployment scans __dict__ and finds all JobFactory instances."""
     mod = import_module(f"{WORKSPACE}.batch_jobs")
-    manifest, warnings = generate_manifest(mod, use_all=False)
+    manifest, warnings = generate_manifest(mod, None, use_all=False)
 
     job_refs = {j["job_ref"] for j in manifest["jobs"]}
     assert "jobs.batch_jobs.backfill" in job_refs
@@ -283,7 +283,7 @@ def test_ad_hoc_batch_jobs() -> None:
 def test_ad_hoc_interactive_jobs() -> None:
     """Ad-hoc deployment from a module with interactive jobs."""
     mod = import_module(f"{WORKSPACE}.interactive_jobs")
-    manifest, warnings = generate_manifest(mod, use_all=False)
+    manifest, warnings = generate_manifest(mod, None, use_all=False)
 
     job_refs = {j["job_ref"] for j in manifest["jobs"]}
     assert "jobs.interactive_jobs.api_server" in job_refs
@@ -296,7 +296,7 @@ def test_ad_hoc_interactive_jobs() -> None:
 def test_ad_hoc_framework_mcp() -> None:
     """Ad-hoc deployment detects FastMCP singleton in the module itself."""
     mod = import_module(f"{WORKSPACE}.mcp_server")
-    manifest, _ = generate_manifest(mod, use_all=False)
+    manifest, _ = generate_manifest(mod, None, use_all=False)
 
     jobs_by_ref = {j["job_ref"]: j for j in manifest["jobs"]}
     assert "jobs.mcp_server" in jobs_by_ref
@@ -309,7 +309,7 @@ def test_ad_hoc_framework_mcp() -> None:
 def test_ad_hoc_framework_marimo() -> None:
     """Ad-hoc deployment detects marimo.App in the module itself."""
     mod = import_module(f"{WORKSPACE}.marimo_notebook")
-    manifest, _ = generate_manifest(mod, use_all=False)
+    manifest, _ = generate_manifest(mod, None, use_all=False)
 
     jobs_by_ref = {j["job_ref"]: j for j in manifest["jobs"]}
     assert "jobs.marimo_notebook" in jobs_by_ref
@@ -322,7 +322,7 @@ def test_ad_hoc_framework_marimo() -> None:
 def test_ad_hoc_framework_streamlit() -> None:
     """Ad-hoc deployment detects streamlit import in the module itself."""
     mod = import_module(f"{WORKSPACE}.streamlit_app")
-    manifest, _ = generate_manifest(mod, use_all=False)
+    manifest, _ = generate_manifest(mod, None, use_all=False)
 
     jobs_by_ref = {j["job_ref"]: j for j in manifest["jobs"]}
     assert "jobs.streamlit_app" in jobs_by_ref
@@ -335,7 +335,7 @@ def test_ad_hoc_framework_streamlit() -> None:
 def test_ad_hoc_plain_module() -> None:
     """Ad-hoc deployment promotes a plain local Python module to a batch job."""
     mod = import_module(f"{WORKSPACE}.plain_module")
-    manifest, _ = generate_manifest(mod, use_all=False)
+    manifest, _ = generate_manifest(mod, None, use_all=False)
 
     user_jobs = _user_jobs(manifest["jobs"])
     assert len(user_jobs) == 1
@@ -350,7 +350,7 @@ def test_ad_hoc_plain_module() -> None:
 def test_ad_hoc_etl_script() -> None:
     """Ad-hoc deployment promotes a plain Python script (no JobFactory, no framework)."""
     mod = import_module(f"{WORKSPACE}.etl_script")
-    manifest, _ = generate_manifest(mod, use_all=False)
+    manifest, _ = generate_manifest(mod, None, use_all=False)
 
     user_jobs = _user_jobs(manifest["jobs"])
     assert len(user_jobs) == 1
@@ -369,14 +369,14 @@ def test_ad_hoc_plain_module_not_promoted_with_use_all() -> None:
     not be accidentally promoted to a job.
     """
     mod = import_module(f"{WORKSPACE}.plain_module")
-    manifest, _ = generate_manifest(mod, use_all=True)
+    manifest, _ = generate_manifest(mod, None, use_all=True)
     assert _user_jobs(manifest["jobs"]) == []
 
 
 def test_ad_hoc_uses_fully_qualified_module_name() -> None:
     """Ad-hoc deployment stores fully qualified module name."""
     mod = import_module(f"{WORKSPACE}.batch_jobs")
-    manifest, _ = generate_manifest(mod, use_all=False)
+    manifest, _ = generate_manifest(mod, None, use_all=False)
 
     assert manifest["deployment_module"] == f"{WORKSPACE}.batch_jobs"
 
@@ -384,7 +384,7 @@ def test_ad_hoc_uses_fully_qualified_module_name() -> None:
 def test_all_framework_triggers_use_portless_http() -> None:
     """All framework-detected jobs use http: trigger without port."""
     mod = import_module(f"{WORKSPACE}.deployment_full")
-    manifest, _ = generate_manifest(mod)
+    manifest, _ = generate_manifest(mod, None)
 
     framework_refs = {
         "jobs.marimo_notebook",
@@ -399,7 +399,7 @@ def test_all_framework_triggers_use_portless_http() -> None:
 def test_tags_in_expose() -> None:
     """Job tags are stored in expose spec, not as triggers."""
     mod = import_module(f"{WORKSPACE}.deployment_full")
-    manifest, _ = generate_manifest(mod)
+    manifest, _ = generate_manifest(mod, None)
 
     jobs_by_ref = {j["job_ref"]: j for j in manifest["jobs"]}
 
@@ -416,7 +416,7 @@ def test_tags_in_expose() -> None:
 def test_self_detection_before_dict_scan() -> None:
     """Framework module run ad-hoc is self-detected, not scanned for sub-modules."""
     mod = import_module(f"{WORKSPACE}.marimo_notebook")
-    manifest, _ = generate_manifest(mod, use_all=False)
+    manifest, _ = generate_manifest(mod, None, use_all=False)
 
     user_jobs = _user_jobs(manifest["jobs"])
     assert len(user_jobs) == 1
@@ -433,7 +433,7 @@ def test_self_detection_before_dict_scan() -> None:
 def test_ad_hoc_does_not_pick_up_venv_modules() -> None:
     """Ad-hoc __dict__ scan skips installed packages even if venv is inside project."""
     mod = import_module(f"{WORKSPACE}.batch_jobs")
-    manifest, _ = generate_manifest(mod, use_all=False)
+    manifest, _ = generate_manifest(mod, None, use_all=False)
 
     refs = {j["job_ref"] for j in _user_jobs(manifest["jobs"])}
     # batch_jobs imports dlt — should not appear as a job
@@ -448,7 +448,7 @@ def test_ad_hoc_does_not_pick_up_venv_modules() -> None:
 def test_dashboard_auto_included_for_canonical_deployment() -> None:
     """The canonical `__deployment__` module gets a dashboard auto-included."""
     mod = import_module(f"{WORKSPACE}.__deployment__")
-    manifest, _ = generate_manifest(mod)
+    manifest, _ = generate_manifest(mod, None)
 
     jobs_by_ref = {j["job_ref"]: j for j in manifest["jobs"]}
     dashboard = jobs_by_ref[DASHBOARD_JOB_REF]
@@ -465,7 +465,7 @@ def test_dashboard_not_auto_included_for_non_canonical_module() -> None:
     have a workspace dashboard tagged on by the manifest generator.
     """
     mod = import_module(f"{WORKSPACE}.deployment_batch_only")
-    manifest, _ = generate_manifest(mod)
+    manifest, _ = generate_manifest(mod, None)
 
     assert DASHBOARD_JOB_REF not in {j["job_ref"] for j in manifest["jobs"]}
 
@@ -495,7 +495,9 @@ def test_dashboard_validation_rejects_invalid(mutation: object, error_frag: str)
 @pytest.mark.parametrize("isolated", [False, True], ids=["inprocess", "isolated"])
 def test_manifest_from_module_full_deployment(isolated: bool) -> None:
     """manifest_from_module discovers all jobs and returns valid manifest."""
-    manifest, warnings = manifest_from_module(f"{WORKSPACE}.deployment_full", isolated=isolated)
+    manifest, warnings = manifest_from_module(
+        f"{WORKSPACE}.deployment_full", None, isolated=isolated
+    )
 
     assert manifest["engine_version"] == MANIFEST_ENGINE_VERSION
     assert manifest["deployment_module"] == f"{WORKSPACE}.deployment_full"
@@ -511,7 +513,7 @@ def test_manifest_from_module_full_deployment(isolated: bool) -> None:
 def test_manifest_from_module_use_all_false(isolated: bool) -> None:
     """manifest_from_module with use_all=False scans __dict__ ad-hoc."""
     manifest, warnings = manifest_from_module(
-        f"{WORKSPACE}.batch_jobs", use_all=False, isolated=isolated
+        f"{WORKSPACE}.batch_jobs", None, use_all=False, isolated=isolated
     )
 
     job_refs = {j["job_ref"] for j in manifest["jobs"]}
@@ -523,14 +525,14 @@ def test_manifest_from_module_use_all_false(isolated: bool) -> None:
 def test_manifest_from_module_invalid_module(isolated: bool) -> None:
     """Both modes raise ModuleNotFoundError for a bad module name."""
     with pytest.raises(ModuleNotFoundError, match="nonexistent_module_xyz_123"):
-        manifest_from_module("nonexistent_module_xyz_123", isolated=isolated)
+        manifest_from_module("nonexistent_module_xyz_123", None, isolated=isolated)
 
 
 @pytest.mark.parametrize("isolated", [False, True], ids=["inprocess", "isolated"])
 def test_manifest_from_module_invalid_trigger(isolated: bool) -> None:
     """A definition error in the module comes back as itself from both modes."""
     with pytest.raises(InvalidTrigger, match="period must be like") as exc_info:
-        manifest_from_module(f"{WORKSPACE}.invalid_trigger_jobs", isolated=isolated)
+        manifest_from_module(f"{WORKSPACE}.invalid_trigger_jobs", None, isolated=isolated)
     exc = exc_info.value
     # only the message crosses the worker boundary, so the rebuilt error carries it whole
     assert exc.errors == ([str(exc)] if isolated else ["period must be like '5m', '1h', '1d'"])
@@ -546,7 +548,7 @@ def test_manifest_from_module_isolated_no_pollution() -> None:
     for k in leaked_before:
         del sys.modules[k]
 
-    manifest_from_module(module_path, isolated=True)
+    manifest_from_module(module_path, None, isolated=True)
 
     leaked = [k for k in sys.modules if marker in k]
     assert not leaked, f"isolated mode leaked modules: {leaked}"

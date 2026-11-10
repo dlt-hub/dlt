@@ -6,9 +6,11 @@ from datetime import datetime, timezone  # noqa: I251
 from copy import deepcopy
 from io import BytesIO
 from types import ModuleType
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple, Type, Union
 
 import pytest
+
+from dlt.common.utils import clone_dict_nested
 
 from dlt._workspace.deployment import interval as interval_mod
 from dlt._workspace.deployment.decorators import job
@@ -23,26 +25,35 @@ from dlt._workspace.deployment.exceptions import (
     InvalidJobSection,
     InvalidManifest,
     InvalidTrigger,
+    JobProfileAccessMismatch,
+    JobProfileNotInEnvironment,
     JobValidationResult,
     ManifestEngineNoUpgradePath,
     ManifestValidationResult,
+    ProfileDataAccessNotAvailable,
 )
 from dlt._workspace.deployment.manifest import (
     DASHBOARD_JOB_REF,
     InvalidManifest,
+    attach_job_access,
+    attach_job_profiles,
     bump_manifest_version,
     compute_default_trigger,
     generate_manifest_hash,
     hash_job_definition,
+    job_access,
+    legacy_job_profile,
     load_manifest,
     generate_manifest,
     migrate_job_definition,
     migrate_manifest,
+    resolve_job_profile,
     save_manifest,
     validate_job_definition,
     validate_manifest,
 )
 from dlt._workspace.deployment.typing import (
+    BACKGROUND_AGENT_CATEGORY,
     MANIFEST_ENGINE_VERSION,
     TEntryPoint,
     TExecuteSpec,
@@ -53,19 +64,16 @@ from dlt._workspace.deployment.typing import (
     TTrigger,
 )
 
-from tests.workspace.manifest_utils import make_job, make_manifest
+from dlt._workspace.typing import TWorkspaceAccess
+from dlt._workspace.workspace_definition import built_in_workspace_definition
+
+from tests.workspace.manifest_utils import make_job, make_manifest, manifest_case_path
+from tests.workspace.utils import full_environment
 
 
 @pytest.fixture
 def enable_interval_freshness(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(interval_mod, "INTERVAL_FRESHNESS_ENABLED", True)
-
-
-MANIFEST_CASES_DIR = os.path.join(os.path.dirname(__file__), "..", "cases", "manifests")
-
-
-def _manifest_case_path(name: str) -> str:
-    return os.path.join(MANIFEST_CASES_DIR, name + ".manifest.json")
 
 
 def _make_job(
@@ -324,28 +332,405 @@ def test_auto_refresh_pipeline_mode_with_block_warns() -> None:
     assert any("auto_refresh_pipeline_mode" in w for w in result.warnings)
 
 
-@pytest.mark.parametrize("profile_name", ["dev", "tests"])
-def test_validate_rejects_local_profile_requirement(profile_name: str) -> None:
-    """Jobs cannot require a local-only profile — the cloud has no synced config for them."""
-    job = _make_job(
-        "jobs.mod.local_only",
-        triggers=["schedule:0 0 * * *"],
-        require={"profile": profile_name},
+@pytest.mark.parametrize(
+    "profile_name,warned",
+    [("prod", False), ("access", True)],
+    ids=["gives-declared-access", "gives-less-access"],
+)
+def test_attach_keeps_profile_of_environment(profile_name: str, warned: bool) -> None:
+    job = make_job(
+        "jobs.mod.synced", triggers=["schedule:0 0 * * *"], require={"profile": profile_name}
     )
-    result = validate_job_definition(job)
-    assert any("local-only profile" in e for e in result.errors), result.errors
+    environment = built_in_workspace_definition()["environments"]["prod"]
+    # a batch job needs write data access: it keeps a declared profile with less, with a warning
+    warnings = attach_job_profiles([job], environment)
+    assert ["`jobs.mod.synced`" in warning for warning in warnings] == [True] * warned
+    assert job["require"]["profile"] == profile_name
 
 
-@pytest.mark.parametrize("profile_name", ["prod", "access", "analytics"])
-def test_validate_accepts_synced_or_custom_profile_requirement(profile_name: str) -> None:
-    """Synced built-in profiles and custom profiles are valid in require.profile."""
-    job = _make_job(
-        "jobs.mod.synced",
-        triggers=["schedule:0 0 * * *"],
-        require={"profile": profile_name},
-    )
-    result = validate_job_definition(job)
-    assert not any("local-only profile" in e for e in result.errors), result.errors
+TProfileResult = Tuple[Union[str, Type[Exception]], Optional[str]]
+"""The profile with its warning, or the exception that the job fails with and a part of its
+message."""
+
+NO_PROFILE_FOR_NONE = "Declare one with `dlthub profile add stg-none --access none --env stg`."
+NOT_IN_ENVIRONMENT = (
+    "Job `jobs.mod.job` declares profile `prod`, which is not a profile of environment `stg`"
+    " (stg-write, stg-read, stg-none, stg-pii). A deployment uses only the profiles of its"
+    " environment, never a local profile. If `prod` is not declared, declare it with `dlthub"
+    " profile add prod --access write --env stg`: the job needs write data access. If it belongs"
+    " to another environment, deploy there with `--environment`, or edit `.dlt/.workspace` and"
+    " move its declaration to environment `stg`."
+)
+
+
+@pytest.mark.parametrize("strict", [True, False], ids=["strict", "not-strict"])
+@pytest.mark.parametrize(
+    "job_type,access,profile,missing,no_settings,data_access,when_strict,when_not_strict",
+    [
+        pytest.param(
+            "batch",
+            None,
+            None,
+            [],
+            [],
+            "write",
+            ("stg-write", None),
+            ("stg-write", None),
+            id="batch",
+        ),
+        pytest.param(
+            "interactive",
+            None,
+            None,
+            [],
+            [],
+            "read",
+            ("stg-read", None),
+            ("stg-read", None),
+            id="interactive",
+        ),
+        pytest.param(
+            "batch",
+            {"data": ["read"]},
+            None,
+            [],
+            [],
+            "read",
+            ("stg-read", None),
+            ("stg-read", None),
+            id="batch-declares-read",
+        ),
+        pytest.param(
+            "batch",
+            {"local": ["read"]},
+            None,
+            [],
+            [],
+            "none",
+            ("stg-none", None),
+            ("stg-none", None),
+            id="no-data-declared",
+        ),
+        # declared is not enough: the default profile must have settings files
+        pytest.param(
+            "interactive",
+            None,
+            None,
+            [],
+            ["stg-read"],
+            "read",
+            (
+                ProfileDataAccessNotAvailable,
+                (
+                    "Job `jobs.mod.job` declares read data access. Environment `stg` is strict"
+                    " about access and `stg-read`, its default profile for it, has no settings"
+                    " files. Create them with `dlthub profile add stg-read`. Or declare the access"
+                    " that the job needs with `access=` on the job. Or set `strict_access: false`"
+                    " on environment `stg`. Then the job gets the closest default profile with more"
+                    " data access."
+                ),
+            ),
+            (
+                "stg-write",
+                (
+                    "job `jobs.mod.job` declares read data access and profile `stg-read` has no"
+                    " settings files: the job gets `stg-write` (write data access)"
+                ),
+            ),
+            id="default-without-settings",
+        ),
+        pytest.param(
+            "interactive",
+            None,
+            None,
+            ["stg-read", "stg-pii"],
+            [],
+            "read",
+            (
+                ProfileDataAccessNotAvailable,
+                (
+                    "Environment `stg` is strict about access and has no profile for it: stg-write"
+                    " (write data access), stg-none (no data access). Declare one with `dlthub"
+                    " profile add stg-read --access read --env stg`."
+                ),
+            ),
+            (
+                "stg-write",
+                (
+                    "job `jobs.mod.job` declares read data access and environment `stg` has no"
+                    " profile for it: the job gets `stg-write` (write data access)"
+                ),
+            ),
+            id="default-not-declared",
+        ),
+        pytest.param(
+            "batch",
+            {"local": ["read"]},
+            None,
+            ["stg-none"],
+            [],
+            "none",
+            (ProfileDataAccessNotAvailable, NO_PROFILE_FOR_NONE),
+            (
+                "stg-read",
+                (
+                    "job `jobs.mod.job` declares no data access and environment `stg` has no"
+                    " profile for it: the job gets `stg-read` (read data access)"
+                ),
+            ),
+            id="closest-higher",
+        ),
+        pytest.param(
+            "batch",
+            {"local": ["read"]},
+            None,
+            ["stg-none"],
+            ["stg-read"],
+            "none",
+            (ProfileDataAccessNotAvailable, NO_PROFILE_FOR_NONE),
+            (
+                "stg-write",
+                (
+                    "job `jobs.mod.job` declares no data access and environment `stg` has no"
+                    " profile for it: the job gets `stg-write` (write data access)"
+                ),
+            ),
+            id="write-last",
+        ),
+        # intended: nothing is above write, it is taken without settings files and no warning
+        pytest.param(
+            "batch",
+            None,
+            None,
+            [],
+            ["stg-write"],
+            "write",
+            (
+                ProfileDataAccessNotAvailable,
+                "and `stg-write`, its default profile for it, has no settings files.",
+            ),
+            ("stg-write", None),
+            id="write-without-settings",
+        ),
+        pytest.param(
+            "interactive",
+            None,
+            "stg-pii",
+            [],
+            [],
+            "read",
+            ("stg-pii", None),
+            ("stg-pii", None),
+            id="declared-exact",
+        ),
+        pytest.param(
+            "interactive",
+            None,
+            "stg-write",
+            [],
+            [],
+            "read",
+            (
+                JobProfileAccessMismatch,
+                (
+                    "Job `jobs.mod.job` declares profile `stg-write` with write data access and"
+                    " needs read data access. Environment `stg` is strict about access: the profile"
+                    " of a job gives exactly the access that the job declares. Declare the access"
+                    " that the job needs with `access=` on the job, or declare a profile with read"
+                    " data access on it. Or set `strict_access: false` on environment `stg`."
+                ),
+            ),
+            ("stg-write", None),
+            id="declared-gives-more",
+        ),
+        pytest.param(
+            "batch",
+            None,
+            "stg-read",
+            [],
+            [],
+            "write",
+            (
+                JobProfileAccessMismatch,
+                "declares profile `stg-read` with read data access and needs write data access.",
+            ),
+            (
+                "stg-read",
+                (
+                    "job `jobs.mod.job` declares profile `stg-read` (read data access) and needs"
+                    " write data access"
+                ),
+            ),
+            id="declared-gives-less",
+        ),
+        pytest.param(
+            "interactive",
+            None,
+            "stg-read",
+            [],
+            ["stg-read"],
+            "read",
+            (
+                JobProfileAccessMismatch,
+                (
+                    "Job `jobs.mod.job` declares profile `stg-read`, which has no settings files."
+                    " Environment `stg` is strict about access: the profile of a job gives exactly"
+                    " the access that the job declares. Create them with `dlthub profile add"
+                    " stg-read`."
+                ),
+            ),
+            (
+                "stg-read",
+                (
+                    "job `jobs.mod.job` declares profile `stg-read` (read data access), which has"
+                    " no settings files"
+                ),
+            ),
+            id="declared-without-settings",
+        ),
+        pytest.param(
+            "batch",
+            None,
+            "stg-read",
+            [],
+            ["stg-read"],
+            "write",
+            (
+                JobProfileAccessMismatch,
+                (
+                    "or declare a profile with write data access on it. `stg-read` also has no"
+                    " settings files."
+                ),
+            ),
+            (
+                "stg-read",
+                (
+                    "job `jobs.mod.job` declares profile `stg-read` (read data access), which has"
+                    " no settings files"
+                ),
+            ),
+            id="declared-gives-less-without-settings",
+        ),
+        pytest.param(
+            "batch",
+            None,
+            "prod",
+            [],
+            [],
+            "write",
+            (JobProfileNotInEnvironment, NOT_IN_ENVIRONMENT),
+            (JobProfileNotInEnvironment, NOT_IN_ENVIRONMENT),
+            id="declared-of-other-environment",
+        ),
+    ],
+)
+def test_resolve_job_profile(
+    strict: bool,
+    job_type: TJobType,
+    access: Optional[TWorkspaceAccess],
+    profile: Optional[str],
+    missing: List[str],
+    no_settings: List[str],
+    data_access: str,
+    when_strict: TProfileResult,
+    when_not_strict: TProfileResult,
+) -> None:
+    """A job gets the default profile of the data access that it declares. A strict environment
+    takes only a profile that gives exactly that, one that is not strict falls to a profile
+    that gives more."""
+    environment = full_environment("stg")
+    # a second profile with read data access, not the default
+    environment["profiles"]["stg-pii"] = {"location": "remote", "data_access": "read", "env": "stg"}
+    environment["strict_access"] = strict
+    for name in missing:
+        del environment["profiles"][name]
+    for name in no_settings:
+        environment["profiles"][name]["configured"] = False
+
+    fields: Dict[str, Any] = {}
+    if access is not None:
+        fields["access"] = access
+    if profile:
+        fields["require"] = {"profile": profile}
+    job = make_job("jobs.mod.job", job_type=job_type, **fields)
+    declared = clone_dict_nested(job)  # type: ignore[type-var]
+
+    outcome, text = when_strict if strict else when_not_strict
+    if not isinstance(outcome, str):
+        with pytest.raises(outcome) as exc:
+            resolve_job_profile(job, environment)
+        assert text and text in str(exc.value)
+        return
+
+    # the data access is what the job declares, also when the profile gives more
+    assert resolve_job_profile(job, environment) == (outcome, data_access, text)
+    assert job == declared
+
+
+@pytest.mark.parametrize(
+    "job_type,fields,configured,profile,data_access,warned",
+    [
+        pytest.param("interactive", {}, None, "access", "read", False, id="interactive"),
+        # the notebook of a workspace with credentials in `prod` alone
+        pytest.param("interactive", {}, ["prod"], "prod", "read", True, id="access-not-configured"),
+        # an older dlt had no profile without data access
+        pytest.param(
+            "batch",
+            {"expose": {"category": BACKGROUND_AGENT_CATEGORY}},
+            None,
+            "access",
+            "none",
+            True,
+            id="agent",
+        ),
+        # an older dlt took a profile of any other name as one with write data access
+        pytest.param(
+            "batch",
+            {"require": {"profile": "analytics"}},
+            ["prod", "analytics"],
+            "analytics",
+            "write",
+            False,
+            id="declared-custom-profile",
+        ),
+    ],
+)
+def test_legacy_job_profile(
+    job_type: TJobType,
+    fields: Dict[str, Any],
+    configured: Optional[List[str]],
+    profile: str,
+    data_access: str,
+    warned: bool,
+) -> None:
+    """A job definition without a profile or `access` resolves in the built-in `prod`
+    environment, which is not strict."""
+    job = make_job("jobs.mod.job", job_type=job_type, **fields)
+    resolved = legacy_job_profile(job, configured)
+    assert (resolved.profile, resolved.data_access) == (profile, data_access)
+    assert ("`jobs.mod.job`" in (resolved.warning or "")) is warned
+
+
+@pytest.mark.parametrize(
+    "job_type,fields,access",
+    [
+        ("batch", {}, {"data": ["read", "write"]}),
+        ("stream", {}, {"data": ["read", "write"]}),
+        ("interactive", {}, {"data": ["read"]}),
+        ("batch", {"expose": {"category": BACKGROUND_AGENT_CATEGORY}}, {}),
+        ("batch", {"access": {"local": ["read"]}}, {"local": ["read"]}),
+        ("interactive", {"access": {}}, {}),
+    ],
+    ids=["batch", "stream", "interactive", "agent", "declared", "declared-empty"],
+)
+def test_attach_job_access(
+    job_type: TJobType, fields: Dict[str, Any], access: TWorkspaceAccess
+) -> None:
+    """A job without `access` gets the data access of its job type, a declared one is kept."""
+    job = make_job("jobs.mod.job", job_type=job_type, **fields)
+    assert job_access(job) == access
+    attach_job_access([job])
+    assert job["access"] == access
 
 
 @pytest.mark.parametrize(
@@ -463,6 +848,12 @@ def test_manifest_hash_changes_on_content() -> None:
     m1 = _make_manifest([_make_job("jobs.mod.a")])
     m2 = _make_manifest([_make_job("jobs.mod.b")])
     assert generate_manifest_hash(m1) != generate_manifest_hash(m2)
+    # the environment a manifest is generated for is part of its hash
+    m3 = _make_manifest([_make_job("jobs.mod.a")])
+    m3["environment"] = "prod"
+    assert generate_manifest_hash(m1) != generate_manifest_hash(m3)
+    m3["environment"] = "staging"
+    assert generate_manifest_hash(m1) != generate_manifest_hash(m3)
 
 
 def test_job_hash_stable() -> None:
@@ -639,7 +1030,7 @@ def test_migrate_unsupported_path_raises(migrate: Any, make_doc: Any) -> None:
 def test_load_manifest_migrates_stored_v1() -> None:
     """`load_manifest` migrates a stored engine-1 manifest; field mapping is covered by
     `test_migrate_job_definition_field_mapping`."""
-    with open(_manifest_case_path("ev1/interval_jobs"), "rb") as f:
+    with open(manifest_case_path("ev1/interval_jobs"), "rb") as f:
         loaded = load_manifest(f)
     assert loaded["engine_version"] == MANIFEST_ENGINE_VERSION
     jobs: Dict[str, Any] = {j["job_ref"]: j for j in loaded["jobs"]}
@@ -651,7 +1042,7 @@ def test_load_manifest_migrates_stored_v1() -> None:
     # nested require migrates through the manifest loop, not just the per-job call
     assert jobs["jobs.events.cleanup"]["require"] == {"instance": {"size": "gpu-a100"}}
 
-    with open(_manifest_case_path("ev1/no_interval_flag"), "rb") as f:
+    with open(manifest_case_path("ev1/no_interval_flag"), "rb") as f:
         loaded = load_manifest(f)
     assert loaded["jobs"][0]["incremental_mode"] == "interval"
 
@@ -1216,7 +1607,7 @@ def test_generated_manifest_needs_no_migration() -> None:
     module.hourly = hourly  # type: ignore[attr-defined]
     module.__all__ = ["hourly"]  # type: ignore[attr-defined]
 
-    manifest, _ = generate_manifest(module)
+    manifest, _ = generate_manifest(module, None)
     assert manifest["engine_version"] == MANIFEST_ENGINE_VERSION
     for job_def in manifest["jobs"]:
         assert (
@@ -1310,9 +1701,9 @@ def test_load_manifest_defaults_missing_engine_to_1() -> None:
 
 def test_migrated_manifest_round_trips_and_bumps_version() -> None:
     """Migration rewrites content, so the stored hash is stale and the next save bumps."""
-    with open(_manifest_case_path("ev1/interval_jobs"), "rb") as f:
+    with open(manifest_case_path("ev1/interval_jobs"), "rb") as f:
         stored_hash = stdlib_json.loads(f.read())["version_hash"]
-    with open(_manifest_case_path("ev1/interval_jobs"), "rb") as f:
+    with open(manifest_case_path("ev1/interval_jobs"), "rb") as f:
         migrated = load_manifest(f)
 
     assert generate_manifest_hash(migrated) != stored_hash

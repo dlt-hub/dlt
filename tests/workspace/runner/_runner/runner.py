@@ -984,7 +984,7 @@ def run_from_module(
     Returns:
         Exit code (0 = success, 1 = failure).
     """
-    manifest, warnings = manifest_from_module(module_name, use_all=use_all)
+    manifest, warnings = manifest_from_module(module_name, None, use_all=use_all)
     for w in warnings:
         warn(w)
 

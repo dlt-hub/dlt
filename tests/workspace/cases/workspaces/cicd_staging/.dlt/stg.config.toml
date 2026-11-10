@@ -1,0 +1,6 @@
+[runtime]
+organization_id = "org-id"
+workspace_id = "stg-ws-id"
+
+[workspace.settings]
+name = "dlt-de-stage"
