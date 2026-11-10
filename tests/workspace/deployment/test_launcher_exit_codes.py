@@ -4,7 +4,7 @@ Code 1 is the default for a terminal failure and for any failure that is not
 explicitly transient. Code 2 is only for an explicitly transient failure.
 """
 
-from typing import Any, Callable
+from typing import Any, Callable, List
 
 import pytest
 
@@ -29,34 +29,56 @@ class _TerminalAndTransient(ValueError, TerminalException, TransientException):
     """One exception carrying both markers. Terminal wins."""
 
 
+_FAILURE_CASES: List[Any] = []
+
+
+def _expect_exit(
+    exit_code: int, *, expect_stderr: str
+) -> Callable[[Callable[[], None]], Callable[[], None]]:
+    def _decorate(run: Callable[[], None]) -> Callable[[], None]:
+        case_id = run.__name__.removeprefix("_raise_").replace("_", "-")
+        _FAILURE_CASES.append(pytest.param(run, exit_code, expect_stderr, id=case_id))
+        return run
+
+    return _decorate
+
+
+@_expect_exit(EXIT_TERMINAL_ERROR, expect_stderr="TerminalValueError")
 def _raise_terminal() -> None:
     raise TerminalValueError("stop")
 
 
+@_expect_exit(EXIT_TERMINAL_ERROR, expect_stderr="ConfigurationException")
 def _raise_configuration() -> None:
     raise ConfigurationException("missing")
 
 
+@_expect_exit(EXIT_TERMINAL_ERROR, expect_stderr="RuntimeError")
 def _raise_unknown() -> None:
     raise RuntimeError("plain")
 
 
+@_expect_exit(EXIT_TERMINAL_ERROR, expect_stderr="ValueError")
 def _raise_value_error() -> None:
     raise ValueError("plain")
 
 
+@_expect_exit(EXIT_TERMINAL_ERROR, expect_stderr="AssertionError")
 def _raise_assertion() -> None:
     raise AssertionError("check")
 
 
+@_expect_exit(EXIT_TRANSIENT_ERROR, expect_stderr="DestinationTransientException")
 def _raise_transient() -> None:
     raise DestinationTransientException("retry")
 
 
+@_expect_exit(EXIT_TERMINAL_ERROR, expect_stderr="_TerminalAndTransient")
 def _raise_both_markers() -> None:
     raise _TerminalAndTransient("both")
 
 
+@_expect_exit(EXIT_TRANSIENT_ERROR, expect_stderr="DestinationTransientException")
 def _raise_cause_transient() -> None:
     try:
         raise DestinationTransientException("retry")
@@ -64,6 +86,7 @@ def _raise_cause_transient() -> None:
         raise RuntimeError("wrapped") from exc
 
 
+@_expect_exit(EXIT_TRANSIENT_ERROR, expect_stderr="DestinationTransientException")
 def _raise_context_transient() -> None:
     try:
         raise DestinationTransientException("retry")
@@ -71,6 +94,7 @@ def _raise_context_transient() -> None:
         raise RuntimeError("during")
 
 
+@_expect_exit(EXIT_TRANSIENT_ERROR, expect_stderr="DestinationTransientException")
 def _raise_deep_wrapped_transient() -> None:
     try:
         raise DestinationTransientException("retry")
@@ -81,6 +105,17 @@ def _raise_deep_wrapped_transient() -> None:
             raise KeyError("outer") from mid
 
 
+@_expect_exit(EXIT_TRANSIENT_ERROR, expect_stderr="DestinationTransientException")
+def _raise_shared_cause_and_context() -> None:
+    inner = DestinationTransientException("retry")
+    outer = RuntimeError("outer")
+    outer.__cause__ = inner
+    outer.__context__ = inner
+    outer.__suppress_context__ = False
+    raise outer
+
+
+@_expect_exit(EXIT_TERMINAL_ERROR, expect_stderr="TerminalValueError")
 def _raise_terminal_cause() -> None:
     try:
         raise TerminalValueError("stop")
@@ -88,6 +123,7 @@ def _raise_terminal_cause() -> None:
         raise DestinationTransientException("retry") from exc
 
 
+@_expect_exit(EXIT_TERMINAL_ERROR, expect_stderr="TerminalValueError")
 def _raise_terminal_outer() -> None:
     try:
         raise DestinationTransientException("retry")
@@ -95,6 +131,7 @@ def _raise_terminal_outer() -> None:
         raise TerminalValueError("stop") from exc
 
 
+@_expect_exit(EXIT_TRANSIENT_ERROR, expect_stderr="DestinationTransientException")
 def _raise_cause_hides_terminal_context() -> None:
     # a reported cause replaces the context, including a terminal one
     outer = RuntimeError("outer")
@@ -104,6 +141,7 @@ def _raise_cause_hides_terminal_context() -> None:
     raise outer
 
 
+@_expect_exit(EXIT_TERMINAL_ERROR, expect_stderr="TerminalValueError")
 def _raise_terminal_under_transient_cause() -> None:
     try:
         raise TerminalValueError("stop")
@@ -114,6 +152,7 @@ def _raise_terminal_under_transient_cause() -> None:
             raise RuntimeError("outer") from transient
 
 
+@_expect_exit(EXIT_TERMINAL_ERROR, expect_stderr="RuntimeError")
 def _raise_suppressed_transient_context() -> None:
     try:
         raise DestinationTransientException("retry")
@@ -121,6 +160,7 @@ def _raise_suppressed_transient_context() -> None:
         raise RuntimeError("unrelated") from None
 
 
+@_expect_exit(EXIT_TRANSIENT_ERROR, expect_stderr="DestinationTransientException")
 def _raise_suppressed_terminal_context() -> None:
     try:
         raise TerminalValueError("stop")
@@ -128,6 +168,7 @@ def _raise_suppressed_terminal_context() -> None:
         raise DestinationTransientException("retry") from None
 
 
+@_expect_exit(EXIT_TERMINAL_ERROR, expect_stderr="SignalReceivedException")
 def _raise_wrapped_signal() -> None:
     try:
         raise SignalReceivedException(15)
@@ -135,6 +176,7 @@ def _raise_wrapped_signal() -> None:
         raise RuntimeError("extract failed") from exc
 
 
+@_expect_exit(EXIT_TRANSIENT_ERROR, expect_stderr="DestinationTransientException")
 def _raise_cyclic_transient() -> None:
     outer = RuntimeError("outer")
     inner = DestinationTransientException("retry")
@@ -143,6 +185,7 @@ def _raise_cyclic_transient() -> None:
     raise outer
 
 
+@_expect_exit(EXIT_TERMINAL_ERROR, expect_stderr="TerminalValueError")
 def _raise_cyclic_terminal_and_transient() -> None:
     outer = DestinationTransientException("retry")
     inner = TerminalValueError("stop")
@@ -152,6 +195,7 @@ def _raise_cyclic_terminal_and_transient() -> None:
     raise outer
 
 
+@_expect_exit(EXIT_TERMINAL_ERROR, expect_stderr="RuntimeError")
 def _raise_cyclic_unknown() -> None:
     outer = RuntimeError("outer")
     inner = ValueError("inner")
@@ -160,136 +204,14 @@ def _raise_cyclic_unknown() -> None:
     raise outer
 
 
+@_expect_exit(EXIT_TRANSIENT_ERROR, expect_stderr="DestinationTransientException")
 def _raise_self_cycle_transient() -> None:
     exc = DestinationTransientException("retry")
     exc.__cause__ = exc
     raise exc
 
 
-def _raise_shared_link() -> None:
-    inner = DestinationTransientException("retry")
-    outer = RuntimeError("outer")
-    outer.__cause__ = inner
-    outer.__context__ = inner
-    outer.__suppress_context__ = False
-    raise outer
-
-
-@pytest.mark.parametrize(
-    ("run", "exit_code", "stderr_text"),
-    [
-        pytest.param(_raise_terminal, EXIT_TERMINAL_ERROR, "TerminalValueError", id="terminal"),
-        pytest.param(
-            _raise_configuration,
-            EXIT_TERMINAL_ERROR,
-            "ConfigurationException",
-            id="configuration",
-        ),
-        pytest.param(_raise_unknown, EXIT_TERMINAL_ERROR, "RuntimeError", id="unknown"),
-        pytest.param(_raise_value_error, EXIT_TERMINAL_ERROR, "ValueError", id="value-error"),
-        pytest.param(_raise_assertion, EXIT_TERMINAL_ERROR, "AssertionError", id="assertion"),
-        pytest.param(
-            _raise_transient,
-            EXIT_TRANSIENT_ERROR,
-            "DestinationTransientException",
-            id="transient",
-        ),
-        pytest.param(
-            _raise_both_markers, EXIT_TERMINAL_ERROR, "_TerminalAndTransient", id="both-markers"
-        ),
-        # wrapped failures
-        pytest.param(
-            _raise_cause_transient,
-            EXIT_TRANSIENT_ERROR,
-            "DestinationTransientException",
-            id="cause-transient",
-        ),
-        pytest.param(
-            _raise_context_transient,
-            EXIT_TRANSIENT_ERROR,
-            "DestinationTransientException",
-            id="context-transient",
-        ),
-        pytest.param(
-            _raise_deep_wrapped_transient,
-            EXIT_TRANSIENT_ERROR,
-            "DestinationTransientException",
-            id="deep-wrapped-transient",
-        ),
-        pytest.param(
-            _raise_shared_link,
-            EXIT_TRANSIENT_ERROR,
-            "DestinationTransientException",
-            id="shared-cause-and-context",
-        ),
-        # a terminal failure in the chain wins over a transient one
-        pytest.param(
-            _raise_terminal_cause,
-            EXIT_TERMINAL_ERROR,
-            "TerminalValueError",
-            id="terminal-cause",
-        ),
-        pytest.param(
-            _raise_terminal_outer,
-            EXIT_TERMINAL_ERROR,
-            "TerminalValueError",
-            id="terminal-outer",
-        ),
-        pytest.param(
-            _raise_cause_hides_terminal_context,
-            EXIT_TRANSIENT_ERROR,
-            "DestinationTransientException",
-            id="cause-hides-terminal-context",
-        ),
-        pytest.param(
-            _raise_terminal_under_transient_cause,
-            EXIT_TERMINAL_ERROR,
-            "TerminalValueError",
-            id="terminal-under-transient-cause",
-        ),
-        pytest.param(
-            _raise_wrapped_signal,
-            EXIT_TERMINAL_ERROR,
-            "SignalReceivedException",
-            id="wrapped-signal",
-        ),
-        # `raise ... from None` drops the handled exception from the chain
-        pytest.param(
-            _raise_suppressed_transient_context,
-            EXIT_TERMINAL_ERROR,
-            "RuntimeError",
-            id="suppressed-transient-context",
-        ),
-        pytest.param(
-            _raise_suppressed_terminal_context,
-            EXIT_TRANSIENT_ERROR,
-            "DestinationTransientException",
-            id="suppressed-terminal-context",
-        ),
-        # cyclic cause/context chains are classified once and do not hang
-        pytest.param(
-            _raise_cyclic_transient,
-            EXIT_TRANSIENT_ERROR,
-            "DestinationTransientException",
-            id="cyclic-transient",
-        ),
-        pytest.param(
-            _raise_cyclic_terminal_and_transient,
-            EXIT_TERMINAL_ERROR,
-            "TerminalValueError",
-            id="cyclic-terminal-and-transient",
-        ),
-        pytest.param(
-            _raise_cyclic_unknown, EXIT_TERMINAL_ERROR, "RuntimeError", id="cyclic-unknown"
-        ),
-        pytest.param(
-            _raise_self_cycle_transient,
-            EXIT_TRANSIENT_ERROR,
-            "DestinationTransientException",
-            id="self-cycle-transient",
-        ),
-    ],
-)
+@pytest.mark.parametrize(("run", "exit_code", "stderr_text"), _FAILURE_CASES)
 def test_failed_run_exits_with_the_classified_code(
     run: Callable[[], Any],
     exit_code: int,
