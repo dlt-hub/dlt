@@ -5,7 +5,6 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Set, Tuple
 
 import tomlkit
-import yaml
 
 from dlt.common.json import json
 from dlt.common.pendulum import pendulum
@@ -13,8 +12,10 @@ from dlt.common.utils import uniq_id, update_dict_nested
 from dlt.common.configuration.const import TYPE_EXAMPLES
 from dlt.common.configuration.providers.toml import SecretsTomlProvider, SettingsTomlProvider
 from dlt.common.pipeline import get_dlt_repos_dir
+from dlt.common.runtime.run_context import active as active_run_context
 from dlt.version import __version__ as dlt_ver
 
+from dlt._workspace._workspace_context import WorkspaceRunContext
 from dlt._workspace.cli._urls import DEFAULT_AI_WORKBENCH_BRANCH  # noqa: F401
 from dlt._workspace.cli._urls import DEFAULT_AI_WORKBENCH_REPO  # noqa: F401
 from dlt._workspace.cli.dlthub.ai.typing import (
@@ -32,6 +33,7 @@ from dlt._workspace.cli.formatters import (
     render_frontmatter,
 )
 from dlt._workspace.cli.utils import get_provider_locations, make_dlt_settings_path
+from dlt._workspace.settings_files import load_yaml_file, save_yaml_file
 from dlt._workspace.typing import TLocationInfo
 
 AI_WORKBENCH_BASE_DIR = "workbench"
@@ -281,6 +283,10 @@ def fetch_secrets_update_fragment(fragment: str, path: str) -> str:
     if not os.path.isfile(path):
         with open(path, "w", encoding="utf-8") as f:
             f.write("")
+        # a new secrets file of a profile changes its `configured` flag
+        ctx = active_run_context()
+        if isinstance(ctx, WorkspaceRunContext):
+            ctx.reload_workspace_definition()
     provider = SettingsTomlProvider(file_name, True, file_name, [settings_dir])
     # allow literal \n (two chars) as newline — agents on Windows/PowerShell
     # can't easily pass real newlines, so we accept the escaped form
@@ -557,20 +563,14 @@ def _toolkits_index_path() -> str:
 
 def load_toolkits_index() -> Dict[str, TToolkitIndexEntry]:
     """Load the installed toolkits index from the workspace settings directory."""
-    path = _toolkits_index_path()
-    if not os.path.isfile(path):
-        return {}
     try:
-        with open(path, "r", encoding="utf-8") as f:
-            data: Dict[str, TToolkitIndexEntry] = yaml.safe_load(f)
-        if not data:
-            return {}
-        # restore name from the YAML key (stripped on write)
-        for key, entry in data.items():
-            entry["name"] = key
-        return data
-    except (yaml.YAMLError, OSError):
+        data: Dict[str, TToolkitIndexEntry] = load_yaml_file(_toolkits_index_path())
+    except (ValueError, OSError):
         return {}
+    # restore name from the YAML key (stripped on write)
+    for key, entry in data.items():
+        entry["name"] = key
+    return data
 
 
 def is_toolkit_installed(name: str) -> bool:
@@ -604,10 +604,7 @@ def save_toolkit_entry(
     if mcp_servers:
         entry["mcp_servers"] = mcp_servers
     index[name] = entry  # type: ignore[assignment]
-    path = _toolkits_index_path()
-    os.makedirs(os.path.dirname(path), exist_ok=True)
-    with open(path, "w", encoding="utf-8") as f:
-        yaml.dump(index, f, allow_unicode=True, default_flow_style=False, sort_keys=False)
+    save_yaml_file(_toolkits_index_path(), index)
 
 
 _INIT_TOOLKIT = "init"

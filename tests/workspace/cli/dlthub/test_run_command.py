@@ -65,7 +65,7 @@ def _patch_load_manifest(
     monkeypatch.setattr(
         run_helpers_mod,
         "load_manifest_with_warnings",
-        lambda name_or_path, use_all=True: (manifest, "fake-hash", []),
+        lambda name_or_path, environment, use_all=True: (manifest, "fake-hash", []),
     )
 
 

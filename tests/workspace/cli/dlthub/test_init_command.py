@@ -16,6 +16,12 @@ from dlt._workspace.cli.dlthub.utils import (
     fetch_init_plan,
 )
 from dlt._workspace.cli.exceptions import CliCommandException
+from dlt._workspace.workspace_definition import (
+    WORKSPACE_ENGINE_VERSION,
+    built_in_workspace_definition,
+    stored_workspace_definition,
+)
+from dlt._workspace.settings_files import load_yaml_file
 
 
 def _set_uv(monkeypatch: pytest.MonkeyPatch, available: bool) -> None:
@@ -186,8 +192,12 @@ def test_init_dlthub_workspace_writes_full_scaffold(
     assert (tmp_path / ".gitignore").is_file()
     assert (tmp_path / ".dlt" / "config.toml").is_file()
     assert (tmp_path / ".dlt" / "secrets.toml").is_file()
-    # marker enables workspace detection by `is_workspace_dir`
-    assert (tmp_path / ".dlt" / ".workspace").is_file()
+    # marker enables workspace detection by `is_workspace_dir` and declares the built-in profiles
+    workspace_file = load_yaml_file(str(tmp_path / ".dlt" / ".workspace"))
+    assert workspace_file["engine_version"] == WORKSPACE_ENGINE_VERSION
+    assert workspace_file == stored_workspace_definition(built_in_workspace_definition())
+    assert "name" not in workspace_file["environments"]["prod"]
+    assert "env" not in workspace_file["environments"]["prod"]["profiles"]["access"]
 
     _assert_seeded_deps(tmp_path / deps_file)
 
