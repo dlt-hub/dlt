@@ -660,14 +660,14 @@ def _get_spec_key(spec: str) -> str:
         (["botocore>=1.28"], {"botocore"}, True),
         (["s3fs>=2024.1"], {"botocore", "s3fs"}, True),
         (["dlt[hub,s3]>=1.0"], {_HUB, "botocore", "s3fs"}, False),
-        (["pydantic-ai>=2.33.0"], {"pydantic-ai-slim"}, True),
+        (["pydantic-ai>=2.45.0"], {"pydantic-ai-slim"}, True),
         (["marimo>=0.14.5"], {"marimo", "uvicorn"}, True),
         (
             [
                 "ibis-framework>=12.0.0",
                 "streamlit>=1.50.0",
                 "claude-agent-sdk>=0.2.126",
-                "pydantic-ai-slim>=2.33.0",
+                "pydantic-ai-slim>=2.45.0",
             ],
             {"ibis-framework", "streamlit", "claude-agent-sdk", "pydantic-ai-slim"},
             True,

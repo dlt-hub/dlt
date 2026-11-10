@@ -266,8 +266,8 @@ _FLOORS: Final[Dict[str, str]] = {
     "fastmcp": ">=3.1.0",
     "ibis-framework": ">=12.0.0",
     "marimo": ">=0.14.5",
-    # 2.33.0 is the first release that supports anthropic 1.x, which any resolve picks today
-    "pydantic-ai-slim": ">=2.33.0",
+    # 2.45.0 is the first release whose mcp module imports httpx2 instead of undeclared httpx
+    "pydantic-ai-slim": ">=2.45.0",
     "streamlit": ">=1.50.0",
     "uvicorn": ">=0.46.0",
 }
