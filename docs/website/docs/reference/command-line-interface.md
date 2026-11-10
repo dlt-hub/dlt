@@ -474,7 +474,7 @@ This will select the `archives` key in the `chess` source.
   "sources":{
     "chess": {
       "archives": [
-        "https://api.chess.com/pub/player/magnuscarlsen/games/2022/05"
+        "https://api.chess.com/pub/player/hikaru/games/2022/05"
       ]
     }
   }
