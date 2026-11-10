@@ -44,7 +44,7 @@ class TLineageDiagnosis(TypedDict, total=False):
 
 
 def _qualify_dialect(dialect: TSqlGlotDialect) -> Optional[str]:
-    """Dialect that keeps the case of dlt normalized identifiers when qualifying."""
+    """Dialect string for `qualify` that keeps the case of dlt normalized identifiers."""
     return f"{dialect}, normalization_strategy=case_sensitive" if dialect else None
 
 
@@ -105,7 +105,7 @@ def create_sqlglot_schema(
 def _lenient_qualify(
     expression: sge.Query, sqlglot_schema: SQLGlotSchema, dialect: TSqlGlotDialect
 ) -> sge.Query:
-    """Qualifies a copy of `expression` keeping the columns that sqlglot cannot resolve."""
+    """Qualifies a copy of `expression` and keeps the columns that sqlglot cannot resolve."""
     work = expression.copy()
     work.meta["case_sensitive"] = True
     return cast(
@@ -125,7 +125,7 @@ def _lenient_qualify(
 def _describe_sources(
     scope: Scope, sqlglot_schema: SQLGlotSchema, user_aliases: Set[str]
 ) -> Dict[str, TLineageSource]:
-    """Labels the sources of `scope` and lists their columns, `None` when the schema does not know them."""
+    """Labels the sources of `scope` and lists their columns, `None` when unknown to the schema."""
     resolver = Resolver(scope, sqlglot_schema, infer_schema=False)
     sources: Dict[str, TLineageSource] = {}
     for alias, source in scope.sources.items():
@@ -138,7 +138,7 @@ def _describe_sources(
         elif alias in user_aliases:
             label = f"subquery `{alias}`"
         else:
-            # sqlglot names unaliased subqueries, the name is not in the query text
+            # sqlglot names unaliased subqueries, so the name is not in the query text
             label = "unaliased subquery"
         try:
             columns = list(resolver.get_source_columns(alias))
@@ -151,7 +151,7 @@ def _describe_sources(
 def _find_source(
     scope: Optional[Scope], qualifier: str, by_scope: Dict[int, Dict[str, TLineageSource]]
 ) -> Optional[TLineageSource]:
-    """Looks up `qualifier` in `scope` and, for correlated subqueries, in the enclosing scopes."""
+    """Finds `qualifier` in `scope` and, for correlated subqueries, in the enclosing scopes."""
     while scope is not None:
         sources = by_scope.get(id(scope), {})
         if qualifier in sources:
@@ -231,8 +231,8 @@ def describe_lineage_failure(
     dialect: TSqlGlotDialect,
     error: Optional[Exception] = None,
 ) -> TLineageDiagnosis:
-    """Names the column, table or `*` that stops `expression` from resolving, `other` when it cannot."""
-    # `error` is what `qualify` raised, `None` diagnoses a `*` that stayed unexpanded
+    """Names the column, table or `*` that blocks `expression`, `other` when no cause is found."""
+    # `error` is what `qualify` raised. `None` means a `*` stayed unexpanded
     if isinstance(error, SchemaError):
         ambiguous = _diagnose_ambiguous_table(expression, sqlglot_schema)
         if ambiguous:
@@ -269,7 +269,7 @@ def describe_lineage_failure(
 def describe_unknown_tables(
     expression: sge.Query, schema_map: Mapping[str, Sequence[dlt.Schema]], default_dataset: str
 ) -> List[str]:
-    """Explains the tables of `expression` that the dlt schemas in `schema_map` cannot type."""
+    """Explains why the schemas in `schema_map` have no columns for the tables of `expression`."""
     notes: List[str] = []
     cte_names = {cte.alias_or_name for cte in expression.find_all(sge.CTE)}
     for table in expression.find_all(sge.Table):
@@ -279,8 +279,8 @@ def describe_unknown_tables(
         schemas = schema_map.get(dataset_name)
         if schemas is None:
             notes.append(
-                f"Dataset `{dataset_name}` of table `{table.name}` is not a dataset of this"
-                f" relation, known datasets: {join_names(list(schema_map))}."
+                f"Table `{table.name}` refers to dataset `{dataset_name}`, which is not a dataset"
+                f" of this relation. Known datasets: {join_names(list(schema_map))}."
             )
         elif not any(table.name in schema.tables for schema in schemas):
             known = sorted(
@@ -297,8 +297,8 @@ def describe_unknown_tables(
         elif not any(s.get_table_columns(table.name) for s in schemas if table.name in s.tables):
             notes.append(
                 f"Table `{table.name}` exists in dataset `{dataset_name}` but none of its columns"
-                " has a data type so lineage cannot see it. Load data into it or declare `columns`"
-                " with data types."
+                " has a data type. dlt cannot compute lineage for such a table. Load data into the"
+                " table or declare `columns` with data types."
             )
     return notes
 
@@ -378,8 +378,7 @@ def compute_columns_schema(
             if allow_partial:
                 continue
             raise LineageFailedException(
-                "SELECT statement includes a `*` selection that can't be resolved."
-                f" Column:\n\t{col}",
+                f"dlt cannot resolve the `*` selection of the SELECT statement. Column:\n\t{col}",
                 query=expression.sql(dialect=dialect),
                 dialect=dialect,
                 **describe_lineage_failure(expression, sqlglot_schema, dialect),

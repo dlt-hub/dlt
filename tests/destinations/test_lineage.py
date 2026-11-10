@@ -215,8 +215,11 @@ def test_compute_columns_schema(
                 "column": "col_nope",
                 "qualifier": "t",
                 "fragments": [
-                    "is not known in table `table_1` (alias `t`)",
-                    "Known columns of table `table_1` (alias `t`) (2): col_varchar, col_bool",
+                    "SQL query. Table `table_1` (alias `t`) has no column `col_nope`.",
+                    (
+                        "Known columns of table `table_1` (alias `t`), 2 in total: col_varchar,"
+                        " col_bool"
+                    ),
                 ],
             },
         ),
@@ -246,7 +249,10 @@ def test_compute_columns_schema(
                 "reason": "column_not_found",
                 "column": "col_unknown",
                 "source_keys": ["table_1"],
-                "fragments": ["is not found in any source of the query: table `table_1`"],
+                "fragments": [
+                    "No source of the query has column `col_unknown`. Query sources: table"
+                    " `table_1`"
+                ],
             },
         ),
         (
@@ -264,7 +270,9 @@ def test_compute_columns_schema(
                 "reason": "unknown_qualifier",
                 "qualifier": "x",
                 "column": "col_bool",
-                "fragments": ["`x.col_bool` refers to `x` which is not a table, alias or CTE"],
+                "fragments": [
+                    "`x.col_bool` refers to `x`. The query has no table, alias or CTE `x`."
+                ],
             },
         ),
         (
@@ -281,7 +289,7 @@ def test_compute_columns_schema(
             {
                 "reason": "unresolved_star",
                 "unknown_sources": ["table_unknown"],
-                "fragments": ["`*` cannot be expanded"],
+                "fragments": ["dlt cannot expand `*`: the columns of"],
             },
         ),
         (
@@ -325,7 +333,7 @@ def test_lineage_failure_message(
     for key, source in expected.get("sources", {}).items():
         assert ex.sources[key] == source
     msg = str(ex)
-    assert "Failed to resolve SQL query against the schema received" in msg
+    assert "dlt cannot compute the lineage of the SQL query" in msg
     assert "Query (duckdb):" in msg
     for fragment in expected.get("fragments", []):
         assert fragment in msg
@@ -365,8 +373,8 @@ def test_lineage_failure_pickles(sqlglot_schema: SQLGlotSchema) -> None:
     assert unpickled.reason == "unknown_column"
     assert unpickled.sources == ex.sources
     assert str(unpickled) == str(ex)
-    assert str(ex).startswith("In resource `res` (table `tab`): Failed to resolve")
-    # structured fields are exposed to the exception traces
+    assert str(ex).startswith("In resource `res` (table `tab`): dlt cannot compute")
+    # `attrs()` exposes the structured fields to the exception traces
     assert ex.attrs()["resource_name"] == "res"
     assert ex.attrs()["sources"] == ex.sources
 
