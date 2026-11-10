@@ -115,7 +115,7 @@ The two commands do different things: `marimo edit` opens the editor, while serv
 
 ## Configure the `access` profile
 
-Interactive jobs run under the `access` profile on dltHub: a production profile meant for notebooks, usually holding read-only credentials. The minimal scaffold doesn't ship one, and without it interactive jobs fall back to the `prod` profile, which the CLI warns about before it launches.
+Interactive jobs declare read data access and get the `access` profile in the `prod` environment. A new workspace declares `access` without settings files. Until you create them, these jobs get `prod` and `dlthub deploy` warns.
 
 Add the destination type in `.dlt/access.config.toml`:
 
