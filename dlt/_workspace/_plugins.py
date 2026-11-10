@@ -27,7 +27,7 @@ def plug_workspace_context_impl(
     run_dir = os.path.abspath(run_dir or ".")
     if is_workspace_dir(run_dir):
         # import workspace only when context detected
-        from dlt._workspace.profile import DEFAULT_PROFILE, read_profile_pin
+        from dlt._workspace.settings_files import read_profile_pin
         from dlt._workspace.run_context import default_name
         from dlt._workspace._workspace_context import WorkspaceRunContext
         from dlt._workspace._known_env import WORKSPACE__PROFILE
@@ -35,13 +35,14 @@ def plug_workspace_context_impl(
         profile: str = None
         if runtime_kwargs:
             profile = runtime_kwargs.get("profile")
+        # without a profile the context assumes the default local profile the workspace declares
         profile = (
-            profile
-            or os.environ.get(WORKSPACE__PROFILE)
-            or read_profile_pin(RunContext(run_dir))
-            or DEFAULT_PROFILE
+            profile or os.environ.get(WORKSPACE__PROFILE) or read_profile_pin(RunContext(run_dir))
         )
-        return WorkspaceRunContext(default_name(run_dir), run_dir, profile)
+        context = WorkspaceRunContext(default_name(run_dir), run_dir, profile)
+        # an undeclared profile is refused here, so a failed switch keeps the previous context
+        context.workspace_definition
+        return context
     elif runtime_kwargs and runtime_kwargs.get("_required") == "WorkspaceRunContext":
         from dlt._workspace.exceptions import WorkspaceRunContextNotAvailable
 
