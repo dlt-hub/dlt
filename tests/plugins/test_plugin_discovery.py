@@ -85,7 +85,7 @@ def test_example_plugin() -> None:
 
 
 def test_config_providers_hook() -> None:
-    # the plugin provider is added with the extras of the run context
+    # the run context adds the plugin provider together with its extra providers
     providers = Container()[PluggableRunContext].providers
     assert "example_plugin" in providers
     assert dlt.secrets["example_plugin.api_key"] == "from-plugin"
