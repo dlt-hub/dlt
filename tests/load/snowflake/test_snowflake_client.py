@@ -131,7 +131,7 @@ def test_open_connection_params(client: SnowflakeClient, mocker: MockerFixture) 
     assert kwargs["schema"] == client.sql_client.fully_qualified_dataset_name()
     assert kwargs["autocommit"] is True
     assert kwargs["arrow_number_to_decimal"] is True
-    # connector 5.x warns when logout behavior is not set explicitly
+    # connector 5.x warns when the caller does not set the logout behavior
     assert kwargs["enable_server_session_keep_alive_auto_detection"] is False
 
     # query params override the defaults
@@ -157,7 +157,7 @@ def test_load_with_connection_name(snowflake_home: Callable[[str, str], Path]) -
         if getattr(creds, param):
             profile.append(f'{param} = "{getattr(creds, param)}"')
     if creds.private_key:
-        # the connector loads PEM key files, dlt keys may be base64 DER
+        # the connector loads PEM key files, but dlt keys can be base64 DER
         der = decode_private_key(creds.private_key, creds.private_key_passphrase)
         pem = serialization.load_der_private_key(der, None).private_bytes(
             serialization.Encoding.PEM,

@@ -26,7 +26,7 @@ def _default_profile_name(credentials: DestinationClientDwhConfiguration) -> str
     creds = credentials.credentials
     has_default = isinstance(creds, CredentialsWithDefault) and creds.has_default_credentials()
     if profile_name == "snowflake":
-        # a connection from `connections.toml` loads its credentials into the config fields
+        # dlt loads the credentials of a `connections.toml` connection into the config fields
         if getattr(creds, "private_key", None):
             profile_name += "_pkey"
         elif getattr(creds, "authenticator", None) == "oauth":

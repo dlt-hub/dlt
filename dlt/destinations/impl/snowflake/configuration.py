@@ -36,10 +36,11 @@ CONNECTION_EXCLUSIVE_FIELDS: Tuple[str, ...] = (
     "workload_identity_provider",
     "_snowflake_host",
 )
-"""Credentials a `connection_name` connection provides and that cannot be set next to it"""
+"""Credentials that a `connections.toml` connection provides.
+They cannot be set together with `connection_name`."""
 
 CONNECTION_OVERRIDE_PARAMS: Tuple[str, ...] = ("database", "warehouse", "role")
-"""Session settings that may override those of a `connection_name` connection"""
+"""Session parameters that can override the values of the connection"""
 
 CONNECTION_PARAMS_TO_FIELDS: Dict[str, str] = {
     "account": "host",
@@ -56,7 +57,7 @@ CONNECTION_PARAMS_TO_FIELDS: Dict[str, str] = {
     "private_key_file": "private_key_path",
     "private_key_file_pwd": "private_key_passphrase",
 }
-"""Connector connection parameters and the credentials fields they are loaded into"""
+"""Connector connection parameters and the credentials fields that receive them"""
 
 
 @configspec(init=False)
@@ -78,7 +79,9 @@ class SnowflakeCredentialsWithoutDefaults(ConnectionStringCredentials):
     session_timezone: Optional[str] = "UTC"
     """Session `TIMEZONE`. `None` keeps the account default"""
     connection_name: Optional[str] = None
-    """Name of a connection in Snowflake `connections.toml`. The connector loads it, `dlt` sends only session overrides and reads its parameters for tools that cannot use `connections.toml`"""
+    """Name of a connection in Snowflake `connections.toml`. The connector loads the connection and
+    dlt sends only the session overrides. dlt also reads the connection parameters for tools that
+    cannot use `connections.toml`, for example dbt."""
 
     _snowflake_host: Optional[str] = None
     """Snowflake account URL, e.g. https://kgiotue-wn98412.snowflakecomputing.com"""
@@ -106,7 +109,7 @@ class SnowflakeCredentialsWithoutDefaults(ConnectionStringCredentials):
         for param in self.__query_params__:
             if param in self.query:
                 setattr(self, param, self.query.get(param))
-        # `snowflake:///?connection_name=dev` parses an empty database that would override the connection
+        # the empty database of `snowflake:///?connection_name=dev` must not override the connection
         if self.connection_name and self.database == "":
             self.database = None
 
@@ -164,8 +167,8 @@ class SnowflakeCredentialsWithoutDefaults(ConnectionStringCredentials):
         return conn_params
 
     def _to_connection_params(self) -> Dict[str, Any]:
-        """Params that make the connector load `connection_name` and apply `dlt` session overrides on top."""
-        # the credentials loaded from the connection must not be sent, the connector loads them again
+        """Connector parameters that load `connection_name` and apply the dlt session overrides."""
+        # the connector loads the credentials itself, so dlt does not send them
         conn_params: Dict[str, Any] = dict(self.query or {})
         conn_params["connection_name"] = self.connection_name
         for param in CONNECTION_OVERRIDE_PARAMS:
@@ -175,7 +178,7 @@ class SnowflakeCredentialsWithoutDefaults(ConnectionStringCredentials):
             conn_params["application"] = self.application
         if self.session_timezone and "timezone" not in conn_params:
             conn_params["timezone"] = self.session_timezone
-        # a `None` or empty value blanks the connection value on connector 3.x and 4.x
+        # a `None` or empty value overrides the connection value on connector 3.x and 4.x
         return {k: v for k, v in conn_params.items() if v is not None and v != ""}
 
     def _read_private_key_path(self) -> None:
@@ -192,9 +195,10 @@ class SnowflakeCredentialsWithoutDefaults(ConnectionStringCredentials):
         mixed = [f for f in CONNECTION_EXCLUSIVE_FIELDS if getattr(self, f)]
         if mixed:
             raise ConfigurationValueError(
-                f"Snowflake connection `{self.connection_name}` provides the credentials and cannot"
-                f" be combined with {mixed}. Remove them or drop `connection_name`. Only"
-                " `database`, `warehouse`, `role` and `query` params may override the connection."
+                f"dlt cannot use Snowflake connection `{self.connection_name}` together with"
+                f" {mixed}: the connection provides these credentials. Remove them or remove"
+                " `connection_name`. Only `database`, `warehouse`, `role` and `query` can"
+                " override the connection parameters."
             )
 
     @property
@@ -211,12 +215,12 @@ class SnowflakeCredentials(SnowflakeCredentialsWithoutDefaults, CredentialsWithD
     _use_snowflake_session_token: bool = False
 
     def on_partial(self) -> None:
-        # mixing credentials with a connection is rejected in `on_resolved`
+        # `on_resolved` rejects credentials mixed with a connection
         if not self.connection_name:
             if self.authenticator == "oauth" and not self.host:
                 self._from_snowflake_session_token()
             elif not self._has_explicit_auth:
-                # snowpark containers mount a `default` connection
+                # Snowpark containers mount a `default` connection
                 self.connection_name = self._default_connection_name()
 
         if self.connection_name or not self.is_partial():
@@ -262,14 +266,14 @@ class SnowflakeCredentials(SnowflakeCredentialsWithoutDefaults, CredentialsWithD
 
     @staticmethod
     def _default_connection_name() -> Optional[str]:
-        """Default connection of the connector when it is defined, `None` otherwise."""
+        """Default connection name of the connector, `None` when no such connection is defined."""
         try:
             name = default_snowflake_connection_name()
             if name not in list_snowflake_connections():
                 return None
         except MissingDependencyException:
             return None
-        logger.info(f"Using default Snowflake connection `{name}`")
+        logger.info(f"dlt uses the default Snowflake connection `{name}`")
         return name
 
 
@@ -322,5 +326,5 @@ class SnowflakeClientConfiguration(DestinationClientDwhWithStagingConfiguration)
     def _account_identifier(self) -> Optional[str]:
         if not self.credentials:
             return None
-        # a connection may identify its account by host only
+        # a connection can identify its account by host only
         return self.credentials.host or self.credentials._snowflake_host

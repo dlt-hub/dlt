@@ -127,7 +127,7 @@ snowflake_pkey:
       threads: 4
 
 
-# snowflake with an oauth token, ie. the Snowflake-provided token of a Snowpark container
+# snowflake with oauth token auth, for example the session token of a Snowpark container
 snowflake_oauth:
   target: analytics
   outputs:

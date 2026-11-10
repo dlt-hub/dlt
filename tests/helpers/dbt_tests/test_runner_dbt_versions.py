@@ -142,7 +142,7 @@ def test_snowflake_dbt_profile_from_connection(
     profile_name: str,
     expected_env: Dict[str, str],
 ) -> None:
-    """A connection from `connections.toml` lands in the matching dbt profile."""
+    """A connection from `connections.toml` selects the matching dbt profile."""
     pytest.importorskip("snowflake.connector")
     from dlt.common.configuration.utils import add_config_to_env
     from dlt.destinations.impl.snowflake.configuration import (

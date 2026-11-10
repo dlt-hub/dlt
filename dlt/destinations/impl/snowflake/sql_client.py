@@ -76,7 +76,7 @@ class SnowflakeSqlClient(SqlClientBase[snowflake_lib.SnowflakeConnection], DBTra
         conn_params = self.credentials.to_connector_params()
         if "arrow_number_to_decimal" not in conn_params:
             conn_params["arrow_number_to_decimal"] = True
-        # dlt runs no async queries so the session may always be closed on logout (connector 5.x)
+        # dlt runs no async queries, so connector 5.x can close the session on logout
         conn_params.setdefault("enable_server_session_keep_alive_auto_detection", False)
         # set autocommit when opening connection to override account and user level setting
         conn_params["autocommit"] = True

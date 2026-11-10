@@ -221,7 +221,7 @@ def snowflake_session_token_available() -> bool:
 
 
 def _read_connector_option(name: str) -> Any:
-    """Reads option `name` from the connector config manager (`config.toml`, `connections.toml`, env)."""
+    """Reads option `name` from the connector config manager (toml files and env variables)."""
     try:
         from snowflake.connector.config_manager import CONFIG_MANAGER
         from snowflake.connector.errors import ConfigSourceError
@@ -233,28 +233,28 @@ def _read_connector_option(name: str) -> Any:
         return CONFIG_MANAGER[name]
     except ConfigSourceError as ex:
         raise ConfigurationValueError(
-            f"Snowflake connector failed to read `{name}` from its configuration: {ex}"
+            f"The Snowflake connector failed to read `{name}` from its config files: {ex}"
         ) from ex
 
 
 def default_snowflake_connection_name() -> str:
-    """Default connection name as the connector resolves it: env variable, `config.toml` or `default`."""
+    """Default connection name of the connector: env variable, `config.toml` or `default`."""
     return cast(str, _read_connector_option("default_connection_name"))
 
 
 def list_snowflake_connections() -> List[str]:
-    """Names of the connections the connector finds in `connections.toml` or `config.toml`."""
+    """Names of the connections that the connector finds in `connections.toml` or `config.toml`."""
     return list(cast(Dict[str, Any], _read_connector_option("connections")).keys())
 
 
 def read_snowflake_connection_params(connection_name: str) -> Dict[str, Any]:
-    """Parameters of connection `connection_name` as the connector finds them, `~` expanded in file paths."""
+    """Parameters of connection `connection_name` with `~` expanded in its file paths."""
     connections = cast(Dict[str, Dict[str, Any]], _read_connector_option("connections"))
     if connection_name not in connections:
         raise ConfigurationValueError(
-            f"Snowflake connection `{connection_name}` not found. Known connections:"
-            f" {list(connections)}. Connections are read from `connections.toml` in"
-            " `SNOWFLAKE_HOME` (default `~/.snowflake`)."
+            f"dlt did not find Snowflake connection `{connection_name}`. Known connections:"
+            f" {list(connections)}. The connector reads connections from `connections.toml` or"
+            " `config.toml` in `SNOWFLAKE_HOME` (default `~/.snowflake`)."
         )
     params = dict(connections[connection_name])
     for key in ("private_key_file", "token_file_path"):
