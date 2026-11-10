@@ -1,11 +1,10 @@
 import fnmatch
 import hashlib
 import os
-import yaml
 import posixpath
 from importlib.resources import files
 from pathlib import Path
-from typing import Dict, NamedTuple, Sequence, Tuple, List, Literal
+from typing import Dict, NamedTuple, Sequence, Tuple, List, Literal, cast
 from dlt._workspace.cli.exceptions import VerifiedSourceRepoError
 
 from dlt.common.libs import git
@@ -16,6 +15,7 @@ from dlt.common.reflection.utils import get_module_docstring
 
 from dlt._workspace.cli import utils
 from dlt._workspace.cli.requirements import SourceRequirements
+from dlt._workspace.settings_files import load_yaml_file, save_yaml_file
 
 TSourceType = Literal["core", "verified", "template"]
 
@@ -74,19 +74,15 @@ class TVerifiedSourcesFileIndex(TypedDict):
 
 
 def _save_dot_sources(index: TVerifiedSourcesFileIndex) -> None:
-    with open(utils.make_dlt_settings_path(SOURCES_INIT_INFO_FILE), "w", encoding="utf-8") as f:
-        yaml.dump(index, f, allow_unicode=True, default_flow_style=False, sort_keys=False)
+    save_yaml_file(utils.make_dlt_settings_path(SOURCES_INIT_INFO_FILE), index)
 
 
 def _load_dot_sources() -> TVerifiedSourcesFileIndex:
-    try:
-        with open(utils.make_dlt_settings_path(SOURCES_INIT_INFO_FILE), "r", encoding="utf-8") as f:
-            index: TVerifiedSourcesFileIndex = yaml.safe_load(f)
-            if not index:
-                raise FileNotFoundError(SOURCES_INIT_INFO_FILE)
-            return index
-    except FileNotFoundError:
-        return {"engine_version": SOURCES_INIT_INFO_ENGINE_VERSION, "sources": {}}
+    index = cast(
+        TVerifiedSourcesFileIndex,
+        load_yaml_file(utils.make_dlt_settings_path(SOURCES_INIT_INFO_FILE)),
+    )
+    return index or {"engine_version": SOURCES_INIT_INFO_ENGINE_VERSION, "sources": {}}
 
 
 def _merge_remote_index(

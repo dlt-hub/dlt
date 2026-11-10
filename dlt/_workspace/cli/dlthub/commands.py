@@ -10,6 +10,7 @@ from dlt.common.configuration.plugins import TCliCommandCompose
 from dlt._workspace.cli import echo as fmt
 from dlt._workspace.cli import SupportsCliCommand
 from dlt._workspace.cli.exceptions import CliCommandException
+from dlt._workspace.workspace_definition import DATA_ACCESS_LEVELS
 from dlt._workspace.cli.utils import (
     display_run_context_info,
     make_mcp_run_flags,
@@ -232,7 +233,7 @@ class AiCommand(SupportsCliCommand):
             ai_toolkit_info_command,
         )
 
-        # `status` and other plugin sub-subcommands are dispatched by the composer via `args.execute`
+        # the composer dispatches `status` and the other plugin sub-subcommands via `args.execute`
         if args.operation == "init":
             ai_init_command(
                 agent=args.agent,
@@ -348,12 +349,6 @@ def _add_common_run_args(
         help="Pick this job when the selector matches multiple jobs.",
     )
     parser.add_argument(
-        "--profile",
-        default=None,
-        metavar="NAME",
-        help="Override require.profile and the workspace pinned profile.",
-    )
-    parser.add_argument(
         "--dry-run",
         action="store_true",
         help="Resolve the job and print the entry point without launching",
@@ -446,8 +441,8 @@ class LocalWorkspaceCommand(SupportsCliCommand):
         clean_p = sub.add_parser(
             "clean",
             help=(
-                "Clean local data for the current profile. Locally loaded data and pipelines"
-                " working dirs are deleted by default. Remote destinations are not affected."
+                "Remove the state and data folders of the active profile: locally loaded data and"
+                " pipeline working directories. Remote destinations are not affected."
             ),
         )
         clean_p.add_argument(
@@ -468,11 +463,11 @@ class LocalWorkspaceCommand(SupportsCliCommand):
         use_p = profile_sub.add_parser(
             "use",
             help=(
-                "Pin a profile in the local workspace so subsequent local commands use it by"
-                " default"
+                "Make a profile the active profile: local commands run with it until another one"
+                " is made active."
             ),
         )
-        use_p.add_argument("profile_name", help="Profile name to pin")
+        use_p.add_argument("profile_name", help="Profile name")
 
         # delegate parser definition; `execute` re-instantiates fresh — these classes
         # don't reach for `self.parser` after configure_parser
@@ -527,12 +522,6 @@ class LocalWorkspaceCommand(SupportsCliCommand):
             default=None,
             metavar="REF",
             help="Narrow to this job when multiple jobs deliver to the same pipeline",
-        )
-        pipeline_run_p.add_argument(
-            "--profile",
-            default=None,
-            metavar="NAME",
-            help="Override require.profile and the workspace pinned profile.",
         )
         pipeline_run_p.add_argument(
             "--refresh",
@@ -616,8 +605,12 @@ class ProfileCommand(SupportsCliCommand):
 
     command = "profile"
     compose: TCliCommandCompose = "additive"
-    help_string = "Manage Workspace built-in profiles"
-    description = "Show and list workspace profiles."
+    help_string = "Manage Workspace profiles"
+    description = (
+        "Show, list and declare workspace profiles and environments. A local profile runs only on"
+        " this machine. A remote profile belongs to an environment and deploys with it. Each"
+        " profile declares its data access."
+    )
     docs_url: Optional[str] = None
 
     def configure_parser(self, parser: argparse.ArgumentParser) -> None:
@@ -627,9 +620,78 @@ class ProfileCommand(SupportsCliCommand):
 
         sub.add_parser(
             "info",
-            help="Display the active profile (paths, providers, pinned status)",
+            help="Display the active profile (location, data access, paths, providers)",
         )
-        sub.add_parser("list", help="List all available profiles")
+        sub.add_parser(
+            "list",
+            help="List the declared profiles, with the remote workspace of each environment",
+        )
+        add_p = sub.add_parser(
+            "add",
+            help="Declare a profile",
+            description=(
+                "Declares a profile in .dlt/.workspace and creates its settings files,"
+                " NAME.config.toml and NAME.secrets.toml in .dlt. A remote profile, the default,"
+                " belongs to the default environment or to the environment named with --env. It"
+                " gets the data access of --access, write when --access is not given. The first"
+                " profile of a data access in an environment becomes its default. `profile"
+                " add-environment` declares the default write profile, which deployments are made"
+                " with. A local profile has write data access, belongs to no environment and"
+                " never deploys. A profile without data access gets no settings files. For a"
+                " declared profile, dlt creates only the settings files that are missing and"
+                " fails when none is missing. dlt shows what it will change and asks for"
+                " confirmation."
+            ),
+        )
+        add_p.add_argument("profile_name", help="Profile name: letters, digits, `_` and `-`")
+        location = add_p.add_mutually_exclusive_group()
+        location.add_argument(
+            "--remote",
+            action="store_const",
+            const="remote",
+            dest="location",
+            default=None,
+            help="Declare a remote profile (default)",
+        )
+        location.add_argument(
+            "--local",
+            action="store_const",
+            const="local",
+            dest="location",
+            help="Declare a local profile",
+        )
+        add_p.add_argument(
+            "--access",
+            choices=DATA_ACCESS_LEVELS,
+            default=None,
+            dest="data_access",
+            help="Data access of a remote profile: none, read or write (default)",
+        )
+        add_p.add_argument(
+            "--env",
+            help=(
+                "Environment of a remote profile. The default environment when --env is not given."
+            ),
+        )
+        env_p = sub.add_parser(
+            "add-environment",
+            help="Declare an environment",
+            description=(
+                "An environment is what a deployment is made to. Declares environment NAME in"
+                " .dlt/.workspace, strict about access, with one profile. NAME-write is its"
+                " default profile with write data access, which deployments are made with."
+                " Creates NAME-write.config.toml and NAME-write.secrets.toml in .dlt. `profile"
+                " add` declares the other profiles that jobs need, for example NAME-read with"
+                " --access read for interactive jobs. For a declared environment, dlt creates"
+                " only the settings files that its profiles miss and fails when none is missing."
+                " dlt shows what it will change and asks for confirmation."
+            ),
+        )
+        env_p.add_argument(
+            "environment_name",
+            metavar="name",
+            help="Environment name: letters, digits, `_` and `-`",
+        )
 
     def execute(self, args: argparse.Namespace) -> None:
         # plugin sub-subcommands are dispatched by the composer via `args.execute`;
@@ -637,8 +699,24 @@ class ProfileCommand(SupportsCliCommand):
         op = getattr(args, "operation", None)
         if op == "list":
             self._list(args)
+        elif op == "add":
+            self._add(args)
+        elif op == "add-environment":
+            self._add_environment(args)
         else:
             self._info(args)
+
+    def _add(self, args: argparse.Namespace) -> None:
+        from dlt._workspace._workspace_context import active
+        from dlt._workspace.cli.dlthub._profile_command import add_profile
+
+        add_profile(active(), args.profile_name, args.location, args.data_access, args.env)
+
+    def _add_environment(self, args: argparse.Namespace) -> None:
+        from dlt._workspace._workspace_context import active
+        from dlt._workspace.cli.dlthub._profile_command import add_environment
+
+        add_environment(active(), args.environment_name)
 
     def _info(self, args: argparse.Namespace) -> None:
         from dlt._workspace.cli.dlthub._profile_command import print_profile_info

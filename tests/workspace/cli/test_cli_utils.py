@@ -22,6 +22,7 @@ from dlt._workspace.cli._init_command import (
 from dlt._workspace.cli.commands import InitCommand, PipelineCommand, TelemetryCommand
 from dlt._workspace.cli.utils import display_run_context_info, track_command
 from dlt._workspace.configuration import WorkspaceRuntimeConfiguration
+from dlt._workspace.profile import add_profiles
 from dlt.common.runtime.anon_tracker import disable_anon_tracker
 
 from tests.utils import start_test_telemetry
@@ -317,7 +318,14 @@ def test_display_run_context_info_warns_for_non_local_profile(
     profile: str, capsys: pytest.CaptureFixture[str]
 ) -> None:
     """Yellow advisory printed when active profile is synced (prod/access) or custom."""
-    with isolated_workspace("configured_workspace", profile=profile):
+    with isolated_workspace("configured_workspace") as ctx:
+        if profile not in ctx.profile_definitions:
+            add_profiles(
+                ctx,
+                {profile: {"location": "remote", "data_access": "write", "env": "prod"}},
+                "prod",
+            )
+        ctx.switch_profile(profile)
         display_run_context_info()
     err = capsys.readouterr().err
     assert profile in err

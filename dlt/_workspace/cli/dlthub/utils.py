@@ -2,7 +2,7 @@
 
 import os
 import shutil
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Set
 
 import dlt
 from dlt.common.configuration.container import Container
@@ -14,6 +14,7 @@ from dlt.common.configuration.specs.pluggable_run_context import (
 from dlt.common.runtime.exec_info import get_dlthub_version
 from dlt.common.storages.file_storage import FileStorage
 
+from dlt._workspace._workspace_context import WorkspaceRunContext
 from dlt._workspace.cli import echo as fmt
 from dlt._workspace.cli.exceptions import CliCommandException
 from dlt._workspace.cli.utils import (
@@ -33,6 +34,7 @@ from dlt._workspace.cli.dlthub.typing import (
     TInitFileEntry,
     TInitFileStatus,
     TInitPlan,
+    TEnvironmentInfo,
     TProfileInfo,
     TWorkspaceInfo,
 )
@@ -53,7 +55,8 @@ from dlt._workspace.deployment.requirements import (
     render_requirements_lines,
     render_uv_source,
 )
-from dlt._workspace.profile import BUILT_IN_PROFILES, is_local_profile, read_profile_pin
+from dlt._workspace.settings_files import read_profile_pin
+from dlt._workspace.workspace_definition import environment_profiles
 from dlt._workspace.typing import TLocationInfo, TProviderInfo
 
 
@@ -210,30 +213,69 @@ def delete_local_data(
         _wipe_dir(run_context, attr, "Deleting %s", recreate_dirs)
 
 
+def _profile_info(ctx: WorkspaceRunContext, name: str) -> TProfileInfo:
+    profile = ctx.get_profile_definition(name)
+    env = profile.get("env")
+    environment = ctx.get_environment_definition(env) if env else None
+    info = TProfileInfo(
+        **profile,
+        name=name,
+        also_in_env=(
+            [n for n in environment_profiles(environment) if n != name] if environment else []
+        ),
+        is_current=name == ctx.profile,
+        is_pinned=name == read_profile_pin(ctx),
+        is_configured=name in ctx.configured_profiles(),
+    )
+    # `is_configured` states the fact, `configured` also holds for a profile that needs no files
+    info.pop("configured", None)
+    return info
+
+
 def fetch_profiles_list() -> List[TProfileInfo]:
     """Return all available profiles with their status flags.
 
-    Works with ProfilesRunContext (workspace). Returns an empty list for OSS RunContext.
+    Works with WorkspaceRunContext. Returns an empty list for other contexts.
     """
     ctx = Container()[PluggableRunContext].context
-    if not isinstance(ctx, ProfilesRunContext):
+    if not isinstance(ctx, WorkspaceRunContext):
         return []
+    return [_profile_info(ctx, name) for name in ctx.available_profiles()]
 
-    pinned = read_profile_pin(ctx)
-    current = ctx.profile
-    configured = set(ctx.configured_profiles())
 
-    return [
-        TProfileInfo(
-            name=name,
-            description=BUILT_IN_PROFILES.get(name, "custom profile"),
-            is_current=name == current,
-            is_pinned=name == pinned,
-            is_configured=name in configured,
-            is_local=is_local_profile(name),
+def fetch_environments_list() -> List[TEnvironmentInfo]:
+    """Returns the declared environments, each with its profiles.
+
+    Works with WorkspaceRunContext. Returns an empty list for other contexts.
+    """
+    ctx = Container()[PluggableRunContext].context
+    if not isinstance(ctx, WorkspaceRunContext):
+        return []
+    environments: List[TEnvironmentInfo] = []
+    for name, environment in ctx.environment_definitions.items():
+        config = ctx.environment_config(name)
+        info = TEnvironmentInfo(
+            **environment,
+            workspace_name=config.settings.name,
+            profile_infos=[_profile_info(ctx, p) for p in environment_profiles(environment)],
         )
-        for name in ctx.available_profiles()
-    ]
+        if config.runtime.workspace_id:
+            info["workspace_id"] = config.runtime.workspace_id
+        environments.append(info)
+    return environments
+
+
+def _current_profile_info(ctx: WorkspaceRunContext) -> TCurrentProfileInfo:
+    info = TCurrentProfileInfo(
+        **_profile_info(ctx, ctx.profile), data_dir=ctx.data_dir, local_dir=ctx.local_dir
+    )
+    if ctx.environment:
+        # as the default write profile resolves it, the same that `fetch_environments_list` shows
+        config = ctx.environment_config(ctx.environment)
+        info["workspace_name"] = config.settings.name
+        if config.runtime.workspace_id:
+            info["workspace_id"] = config.runtime.workspace_id
+    return info
 
 
 def fetch_workspace_info() -> TWorkspaceInfo:
@@ -249,23 +291,11 @@ def fetch_workspace_info() -> TWorkspaceInfo:
     # profile info — only when profiles are available
     profile_info: Optional[TCurrentProfileInfo] = None
     configured_profiles: List[str] = []
-    if isinstance(ctx, ProfilesRunContext):
-        configured_profiles = ctx.configured_profiles()
-        profile_info = TCurrentProfileInfo(
-            name=ctx.profile,
-            description="",
-            is_current=True,
-            is_pinned=ctx.profile == read_profile_pin(ctx),
-            is_configured=ctx.profile in configured_profiles,
-            is_local=is_local_profile(ctx.profile),
-            data_dir=ctx.data_dir,
-            local_dir=ctx.local_dir,
-        )
-
-    # workspace name — only meaningful for WorkspaceRunContext
     name: Optional[str] = None
-    if isinstance(ctx, ProfilesRunContext):
+    if isinstance(ctx, WorkspaceRunContext):
         name = ctx.name
+        configured_profiles = ctx.configured_profiles()
+        profile_info = _current_profile_info(ctx)
 
     # provider locations — always verbose (all locations)
     providers: List[TProviderInfo] = []
@@ -314,11 +344,10 @@ def fetch_workspace_info() -> TWorkspaceInfo:
 def fetch_profile_info() -> Optional[TCurrentProfileFullInfo]:
     """Returns the active profile's info plus filtered provider locations."""
     ctx = Container()[PluggableRunContext].context
-    if not isinstance(ctx, ProfilesRunContext):
+    if not isinstance(ctx, WorkspaceRunContext):
         return None
 
     configured_profiles = ctx.configured_profiles()
-    pinned = read_profile_pin(ctx)
 
     # provider locations filtered to this profile + global. excludes other profiles'
     # toml files that fetch_workspace_info() returns indiscriminately.
@@ -345,14 +374,7 @@ def fetch_profile_info() -> Optional[TCurrentProfileFullInfo]:
         )
 
     return TCurrentProfileFullInfo(
-        name=ctx.profile,
-        description="",
-        is_current=True,
-        is_pinned=ctx.profile == pinned,
-        is_configured=ctx.profile in configured_profiles,
-        is_local=is_local_profile(ctx.profile),
-        data_dir=ctx.data_dir,
-        local_dir=ctx.local_dir,
+        **_current_profile_info(ctx),
         providers=providers,
         configured_profiles=configured_profiles,
     )
@@ -361,8 +383,13 @@ def fetch_profile_info() -> Optional[TCurrentProfileFullInfo]:
 def fetch_deployment_info() -> TDeploymentManifestInfo:
     """Summarize the workspace deployment manifest."""
 
+    # summarizes a deployment to the environment of a remote profile, a local run otherwise
+    ctx = Container()[PluggableRunContext].context
+    environment = None
+    if isinstance(ctx, WorkspaceRunContext) and ctx.environment:
+        environment = ctx.get_environment_definition(ctx.environment)
     try:
-        manifest, _warnings = manifest_from_module(DEFAULT_DEPLOYMENT_MODULE)
+        manifest, _warnings = manifest_from_module(DEFAULT_DEPLOYMENT_MODULE, environment)
     except ImportError as exc:
         default_file = os.path.join(os.getcwd(), f"{DEFAULT_DEPLOYMENT_MODULE}.py")
         # default deployment module not found
@@ -413,16 +440,21 @@ def fetch_deployment_info() -> TDeploymentManifestInfo:
             "category": category,
             "triggers": other_human,
         }
+        if job_profile := (job_def.get("require") or {}).get("profile"):
+            entry["profile"] = job_profile
         if default_human is not None:
             entry["default_trigger"] = default_human
         jobs_info.append(entry)
 
-    return TDeploymentManifestInfo(
+    info = TDeploymentManifestInfo(
         status="ok",
         total_jobs=len(jobs_info),
         counts_by_category=counts,
         jobs=jobs_info,
     )
+    if manifest.get("environment"):
+        info["environment"] = manifest["environment"]
+    return info
 
 
 def _make_init_entry(path: str, *, accept_existing: bool, force: bool) -> TInitFileEntry:

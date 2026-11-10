@@ -20,6 +20,7 @@ from dlt._workspace.cli.dlthub.utils import (
     fetch_workspace_info,
 )
 from dlt._workspace.typing import TLocationInfo, TProviderInfo
+from dlt._workspace.workspace_definition import format_data_access
 
 
 def _format_location_tag(loc: TLocationInfo) -> str:
@@ -36,19 +37,49 @@ def _format_location_tag(loc: TLocationInfo) -> str:
     return ""
 
 
+def remote_workspace(workspace_name: str, workspace_id: Optional[str]) -> str:
+    """The remote workspace of an environment as name and id, or as name and `not connected`
+    while the local workspace is not connected in the environment."""
+    if workspace_id:
+        return "%s, id %s" % (fmt.bold(workspace_name), workspace_id)
+    return "%s, not connected" % fmt.bold(workspace_name)
+
+
 def print_profile_section(
     profile: TCurrentProfileInfo, configured_profiles: Optional[List[str]] = None
 ) -> None:
-    """Renders the active-profile block: name, paths, pinned status, configured profiles."""
+    """Renders the active-profile block: name, location, data access, paths, active and default
+    markers, profiles with settings files."""
     fmt.echo("Settings for profile %s:" % fmt.bold(profile["name"]))
+    fmt.echo(
+        "  %s profile with %s"
+        % (
+            profile["location"].capitalize(),
+            fmt.bold(format_data_access(profile["data_access"])),
+        )
+    )
+    if env := profile.get("env"):
+        fmt.echo("  Environment %s" % fmt.bold(env))
+        if workspace_name := profile.get("workspace_name"):
+            fmt.echo(
+                "  Remote workspace %s"
+                % remote_workspace(workspace_name, profile.get("workspace_id"))
+            )
+    if profile["also_in_env"]:
+        fmt.echo(
+            "  Other profiles of the environment: %s" % fmt.bold(", ".join(profile["also_in_env"]))
+        )
     fmt.echo("  Pipelines and other working data: %s" % fmt.bold(profile["data_dir"]))
     fmt.echo("  Locally loaded data: %s" % fmt.bold(profile["local_dir"]))
-    if profile["is_pinned"]:
-        fmt.echo("  Profile is %s" % fmt.bold("pinned"))
+    flags = (
+        ("recorded in .dlt/profile-name", profile["is_pinned"]),
+        ("default", profile.get("default")),
+    )
+    markers = [m for m, on in flags if on]
+    if markers:
+        fmt.echo("  Profile is %s" % fmt.bold(" and ".join(markers)))
     if configured_profiles:
-        fmt.echo(
-            "Profiles with configs or pipelines: %s" % fmt.bold(", ".join(configured_profiles))
-        )
+        fmt.echo("Profiles with settings files: %s" % fmt.bold(", ".join(configured_profiles)))
 
 
 def print_providers(providers: List[TProviderInfo], verbosity: int) -> None:
@@ -127,7 +158,10 @@ def _print_deployment_info(info: TDeploymentManifestInfo, verbosity: int) -> Non
         "%d %s(s)" % (n, cat) for cat, n in sorted(counts.items(), key=lambda kv: (-kv[1], kv[0]))
     ]
     breakdown = ", ".join(parts)
-    fmt.echo("Deployment: %s job(s): %s" % (fmt.bold(str(total)), breakdown))
+    for_env = (
+        " to environment %s" % fmt.bold(info["environment"]) if info.get("environment") else ""
+    )
+    fmt.echo("Deployment%s: %s job(s): %s" % (for_env, fmt.bold(str(total)), breakdown))
 
     if verbosity == 0:
         return
@@ -143,7 +177,10 @@ def _print_deployment_info(info: TDeploymentManifestInfo, verbosity: int) -> Non
                 triggers = ["(interactive)"]
             else:
                 triggers = ["(manual only)"]
-        fmt.echo("  %s  %s" % (job["display_label"].ljust(max_name), ", ".join(triggers)))
+        profile = "  profile %s" % job["profile"] if job.get("profile") else ""
+        fmt.echo(
+            "  %s  %s%s" % (job["display_label"].ljust(max_name), ", ".join(triggers), profile)
+        )
 
 
 @utils.track_command("local", track_before=False, operation="clean")

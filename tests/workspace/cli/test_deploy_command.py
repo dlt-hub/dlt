@@ -10,7 +10,8 @@ from pytest_console_scripts import ScriptRunner
 
 import dlt
 from dlt._workspace._workspace_context import WorkspaceRunContext
-from dlt._workspace.profile import save_profile_pin
+from dlt._workspace.profile import add_profiles
+from dlt._workspace.settings_files import save_profile_pin
 from dlt.common.runners import Venv
 from dlt.common.typing import StrAny
 from dlt.pipeline.exceptions import CannotRestorePipelineException
@@ -132,6 +133,12 @@ def test_deploy_command(deployment_method: str, deployment_args: StrAny) -> None
 
         del os.environ["DESTINATION__DUCKDB__CREDENTIALS__DATABASE"]
 
+        # the settings files of `ci` came with the case, after the workspace declared its profiles
+        add_profiles(
+            dlt.current.workspace(),
+            {"ci": {"location": "remote", "data_access": "write", "env": "prod"}},
+            "prod",
+        )
         # ci profile has api key value set, prod profile has not so we expect placeholder
         for profile, api_key_value, emit_env in [
             ("ci", "ci_api_key_9x3ehash", False),
