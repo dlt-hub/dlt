@@ -598,7 +598,7 @@ def test_lineage_failure_in_extract_names_resource(
     assert isinstance(ex, LineageFailedException)
     assert ex.resource_name == "items_copy"
     assert ex.table_name == "items_copy"
-    assert str(ex).startswith("In resource `items_copy` (table `items_copy`): Failed to resolve")
+    assert str(ex).startswith("In resource `items_copy` (table `items_copy`): dlt cannot compute")
     assert "In resource `items_copy`" in str(pip_ex.value)
     assert get_exception_traces(ex)[0]["resource_name"] == "items_copy"
 
