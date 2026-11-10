@@ -31,13 +31,13 @@ def snowflake_home() -> Iterator[Callable[..., Path]]:
     os.environ["SNOWFLAKE_HOME"] = str(home)
 
     def _write(connections: str, config: str = "") -> Path:
-        # other fixtures may wipe the test storage after this fixture started
+        # other fixtures can wipe the test storage after this fixture started
         home.mkdir(parents=True, exist_ok=True)
         for name, content in (("connections.toml", connections), ("config.toml", config)):
             if content:
                 path = home / name
                 path.write_text(content, encoding="utf-8")
-                # connector 4.x refuses files readable by others, 3.x warns
+                # connector 4.x refuses files readable by others and 3.x warns
                 os.chmod(path, 0o600)
         CONFIG_MANAGER.conf_file_cache = None
         return home

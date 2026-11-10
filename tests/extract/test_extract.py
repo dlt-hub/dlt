@@ -567,7 +567,7 @@ class _ContextError(Exception):
 
     @property
     def table_name(self) -> Optional[str]:
-        # read only: the extractor must ignore that it cannot be set
+        # read only: the extractor must skip an attribute that it cannot set
         return None
 
 
@@ -585,7 +585,7 @@ def test_extract_sets_resource_context_on_exception(
     source = DltSource(dlt.Schema("letters"), "module", [letters])
     with pytest.raises(_ContextError) as ex:
         extract_step.extract(source, 20, 1)
-    # an empty resource name is set, a preset one is kept
+    # the extractor sets an empty resource name and keeps a preset one
     assert ex.value.resource_name == (preset or "letters")
 
 
@@ -593,7 +593,7 @@ def test_set_exception_context() -> None:
     ex = _ContextError()
     _set_exception_context(ex, resource_name="res", table_name="tab", other="x")
     assert ex.resource_name == "res"
-    # read only attribute is skipped, unknown attribute is not added
+    # a read-only attribute is skipped and an unknown attribute is not added
     assert ex.table_name is None
     assert not hasattr(ex, "other")
 

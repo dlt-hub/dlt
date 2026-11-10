@@ -530,7 +530,7 @@ TSnowflakeHome = Callable[..., Path]
         pytest.param(None, id="env"),
     ],
 )
-def test_snowflake_connection_pass_through(
+def test_snowflake_connector_loads_connection(
     snowflake_home: TSnowflakeHome, environment: Any, explicit_value: Any
 ) -> None:
     snowflake_home(SNOWFLAKE_CONNECTIONS_TOML)
@@ -540,7 +540,7 @@ def test_snowflake_connection_pass_through(
     assert c.is_resolved()
     assert c.has_default_credentials()
     assert c.default_credentials() == "dev"
-    # the connection parameters are loaded for tools that cannot use connections.toml
+    # dlt loads the connection parameters for tools that cannot use `connections.toml`
     assert c.host == "acc1"
     assert c.database == "db1"
     assert c.username == "user1"
@@ -637,7 +637,7 @@ def test_snowflake_connection_loads_private_key(snowflake_home: TSnowflakeHome) 
     assert c.private_key == PKEY_PEM_STR
     assert c.private_key_passphrase == PKEY_PASSPHRASE
     assert c.authenticator == "SNOWFLAKE_JWT"
-    # the key is not sent, the connector reads the key file of the connection
+    # dlt does not send the key because the connector reads the key file of the connection
     conn_params = c.to_connector_params()
     assert conn_params.keys() == {"connection_name", "application", "timezone"}
 
@@ -681,7 +681,7 @@ def test_snowflake_connection_missing_connector(snowflake_home: TSnowflakeHome) 
     with patch.dict(sys.modules, {"snowflake.connector.config_manager": None}):
         with pytest.raises(MissingDependencyException):
             resolve_configuration(SnowflakeCredentials(), explicit_value={"connection_name": "dev"})
-        # the default connection is not probed without the connector
+        # dlt does not probe the default connection without the connector
         with pytest.raises(ConfigFieldMissingException):
             resolve_configuration(SnowflakeCredentials())
 
@@ -706,7 +706,7 @@ def test_snowflake_default_connection(
         assert c.to_connector_params()["connection_name"] == expected_name
         assert SnowflakeClientConfiguration(credentials=c).fingerprint() == digest128("acc1")
 
-        # session settings are kept as overrides
+        # dlt keeps the session parameters as overrides
         c = resolve_configuration(SnowflakeCredentials(), explicit_value={"database": "db2"})
         assert c.connection_name == expected_name
         assert c.to_connector_params()["database"] == "db2"
@@ -734,7 +734,7 @@ def test_snowflake_default_connection_not_used(snowflake_home: TSnowflakeHome) -
 def test_snowflake_container_connection(
     snowflake_home: TSnowflakeHome, test_storage: FileStorage
 ) -> None:
-    """The connection a container mounts is used like any other default connection."""
+    """dlt uses the connection that a container mounts like any other default connection."""
     test_storage.save("token", "SNOW_TOK")
     token_path = os.path.join(get_test_storage_root(), "token")
     spcs_env = {"SNOWFLAKE_ACCOUNT": "host1", "SNOWFLAKE_HOST": "host1.snowflakecomputing.com"}
@@ -750,7 +750,7 @@ def test_snowflake_container_connection(
             assert c.has_default_credentials()
             assert "token" not in c.to_connector_params()
 
-            # explicit oauth keeps using the session token next to a mounted connection
+            # explicit oauth still uses the session token next to a mounted connection
             c = resolve_configuration(
                 SnowflakeCredentials(), explicit_value="snowflake:///db1?authenticator=oauth"
             )
@@ -765,7 +765,7 @@ def test_snowflake_container_connection(
     "name,identity,display",
     [
         pytest.param("dev", "acc1", "snowflake://user1:***@acc1/db1", id="account"),
-        # a host is not an account, it does not display
+        # a host is not an account, so it does not display
         pytest.param("host_only", "acc9.snowflakecomputing.com", "snowflake://", id="host_only"),
         pytest.param("no_account", None, "snowflake://user1:***@", id="no_account"),
     ],
@@ -804,7 +804,7 @@ def test_snowflake_connection_without_defaults_stays_partial(
         resolve_configuration(
             SnowflakeCredentialsWithoutDefaults(), explicit_value={"connection_name": "dev"}
         )
-    # still builds pass-through params when used directly
+    # credentials without defaults still build the connector parameters when used directly
     c = SnowflakeCredentialsWithoutDefaults()
     c.connection_name = "dev"
     assert c.to_connector_params() == CONNECTION_PARAMS
