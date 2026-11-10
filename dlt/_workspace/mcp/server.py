@@ -6,7 +6,11 @@ from fastmcp import FastMCP
 from fastmcp.prompts import Prompt
 
 from dlt.common import logger
+from dlt.common.configuration.container import Container
 from dlt.common.configuration.plugins import manager
+from dlt.common.configuration.specs.pluggable_run_context import PluggableRunContext
+
+from dlt._workspace._workspace_context import WorkspaceRunContext
 from dlt._workspace.access import FULL_ACCESS, missing_access, required_access
 from dlt._workspace.cli.utils import DEFAULT_MCP_FEATURES as _DEFAULT_MCP_FEATURES
 from dlt._workspace.typing import TWorkspaceAccess
@@ -40,17 +44,17 @@ def discover_features() -> Tuple[Set[str], Set[str]]:
     return available, extra
 
 
-def _curry_pipeline_name(fn: Callable[..., Any], pipeline_name: str) -> Callable[..., Any]:
-    """Bind pipeline_name as the first argument, hiding it from the MCP schema."""
+def _hide_params(fn: Callable[..., Any], **bound: Any) -> Callable[..., Any]:
+    """Hides the `bound` parameters from the MCP schema of `fn` and passes their values."""
 
     @functools.wraps(fn)
     def wrapper(*args: Any, **kwargs: Any) -> Any:
-        return fn(pipeline_name, *args, **kwargs)
+        return fn(*args, **bound, **kwargs)
 
     sig = inspect.signature(fn)
-    params = [p for name, p in sig.parameters.items() if name != "pipeline_name"]
+    params = [p for name, p in sig.parameters.items() if name not in bound]
     wrapper.__signature__ = sig.replace(parameters=params)  # type: ignore[attr-defined]
-    wrapper.__annotations__ = {k: v for k, v in fn.__annotations__.items() if k != "pipeline_name"}
+    wrapper.__annotations__ = {k: v for k, v in fn.__annotations__.items() if k not in bound}
     return wrapper
 
 
@@ -104,7 +108,18 @@ class DltMCP(FastMCP):
     def _register_tools(self, tools: List[Any]) -> None:
         for tool in tools:
             if self._serves(tool):
-                self.add_tool(tool)
+                self._add_tool(tool)
+
+    def _add_tool(self, tool: Any, **bound: Any) -> None:
+        """Adds `tool` without its `bound` parameters. Outside of a workspace there is no profile
+        or environment to select, so the server hides the `profile` and `environment` parameters
+        too."""
+        ctx = Container()[PluggableRunContext].context
+        if not isinstance(ctx, WorkspaceRunContext):
+            for name in ("profile", "environment"):
+                if name in inspect.signature(tool).parameters:
+                    bound[name] = None
+        self.add_tool(_hide_params(tool, **bound) if bound else tool)
 
 
 class WorkspaceMCP(DltMCP):
@@ -143,4 +158,4 @@ class PipelineMCP(DltMCP):
     def _register_tools(self, tools: List[Any]) -> None:
         for tool_fn in tools:
             if self._serves(tool_fn):
-                self.add_tool(_curry_pipeline_name(tool_fn, self.pipeline_name))
+                self._add_tool(tool_fn, pipeline_name=self.pipeline_name)

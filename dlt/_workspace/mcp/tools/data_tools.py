@@ -16,7 +16,7 @@ from dlt._workspace.cli import formatters
 from dlt._workspace.cli.dlthub.utils import fetch_profiles_list, fetch_workspace_info
 from dlt._workspace.cli.utils import fetch_schema_export, list_local_pipelines
 from dlt._workspace.access import RequiresAccess
-from dlt._workspace.mcp.context import with_mcp_tool_telemetry
+from dlt._workspace.mcp.context import TProfileArgument, with_mcp_tool_telemetry
 
 TResultFormat = Literal["markdown", "jsonl"]
 
@@ -98,8 +98,11 @@ def list_pipelines() -> Annotated[List[str], RequiresAccess(data=["read"])]:
 
 
 @with_mcp_tool_telemetry()
-def get_workspace_info() -> Annotated[Dict[str, Any], RequiresAccess(local=["read"])]:
-    """Get workspace info: name, directories, active profile, and config providers."""
+def get_workspace_info(
+    profile: TProfileArgument = None,
+) -> Annotated[Dict[str, Any], RequiresAccess(local=["read"])]:
+    """Get workspace info: name, directories, the active profile and config providers. `profile`
+    overrides the active profile for this call."""
 
     info = fetch_workspace_info()
     # prune bulky file-tracking data from toolkit entries
@@ -109,8 +112,13 @@ def get_workspace_info() -> Annotated[Dict[str, Any], RequiresAccess(local=["rea
 
 
 @with_mcp_tool_telemetry()
-def list_profiles() -> Annotated[List[Dict[str, Any]], RequiresAccess(local=["read"])]:
-    """List all available workspace profiles with status flags (current, pinned, configured)."""
+def list_profiles(
+    profile: TProfileArgument = None,
+) -> Annotated[List[Dict[str, Any]], RequiresAccess(local=["read"])]:
+    """List all workspace profiles with location (local or remote), data access, environment
+    (`env`), the other profiles of the environment (`also_in_env`) and status flags (`is_current`,
+    `is_pinned`, `default`, `is_configured`). If `profile` is given, the listing marks it as
+    current."""
     return fetch_profiles_list()
 
 
