@@ -124,6 +124,19 @@ def test_workspace_mcp_server(pokemon_pipeline_context: RunContextBase) -> None:
             assert (
                 "pipeline_name" in param_names
             ), f"Tool {tool.name} should expose pipeline_name parameter"
+    # in a workspace the profile tools take a profile
+    by_name = {tool.name: tool for tool in tools}
+    assert "profile" in by_name["get_workspace_info"].parameters["properties"]
+    assert "profile" in by_name["list_profiles"].parameters["properties"]
+
+
+def test_workspace_mcp_server_outside_workspace() -> None:
+    """Outside a workspace there is no profile to run with: the tools hide the argument."""
+    with isolated_workspace("legacy", required=None):
+        mcp = WorkspaceMCP("dlt")
+        by_name = {tool.name: tool for tool in asyncio.run(mcp.list_tools())}
+        assert "profile" not in by_name["get_workspace_info"].parameters.get("properties", {})
+        assert "profile" not in by_name["list_profiles"].parameters.get("properties", {})
 
 
 @pytest.mark.parametrize(
