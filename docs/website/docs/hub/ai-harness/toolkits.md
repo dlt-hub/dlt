@@ -47,13 +47,13 @@ Connect to any SQL source, load tables to a destination, and tune performance wi
 
 <div class="plain-details">
 <details>
-<summary>Skills (entry: <code>/find-source</code>)</summary>
+<summary>Skills (entry: <code>/find-sql-database-source</code>)</summary>
 
-- `/find-source`: Find and explore a SQL database source (Postgres, MySQL, MS SQL, Oracle, SQLite, any SQLAlchemy).
+- `/find-sql-database-source`: Find and explore a SQL database source (Postgres, MySQL, MS SQL, Oracle, SQLite, any SQLAlchemy).
 - `/create-sql-database-pipeline`: Scaffold a pipeline from a SQL source.
-- `/debug-pipeline`: Diagnose connection failures, driver issues, and failed jobs.
-- `/validate-data`: Validate schema and column mappings after a load.
-- `/view-data`: Query and explore loaded data.
+- `/debug-sql-database-pipeline`: Diagnose connection failures, driver issues, and failed jobs.
+- `/validate-sql-database-data`: Validate schema and column mappings after a load.
+- `/view-sql-database-data`: Query and explore loaded data.
 - `/add-table`: Add a new table or view to an existing pipeline.
 - `/adjust-table`: Remove dev limits, configure incremental loading and merge keys.
 - `/optimize-sql-performance`: Pick a faster backend, tune chunk size, parallelize tables.
