@@ -272,6 +272,8 @@ def test_to_connector_params_private_path(private_key_path: str) -> None:
 
     conn_params = c.to_connector_params()
     assert isinstance(conn_params["private_key"], bytes)
+    assert "private_key_path" not in conn_params
+    assert "private_key_passphrase" not in conn_params
 
 
 def test_snowflake_application_id() -> None:
