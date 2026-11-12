@@ -56,13 +56,12 @@ class FabricCredentials(AzureServicePrincipalCredentials):
                 self.resolve()
 
     def get_odbc_dsn_dict(self) -> Dict[str, Any]:
-        """Build ODBC DSN dictionary with Fabric-specific settings."""
+        """Build connection string parameters with Fabric-specific settings."""
+        # only keywords accepted by `mssql-python`, which rejects ie. `DRIVER` and `LongAsMax`
         params = {
-            "DRIVER": "ODBC Driver 18 for SQL Server",
             "SERVER": f"{self.host},{self.port}",
             "DATABASE": self.database,
             "AUTHENTICATION": "ActiveDirectoryServicePrincipal",
-            "LongAsMax": "yes",  # Required for UTF-8 collation support
             "Encrypt": "yes",
             "TrustServerCertificate": "no",
         }
@@ -75,7 +74,7 @@ class FabricCredentials(AzureServicePrincipalCredentials):
         return params
 
     def to_odbc_dsn(self) -> str:
-        """Build ODBC connection string for pyodbc."""
+        """Build ODBC style connection string for `mssql-python`."""
         return build_odbc_dsn(self.get_odbc_dsn_dict())
 
     def to_native_credentials(self) -> Optional[Any]:

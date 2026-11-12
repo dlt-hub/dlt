@@ -4,7 +4,9 @@ import sqlfluff
 from dlt.common.utils import uniq_id
 from dlt.common.schema import Schema
 
-pytest.importorskip("dlt.destinations.impl.mssql.mssql", reason="MSSQL ODBC driver not installed")
+pytest.importorskip(
+    "dlt.destinations.impl.mssql.sql_client", reason="MSSQL ODBC driver not installed"
+)
 
 from dlt.destinations import mssql
 from dlt.destinations.impl.mssql.mssql import MsSqlJobClient

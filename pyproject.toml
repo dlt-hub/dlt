@@ -155,7 +155,7 @@ synapse = [
     "pyarrow>=16.0.0",
 ]
 fabric = [
-    "pyodbc>=4.0.39",
+    "mssql-python>=1.14.0",
     "adlfs>=2024.7.0",
     "pyarrow>=16.0.0",
 ]

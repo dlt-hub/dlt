@@ -35,7 +35,8 @@ from dlt.destinations.impl.mssql.mssql import (
     VARBINARY_MAX_N,
 )
 
-from dlt.destinations.impl.synapse.sql_client import SynapseSqlClient
+from dlt.destinations.sql_client import SqlClientBase
+from dlt.destinations.impl.mssql.configuration import MsSqlClientConfiguration
 from dlt.destinations.impl.synapse.configuration import SynapseClientConfiguration
 from dlt.destinations.impl.synapse.synapse_adapter import (
     TABLE_INDEX_TYPE_HINT,
@@ -62,18 +63,25 @@ class SynapseClient(MsSqlJobClient, SupportsStagingDestination):
     ) -> None:
         super().__init__(schema, config, capabilities)
         self.config: SynapseClientConfiguration = config
-        dataset_name, staging_dataset_name = MsSqlJobClient.create_dataset_names(schema, config)
-        self.sql_client = SynapseSqlClient(
-            dataset_name,
-            staging_dataset_name,
-            config.credentials,
-            capabilities,
-        )
 
         self.active_hints = deepcopy(HINT_TO_SYNAPSE_ATTR)
         if not self.config.create_indexes:
             self.active_hints.pop("primary_key", None)
             self.active_hints.pop("unique", None)
+
+    @staticmethod
+    def _create_sql_client(
+        dataset_name: str,
+        staging_dataset_name: str,
+        config: MsSqlClientConfiguration,
+        capabilities: DestinationCapabilitiesContext,
+    ) -> SqlClientBase[Any]:
+        # imported here so job clients on another driver do not need pyodbc
+        from dlt.destinations.impl.synapse.sql_client import SynapseSqlClient
+
+        return SynapseSqlClient(
+            dataset_name, staging_dataset_name, config.credentials, capabilities
+        )
 
     def _get_table_update_sql(
         self, table_name: str, new_columns: Sequence[TColumnSchema], generate_alter: bool
