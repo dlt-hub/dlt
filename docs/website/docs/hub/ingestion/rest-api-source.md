@@ -6,7 +6,7 @@ keywords: [cursor, claude, codex, llm, restapi, ai, workbench, toolkit]
 # REST API Source with dltHub AI Harness
 
 :::info
-The [dltHub AI Harness](../ai-harness/introduction.md) is a part of the dltHub platform. View the license [here](https://github.com/dlt-hub/dlthub-ai-workbench/blob/master/LICENSE).
+The [dltHub AI Harness](../ai-harness/introduction.md) is a part of the dltHub platform. View the license [here](https://github.com/dlt-hub/dlthub-ai-harness/blob/master/LICENSE).
 :::
 
 ## Overview
@@ -104,8 +104,8 @@ The dltHub AI Harness is also available as a **Claude Code marketplace plugin**.
 In Claude Code, run:
 
 ```text
-/plugin marketplace add dlt-hub/dlthub-ai-workbench
-/plugin install bootstrap@dlthub-ai-workbench --scope project
+/plugin marketplace add dlt-hub/dlthub-ai-harness
+/plugin install bootstrap@dlthub-ai-harness --scope project
 ```
 
 In your terminal, `exit` the Claude session and restart (`claude`) — plugins take effect only after restarting Claude Code. Then run:
