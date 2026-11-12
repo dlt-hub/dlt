@@ -193,59 +193,63 @@ class SynapseCopyFileLoadJob(CopyRemoteFileLoadJob):
 
     def run(self) -> None:
         self._sql_client = self._job_client.sql_client
-        # get format
-        ext = os.path.splitext(self._bucket_path)[1][1:]
-        if ext == "parquet":
-            file_type = "PARQUET"
-
-            # dlt-generated DDL statements will still create the table, but
-            # enabling AUTO_CREATE_TABLE prevents a MalformedInputException.
-            auto_create_table = "ON"
-        else:
-            raise ValueError(f"Unsupported file type `{ext}` for Synapse.")
-
         staging_credentials = self._staging_credentials
         assert staging_credentials is not None
         assert isinstance(
             staging_credentials,
             (AzureCredentialsWithoutDefaults, AzureServicePrincipalCredentialsWithoutDefaults),
         )
-        azure_storage_account_name = staging_credentials.azure_storage_account_name
-        https_path = self._get_https_path(self._bucket_path, azure_storage_account_name)
+        with_options = [f"FILE_TYPE = '{self._get_file_type()}'"] + self._get_copy_options()
+        https_path = self._get_https_path(
+            self._bucket_path, staging_credentials.azure_storage_account_name
+        )
         table_name = self._load_table["name"]
 
-        if self.staging_use_msi:
-            credential = "IDENTITY = 'Managed Identity'"
-        else:
-            # re-use staging credentials for copy into Synapse
-            if isinstance(staging_credentials, AzureCredentialsWithoutDefaults):
-                sas_token = staging_credentials.azure_storage_sas_token
-                credential = f"IDENTITY = 'Shared Access Signature', SECRET = '{sas_token}'"
-            elif isinstance(staging_credentials, AzureServicePrincipalCredentialsWithoutDefaults):
-                tenant_id = staging_credentials.azure_tenant_id
-                endpoint = f"https://login.microsoftonline.com/{tenant_id}/oauth2/token"
-                identity = f"{staging_credentials.azure_client_id}@{endpoint}"
-                secret = staging_credentials.azure_client_secret
-                credential = f"IDENTITY = '{identity}', SECRET = '{secret}'"
-            else:
-                raise ConfigurationException(
-                    f"Credentials of type `{type(staging_credentials)}` not supported"
-                    " when loading data from staging into Synapse using `COPY INTO`."
-                )
-
-        # Copy data from staging file into Synapse table.
         with self._sql_client.begin_transaction():
             dataset_name = self._sql_client.dataset_name
+            with_clause = ",\n                    ".join(with_options)
             sql = dedent(f"""
                 COPY INTO [{dataset_name}].[{table_name}]
                 FROM '{https_path}'
                 WITH (
-                    FILE_TYPE = '{file_type}',
-                    CREDENTIAL = ({credential}),
-                    AUTO_CREATE_TABLE = '{auto_create_table}'
+                    {with_clause}
                 )
             """)
             self._sql_client.execute_sql(sql)
+
+    def _get_file_type(self) -> str:
+        ext = os.path.splitext(self._bucket_path)[1][1:]
+        if ext == "parquet":
+            return "PARQUET"
+        destination_type = self._job_client.config.destination_type
+        raise ValueError(f"Unsupported file type `{ext}` for `{destination_type}`.")
+
+    def _get_copy_options(self) -> List[str]:
+        """Returns `WITH` options of `COPY INTO` that follow `FILE_TYPE`"""
+        staging_credentials = self._staging_credentials
+        if self.staging_use_msi:
+            credential = "IDENTITY = 'Managed Identity'"
+        # re-use staging credentials for copy into Synapse
+        elif isinstance(staging_credentials, AzureCredentialsWithoutDefaults):
+            sas_token = staging_credentials.azure_storage_sas_token
+            credential = f"IDENTITY = 'Shared Access Signature', SECRET = '{sas_token}'"
+        elif isinstance(staging_credentials, AzureServicePrincipalCredentialsWithoutDefaults):
+            tenant_id = staging_credentials.azure_tenant_id
+            endpoint = f"https://login.microsoftonline.com/{tenant_id}/oauth2/token"
+            identity = f"{staging_credentials.azure_client_id}@{endpoint}"
+            secret = staging_credentials.azure_client_secret
+            credential = f"IDENTITY = '{identity}', SECRET = '{secret}'"
+        else:
+            raise ConfigurationException(
+                f"Credentials of type `{type(staging_credentials)}` not supported"
+                " when loading data from staging into Synapse using `COPY INTO`."
+            )
+        return [
+            f"CREDENTIAL = ({credential})",
+            # dlt-generated DDL statements will still create the table, but
+            # enabling AUTO_CREATE_TABLE prevents a MalformedInputException.
+            "AUTO_CREATE_TABLE = 'ON'",
+        ]
 
     def _get_https_path(self, bucket_path: str, storage_account_name: str) -> str:
         """

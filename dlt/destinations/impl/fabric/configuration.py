@@ -1,4 +1,4 @@
-"""Configuration for Fabric Warehouse destination - extends Synapse configuration with COPY INTO support"""
+"""Configuration for Fabric Warehouse destination"""
 
 from typing import Optional, Final, ClassVar, Dict, Any, List
 from dlt.common.configuration import configspec
@@ -7,6 +7,7 @@ from dlt.common.configuration.specs import AzureServicePrincipalCredentials
 from dlt.common.destination.client import DestinationClientDwhWithStagingConfiguration
 from dlt.common.exceptions import MissingDependencyException
 from dlt.common.utils import digest128
+from dlt.destinations.impl.mssql.configuration import build_odbc_dsn
 from dlt import version
 
 _AZURE_STORAGE_EXTRA = f"{version.DLT_PKG_NAME}[az]"
@@ -57,7 +58,7 @@ class FabricCredentials(AzureServicePrincipalCredentials):
     def get_odbc_dsn_dict(self) -> Dict[str, Any]:
         """Build ODBC DSN dictionary with Fabric-specific settings."""
         params = {
-            "DRIVER": "{ODBC Driver 18 for SQL Server}",
+            "DRIVER": "ODBC Driver 18 for SQL Server",
             "SERVER": f"{self.host},{self.port}",
             "DATABASE": self.database,
             "AUTHENTICATION": "ActiveDirectoryServicePrincipal",
@@ -75,8 +76,7 @@ class FabricCredentials(AzureServicePrincipalCredentials):
 
     def to_odbc_dsn(self) -> str:
         """Build ODBC connection string for pyodbc."""
-        params = self.get_odbc_dsn_dict()
-        return ";".join(f"{k}={v}" for k, v in params.items())
+        return build_odbc_dsn(self.get_odbc_dsn_dict())
 
     def to_native_credentials(self) -> Optional[Any]:
         """Return credentials in a format suitable for the native driver/library."""
@@ -95,9 +95,9 @@ class FabricClientConfiguration(DestinationClientDwhWithStagingConfiguration):
             credentials={
                 "host": "abc12345-6789-def0-1234-56789abcdef0.datawarehouse.fabric.microsoft.com",
                 "database": "mydb",
-                "tenant_id": "your-tenant-id",
-                "client_id": "your-client-id",
-                "client_secret": "your-client-secret",
+                "azure_tenant_id": "your-tenant-id",
+                "azure_client_id": "your-client-id",
+                "azure_client_secret": "your-client-secret",
             },
             staging=filesystem(
                 # IMPORTANT: Must use workspace GUID and lakehouse GUID (not names)
@@ -123,9 +123,9 @@ class FabricClientConfiguration(DestinationClientDwhWithStagingConfiguration):
             credentials={
                 "host": "abc12345-6789-def0-1234-56789abcdef0.datawarehouse.fabric.microsoft.com",
                 "database": "mydb",
-                "tenant_id": "your-tenant-id",
-                "client_id": "your-client-id",
-                "client_secret": "your-client-secret",
+                "azure_tenant_id": "your-tenant-id",
+                "azure_client_id": "your-client-id",
+                "azure_client_secret": "your-client-secret",
             },
             staging=filesystem(
                 bucket_url="az://your-container",
@@ -142,9 +142,9 @@ class FabricClientConfiguration(DestinationClientDwhWithStagingConfiguration):
     credentials: Optional[FabricCredentials] = None
 
     collation: Optional[str] = "Latin1_General_100_BIN2_UTF8"
-    """Database collation to use for text columns.
-
-    Note: Fabric Warehouse does not support table indexing. Storage is automatically managed by the system.
+    """Database collation for varchar columns, UTF-8 in both supported variants:
+    `Latin1_General_100_BIN2_UTF8` (case-sensitive) and
+    `Latin1_General_100_CI_AS_KS_WS_SC_UTF8` (case-insensitive).
     """
 
     # Set to False by default because PRIMARY KEY and UNIQUE constraints
@@ -155,17 +155,7 @@ class FabricClientConfiguration(DestinationClientDwhWithStagingConfiguration):
     has_case_sensitive_identifiers: bool = True
     """Whether identifiers (table/column names) are case-sensitive. Depends on database collation."""
 
-    __config_gen_annotations__: ClassVar[List[str]] = [
-        "default_table_index_type",
-        "create_indexes",
-    ]
-
-    """Database collation for varchar columns. Fabric supports:
-    - Latin1_General_100_BIN2_UTF8 (default, case-sensitive)
-    - Latin1_General_100_CI_AS_KS_WS_SC_UTF8 (case-insensitive)
-
-    Both have UTF-8 encoding. LongAsMax=yes is automatically configured.
-    """
+    __config_gen_annotations__: ClassVar[List[str]] = ["create_indexes"]
 
     def data_location(self) -> str:
         """Returns host:port."""
