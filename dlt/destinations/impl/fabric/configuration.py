@@ -1,25 +1,116 @@
 """Configuration for Fabric Warehouse destination"""
 
-from typing import Optional, Final, ClassVar, Dict, Any, List
+import base64
+import threading
+import time
+from typing import Optional, Final, ClassVar, Dict, Any, List, Literal, NamedTuple
+
+from dlt.common import json
 from dlt.common.configuration import configspec
 from dlt.common.configuration.exceptions import ConfigurationValueError
 from dlt.common.configuration.specs import AzureServicePrincipalCredentials
 from dlt.common.destination.client import DestinationClientDwhWithStagingConfiguration
 from dlt.common.exceptions import MissingDependencyException
+from dlt.common.typing import TSecretStrValue
 from dlt.common.utils import digest128
-from dlt.destinations.impl.mssql.configuration import build_odbc_dsn
+from dlt.destinations.impl.mssql.configuration import SupportsGetToken, build_odbc_dsn
 from dlt import version
 
-_AZURE_STORAGE_EXTRA = f"{version.DLT_PKG_NAME}[az]"
+_FABRIC_EXTRA = f"{version.DLT_PKG_NAME}[fabric]"
+
+TFabricAuthMethod = Literal["credential", "access_token", "service_principal", "default"]
+SERVICE_PRINCIPAL_FIELDS = ("azure_tenant_id", "azure_client_id", "azure_client_secret")
+
+
+class FabricAccessToken(NamedTuple):
+    """Entra ID access token in the shape of `azure.core.credentials.AccessToken`."""
+
+    token: str
+    expires_on: Optional[int]
+    """POSIX timestamp, `None` if not known."""
+
+
+def _get_token_expiration(token: str) -> Optional[int]:
+    """Reads the `exp` claim of a JWT, returns `None` if `token` is not a JWT."""
+    try:
+        payload = token.split(".")[1]
+        claims = json.loadb(base64.urlsafe_b64decode(payload + "=" * (-len(payload) % 4)))
+        return int(claims["exp"])
+    except (IndexError, KeyError, TypeError, ValueError):
+        return None
+
+
+def _get_notebookutils_credentials() -> Any:
+    """Returns `notebookutils.credentials`, `None` outside of a Microsoft Fabric notebook."""
+    try:
+        import notebookutils  # type: ignore[import-not-found,unused-ignore]
+    except ModuleNotFoundError as ex:
+        # raise if `notebookutils` is available but fails on its own imports
+        if ex.name != "notebookutils":
+            raise
+        return None
+    credentials = getattr(notebookutils, "credentials", None)
+    return credentials if callable(getattr(credentials, "getToken", None)) else None
+
+
+class FabricNotebookCredential(SupportsGetToken):
+    """Authenticates as the identity a Microsoft Fabric notebook runs with.
+
+    Has the `get_token` method of azure-identity credentials. Tokens come from NotebookUtils and
+    are reused until shortly before they expire.
+    """
+
+    REFRESH_BEFORE_EXPIRATION: ClassVar[int] = 300
+    """Seconds before expiration at which a token is replaced."""
+
+    # shared by all instances: an instance holds only tokens, so it can be copied and pickled
+    _lock: ClassVar[threading.Lock] = threading.Lock()
+
+    def __init__(self) -> None:
+        if not self.is_available():
+            raise ConfigurationValueError(
+                "`FabricNotebookCredential` needs `notebookutils.credentials.getToken`, which is"
+                " available only in a Microsoft Fabric notebook."
+            )
+        self._tokens: Dict[str, FabricAccessToken] = {}
+
+    @staticmethod
+    def is_available() -> bool:
+        """Tells if the code runs in a Microsoft Fabric notebook."""
+        return _get_notebookutils_credentials() is not None
+
+    def get_token(self, *scopes: str, **kwargs: Any) -> FabricAccessToken:
+        """Returns a token of the notebook identity for the first of `scopes`."""
+        # NotebookUtils expects the resource without the `.default` scope
+        audience = scopes[0].removesuffix(".default")
+        with self._lock:
+            token = self._tokens.get(audience)
+            if (
+                token is None
+                or token.expires_on is None
+                or token.expires_on - self.REFRESH_BEFORE_EXPIRATION < time.time()
+            ):
+                raw_token = _get_notebookutils_credentials().getToken(audience)
+                token = FabricAccessToken(raw_token, _get_token_expiration(raw_token))
+                self._tokens[audience] = token
+        return token
+
+
+class _StaticTokenCredential(SupportsGetToken):
+    def __init__(self, token: str) -> None:
+        self._token = FabricAccessToken(token, _get_token_expiration(token))
+
+    def get_token(self, *scopes: str, **kwargs: Any) -> FabricAccessToken:
+        return self._token
 
 
 @configspec(init=False)
 class FabricCredentials(AzureServicePrincipalCredentials):
-    """Credentials for Microsoft Fabric Warehouse with Service Principal authentication.
+    """Credentials for Microsoft Fabric Warehouse with Entra ID authentication.
 
-    Fabric Warehouse requires Azure AD Service Principal authentication.
-    Inherits from AzureServicePrincipalCredentials for Service Principal fields and
-    automatic fallback to DefaultAzureCredential.
+    The authentication method follows from what is configured, in this order:
+    an azure-identity credential passed as native value, `access_token`, Service Principal
+    fields, the notebook identity in a Microsoft Fabric notebook, `DefaultAzureCredential`.
     """
 
     drivername: str = "mssql+pyodbc"
@@ -37,23 +128,87 @@ class FabricCredentials(AzureServicePrincipalCredentials):
     connect_timeout: int = 15
     """Connection timeout in seconds (default: 15)"""
 
+    access_token: Optional[TSecretStrValue] = None
+    """Entra ID access token for the warehouse, takes precedence over the Service Principal."""
+
+    # optional, so only `host` and `database` are reported as missing with other methods
+    azure_tenant_id: Optional[str] = None
+    azure_client_id: Optional[str] = None
+    azure_client_secret: Optional[TSecretStrValue] = None
+
     # Override to make optional - not needed for Fabric Warehouse credentials (only for staging)
     azure_storage_account_name: Optional[str] = None
     """Not used for Fabric Warehouse credentials (only staging credentials need this)"""
 
-    def on_partial(self) -> None:
-        """Enable fallback to DefaultAzureCredential if explicit credentials not provided."""
-        try:
-            from azure.identity import DefaultAzureCredential
-        except ModuleNotFoundError:
-            raise MissingDependencyException(self.__class__.__name__, [_AZURE_STORAGE_EXTRA])
+    def parse_native_representation(self, native_value: Any) -> None:
+        """Imports an azure-identity credential exposing `get_token`."""
+        # credentials created with `from_credential` hand over their azure-identity credential
+        if isinstance(native_value, FabricCredentials) and native_value.is_external_session():
+            native_value = native_value.default_credentials()
+        super().parse_native_representation(native_value)
+        # `host` and `database` are not part of the credential and still must be resolved
+        self.__is_resolved__ = False
 
-        # If no explicit Service Principal credentials, use default credentials
-        if not self.azure_client_id or not self.azure_client_secret or not self.azure_tenant_id:
-            self._set_default_credentials(DefaultAzureCredential())
-            # Resolve if we have warehouse connection details (not storage account name)
-            if self.host and self.database:
-                self.resolve()
+    def _get_auth_method(self) -> TFabricAuthMethod:
+        """Returns the authentication method, the first one that is configured: azure-identity
+        credential, `access_token`, Service Principal. Without any of them the notebook identity
+        or `DefaultAzureCredential` is used.
+        """
+        # not stored when resolved: `copy` drops private attributes
+        if self.is_external_session():
+            return "credential"
+        # an empty value is configured, ie. an env var set from a secret that is not available
+        if self.access_token is not None:
+            return "access_token"
+        if any(getattr(self, name) is not None for name in SERVICE_PRINCIPAL_FIELDS):
+            return "service_principal"
+        return "default"
+
+    def on_resolved(self) -> None:
+        """Checks the authentication method that is configured.
+
+        Raises:
+            ConfigurationValueError: If the method is configured only in part.
+        """
+        method = self._get_auth_method()
+        if method == "access_token" and not self.access_token:
+            raise ConfigurationValueError(
+                "`access_token` in Fabric credentials is empty. Set a token or remove"
+                " `access_token` to use another authentication method."
+            )
+        if method == "service_principal":
+            missing = [name for name in SERVICE_PRINCIPAL_FIELDS if not getattr(self, name)]
+            if missing:
+                raise ConfigurationValueError(
+                    f"Service Principal in Fabric credentials is incomplete, missing: {missing}."
+                    " Set all of `azure_tenant_id`, `azure_client_id` and `azure_client_secret`,"
+                    " or none of them to use another authentication method."
+                )
+        if method == "default":
+            # `DefaultAzureCredential` cannot sign in from a Fabric notebook
+            if FabricNotebookCredential.is_available():
+                self._set_default_credentials(FabricNotebookCredential())
+            else:
+                try:
+                    from azure.identity import DefaultAzureCredential
+                except ModuleNotFoundError:
+                    raise MissingDependencyException(self.__class__.__name__, [_FABRIC_EXTRA])
+                self._set_default_credentials(DefaultAzureCredential())
+
+    def get_token_provider(self) -> Optional[SupportsGetToken]:
+        """Returns the object with `get_token` that authenticates the connection.
+
+        Returns:
+            Optional[SupportsGetToken]: A token provider, `None` if the Service Principal in the
+                connection string authenticates.
+        """
+        method = self._get_auth_method()
+        if method == "access_token":
+            return _StaticTokenCredential(str(self.access_token))
+        if method == "service_principal":
+            return None
+        provider: SupportsGetToken = self.default_credentials()
+        return provider
 
     def get_odbc_dsn_dict(self) -> Dict[str, Any]:
         """Build connection string parameters with Fabric-specific settings."""
@@ -61,13 +216,13 @@ class FabricCredentials(AzureServicePrincipalCredentials):
         params = {
             "SERVER": f"{self.host},{self.port}",
             "DATABASE": self.database,
-            "AUTHENTICATION": "ActiveDirectoryServicePrincipal",
             "Encrypt": "yes",
             "TrustServerCertificate": "no",
         }
 
-        # Add Service Principal credentials if provided
-        if self.azure_client_id and self.azure_tenant_id and self.azure_client_secret:
+        # the driver refuses `AUTHENTICATION` together with a token provider
+        if self._get_auth_method() == "service_principal":
+            params["AUTHENTICATION"] = "ActiveDirectoryServicePrincipal"
             params["UID"] = f"{self.azure_client_id}@{self.azure_tenant_id}"
             params["PWD"] = str(self.azure_client_secret)
 
@@ -86,7 +241,7 @@ class FabricCredentials(AzureServicePrincipalCredentials):
 class FabricClientConfiguration(DestinationClientDwhWithStagingConfiguration):
     """Configuration for Fabric Warehouse destination with staging and collation support.
 
-    Uses FabricCredentials for Service Principal authentication.
+    Uses FabricCredentials for Entra ID authentication.
     Supports OneLake/Lakehouse or Azure Blob Storage staging with COPY INTO for efficient data loading.
 
     Example usage with OneLake/Lakehouse staging (recommended):
@@ -138,7 +293,7 @@ class FabricClientConfiguration(DestinationClientDwhWithStagingConfiguration):
     """
 
     destination_type: Final[str] = "fabric"  # type: ignore[misc]
-    credentials: Optional[FabricCredentials] = None
+    credentials: FabricCredentials = None
 
     collation: Optional[str] = "Latin1_General_100_BIN2_UTF8"
     """Database collation for varchar columns, UTF-8 in both supported variants:
@@ -172,4 +327,4 @@ class FabricClientConfiguration(DestinationClientDwhWithStagingConfiguration):
             return ""
 
 
-__all__ = ["FabricCredentials", "FabricClientConfiguration"]
+__all__ = ["FabricCredentials", "FabricClientConfiguration", "FabricNotebookCredential"]

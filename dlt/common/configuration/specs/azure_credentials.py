@@ -248,7 +248,9 @@ class AzureServicePrincipalCredentials(
         except ModuleNotFoundError:
             raise MissingDependencyException(self.__class__.__name__, [_AZURE_STORAGE_EXTRA])
 
-        self._set_default_credentials(DefaultAzureCredential())
+        # a credential passed by the user is kept
+        if not self.is_external_session():
+            self._set_default_credentials(DefaultAzureCredential())
         if self.azure_storage_account_name:
             self.resolve()
 

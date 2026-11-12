@@ -209,11 +209,21 @@ def test_open_connection(monkeypatch: pytest.MonkeyPatch) -> None:
         return FakeConnection(FakeCursor())
 
     monkeypatch.setattr(mssql_python, "connect", _connect)
+    # service principal is authenticated by the connection string
     client = _client()
     client.open_connection()
+    assert "AUTHENTICATION=ActiveDirectoryServicePrincipal" in connect_args["connection_str"]
     assert connect_args == {
         "connection_str": client.credentials.to_odbc_dsn(),
         "autocommit": True,
         "timeout": 15,
         "native_uuid": False,
+        "token_provider": None,
     }
+
+    # all other methods pass a token provider
+    client.credentials.access_token = "test-token"  # type: ignore[attr-defined]
+    client.open_connection()
+    assert "AUTHENTICATION" not in connect_args["connection_str"]
+    token = connect_args["token_provider"].get_token("https://database.windows.net/.default")
+    assert token.token == "test-token"

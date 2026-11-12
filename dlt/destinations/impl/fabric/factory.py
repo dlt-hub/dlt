@@ -15,6 +15,7 @@ from dlt.common.normalizers.naming import NamingConvention
 from dlt.common.destination.typing import PreparedTableSchema
 from dlt.common.schema.typing import TColumnSchema
 
+from dlt.destinations.impl.mssql.configuration import SupportsGetToken
 from dlt.destinations.impl.mssql.factory import MsSqlTypeMapper
 from dlt.destinations.impl.fabric.configuration import (
     FabricCredentials,
@@ -160,7 +161,7 @@ class fabric(Destination[FabricClientConfiguration, "FabricClient"]):
 
     def __init__(
         self,
-        credentials: Union[FabricCredentials, Dict[str, Any]] = None,
+        credentials: Union[FabricCredentials, Dict[str, Any], SupportsGetToken] = None,
         collation: Optional[str] = "Latin1_General_100_BIN2_UTF8",
         create_indexes: bool = False,
         has_case_sensitive_identifiers: bool = True,
@@ -173,8 +174,9 @@ class fabric(Destination[FabricClientConfiguration, "FabricClient"]):
         All arguments provided here supersede other configuration sources such as environment variables and dlt config files.
 
         Args:
-            credentials (Union[FabricCredentials, Dict[str, Any]], optional): Credentials to connect to the Fabric Warehouse.
-                Can be an instance of `FabricCredentials` or a dictionary with its fields.
+            credentials (Union[FabricCredentials, Dict[str, Any], SupportsGetToken], optional): Credentials to connect to the Fabric Warehouse.
+                Can be an instance of `FabricCredentials`, a dictionary with its fields or an azure-identity credential
+                like `DefaultAzureCredential`.
             collation (Optional[str]): Database collation for varchar columns.
             create_indexes (bool, optional): Whether `primary_key` and `unique` column hints are applied.
             has_case_sensitive_identifiers (bool, optional): Are identifiers used by the warehouse case sensitive (following the collation)

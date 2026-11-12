@@ -12,6 +12,7 @@ from dlt.destinations.exceptions import (
     DatabaseUndefinedRelation,
 )
 from dlt.destinations.typing import DBApi, DBTransaction
+from dlt.destinations.impl.mssql.configuration import SupportsGetToken
 from dlt.destinations.sql_client import (
     DBApiCursorImpl,
     SqlClientBase,
@@ -35,6 +36,8 @@ class SupportsOdbcDsn(Protocol):
 
     def to_odbc_dsn(self) -> str: ...
 
+    def get_token_provider(self) -> Optional[SupportsGetToken]: ...
+
 
 class MssqlPythonSqlClient(SqlClientBase[mssql_python.Connection], DBTransaction):
     dbapi: ClassVar[DBApi] = mssql_python
@@ -57,6 +60,8 @@ class MssqlPythonSqlClient(SqlClientBase[mssql_python.Connection], DBTransaction
             timeout=self.credentials.connect_timeout,
             # `uniqueidentifier` as str, like pyodbc
             native_uuid=False,
+            # the driver gets the Entra ID token from it, `None` if the connection string authenticates
+            token_provider=self.credentials.get_token_provider(),
         )
         return self._conn
 
