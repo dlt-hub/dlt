@@ -174,8 +174,7 @@ def init_client(
                 if get_write_disposition(schema.tables, name) != "merge"
             }
 
-        # if there are tables to drop, we should also drop them in the staging dataset
-        if all_staging_tables or drop_table_names:
+        if all_staging_tables:
             # trim the schema on staging dataset to tables that will be actually materialized
             job_client_schema = job_client.schema
             with job_client.with_staging_dataset():
@@ -192,6 +191,17 @@ def init_client(
                     )
                 finally:
                     job_client.schema = job_client_schema
+        elif drop_table_names:
+            # nothing will be materialized in the staging dataset, but it may hold stale copies of
+            # dropped tables. drop them only if the dataset exists: do not create the dataset or
+            # the version table, next load will initialize it like the first one
+            with job_client.with_staging_dataset():
+                if job_client.is_storage_initialized() and hasattr(job_client, "drop_tables"):
+                    logger.info(
+                        f"Client for {job_client.config.destination_type} will drop tables"
+                        f" {drop_table_names} for staging dataset"
+                    )
+                    job_client.drop_tables(*drop_table_names, delete_schema=True)
 
     return applied_update, applied_dropped, applied_truncated
 
