@@ -578,7 +578,7 @@ const sidebars = {
     {
       type: "category",
       label: "Notifications",
-      items: ["hub/notifications/slack", "hub/notifications/email"],
+      items: ["hub/notifications/slack", "hub/notifications/email", "hub/notifications/usage"],
     },
     {
       type: "category",
