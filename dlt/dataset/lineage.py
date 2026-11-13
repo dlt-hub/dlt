@@ -126,7 +126,7 @@ def _describe_sources(
     scope: Scope, sqlglot_schema: SQLGlotSchema, user_aliases: Set[str]
 ) -> Dict[str, TLineageSource]:
     """Labels the sources of `scope` and lists their columns, `None` when unknown to the schema."""
-    resolver = Resolver(scope, sqlglot_schema, infer_schema=False)
+    resolver = Resolver(scope, sqlglot_schema)
     sources: Dict[str, TLineageSource] = {}
     for alias, source in scope.sources.items():
         if isinstance(source, sge.Table):
