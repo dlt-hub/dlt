@@ -95,10 +95,11 @@ If you already have your Databricks workspace set up, you can skip to the [Loade
 
 ## Authentication
 
-`dlt` currently supports two options for authentication:
+`dlt` currently supports three options for authentication:
 
 1. [OAuth2](#using-oauth2) (recommended) allows you to authenticate to Databricks using a service principal via OAuth2 M2M.
 2. [Access token](#using-access-token) approach using a developer access token. This method may be deprecated in the future by Databricks.
+3. [OIDC workload federation](#using-oidc-workload-federation) authenticates using a service principal's `client_id` and a third-party OIDC token, without a long-lived secret.
 
 ### Using OAuth2
 
@@ -215,6 +216,64 @@ os.environ["DESTINATION__DATABRICKS__CREDENTIALS__CATALOG"]="my_catalog"
 os.environ["DESTINATION__DATABRICKS__CREDENTIALS__ACCESS_TOKEN"]=os.environ.get("ACCESS_TOKEN", "")
 ```
 
+</TabItem>
+</Tabs>
+
+### Using OIDC workload federation
+
+Set `client_id` alone (no `client_secret`) to authenticate via [OIDC workload federation](https://docs.databricks.com/aws/en/dev-tools/auth/oauth-federation-policy#workload) —
+proving a workload's identity to Databricks with a third-party OIDC token instead of a long-lived
+secret. Requires `databricks-sdk>=0.55.0`.
+
+1. Follow the Databricks documentation linked above to register an OAuth federation policy for your
+   service principal, and note its `client_id`.
+2. Depending on where the ID token comes from, set `oidc_token_env` (name of an environment variable
+   holding the token) or `oidc_token_filepath` (path to a file holding the token).
+
+<Tabs
+  groupId="config-provider-type"
+  defaultValue="toml"
+  values={[
+    {"label": "TOML config provider", "value": "toml"},
+    {"label": "Environment variables", "value": "env"},
+    {"label": "In the code", "value": "code"},
+]}>
+
+  <TabItem value="toml">
+
+```toml
+# secrets.toml
+[destination.databricks.credentials]
+server_hostname = "MY_DATABRICKS.azuredatabricks.net"
+http_path = "/sql/1.0/warehouses/12345"
+catalog = "my_catalog"
+client_id = "XXX"
+oidc_token_filepath = "/var/run/secrets/oidc-token"
+```
+  </TabItem>
+
+<TabItem value="env">
+
+```sh
+export DESTINATION__DATABRICKS__CREDENTIALS__SERVER_HOSTNAME="MY_DATABRICKS.azuredatabricks.net"
+export DESTINATION__DATABRICKS__CREDENTIALS__HTTP_PATH="/sql/1.0/warehouses/12345"
+export DESTINATION__DATABRICKS__CREDENTIALS__CATALOG="my_catalog"
+export DESTINATION__DATABRICKS__CREDENTIALS__CLIENT_ID="XXX"
+export DESTINATION__DATABRICKS__CREDENTIALS__OIDC_TOKEN_FILEPATH="/var/run/secrets/oidc-token"
+```
+  </TabItem>
+
+<TabItem value="code">
+
+```py
+import os
+
+os.environ["DESTINATION__DATABRICKS__CREDENTIALS__SERVER_HOSTNAME"] = "MY_DATABRICKS.azuredatabricks.net"
+os.environ["DESTINATION__DATABRICKS__CREDENTIALS__HTTP_PATH"]="/sql/1.0/warehouses/12345"
+os.environ["DESTINATION__DATABRICKS__CREDENTIALS__CATALOG"]="my_catalog"
+os.environ["DESTINATION__DATABRICKS__CREDENTIALS__CLIENT_ID"]=os.environ.get("CLIENT_ID", "")
+os.environ["DESTINATION__DATABRICKS__CREDENTIALS__OIDC_TOKEN_FILEPATH"]="/var/run/secrets/oidc-token"
+```
 </TabItem>
 </Tabs>
 

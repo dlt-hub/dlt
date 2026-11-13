@@ -221,6 +221,22 @@ def test_databricks_auth_invalid(mock_databricks_env) -> None:
         bricks.configuration(None, accept_partial=True)
 
 
+def test_databricks_auth_invalid_surfaces_default_auth_error(mock_databricks_env) -> None:
+    """When default SDK auth (e.g. OIDC workload federation) fails, the underlying
+    SDK exception is surfaced instead of being silently swallowed."""
+    os.environ["DESTINATION__DATABRICKS__CREDENTIALS__CATALOG"] = "test_catalog"
+    os.environ["DESTINATION__DATABRICKS__CREDENTIALS__SERVER_HOSTNAME"] = "test.databricks.com"
+    os.environ["DESTINATION__DATABRICKS__CREDENTIALS__HTTP_PATH"] = "/sql/1.0/test"
+
+    type(mock_databricks_env.config).authenticate = property(
+        lambda self: (_ for _ in ()).throw(Exception("no OIDC token available"))
+    )
+
+    with pytest.raises(ConfigurationValueError, match="no OIDC token available"):
+        bricks = databricks()
+        bricks.configuration(None, accept_partial=True)
+
+
 def test_databricks_missing_config_catalog(mock_databricks_env) -> None:
     mock_databricks_env.warehouses.list.side_effect = Exception("No warehouses")
 
@@ -287,6 +303,38 @@ def test_shared_cluster_authentication(mock_databricks_env) -> None:
     params = creds.to_connector_params()
     assert "credentials_provider" in params
     assert callable(params["credentials_provider"])
+
+
+def test_federated_oidc_authentication(mock_databricks_env, mocker) -> None:
+    """`client_id` alone (no `client_secret`) selects OIDC workload federation, without
+    falling back to the SDK's default `WorkspaceClient()` auth chain."""
+    mock_config_cls = mocker.patch("databricks.sdk.core.Config")
+    mock_config_cls.return_value.authenticate = lambda: {"Authorization": "Bearer oidc-token"}
+
+    creds = DatabricksCredentials(
+        catalog="test_catalog",
+        server_hostname="test.databricks.com",
+        http_path="/sql/1.0/test",
+        client_id="federated-client-id",
+        oidc_token_filepath="/var/run/secrets/oidc-token",
+    )
+    # the bare WorkspaceClient() default-auth fallback must not be consulted by on_resolved()
+    mock_databricks_env.config.authenticate = None
+    creds.on_resolved()
+    assert creds.access_token is None
+
+    params = creds.to_connector_params()
+    assert callable(params["credentials_provider"])
+    # `credentials_provider` is a provider factory; calling it once yields the
+    # header-producing callable that `databricks.sql.connect` invokes per request
+    assert params["credentials_provider"]()() == {"Authorization": "Bearer oidc-token"}
+
+    mock_config_cls.assert_called_once_with(
+        host="https://test.databricks.com",
+        client_id="federated-client-id",
+        oidc_token_env=None,
+        oidc_token_filepath="/var/run/secrets/oidc-token",
+    )
 
 
 def test_cluster_context_connection_params(mock_databricks_env, mocker) -> None:
