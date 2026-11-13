@@ -122,7 +122,8 @@ class QdrantClientConfiguration(WithLocalFiles, DestinationClientDwhConfiguratio
             api_key=self.credentials.api_key,
             **options,
         )
-        client.set_model(model)
+        if hasattr(client, "set_model"):
+            client.set_model(model)
         return client
 
     def get_client(self) -> "QdrantClient":
