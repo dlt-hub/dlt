@@ -727,7 +727,9 @@ def utils_discover_profiles(mo_query_var_profile: str, mo_cli_arg_profile: str):
             selected_profile = mo_cli_arg_profile
 
         def _on_profile_change(v: str) -> None:
-            mo.query_params().set("profile", v)
+            query_params = mo.query_params()
+            query_params.set("pipeline", None)
+            query_params.set("profile", v)
 
         dlt_profile_select = mo.ui.dropdown(
             options=options,
@@ -875,18 +877,28 @@ def ui_controls(mo_cli_arg_with_test_identifiers: bool):
 
 @app.cell(hide_code=True)
 def watch_changes(
+    dlt_all_pipelines: List[TPipelineListItem],
     dlt_pipeline_select: mo.ui.multiselect,
     dlt_pipelines_dir: str,
 ):
     """
     Watch changes in the trace file and trigger reload in the home cell and all following cells on change
     """
+    import os
+
     from dlt.pipeline.trace import get_trace_file_path
+
+    def _pipeline_exists(name: str) -> bool:
+        return bool(name and os.path.isdir(os.path.join(dlt_pipelines_dir, name)))
 
     # provide pipeline object to the following cells
     dlt_pipeline_name: str = (
         str(dlt_pipeline_select.value[0]) if dlt_pipeline_select.value else None
     )
+    if not _pipeline_exists(dlt_pipeline_name):
+        dlt_pipeline_name = next(
+            (p["name"] for p in dlt_all_pipelines if _pipeline_exists(p["name"])), None
+        )
     dlt_file_watcher = None
     if dlt_pipeline_name:
         dlt_file_watcher = mo.watch.file(get_trace_file_path(dlt_pipelines_dir, dlt_pipeline_name))
