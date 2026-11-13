@@ -75,3 +75,18 @@ Hotdata is a high-concurrency SQL execution layer built on Apache DataFusion for
 
 Code:
 [https://github.com/hotdata-dev/hotdata-dlt-destination](https://github.com/hotdata-dev/hotdata-dlt-destination)
+
+## Altertable
+
+by: [Altertable](https://github.com/altertable-ai)
+
+Altertable is a DuckDB-powered, AI-native context lakehouse that unifies data across systems, enabling teams and always-on AI agents to query, monitor, and investigate what matters. This destination adapter loads data into the Altertable lakehouse through its HTTP API:
+
+- Append, replace, and upsert merges by primary key, including child tables and hard deletes
+- Automatic schema evolution, with descriptions stored as catalog comments
+- Partitioned tables through `altertable_adapter`
+- Incremental state that survives fresh runners
+- Load verification with `verify_load`
+
+Code:
+[https://github.com/altertable-ai/dlt-altertable](https://github.com/altertable-ai/dlt-altertable)
