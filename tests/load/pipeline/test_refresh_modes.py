@@ -13,6 +13,7 @@ from dlt.extract.source import DltSource
 from dlt.extract.resource import DltResource
 from dlt.extract.state import resource_state
 from dlt.pipeline.helpers import pipeline_drop
+from dlt.pipeline.helpers import pipeline_drop
 from dlt.pipeline.state_sync import load_pipeline_state_from_destination
 
 from tests.pipeline.utils import (
@@ -886,54 +887,107 @@ def test_refresh_drop_resources_skips_missing_tables(
     assert load_table_counts(pipeline, "items") == {"items": 1}
 
 
-@pytest.mark.parametrize(
+# local sql destinations that support a staging dataset
+no_staging_refresh_destinations = pytest.mark.parametrize(
     "destination_config",
     destinations_configs(default_sql_configs=True, subset=["duckdb"]),
     ids=lambda x: x.name,
 )
-def test_refresh_drop_resources_incremental_empty_package_drops_all(
+
+
+def staging_dataset_exists(pipeline: dlt.Pipeline) -> bool:
+    with pipeline.destination_client() as job_client:
+        with job_client.with_staging_dataset():  # type: ignore[attr-defined]
+            return job_client.sql_client.has_dataset()  # type: ignore[attr-defined]
+
+
+def staging_table_exists(pipeline: dlt.Pipeline, table_name: str) -> bool:
+    with pipeline.destination_client() as job_client:
+        with job_client.with_staging_dataset():  # type: ignore[attr-defined]
+            return job_client.get_storage_table(table_name)[0]  # type: ignore[attr-defined]
+
+
+def create_empty_staging_dataset(pipeline: dlt.Pipeline) -> None:
+    with pipeline.destination_client() as job_client:
+        with job_client.with_staging_dataset():  # type: ignore[attr-defined]
+            job_client.initialize_storage()
+
+
+@dlt.resource(name="items", write_disposition="append")
+def append_items():
+    yield [{"id": 1}, {"id": 2}]
+
+
+@no_staging_refresh_destinations
+@pytest.mark.parametrize("refresh", ("drop_resources", "drop_sources"))
+def test_drop_refresh_does_not_create_staging_dataset(
+    destination_config: DestinationTestConfiguration, refresh: TRefreshMode
+) -> None:
+    """Append-only pipelines never load into staging, a drop refresh must not create it"""
+    pipeline = destination_config.setup_pipeline("refresh_no_staging" + uniq_id(), dev_mode=True)
+    assert_load_info(pipeline.run(append_items, **destination_config.run_kwargs))
+    assert not staging_dataset_exists(pipeline)
+
+    info = pipeline.run(append_items, refresh=refresh, **destination_config.run_kwargs)
+    assert_load_info(info)
+    assert load_table_counts(pipeline, "items") == {"items": 2}
+    assert not staging_dataset_exists(pipeline)
+
+
+@no_staging_refresh_destinations
+def test_pipeline_drop_does_not_create_staging_dataset(
     destination_config: DestinationTestConfiguration,
 ) -> None:
-    """Makes sure that emitting empty package (no jobs) drops all resources"""
-    os.environ["DATA_WRITER__DISABLE_COMPRESSION"] = "TRUE"
+    """`pipeline_drop` on an append-only pipeline must not create the staging dataset"""
+    pipeline = destination_config.setup_pipeline("drop_no_staging" + uniq_id(), dev_mode=True)
+    assert_load_info(pipeline.run(append_items, **destination_config.run_kwargs))
 
-    def items_resource(initial_value: int, end_value: int) -> DltResource:
-        @dlt.resource(name="items", write_disposition="replace", primary_key="id")
-        def items(
-            updated: Any = dlt.sources.incremental(
-                "ts", initial_value=initial_value, end_value=end_value
+    pipeline_drop(pipeline, resources=["items"])()
+    assert not table_exists(pipeline, "items")
+    assert not staging_dataset_exists(pipeline)
+
+
+@no_staging_refresh_destinations
+def test_drop_refresh_does_not_create_version_table_in_existing_staging(
+    destination_config: DestinationTestConfiguration,
+) -> None:
+    """An existing but empty staging dataset must not get `_dlt_version` from a drop refresh"""
+    pipeline = destination_config.setup_pipeline("refresh_empty_staging" + uniq_id(), dev_mode=True)
+    assert_load_info(pipeline.run(append_items, **destination_config.run_kwargs))
+    create_empty_staging_dataset(pipeline)
+    assert not staging_table_exists(pipeline, "_dlt_version")
+
+    info = pipeline.run(append_items, refresh="drop_resources", **destination_config.run_kwargs)
+    assert_load_info(info)
+    assert load_table_counts(pipeline, "items") == {"items": 2}
+    assert staging_dataset_exists(pipeline)
+    assert not staging_table_exists(pipeline, "_dlt_version")
+
+
+@no_staging_refresh_destinations
+def test_drop_refresh_drops_stale_staging_tables_without_touching_version_table(
+    destination_config: DestinationTestConfiguration,
+) -> None:
+    """Stale staging tables are still dropped, but nothing is written to staging `_dlt_version`"""
+    pipeline = destination_config.setup_pipeline("refresh_stale_staging" + uniq_id(), dev_mode=True)
+
+    # merge disposition puts `items` into the staging dataset
+    merge_items = dlt.resource(
+        [{"id": 1}, {"id": 2}], name="items", write_disposition="merge", primary_key="id"
+    )
+    assert_load_info(pipeline.run(merge_items, **destination_config.run_kwargs))
+    assert staging_table_exists(pipeline, "items")
+
+    # same resource is now append-only: nothing will be staged, but the stale table must go
+    info = pipeline.run(append_items, refresh="drop_resources", **destination_config.run_kwargs)
+    assert_load_info(info)
+    assert load_table_counts(pipeline, "items") == {"items": 2}
+    assert not staging_table_exists(pipeline, "items")
+    # schema was deleted from staging version table and not stored again
+    with pipeline.destination_client() as job_client:
+        with job_client.with_staging_dataset():  # type: ignore[attr-defined]
+            version_table = job_client.sql_client.make_qualified_table_name("_dlt_version")  # type: ignore[attr-defined]
+            rows = job_client.sql_client.execute_sql(  # type: ignore[attr-defined]
+                f"SELECT count(*) FROM {version_table}"
             )
-        ) -> Any:
-            yield [
-                {"id": 1, "ts": 1, "children": [{"cid": 1}]},
-                {"id": 2, "ts": 2, "children": [{"cid": 2}]},
-            ]
-
-        return items()
-
-    pipeline = destination_config.setup_pipeline("refresh_inc_empty" + uniq_id(), dev_mode=True)
-
-    # first refresh loads all data (ts within the [0, 10) window)
-    info = pipeline.run(
-        items_resource(0, 10), refresh="drop_resources", **destination_config.run_kwargs
-    )
-    assert_load_info(info)
-    assert load_table_counts(pipeline, "items", "items__children") == {
-        "items": 2,
-        "items__children": 2,
-    }
-    # the hint-only primary key was typed from the data
-    assert "primary_key" in pipeline.default_schema.tables["items"]["columns"]["id"]
-
-    # second refresh: the [100, 200) window selects nothing -> fully empty package
-    info = pipeline.run(
-        items_resource(100, 200), refresh="drop_resources", **destination_config.run_kwargs
-    )
-    assert_load_info(info)
-    # the empty package still reports the refresh mode and the dropped table chain
-    package = info.load_packages[0]
-    assert package.refresh == "drop_resources"
-    assert set(package.dropped_tables) == {"items", "items__children"}
-    # all tables are dropped and not recreated by the empty/replace run
-    assert table_exists(pipeline, "items") is False
-    assert table_exists(pipeline, "items__children") is False
+    assert rows[0][0] == 0
