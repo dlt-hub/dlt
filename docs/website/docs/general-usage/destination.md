@@ -686,7 +686,7 @@ Updating views may be costly (globbing, re-reading iceberg metadata) so your bes
 when you need fresh data. Alternatively you can enable autorefresh mode which will re-create view on each query:
 
 ```py
-from dlt.destination import filesystem
+from dlt.destinations import filesystem
 
 pipeline = dlt.pipeline(destination=filesystem(always_refresh_views=True), dataset_name="my_dataset")
 with pipeline.sql_client() as client:  # ty: ignore
