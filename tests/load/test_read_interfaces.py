@@ -53,6 +53,16 @@ def _total_records(destination_type: str) -> int:
     return 3000
 
 
+# not all destinations fully fill chunks, treat chunk size as maximum for these
+INEXACT_CHUNK_SIZE_DESTINATIONS = [
+    "dlt.destinations.filesystem",
+    "dlt.destinations.ducklake",  # vector size seems to not be consistent, typically 700
+    "dlt.destinations.duckdb",  # vector sizes started to vary
+    "dlt.destinations.lancedb",  # default is 200
+    "dlt.destinations.lance",
+]
+
+
 def _chunk_size(destination_type: str) -> int:
     """chunk size for a given pipeline"""
     if destination_type == "dlt.destinations.bigquery":
@@ -71,6 +81,18 @@ def _expected_chunk_count(p: Pipeline) -> List[int]:
         chunk_size,
         total_records - chunk_size,
     ]
+
+
+def _assert_chunk_sizes(p: Pipeline, sizes: List[int], expected: List[int]) -> None:
+    destination_type = p.destination.destination_type
+    if destination_type == "dlt.destinations.snowflake":
+        # snowflake driver ignores chunk_size
+        return
+    if destination_type in INEXACT_CHUNK_SIZE_DESTINATIONS:
+        chunk_size = _chunk_size(destination_type)
+        assert all(0 < size <= chunk_size for size in sizes)
+    else:
+        assert sizes == expected
 
 
 def create_test_source(destination_type: str, table_format: TTableFormat) -> DltSource:
@@ -273,14 +295,11 @@ def test_arrow_access(populated_pipeline: Pipeline) -> None:
     # chunk
     table = table_relationship.arrow(chunk_size=chunk_size)
     assert set(table.column_names) == set(EXPECTED_COLUMNS)
-    # NOTE: chunksize is unpredictable on snowflake
-    if populated_pipeline.destination.destination_type != "dlt.destinations.snowflake":
-        assert table.num_rows == chunk_size
+    _assert_chunk_sizes(populated_pipeline, [table.num_rows], [chunk_size])
 
     # check frame amount and items counts
     tables = list(table_relationship.iter_arrow(chunk_size=chunk_size))
-    if populated_pipeline.destination.destination_type != "dlt.destinations.snowflake":
-        assert [t.num_rows for t in tables] == expected_chunk_counts
+    _assert_chunk_sizes(populated_pipeline, [t.num_rows for t in tables], expected_chunk_counts)
 
     # check all items are present, this MUST also be true for snowflake
     ids = reduce(lambda a, b: a + b, [t.column(EXPECTED_COLUMNS[0]).to_pylist() for t in tables])
@@ -295,32 +314,21 @@ def test_dataframe_access(populated_pipeline: Pipeline) -> None:
     total_records = _total_records(populated_pipeline.destination.destination_type)
     chunk_size = _chunk_size(populated_pipeline.destination.destination_type)
     expected_chunk_counts = _expected_chunk_count(populated_pipeline)
-    skip_df_chunk_size_check = populated_pipeline.destination.destination_type in [
-        "dlt.destinations.filesystem",
-        "dlt.destinations.snowflake",
-        "dlt.destinations.ducklake",  # vector size seems to not be consistent, typically 700
-        "dlt.destinations.duckdb",  # vector sizes started to vary
-        "dlt.destinations.lancedb",  # default is 200
-        "dlt.destinations.lance",
-    ]
 
     # full frame
     df = table_relationship.df()
     assert len(df.index) == total_records
     assert set(df.columns.values) == set(EXPECTED_COLUMNS)
 
-    # TODO: snowflake does not follow a chunk size, make and exception (accept range), same for arrow
     # chunk
     df = table_relationship.df(chunk_size=chunk_size)
-    if not skip_df_chunk_size_check:
-        assert len(df.index) == chunk_size
+    _assert_chunk_sizes(populated_pipeline, [len(df.index)], [chunk_size])
 
     assert set(df.columns.values) == set(EXPECTED_COLUMNS)
 
     # iterate all dataframes
     frames = list(table_relationship.iter_df(chunk_size=chunk_size))
-    if not skip_df_chunk_size_check:
-        assert [len(df.index) for df in frames] == expected_chunk_counts
+    _assert_chunk_sizes(populated_pipeline, [len(f.index) for f in frames], expected_chunk_counts)
 
     # check all items are present
     ids = reduce(lambda a, b: a + b, [f[EXPECTED_COLUMNS[0]].to_list() for f in frames])
@@ -1095,8 +1103,7 @@ def test_schema_arg(populated_pipeline: Pipeline) -> None:
 @pytest.mark.no_load
 @pytest.mark.essential
 def test_ibis_expression_relation(populated_pipeline: Pipeline) -> None:
-    # NOTE: we could generalize this with a context for certain deps
-    import ibis
+    ibis = pytest.importorskip("ibis")
 
     # now we should get the more powerful ibis relation
     dataset = populated_pipeline.dataset()
@@ -1433,7 +1440,7 @@ def _assert_ibis_dataset_access(pipeline: Pipeline, ibis_connection: Any) -> Non
 @pytest.mark.no_load
 @pytest.mark.essential
 def test_ibis_dataset_access(populated_pipeline: Pipeline) -> None:
-    # NOTE: we could generalize this with a context for certain deps
+    pytest.importorskip("ibis")
 
     # make sure the not implemented error is raised if the ibis backend can't be created
     try:
@@ -1468,6 +1475,7 @@ def test_ibis_dataset_access_external_connection(
     destination_config: DestinationTestConfiguration,
 ) -> None:
     """dlt hands over a connection that the caller opened, configured for the dataset."""
+    pytest.importorskip("ibis")
     import duckdb
 
     conn = duckdb.connect(":memory:")

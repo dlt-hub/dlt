@@ -44,6 +44,7 @@ from dlt.common.configuration.specs import (
 from dlt.common.destination.client import JobClientBase
 from dlt.common.destination.utils import prepare_load_table as _prepare_load_table
 from dlt.common.schema import Schema
+from dlt.common.schema.typing import TTableSchemaColumns
 from dlt.common.schema.utils import merge_columns
 from dlt.common.destination.dataset import DBApiCursor
 
@@ -106,18 +107,17 @@ class DuckDBDBApiCursorImpl(DBApiCursorImpl):
             yield df
 
     def iter_arrow(self, chunk_size: int) -> Generator["ArrowTable", None, None]:
+        # duckdb 1.5 introduces `to_arrow_table` which become mandatory from 2.0 onward
+        new_api = Version(duckdb.__version__) >= Version("1.5.0")
         if not chunk_size:
-            yield self.native_cursor.fetch_arrow_table()
+            method = "to_arrow_table" if new_api else "fetch_arrow_table"
+            yield getattr(self.native_cursor, method)()
             return
         # resolve pa at runtime; `ArrowTable` is a TYPE_CHECKING-only alias above
         from dlt.common.libs.pyarrow import pyarrow as pa
 
         # iterate
-        method = (
-            "to_arrow_reader"
-            if Version(duckdb.__version__) >= Version("1.5.0")
-            else "fetch_record_batch"
-        )
+        method = "to_arrow_reader" if new_api else "fetch_record_batch"
         for item in getattr(self.native_cursor, method)(chunk_size):
             yield pa.Table.from_batches([item])
 
@@ -255,20 +255,54 @@ class DuckDbSqlClient(SqlClientBase[duckdb.DuckDBPyConnection], DBTransaction, W
             else:
                 return curr.fetchall()
 
-    @contextmanager
-    @raise_database_error
-    def execute_query(self, query: AnyStr, *args: Any, **kwargs: Any) -> Iterator[DBApiCursor]:
+    def _query_and_args(
+        self, query: AnyStr, args: Tuple[Any, ...], kwargs: Dict[str, Any]
+    ) -> Tuple[str, Any]:
         assert isinstance(query, str)
         db_args = args if args else kwargs if kwargs else None
         if db_args:
             # TODO: must provide much better refactoring of params
-            query = query.replace("%s", "?")
+            return query.replace("%s", "?"), db_args
+        return query, db_args
+
+    @raise_database_error
+    def iter_arrow_query(
+        self,
+        query: AnyStr,
+        chunk_size: Optional[int] = None,
+        columns_schema: Optional[TTableSchemaColumns] = None,
+    ) -> Generator["ArrowTable", None, None]:
+        # in duckdb > 2 this loads all results into memory before returning a chunk
+        if Version(duckdb.__version__) < Version("2.0.0"):
+            yield from super().iter_arrow_query(query, chunk_size, columns_schema)
+            return
+        sql, _ = self._query_and_args(query, (), {})
+        # `.sql` streams on duckbd > 2
+        relation = self._conn.sql(sql)
+        if not chunk_size:
+            yield relation.to_arrow_table()
+            return
+
+        from dlt.common.libs.pyarrow import pyarrow as pa
+
+        reader = relation.to_arrow_reader(chunk_size)
+        try:
+            for batch in reader:
+                yield pa.Table.from_batches([batch])
+        finally:
+            # duckdb 2 errors on the next query when an open reader holds previous query results
+            reader.close()
+
+    @contextmanager
+    @raise_database_error
+    def execute_query(self, query: AnyStr, *args: Any, **kwargs: Any) -> Iterator[DBApiCursor]:
+        sql, db_args = self._query_and_args(query, args, kwargs)
 
         self._refresh_expiring_secret()
         # we can't duplicate connection because local settings (ie. search path) are lost
         cur = self._conn
         try:
-            yield self.cursor_impl(cur.execute(query, db_args))  # type: ignore
+            yield self.cursor_impl(cur.execute(sql, db_args))  # type: ignore
         except duckdb.Error:
             try:
                 cur.rollback()
@@ -276,8 +310,14 @@ class DuckDbSqlClient(SqlClientBase[duckdb.DuckDBPyConnection], DBTransaction, W
                 pass
             raise
         finally:
-            # we should somehow cleanup result set if present but no suitable method on connection
-            pass
+            self._abort_unread_result(cur)
+
+    @staticmethod
+    def _abort_unread_result(conn: duckdb.DuckDBPyConnection) -> None:
+        # duckdb 2 refuses relations while a partly read result is open, older versions have no abort
+        abort = getattr(conn, "abort", None)
+        if abort is not None:
+            abort()
 
     def warn_if_catalog_equals_dataset_name(self) -> None:
         """
@@ -316,7 +356,7 @@ class DuckDbSqlClient(SqlClientBase[duckdb.DuckDBPyConnection], DBTransaction, W
     @raise_database_error
     def list_secrets(self) -> Sequence[str]:
         """List secrets that belong to this dataset"""
-        secrets = self._conn.sql(
+        secrets = self._conn.execute(
             f"SELECT name FROM duckdb_secrets() WHERE name LIKE '{self.dataset_name}%'"
         ).fetchall()
         return [s[0] for s in secrets]
@@ -329,7 +369,7 @@ class DuckDbSqlClient(SqlClientBase[duckdb.DuckDBPyConnection], DBTransaction, W
                 f" `{secret_name}`."
             )
 
-        self._conn.sql(f"DROP SECRET {secret_name}")
+        self._conn.execute(f"DROP SECRET {secret_name}")
 
     @raise_database_error
     def create_secret(
@@ -349,7 +389,7 @@ class DuckDbSqlClient(SqlClientBase[duckdb.DuckDBPyConnection], DBTransaction, W
             )
 
         secrets_path = Path(
-            self._conn.sql(
+            self._conn.execute(
                 "SELECT current_setting('secret_directory') AS secret_directory"
             ).fetchone()[0]
         )
@@ -389,7 +429,7 @@ class DuckDbSqlClient(SqlClientBase[duckdb.DuckDBPyConnection], DBTransaction, W
         if not sql:
             # could not create secret - the filesystem client falls back to fsspec
             return False
-        self._conn.sql(";\n".join(sql))
+        self._conn.execute(";\n".join(sql))
         self._secret_refresh_at = expires_at - self.SECRET_REFRESH_MARGIN if expires_at else None
         self._recreate_secret = recreate_secret
         return True
@@ -580,7 +620,7 @@ class DuckDbSqlClient(SqlClientBase[duckdb.DuckDBPyConnection], DBTransaction, W
     def use_dataset(self) -> None:
         """Makes duckdb schema corresponding to dataset_name the default"""
         fq_name = self.fully_qualified_dataset_name()
-        self._conn.sql(f"SET search_path = '{fq_name}'")
+        self._conn.execute(f"SET search_path = '{fq_name}'")
 
     def _register_filesystem(self, fs: AbstractFileSystem, scheme: str) -> None:
         protocols = [fs.protocol] if isinstance(fs.protocol, str) else fs.protocol
@@ -890,18 +930,14 @@ class WithTableScanners(DuckDbSqlClient, WithSchemas):
             )
         return statements
 
-    @contextmanager
-    @raise_database_error
-    def execute_query(self, query: AnyStr, *args: Any, **kwargs: Any) -> Iterator[DBApiCursor]:
+    def _query_and_args(
+        self, query: AnyStr, args: Tuple[Any, ...], kwargs: Dict[str, Any]
+    ) -> Tuple[str, Any]:
         # views below read the data, so they need a valid token too
         self._refresh_expiring_secret()
-        # skip parametrized queries, we could also render them but currently user is not able to
-        # do parametrized queries via dataset interface
-        if args or kwargs:
-            # this is hack
-            query = query.replace("%s", "?")  # type: ignore
+        sql, db_args = super()._query_and_args(query, args, kwargs)
         # find all tables to preload
-        expression = sqlglot.parse_one(query, read="duckdb")  # type: ignore
+        expression = sqlglot.parse_one(sql, read="duckdb")
         load_tables: Dict[str, str] = {}
         for table in expression.find_all(exp.Table):
             # sqlglot has tables without tables ie. schemas are tables
@@ -914,8 +950,7 @@ class WithTableScanners(DuckDbSqlClient, WithSchemas):
 
         if load_tables:
             self.create_views_for_tables(load_tables)
-        with super().execute_query(query, *args, **kwargs) as cursor:
-            yield cursor
+        return sql, db_args
 
     @staticmethod
     def _iceberg_setup_statements() -> List[str]:

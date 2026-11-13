@@ -768,11 +768,14 @@ def test_table_format_empty_source(
 
     pipeline = destination_config.setup_pipeline("fs_pipe", dev_mode=True)
 
+    # iceberg does not commit a snapshot for empty data
+    empty_version = -1 if destination_config.table_format == "iceberg" else 0
+
     # run 1: empty Arrow table with schema
     # this should create empty Delta table with same schema as Arrow table
     info = pipeline.run(a_table(empty_arrow_table))
     assert_load_info(info)
-    assert get_table_version(pipeline, "a_table", destination_config.table_format) == 0
+    assert get_table_version(pipeline, "a_table", destination_config.table_format) == empty_version
     expected, actual = get_expected_actual(
         pipeline, "a_table", destination_config.table_format, empty_arrow_table
     )
@@ -783,7 +786,9 @@ def test_table_format_empty_source(
     # this should load records into Delta table
     info = pipeline.run(a_table(arrow_table))
     assert_load_info(info)
-    assert get_table_version(pipeline, "a_table", destination_config.table_format) == 1
+    assert (
+        get_table_version(pipeline, "a_table", destination_config.table_format) == empty_version + 1
+    )
     expected, actual = get_expected_actual(
         pipeline, "a_table", destination_config.table_format, empty_arrow_table
     )
@@ -809,7 +814,7 @@ def test_table_format_empty_source(
     users_materialize_table_schema.apply_hints(table_format=destination_config.table_format)
     info = pipeline.run(users_materialize_table_schema(), loader_file_format="parquet")
     assert_load_info(info)
-    assert get_table_version(pipeline, "users", destination_config.table_format) == 0
+    assert get_table_version(pipeline, "users", destination_config.table_format) == empty_version
     _, actual = get_expected_actual(
         pipeline, "users", destination_config.table_format, empty_arrow_table
     )

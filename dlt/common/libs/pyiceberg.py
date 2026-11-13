@@ -103,7 +103,12 @@ def write_iceberg_table(
     write_disposition: TWriteDisposition,
 ) -> None:
     start_ts = time.monotonic()
-    if write_disposition == "append":
+    # pyiceberg writes always writes a block even when empty which breaks duckdb2.0
+    # remove truncate workaround once https://github.com/apache/iceberg-python/pull/4008 is released
+    if data.num_rows == 0:
+        if write_disposition == "replace":
+            truncate_iceberg_table(table)
+    elif write_disposition == "append":
         table.append(ensure_iceberg_compatible_arrow_data(data))
     elif write_disposition == "replace":
         table.overwrite(ensure_iceberg_compatible_arrow_data(data))
