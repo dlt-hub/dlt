@@ -57,6 +57,7 @@ from dlt._workspace.deployment.agent.loops.claude_sdk import (
     classify_tool,
 )
 from dlt._workspace.deployment.agent.loops.pydantic_ai import (
+    MCP_INIT_TIMEOUT,
     OUTPUT_TOOL_NAME,
     UNBOUNDED_RETRIES,
     PydanticAILoop,
@@ -499,9 +500,11 @@ def test_loops_serve_the_workspace_mcp_server(workspace: Any) -> None:
     for loop_cls in (PydanticAILoop, ClaudeAgentSdkLoop):
         loop = _loop(workspace, loop_cls, access={"local": ["read"]}, tools=["telemetry"])
         if isinstance(loop, PydanticAILoop):
-            transport = loop._build_toolsets()[0].client.transport
+            client = loop._build_toolsets()[0].client
+            transport = client.transport
             args, env = transport.args, transport.env
             assert transport.cwd == workspace.run_dir
+            assert client._init_timeout == MCP_INIT_TIMEOUT
         else:
             options = cast(ClaudeAgentSdkLoop, loop)._build_options("system")
             server = options.mcp_servers[MCP_SERVER_ID]
