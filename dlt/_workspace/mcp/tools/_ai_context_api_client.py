@@ -37,6 +37,13 @@ def search_sources(query: str = "", ai_context_api_url: str = None) -> List[TSou
     if response.status_code != 200:
         raise AiContextApiError(f"API returned status {response.status_code}: {response.text}")
 
-    data: Dict[str, Any] = response.json()
+    try:
+        data: Dict[str, Any] = response.json()
+    except ValueError as e:
+        raise AiContextApiError(f"API returned a response that is not valid JSON: {str(e)}")
+    if not isinstance(data, dict):
+        raise AiContextApiError(
+            f"API returned an unexpected JSON shape: {type(data).__name__}"
+        )
     results: List[TSourceItem] = data.get("results", [])
     return results
