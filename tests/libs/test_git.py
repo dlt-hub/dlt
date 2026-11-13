@@ -139,6 +139,30 @@ def test_sparse_checkout(test_storage: FileStorage) -> None:
     assert len(repo_storage.list_folder_dirs(".")) == 1  # .git
 
 
+@pytest.mark.parametrize("branch", ["master", None], ids=["explicit-master", "default-branch"])
+def test_sparse_checkout_branch_change(test_storage: FileStorage, branch: str) -> None:
+    # a sparse clone fetches a branch that is not the default one
+    repo_storage = get_fresh_repo_files(
+        CONTEXT_REPO, test_storage.storage_path, branch="devel", path="workbench"
+    )
+    with get_repo(repo_storage.storage_path) as repo:
+        assert repo.active_branch.name == "devel"
+        assert is_clean_and_synced(repo)
+
+    # the same clone, not wiped, moves to master
+    repo_storage = get_fresh_repo_files(
+        CONTEXT_REPO, test_storage.storage_path, branch=branch, path="workbench"
+    )
+    with get_repo(repo_storage.storage_path) as repo:
+        assert repo.active_branch.name == "master"
+        assert is_clean_and_synced(repo)
+        assert repo.git.rev_parse("--is-shallow-repository") == "true"
+    assert sorted(os.path.basename(d) for d in repo_storage.list_folder_dirs(".")) == [
+        ".git",
+        "workbench",
+    ]
+
+
 def test_sparse_checkout_path_not_exist_on_clone(test_storage: FileStorage) -> None:
     # unknown path before first checkout
     repo_storage = get_fresh_repo_files(CONTEXT_REPO, test_storage.storage_path, path="__unknown")

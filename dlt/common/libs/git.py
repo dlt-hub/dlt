@@ -63,10 +63,18 @@ def is_dirty(repo: Repo) -> bool:
 
 
 def get_default_branch(repo: Repo) -> str:
+    """The default branch of `origin`.
+
+    Raises:
+        GitError: `origin` has no HEAD, as in a single-branch clone of another branch.
+    """
+    from git import GitError
+
     origin = repo.remotes.origin
-    # Get the remote's HEAD reference (default branch)
-    default_ref = origin.refs.HEAD  # symbolic ref like 'origin/main'
-    return default_ref.reference.name.split("/")[-1]  # extract branch
+    if "HEAD" not in origin.refs:
+        raise GitError(f"{repo.working_dir} does not know the default branch of origin")
+    # symbolic ref like 'origin/main'
+    return origin.refs.HEAD.reference.remote_head
 
 
 def ensure_remote_head(
@@ -140,6 +148,9 @@ def clone_repo(
             "--no-checkout",
             *disable_bg_writes,
         ]
+        # a shallow clone fetches a single branch, the default one unless named here
+        if branch:
+            multi_options.append(f"--branch={branch}")
     else:
         multi_options = list(disable_bg_writes)
     repo = Repo.clone_from(
