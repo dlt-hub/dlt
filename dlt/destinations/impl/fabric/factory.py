@@ -8,6 +8,7 @@ that extends Synapse capabilities with Fabric-specific requirements:
 - Supports COPY INTO for efficient data loading from staging
 """
 
+from copy import copy
 from typing import Type, TYPE_CHECKING, Optional
 
 from dlt.common.destination import DestinationCapabilitiesContext
@@ -61,6 +62,14 @@ class FabricTypeMapper(SynapseTypeMapper):
         if loader_file_format == "parquet" and column["data_type"] == "time":
             return
         super().ensure_supported_type(column, table, loader_file_format)
+
+    def to_db_integer_type(self, column: TColumnSchema, table: PreparedTableSchema = None) -> str:
+        """Override to widen tinyint to smallint, the narrowest integer type Fabric supports"""
+        precision = column.get("precision")
+        if precision is not None and precision <= 8:
+            column = copy(column)
+            column["precision"] = 16
+        return super().to_db_integer_type(column, table)
 
     def to_destination_type(self, column: TColumnSchema, table: PreparedTableSchema) -> str:
         """Override to use varchar instead of nvarchar and datetime2 instead of datetimeoffset"""
