@@ -532,7 +532,9 @@ def _clone_and_get_verified_sources_storage(repo_location: str, branch: str = No
     """Clone and get FileStorage for verified sources templates"""
 
     fmt.echo("Looking up verified sources at %s..." % fmt.bold(repo_location))
-    clone_storage = git.get_fresh_repo_files(repo_location, get_dlt_repos_dir(), branch=branch)
+    clone_storage = git.get_fresh_repo_files(
+        repo_location, get_dlt_repos_dir(), branch=branch, path=SOURCES_MODULE_NAME
+    )
     # copy dlt source files from here
     return FileStorage(clone_storage.make_full_path(SOURCES_MODULE_NAME))
 

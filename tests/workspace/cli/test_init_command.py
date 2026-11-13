@@ -23,6 +23,7 @@ import cryptography.hazmat.bindings._rust
 import dlt
 from dlt.common.libs import git
 from dlt.common.configuration.providers import CONFIG_TOML, SECRETS_TOML, SecretsTomlProvider
+from dlt.common.pipeline import get_dlt_repos_dir
 from dlt.common.runners import Venv
 from dlt.common.storages.file_storage import FileStorage
 from dlt.common.utils import uniq_id
@@ -221,6 +222,14 @@ def test_list_sources(repo_dir: str) -> None:
     assert set(SOME_KNOWN_VERIFIED_SOURCES).issubset(verified_sources.keys())
     check_results(verified_sources)
     assert len(verified_sources.keys()) > 10
+    # only the sources folder of the verified sources repo is cloned
+    clone_storage = FileStorage(os.path.join(get_dlt_repos_dir(), "verified-sources"))
+    assert sorted(os.path.basename(d) for d in clone_storage.list_folder_dirs(".")) == [
+        ".git",
+        SOURCES_MODULE_NAME,
+    ]
+    with git.get_repo(clone_storage.storage_path) as repo:
+        assert repo.git.rev_parse("--is-shallow-repository") == "true"
 
     templates = _list_template_sources()
     assert set(templates) == set(TEMPLATES)
