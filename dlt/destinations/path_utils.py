@@ -42,6 +42,8 @@ SUPPORTED_TABLE_NAME_PREFIX_PLACEHOLDERS = ("schema_name",)
 
 TABLE_NAME_PLACEHOLDER = "{table_name}"
 SCHEMA_NAME_PLACEHOLDER = "{schema_name}"
+EXT_PLACEHOLDER = "{ext}"
+_TABLE_FILE_SUFFIX = TABLE_NAME_PLACEHOLDER + EXT_PLACEHOLDER
 
 
 def normalize_path_sep(pathlib: Any, path: str) -> str:
@@ -178,7 +180,27 @@ def check_layout(
             unused_placeholders,
         )
 
+    # this allows to opt-out of the auto append of `.{ext}` (but only if `ext` is empty)
+    if "}" + EXT_PLACEHOLDER in layout and (extra_placeholders or {}).get("ext") != "":
+        raise InvalidFilesystemLayout(
+            layout,
+            all_placeholders,  # type: ignore[arg-type]
+            extra_placeholder_keys,
+            [],
+            unused_placeholders,
+            details=(
+                "`{ext}` follows another placeholder directly. Add a separator such as `.`"
+                " before `{ext}` or set `ext` to an empty string in `extra_placeholders`."
+            ),
+        )
+
     return list(all_placeholders), placeholders
+
+
+def _is_table_file_layout(layout: str) -> bool:
+    """Tells if `layout` names each file after its table."""
+    table_name_start = layout.find(TABLE_NAME_PLACEHOLDER)
+    return table_name_start >= 0 and layout[table_name_start:] == _TABLE_FILE_SUFFIX
 
 
 def _ensure_ext_in_layout(layout: str, placeholders: Sequence[str]) -> str:
@@ -314,7 +336,10 @@ def get_table_prefix_layout(
     # we include the char after the table_name here, this should be a separator not a new placeholder
     # this is to prevent selecting tables that have the same starting name -> {table_name}/
     table_name_end = ext_layout.index(TABLE_NAME_PLACEHOLDER) + len(TABLE_NAME_PLACEHOLDER)
-    prefix = ext_layout[: table_name_end + 1]
+    if _is_table_file_layout(layout):
+        prefix = ext_layout[:table_name_end]
+    else:
+        prefix = ext_layout[: table_name_end + 1]
     if prefix[-1] == "{":
         raise CantExtractTablePrefix(layout, "A separator is required after a {table_name}. ")
     if prefix[-1] != "/" and table_needs_own_folder:
