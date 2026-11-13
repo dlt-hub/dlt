@@ -381,7 +381,10 @@ class ParquetDataWriter(DataWriter):
         self.schema = columns_to_arrow(columns_schema, self._caps, self.timestamp_timezone)
         # find row items that are of the json type (could be abstracted out for use in other writers?)
         self.nested_indices = [
-            i for i, field in columns_schema.items() if field["data_type"] == "json"
+            i
+            for i, field in columns_schema.items()
+            if field["data_type"] == "json"
+            and not (field.get("x-nested-type") and self._caps.supports_nested_types)
         ]
         self.writer = self._create_writer(self.schema)
 
