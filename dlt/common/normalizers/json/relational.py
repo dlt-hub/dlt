@@ -3,6 +3,7 @@ from importlib import import_module
 from typing import (
     ClassVar,
     Dict,
+    Iterator,
     List,
     Mapping,
     Optional,
@@ -164,24 +165,30 @@ class DataItemNormalizer(DataItemNormalizerBase[RelationalNormalizerConfig]):
         is_nested_type = self._is_nested_type
         EMPTY_KEY = self.EMPTY_KEY_IDENTIFIER
 
-        stack: List[Tuple[Dict[str, Any], int, Tuple[str, ...]]] = [(dict_row, _r_lvl, ())]
+        stack: List[Tuple[Iterator[Tuple[str, Any]], int, Tuple[str, ...]]] = [
+            (iter(dict_row.items()), _r_lvl, ())
+        ]
 
         while stack:
-            current_row, r_lvl, path = stack.pop()
-            for k, v in current_row.items():
+            items, r_lvl, path = stack[-1]
+            for k, v in items:
                 norm_k = normalize_identifier(k) if (k and not k.isspace()) else EMPTY_KEY
                 nested_name = norm_k if not path else shorten_fragments(*path, norm_k)
                 v_type = type(v)
                 if v_type is dict:
                     if not is_nested_type(table, nested_name, r_lvl):
-                        stack.append((v, r_lvl - 1, path + (norm_k,)))
-                        continue
+                        # descend into the nested row before any following key, so the
+                        # resulting columns keep the order they are read in
+                        stack.append((iter(v.items()), r_lvl - 1, path + (norm_k,)))
+                        break
                 elif v_type is list:
                     if not is_nested_type(table, nested_name, r_lvl):
                         out_rec_list[path + (normalize_table_identifier(k),)] = v
                         continue
 
                 out_rec_row[nested_name] = v
+            else:
+                stack.pop()
 
         return out_rec_row, out_rec_list
 
