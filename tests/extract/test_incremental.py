@@ -40,6 +40,7 @@ from dlt.extract.incremental.exceptions import (
     IncrementalCursorInvalidCoercion,
     IncrementalCursorPathHasValueNone,
     IncrementalCursorPathMissing,
+    IncrementalCursorThresholdExceeded,
     IncrementalPrimaryKeyMissing,
 )
 from dlt.extract.incremental.lag import apply_lag
@@ -4729,6 +4730,95 @@ def test_warning_large_deduplication_state(item_type: TestDataItemFormat, primar
         call for call in logger_spy.call_args_list if "Large number of records" in call.args[0]
     ]
     assert len(warning_calls) == 1
+    warning = warning_calls[0].args[0]
+    assert "primary_key=()" in warning
+    assert "keep the start range closed" in warning
+    assert "Append loads still need deduplication" in warning
+    assert "Incremental.duplicate_cursor_error_threshold" in warning
+
+
+@pytest.mark.parametrize("item_type", ALL_TEST_DATA_ITEM_FORMATS, ids=ALL_TEST_DATA_ITEM_FORMATS)
+@pytest.mark.parametrize("existing_state", [False, True], ids=["fresh", "persisted"])
+def test_duplicate_cursor_error_threshold(
+    item_type: TestDataItemFormat, existing_state: bool, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    @dlt.resource(primary_key="id")
+    def items(n: int, cursor=dlt.sources.incremental("ts")):
+        yield data_to_item_format(item_type, [{"id": i, "ts": 1} for i in range(3)])
+        yield data_to_item_format(item_type, [{"id": i, "ts": 1} for i in range(3, n)])
+
+    monkeypatch.setattr(Incremental, "duplicate_cursor_error_threshold", 5)
+    p = dlt.pipeline(pipeline_name="threshold_" + uniq_id())
+    if existing_state:
+        # Exactly at the limit, including replay of the same boundary, is allowed.
+        p.extract(items(5))
+        p.extract(items(5))
+        state = p.state
+        cursor_state = state["sources"][p.pipeline_name]["resources"]["items"]["incremental"]["ts"]
+        assert len(cursor_state["unique_hashes"]) == 5
+    else:
+        state = p.state
+
+    with pytest.raises(PipelineStepFailed) as py_ex:
+        p.extract(items(6))
+    inner = py_ex.value.__cause__
+    assert isinstance(inner, IncrementalCursorThresholdExceeded)
+    assert inner.threshold == 5
+    assert inner.hash_count == 6
+    assert inner.cursor_path == "ts"
+    assert "primary_key=()" in str(inner)
+    assert "keep the start range closed" in str(inner)
+    assert "Append loads still need deduplication" in str(inner)
+    assert p.state == state
+
+    if existing_state:
+        # Also reject an existing boundary above a newly lowered limit.
+        monkeypatch.setattr(Incremental, "duplicate_cursor_error_threshold", 4)
+        with pytest.raises(PipelineStepFailed) as py_ex:
+            p.extract(items(5))
+        assert isinstance(py_ex.value.__cause__, IncrementalCursorThresholdExceeded)
+        assert py_ex.value.__cause__.hash_count == 5
+        assert p.state == state
+
+
+@pytest.mark.parametrize("item_type", ALL_TEST_DATA_ITEM_FORMATS, ids=ALL_TEST_DATA_ITEM_FORMATS)
+def test_duplicate_cursor_limit_disabled_keeps_boundary_dedup(
+    item_type: TestDataItemFormat,
+) -> None:
+    @dlt.resource(primary_key="id", write_disposition="append")
+    def items(n: int, cursor=dlt.sources.incremental("ts")):
+        yield data_to_item_format(item_type, [{"id": i, "ts": 1} for i in range(n)])
+
+    assert Incremental.duplicate_cursor_error_threshold is None
+    p = dlt.pipeline(
+        pipeline_name="threshold_off_" + uniq_id(), destination="duckdb", dev_mode=True
+    )
+    p.run(items(201)).raise_on_failed_jobs()
+    p.run(items(202)).raise_on_failed_jobs()
+    p.run(items(202)).raise_on_failed_jobs()
+    state = p.state["sources"][p.pipeline_name]["resources"]["items"]["incremental"]["ts"]
+    assert len(state["unique_hashes"]) == 202
+    assert_query_column(p, "SELECT id FROM items", list(range(202)))
+
+
+@pytest.mark.parametrize("item_type", ALL_TEST_DATA_ITEM_FORMATS, ids=ALL_TEST_DATA_ITEM_FORMATS)
+def test_merge_without_extractor_dedup_keeps_late_boundary_rows(
+    item_type: TestDataItemFormat, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    @dlt.resource(primary_key="id", write_disposition="merge")
+    def items(n: int, cursor=dlt.sources.incremental("ts", primary_key=())):
+        yield data_to_item_format(item_type, [{"id": i, "ts": 1} for i in range(n)])
+
+    monkeypatch.setattr(Incremental, "duplicate_cursor_error_threshold", 0)
+    p = dlt.pipeline(
+        pipeline_name="merge_boundary_" + uniq_id(), destination="duckdb", dev_mode=True
+    )
+    p.run(items(5)).raise_on_failed_jobs()
+    p.run(items(6)).raise_on_failed_jobs()
+    p.run(items(6)).raise_on_failed_jobs()
+    state = p.state["sources"][p.pipeline_name]["resources"]["items"]["incremental"]["ts"]
+    assert state["unique_hashes"] == []
+    assert_query_column(p, "SELECT id FROM items", list(range(6)))
 
 
 def _resource_for_table_hint(
