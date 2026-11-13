@@ -3,8 +3,9 @@ import json
 import re
 import subprocess
 import sys
+from contextlib import nullcontext
 from pathlib import Path
-from typing import Dict, List, Literal, Set, get_args
+from typing import Dict, List, Literal, Optional, Set, get_args
 from unittest.mock import patch
 
 import pytest
@@ -54,6 +55,7 @@ from tests.workspace.utils import isolated_workspace
 
 
 _SHUTIL_WHICH = "dlt._workspace.deployment.requirements.shutil.which"
+_LAUNCHER_SPECS = "dlt._workspace.deployment.requirements._launcher_specs"
 _HUB = "dlt[hub]"
 _S3_NAMES = ["botocore", "s3fs"]
 
@@ -855,6 +857,49 @@ def test_export_fails_on_pins_below_floors(
     result = _resolve_export(main_specs, tmp_path)
     assert result.returncode != 0
     assert needs in result.stderr
+
+
+@pytest.mark.parametrize(
+    "main_specs, job_specs",
+    [(["dlt[hub]", "dlthub"], None), (["dlt[hub]", "requests"], ["urllib3<2"])],
+    ids=["s3-specs", "capped-spec"],
+)
+def test_resolved_main_installs_with_launcher_specs(
+    main_specs: List[str], job_specs: Optional[List[str]], tmp_path: Path
+) -> None:
+    """A resolved main pins every package, so a launcher spec it never saw can contradict it."""
+    # main names dlt, so the launcher does not get the installed dlt, which may not be on pypi
+    launchers = patch(_LAUNCHER_SPECS, return_value={LAUNCHER_JOB: job_specs})
+    with launchers if job_specs else nullcontext():
+        result = _export_with_deps(main_specs, "requirements-resolved")
+    launcher_specs = result["launcher_requirements"][LAUNCHER_JOB]
+    compiled = _run_uv_compile([*result["groups"][MAIN_GROUP], *launcher_specs], tmp_path)
+    assert compiled.returncode == 0, compiled.stderr
+
+
+@pytest.mark.parametrize(
+    "pin", ["marimo==0.10.0", "protobuf==3.19.6"], ids=["below-floor", "below-streamlit-dependency"]
+)
+def test_resolved_main_keeps_pins_conflicting_with_other_launchers(pin: str) -> None:
+    """Only the job specs join the resolution: a workspace may never run the other launchers."""
+    result = _export_with_deps([pin], "requirements-resolved")
+    assert pin in result["groups"][MAIN_GROUP]
+
+
+@pytest.mark.parametrize("line", ["-e ./mylib", "./mylib"], ids=["editable", "path"])
+def test_resolved_main_keeps_local_package(line: str) -> None:
+    """uv echoes the path back and rejects it as a constraint."""
+    with isolated_workspace("deps_none") as ctx:
+        run_dir = Path(ctx.run_dir)
+        (run_dir / "mylib").mkdir()
+        (run_dir / "mylib" / "pyproject.toml").write_text(
+            '[project]\nname = "mylib"\nversion = "0.1.0"\ndependencies = ["six"]\n'
+        )
+        (run_dir / "requirements.txt").write_text(f"{line}\n")
+        result = export_workspace_requirements(run_dir)
+    main = result["groups"][MAIN_GROUP]
+    assert any("mylib" in s for s in main)
+    assert any(s.startswith("six==") for s in main)
 
 
 def test_dlt_extra_specs() -> None:
