@@ -270,10 +270,10 @@ class QdrantClient(JobClientBase, WithStateSync):
             self._create_sentinel_collection()
         elif truncate_tables:
             for table_name in truncate_tables:
-                qualified_table_name = self._make_qualified_collection_name(table_name=table_name)
-                if self._collection_exists(qualified_table_name):
+                if not self._collection_exists(table_name):
                     continue
 
+                qualified_table_name = self._make_qualified_collection_name(table_name=table_name)
                 self.db_client.delete_collection(qualified_table_name)
                 self._create_collection(full_collection_name=qualified_table_name)
 
