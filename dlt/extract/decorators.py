@@ -419,7 +419,7 @@ def source(
     >>> def chess(username, chess_url: str = dlt.config.value, api_secret = dlt.secrets.value, title: str = "GM"):
     >>>     return user_profile(username, chess_url, api_secret), user_games(username, chess_url, api_secret, with_titles=title)
     >>>
-    >>> list(chess("magnuscarlsen"))
+    >>> list(chess("hikaru"))
 
     Here `username` is a required, explicit python argument, `chess_url` is a required argument, that if not explicitly passed will be taken from configuration ie. `config.toml`, `api_secret` is a required argument, that if not explicitly passed will be taken from dlt secrets ie. `secrets.toml`.
     See https://dlthub.com/docs/general-usage/credentials/ for details.
@@ -609,7 +609,7 @@ def resource(
     >>> def user_games(username, chess_url: str = dlt.config.value, api_secret = dlt.secrets.value):
     >>>     return requests.get("%s/games/%s" % (chess_url, username), headers={"Authorization": f"Bearer {api_secret}"})
     >>>
-    >>> list(user_games("magnuscarlsen"))
+    >>> list(user_games("hikaru"))
 
     Here `username` is a required, explicit python argument, `chess_url` is a required argument, that if not explicitly passed will be taken from configuration ie. `config.toml`, `api_secret` is a required argument, that if not explicitly passed will be taken from dlt secrets ie. `secrets.toml`.
     See https://dlthub.com/docs/general-usage/credentials/ for details.

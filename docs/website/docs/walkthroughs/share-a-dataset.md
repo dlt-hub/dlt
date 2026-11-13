@@ -25,7 +25,7 @@ if __name__ == "__main__":
     )
     # get data for a few famous players
     data = chess_source(
-        data=['magnuscarlsen', 'rpragchess'],
+        data=['hikaru', 'rpragchess'],
         start_month="2022/11",
         end_month="2022/12"
     )

@@ -19,7 +19,7 @@ import dlt
 if __name__ == "__main__":
     pipeline = dlt.pipeline(pipeline_name="chess_pipeline", destination='duckdb', dataset_name="games_data")
     # get data for a few famous players
-    data = chess_source(['magnuscarlsen', 'rpragchess'], start_month="2022/11", end_month="2022/12")
+    data = chess_source(['hikaru', 'rpragchess'], start_month="2022/11", end_month="2022/12")
     load_info = pipeline.run(data)
 ```
 
@@ -51,7 +51,7 @@ progress bar libraries, Python loggers, or just a text console. To demonstrate, 
 script to get a year of chess games data:
 
 ```py
-data = chess_source(['magnuscarlsen', 'rpragchess'], start_month="2021/11", end_month="2022/12")
+data = chess_source(['hikaru', 'rpragchess'], start_month="2021/11", end_month="2022/12")
 ```
 
 Install [enlighten](https://github.com/Rockhopper-Technologies/enlighten). Enlighten displays
