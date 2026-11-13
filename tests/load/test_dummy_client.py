@@ -1439,13 +1439,11 @@ def test_init_client_truncate_tables() -> None:
                 all_,  # drop tables
                 drop_tables=[schema.get_table("event_user")],
             )
-        # drop tables trigger staging dataset schema change on top of final dataset schema change
-        assert update_stored_schema.call_count == 2
+        # no staging-eligible tables: staging dataset is not migrated, only final dataset is
+        assert update_stored_schema.call_count == 1
         assert update_stored_schema.call_args_list[0].kwargs["force"] is True
         assert "event_user" in update_stored_schema.call_args_list[0].kwargs["only_tables"]
-        # no staging-eligible tables so only the version table is migrated on staging
-        assert update_stored_schema.call_args_list[1].kwargs["only_tables"] == {"_dlt_version"}
-        assert initialize_storage.call_count == 3
+        assert initialize_storage.call_count == 2
         assert initialize_storage.call_args_list[0].args == ()
         assert initialize_storage.call_args_list[1].kwargs["truncate_tables"] == {"event_user"}
         # dropped on staging dataset and final
@@ -1860,14 +1858,10 @@ def test_init_client_staging_drop_tables_without_staging_eligible() -> None:
                 drop_tables=[dropped_table],
             )
 
-        # staging dataset init is entered because of drop_table_names
-        assert update_stored_schema.call_count == 2
-        # staging DDL: only _dlt_version (no staging-eligible data tables)
-        staging_ddl = update_stored_schema.call_args_list[1].kwargs["only_tables"]
-        assert staging_ddl == {"_dlt_version"}
-        assert initialize_storage.call_count == 2
+        # staging dataset is not migrated or initialized, stale tables are only dropped
+        assert update_stored_schema.call_count == 1
+        assert initialize_storage.call_count == 1
         assert initialize_storage.call_args_list[0].kwargs == {}
-        assert initialize_storage.call_args_list[1].kwargs == {}
         # drop_tables called on both main and staging datasets
         assert drop_tables.call_count == 2
         assert drop_tables.call_args_list[0].args == ("event_bot",)
