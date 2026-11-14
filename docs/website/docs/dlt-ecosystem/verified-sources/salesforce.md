@@ -334,7 +334,9 @@ these arguments:
 - `sobject`: API name of the sObject, for example `Account` or `Invoice__c`.
 - `incremental`: your own [`dlt.sources.incremental`](../../general-usage/incremental-loading.md) on
   any field instead of the default one. Its range becomes the `WHERE` clause of the query. Its
-  `row_order` becomes the `ORDER BY` clause. Pass `start_date` or `incremental`, not both.
+  `row_order` becomes the `ORDER BY` clause. Pass `start_date` or your own incremental, not both.
+  An incremental without `cursor_path`, for example `dlt.sources.incremental(lag=60)`, sets the
+  values of the default one, `start_date` wins over its `initial_value`. With `incremental=None`, each run loads all records and replaces the table.
 - `lag`: seconds re-read on each run by the default incremental.
 - `soql_filter`: SOQL condition added to the `WHERE` clause of the query.
 - `included_columns`, `excluded_columns`: fields to load or to skip. dlt logs a warning for names that
@@ -584,5 +586,10 @@ key, and merges all sObjects. After the upgrade, reload the data:
 ```py notype
 pipeline.run(salesforce_source(), refresh="drop_sources")
 ```
+
+In version 1.1.0, `incremental=None` loads without incremental. Remove it to keep the default
+incremental. The
+[changelog](https://github.com/dlt-hub/verified-sources/blob/master/sources/salesforce/README.md#changelog)
+in the README of the source lists the changes with the upgrade steps.
 
 <!--@@@DLT_TUBA salesforce-->

@@ -132,7 +132,7 @@ For more information, read the guide on [how to run a pipeline](../../walkthroug
 
 This source function returns all resources of the table above.
 
-```py
+```py notype
 from typing import Any, Iterable, Optional, Sequence
 from dlt.common.schema.typing import TWriteDispositionConfig
 from dlt.common.typing import TAnyDateTime
@@ -182,7 +182,7 @@ reads the worklog feeds of the whole site. `jql` does not restrict them.
 `jira_issues` returns the `issues` resource. With it, you can load issues without the other
 resources. You can also load several tables of issues with different JQL queries.
 
-```py
+```py notype
 from typing import Any, Optional, Sequence
 from dlt.common.schema.typing import TWriteDispositionConfig
 from dlt.common.typing import TAnyDateTime, TColumnNames
@@ -212,7 +212,8 @@ def jira_issues(
 - `jql`, `start_date`: As in the [`jira` source](#source-jira).
 - `incremental`: The default incremental on `updated` if not passed. An incremental without
   `cursor_path`, for example `dlt.sources.incremental(initial_value=..., end_value=...)`, sets the
-  values of the default one. Your own `dlt.sources.incremental` replaces it. Its cursor must be a
+  values of the default one, `start_date` wins over its `initial_value`. Your own
+  `dlt.sources.incremental` replaces it. Its cursor must be a
   date or datetime field, for example `created` or the id of a custom date field. `dlt` adds the
   `initial_value` and `end_value` of the incremental to the JQL query. You can use them to
   [backfill](../../general-usage/incremental/cursor.md#using-end_value-for-backfill) a date range.
@@ -528,15 +529,14 @@ the pipeline. To load the changelogs of older issues, reset the state of `issues
   for example to `100000`. See
   [file rotation](../../reference/performance.md#controlling-intermediary-file-size-and-rotation).
 - `add_limit(n)` on the source or on `issues` loads at most `n` pages of `chunk_size` issues, 1000
-  by default, with their comments and changelogs. In `dlt` versions before 1.32.0, `add_limit` does
-  not limit `issues`. With these versions, narrow `jql` or set `start_date` instead.
+  by default, with their comments and changelogs.
 
 ## Upgrade from previous versions
 
 Versions 1.0.0 and 2.0.0 have breaking changes. Version 2.0.0 removes `jira_search`: load each JQL
 query with its own [`jira_issues`](#create-your-own-pipeline) instead. It also stops loading
 `attachment`, `issuelinks`, `votes` and `watches` by default, and `incremental=None` loads issues
-without incremental. The
+without incremental. It requires `dlt` 1.32.0 or later. The
 [changelog](https://github.com/dlt-hub/verified-sources/blob/master/sources/jira/README.md#changelog)
 in the README of the source lists the changes with the upgrade steps.
 

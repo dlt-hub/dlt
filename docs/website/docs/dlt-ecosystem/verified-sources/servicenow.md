@@ -317,7 +317,7 @@ def servicenow_table(
     table: str = dlt.config.value,
     session: Optional[Session] = None,
     start_date: Optional[TAnyDateTime] = None,
-    incremental: Optional[dlt.sources.incremental[Any]] = None,
+    incremental: Optional[dlt.sources.incremental[Any]] = DEFAULT_INCREMENTAL,
     lag: Optional[float] = None,
     encoded_query: Optional[str] = None,
     include_deleted: bool = True,
@@ -359,7 +359,10 @@ dlt reads the config of a table from `sources.servicenow.<table>`, for example
     `datetime` for a date-time field. dlt does not support `lag` on decimal fields.
   - With `on_cursor_value_missing="include"`, the first run also reads the records without a
     cursor value. Later runs do not read them again. With `"exclude"`, dlt does not read them.
-  - Pass `start_date` or `incremental`, not both.
+  - Pass `start_date` or your own incremental, not both.
+  - An incremental without `cursor_path`, for example `dlt.sources.incremental(lag=60)`, sets the
+    values of the default one. `start_date` wins over its `initial_value`.
+  - With `incremental=None`, each run loads all records and replaces the table.
 - `lag`: the seconds before the last cursor value that the default incremental loads again on each
   run, 600 for `merge`. With `lag`, dlt also loads records that the ServiceNow instance saved with
   an earlier timestamp.
@@ -543,3 +546,10 @@ error names.
 - dlt does not load database views. Load the tables that a view joins.
 - `task` contains the records of all tables that extend it, for example incidents and changes. Load
   `task` or these tables, not both.
+
+## Upgrade from an earlier version
+
+In version 1.1.0, `incremental=None` loads all records on each run, without incremental. Remove it
+to keep the default incremental. The
+[changelog](https://github.com/dlt-hub/verified-sources/blob/master/sources/servicenow/README.md#changelog)
+in the README of the source lists the changes with the upgrade steps.
