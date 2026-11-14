@@ -1,0 +1,6 @@
+[runtime]
+organization_id = "org-id"
+workspace_id = "prod-ws-id"
+
+[workspace.settings]
+name = "dlt-de-prd"

@@ -20,13 +20,13 @@ The fastest way to run an existing script on the dltHub platform is to point `ru
 # run the batch script locally first to catch missing dependencies or broken config
 dlthub local run fruitshop_pipeline.py
 
-# Deploy and run a batch script (uses `prod` profile)
+# Deploy and run a batch script (runs with the `prod` profile)
 dlthub run fruitshop_pipeline.py
 
 # Stream logs in your terminal until the run completes
 dlthub run fruitshop_pipeline.py -f
 
-# Deploy and serve an interactive app (notebook, dashboard, MCP — uses `access` profile)
+# Deploy and serve an interactive app (notebook, dashboard, MCP — runs with the profile with read data access, `access`)
 dlthub local serve fruitshop_notebook.py    # local
 dlthub serve fruitshop_notebook.py          # remote
 ```
@@ -140,7 +140,7 @@ __all__ = [
 Rules:
 
 - **Function imports** (`from github_pipeline import load_commits`) produce one job per function. The function must be decorated with `@run.pipeline`, `@run.job`, or `@run.interactive`.
-- **Module imports** (`import github_report_notebook`) produce one job per module. The framework is auto-detected — marimo notebooks become interactive notebook jobs, FastMCP modules become MCP servers, Streamlit modules become dashboards.
+- **Module imports** (`import github_report_notebook`) produce one job per module. The framework is auto-detected — marimo notebooks become interactive notebook jobs, FastMCP modules become MCP servers, Streamlit modules become dashboards. Set the options of such a job with `__require__` and `__access__` in the module, see [Options of module jobs](job-configuration.md#options-of-module-jobs).
 - **`__all__`** lists exactly the names to deploy. Without it, the manifest generator scans `__dict__` and warns.
 - **`__doc__`** (the module docstring) becomes the workspace description in the dltHub platform dashboard.
 
@@ -152,6 +152,12 @@ This is the central command for manifest-based deployment. It reads `__deploymen
 
 ```cli
 dlthub deploy
+```
+
+The deployment is made to the default [environment](profiles.md#how-environments-work), `prod`, with its default write profile. Name another environment with `--environment`:
+
+```cli
+dlthub deploy --environment staging
 ```
 
 The deploy command:

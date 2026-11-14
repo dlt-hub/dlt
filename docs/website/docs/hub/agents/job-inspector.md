@@ -35,13 +35,12 @@ from github_pipeline import load_commits
 inspector = run.agent(
     "dlthub-platform:job-inspector",
     trigger="job.fail:tag:ingest",
-    require={"profile": "access"},
 )
 
 __all__ = ["load_commits", "inspector"]
 ```
 
-The agent job is named after the agent definition: `job_inspector`. On the platform, `require={"profile": "access"}` keeps the production credentials out of the job environment. `dlthub local run` uses the active profile, or the profile you pass with `--profile`. See [Profile of an agent job](index.md#profile-of-an-agent-job). Run the agent job locally on a job run that failed. Then deploy:
+The agent job is named after the agent definition: `job_inspector`. On the platform, the job gets `no-access`: the agent definition declares no `data`, so no destination credentials reach its process. `dlthub local run` uses the active profile, or the profile you pass with `--profile`. See [Profile of an agent job](index.md#profile-of-an-agent-job). Run the agent job locally on a job run that failed. Then deploy:
 
 ```cli
 # a single manual run, on a failed run id from `dlthub job runs list`
@@ -141,7 +140,6 @@ Narrow the trigger and change the settings on the agent job:
 inspector = run.agent(
     "dlthub-platform:job-inspector",
     trigger="job.fail:tag:ingest",
-    require={"profile": "access"},
     model="sonnet",
     limits={"max_turns": 20},
     instructions="focus on the loader step",
@@ -162,7 +160,7 @@ dlthub local run job_inspector -c failed_run_id=<run_id> -c agent.model=sonnet
 - **No shell.** The agent definition declares no `execute` verb. The deny rules for credential files apply only to the file tools. A shell can read those files, and it can run the inspected job again.
 - **No destination access.** The agent definition declares no `data` axis, so the agent can't query your data. A diagnosis uses run records, logs, job definitions, the dlt trace, workspace source, and the redacted view of secrets and variables. When the cause depends on the data in a table, the agent adds this to `open_points`. It names the table or the record that a person must read.
 - **No changes to your workspace.** The system prompt also forbids changes, in addition to the declared access: the agent doesn't edit code, deploy, cancel, or rerun a job. A person applies the proposed fix.
-- **Read-only credentials.** On the platform, the job runs on the `access` profile, which an agent job takes by default, so the production credentials stay out of its environment. Locally it runs on the active profile. Pin `require={"profile": "access"}` to state it in the code. See [Profile of an agent job](index.md#profile-of-an-agent-job).
+- **No data credentials.** On the platform, the job gets `no-access`, the profile without data access. Locally it runs with the active profile. See [Profile of an agent job](index.md#profile-of-an-agent-job).
 
 ## Next steps
 

@@ -1,7 +1,10 @@
 import os
-from typing import Optional
+from typing import Any, Dict, List, Optional, cast
 from urllib.parse import urlparse, urlunparse
 
+from dlt import version
+from dlt.common.configuration.exceptions import ConfigurationValueError
+from dlt.common.exceptions import MissingDependencyException
 from dlt.common.configuration.specs import (
     CredentialsConfiguration,
     AwsCredentialsWithoutDefaults,
@@ -215,6 +218,49 @@ def snowflake_session_token_available() -> bool:
         and "SNOWFLAKE_ACCOUNT" in os.environ
         and "SNOWFLAKE_HOST" in os.environ
     )
+
+
+def _read_connector_option(name: str) -> Any:
+    """Reads option `name` from the connector config manager (toml files and env variables)."""
+    try:
+        from snowflake.connector.config_manager import CONFIG_MANAGER
+        from snowflake.connector.errors import ConfigSourceError
+    except ModuleNotFoundError:
+        raise MissingDependencyException(
+            "Snowflake connections", [f"{version.DLT_PKG_NAME}[snowflake]"]
+        )
+    try:
+        return CONFIG_MANAGER[name]
+    except ConfigSourceError as ex:
+        raise ConfigurationValueError(
+            f"The Snowflake connector failed to read `{name}` from its config files: {ex}"
+        ) from ex
+
+
+def default_snowflake_connection_name() -> str:
+    """Default connection name of the connector: env variable, `config.toml` or `default`."""
+    return cast(str, _read_connector_option("default_connection_name"))
+
+
+def list_snowflake_connections() -> List[str]:
+    """Names of the connections that the connector finds in `connections.toml` or `config.toml`."""
+    return list(cast(Dict[str, Any], _read_connector_option("connections")).keys())
+
+
+def read_snowflake_connection_params(connection_name: str) -> Dict[str, Any]:
+    """Parameters of connection `connection_name` with `~` expanded in its file paths."""
+    connections = cast(Dict[str, Dict[str, Any]], _read_connector_option("connections"))
+    if connection_name not in connections:
+        raise ConfigurationValueError(
+            f"dlt did not find Snowflake connection `{connection_name}`. Known connections:"
+            f" {list(connections)}. The connector reads connections from `connections.toml` or"
+            " `config.toml` in `SNOWFLAKE_HOME` (default `~/.snowflake`)."
+        )
+    params = dict(connections[connection_name])
+    for key in ("private_key_file", "token_file_path"):
+        if isinstance(params.get(key), str):
+            params[key] = os.path.expanduser(params[key])
+    return params
 
 
 def read_snowflake_session_token() -> str:

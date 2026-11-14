@@ -8,6 +8,7 @@ from dlt.common.libs.git import (
     ensure_remote_head,
     git_custom_key_command,
     get_fresh_repo_files,
+    get_origin,
     get_repo,
     is_dirty,
     is_clean_and_synced,
@@ -23,6 +24,8 @@ JAFFLE_SHOP_REPO = "https://github.com/dbt-labs/jaffle_shop.git"
 PRIVATE_REPO = "git@github.com:scale-vector/rasa_bot_experiments.git"
 PRIVATE_REPO_WITH_ACCESS = "git@github.com:scale-vector/test_private_repo.git"
 CONTEXT_REPO = "https://github.com/dlt-hub/dlthub-ai-harness.git"
+REUSE_MARKER = os.path.join(".git", "dlt_reuse_marker")
+"""A file in `.git` that survives only while a clone is reused."""
 
 
 def test_ssh_key_context() -> None:
@@ -127,6 +130,7 @@ def test_sparse_checkout(test_storage: FileStorage) -> None:
     assert len(repo_storage.list_folder_dirs(".")) == 2  # .git tools
     # the external repo adds tools over time, so the test asserts only that the folder has files
     assert len(repo_storage.list_folder_files("tools")) > 0
+    repo_storage.save(REUSE_MARKER, "")
 
     # checkout the other one
     repo_storage = get_fresh_repo_files(CONTEXT_REPO, test_storage.storage_path, path="workbench")
@@ -138,6 +142,72 @@ def test_sparse_checkout(test_storage: FileStorage) -> None:
     assert not repo_storage.has_folder("__unknown")
     assert len(repo_storage.list_folder_dirs(".")) == 1  # .git
 
+    # all paths were checked out in the first clone
+    assert repo_storage.has_file(REUSE_MARKER)
+
+
+@pytest.mark.parametrize("branch", ["master", None], ids=["explicit-master", "default-branch"])
+def test_sparse_checkout_branch_change(test_storage: FileStorage, branch: str) -> None:
+    # a sparse clone fetches a branch that is not the default one
+    repo_storage = get_fresh_repo_files(
+        CONTEXT_REPO, test_storage.storage_path, branch="devel", path="workbench"
+    )
+    with get_repo(repo_storage.storage_path) as repo:
+        assert repo.active_branch.name == "devel"
+        assert is_clean_and_synced(repo)
+    repo_storage.save(REUSE_MARKER, "")
+
+    # the same clone moves to master
+    repo_storage = get_fresh_repo_files(
+        CONTEXT_REPO, test_storage.storage_path, branch=branch, path="workbench"
+    )
+    assert repo_storage.has_file(REUSE_MARKER)
+    with get_repo(repo_storage.storage_path) as repo:
+        assert repo.active_branch.name == "master"
+        assert is_clean_and_synced(repo)
+    assert sorted(os.path.basename(d) for d in repo_storage.list_folder_dirs(".")) == [
+        ".git",
+        "workbench",
+    ]
+
+
+def test_sparse_checkout_commit_id(test_storage: FileStorage) -> None:
+    repo_storage = get_fresh_repo_files(CONTEXT_REPO, test_storage.storage_path, path="workbench")
+    with get_repo(repo_storage.storage_path) as repo:
+        commit_id = repo.head.commit.parents[0].hexsha
+
+    # a detached head cannot pull, so the commit is checked out in a new clone
+    repo_storage = get_fresh_repo_files(
+        CONTEXT_REPO, test_storage.storage_path, branch=commit_id, path="workbench"
+    )
+    with get_repo(repo_storage.storage_path) as repo:
+        assert repo.head.is_detached
+        assert repo.head.commit.hexsha == commit_id
+    assert sorted(os.path.basename(d) for d in repo_storage.list_folder_dirs(".")) == [
+        ".git",
+        "workbench",
+    ]
+
+
+def test_fresh_repo_files_reclones_other_origin(test_storage: FileStorage) -> None:
+    repo_storage = get_fresh_repo_files(CONTEXT_REPO, test_storage.storage_path, path="workbench")
+    repo_storage.save(REUSE_MARKER, "")
+
+    # another url with the same repo name, ie. a fork, is cloned again
+    other_url = "https://github.com/dlt-hub/dlthub-ai-harness"
+    repo_storage = get_fresh_repo_files(other_url, test_storage.storage_path, path="workbench")
+    assert not repo_storage.has_file(REUSE_MARKER)
+    with get_repo(repo_storage.storage_path) as repo:
+        assert get_origin(repo) == other_url
+        repo.git.remote("remove", "origin")
+    repo_storage.save(REUSE_MARKER, "")
+
+    # a clone without origin is cloned again
+    repo_storage = get_fresh_repo_files(other_url, test_storage.storage_path, path="workbench")
+    assert not repo_storage.has_file(REUSE_MARKER)
+    with get_repo(repo_storage.storage_path) as repo:
+        assert get_origin(repo) == other_url
+
 
 def test_sparse_checkout_path_not_exist_on_clone(test_storage: FileStorage) -> None:
     # unknown path before first checkout
@@ -146,18 +216,20 @@ def test_sparse_checkout_path_not_exist_on_clone(test_storage: FileStorage) -> N
     assert len(repo_storage.list_folder_dirs(".")) == 1  # .git
 
 
-def test_sparse_checkout_reclones_a_full_clone(test_storage: FileStorage) -> None:
+def test_sparse_and_full_clone_replace_each_other(test_storage: FileStorage) -> None:
     repo_storage = get_fresh_repo_files(CONTEXT_REPO, test_storage.storage_path)
     assert len(repo_storage.list_folder_dirs(".")) > 2
 
-    # a full clone is replaced by a shallow, sparse one
+    # a full clone is replaced by a sparse one
     repo_storage = get_fresh_repo_files(CONTEXT_REPO, test_storage.storage_path, path="workbench")
     assert sorted(os.path.basename(d) for d in repo_storage.list_folder_dirs(".")) == [
         ".git",
         "workbench",
     ]
-    with get_repo(repo_storage.storage_path) as repo:
-        assert repo.git.rev_parse("--is-shallow-repository") == "true"
+
+    # and back
+    repo_storage = get_fresh_repo_files(CONTEXT_REPO, test_storage.storage_path)
+    assert len(repo_storage.list_folder_dirs(".")) > 2
 
 
 def test_fresh_repo_files_branch_change_to_default(test_storage: FileStorage) -> None:

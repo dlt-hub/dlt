@@ -28,6 +28,7 @@ __all__ = [
     "plug_cli_deploy",
     "plug_cli_ai_moved",
     "plug_cli_ai",
+    "plug_cli_ai_status",
     "plug_cli_dlthub_init",
     "plug_cli_dlthub_pipeline",
     "plug_cli_dlthub_local",
@@ -105,6 +106,14 @@ def plug_cli_ai(host: str) -> Optional[Type[plugins.SupportsCliCommand]]:
     from dlt._workspace.cli.dlthub.commands import AiCommand
 
     return AiCommand
+
+
+@plugins.hookimpl(specname="plug_cli", tryfirst=True)
+@only_host("dlthub")
+def plug_cli_ai_status(host: str) -> Optional[Type[plugins.SupportsCliCommand]]:
+    from dlt._workspace.cli.dlthub.commands import AiStatusCommand
+
+    return AiStatusCommand
 
 
 @plugins.hookimpl(specname="plug_cli")

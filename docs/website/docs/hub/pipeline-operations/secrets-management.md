@@ -16,7 +16,7 @@ There are two broad approaches:
 
 Your secrets never live in plaintext on the platform. When you deploy, your configuration is transmitted over an encrypted channel and stored **encrypted at rest** in a secure, isolated store. That store can be reached by **only a single vault service identity, running inside a private network (VPC)**, so nothing else can touch it. At run time, your pipeline runner is granted **short-lived access** to only the secrets that run needs.
 
-dltHub workspaces use **profiles** to separate environments. Deployed pipelines run under the `prod` profile, so put production secrets in `.dlt/prod.secrets.toml` and development secrets in `.dlt/dev.secrets.toml`. See [profiles](profiles.md) for how `dev`, `prod`, and `access` profiles work and when each is used.
+dltHub workspaces use **profiles** to separate credentials. Deployed pipelines run with the `prod` profile, so put production secrets in `.dlt/prod.secrets.toml` and development secrets in `.dlt/dev.secrets.toml`. See [Profiles and environments](profiles.md) for how `dev`, `prod`, and `access` work and when each is used.
 
 For stronger isolation, especially in production, keep the secret values in your own vault instead.
 
@@ -96,6 +96,6 @@ A built-in dltHub vault is on the roadmap, so you'll be able to manage secrets n
 
 - [Adding credentials](../../walkthroughs/add_credentials.md): general guide to dlt credentials.
 - [Vaults](../../general-usage/credentials/vaults.md): OSS reference for vault providers.
-- [Profiles](profiles.md): how `dev`, `prod`, and `access` profiles separate environments.
+- [Profiles and environments](profiles.md): how `dev`, `prod`, and `access` separate credentials, and how environments separate deployments.
 - [Environment variables](environment-variables.md): workspace- and profile-scoped process environment for platform runs.
 - [Static egress IPs](job-configuration.md#static-egress-ips): pin job outbound traffic to known IPs for vault and destination allowlisting.

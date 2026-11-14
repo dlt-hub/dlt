@@ -110,6 +110,11 @@ def _extra_providers() -> List[ConfigProvider]:
         extra_providers.append(_google_secrets_provider(providers_config.google_secrets))
     if providers_config.enable_aws_secrets:
         extra_providers.append(_aws_secrets_provider(providers_config.aws_secrets))
+
+    from dlt.common.configuration.plugins import manager
+
+    for plugin_providers in manager().hook.plug_config_providers():
+        extra_providers.extend(plugin_providers or [])
     return extra_providers
 
 

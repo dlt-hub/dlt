@@ -16,8 +16,58 @@ from dlt.common.utils import set_working_dir
 from dlt.pipeline import platform
 
 from dlt._workspace._workspace_context import WorkspaceRunContext
+from dlt._workspace.environment import add_environments, new_environment
+from dlt._workspace.typing import TEnvironmentDefinition, TWorkspaceDefinition
+from dlt._workspace.workspace_definition import WORKSPACE_FILE_NAME, save_workspace_file
 
 from tests.utils import get_test_storage_root
+
+
+def full_environment(name: str) -> TEnvironmentDefinition:
+    """Environment `name` with a default profile for write, read and no data access."""
+    environment = new_environment(name)
+    environment["profiles"].update(
+        {
+            f"{name}-read": {
+                "location": "remote",
+                "data_access": "read",
+                "env": name,
+                "default": True,
+            },
+            f"{name}-none": {
+                "location": "remote",
+                "data_access": "none",
+                "env": name,
+                "default": True,
+            },
+        }
+    )
+    return environment
+
+
+def declare_environment(ctx: WorkspaceRunContext, name: str) -> None:
+    """Declares environment `name` with its write, read and none profiles in `ctx`."""
+    add_environments(ctx, {name: full_environment(name)})
+
+
+def save_definition(ctx: WorkspaceRunContext, doc: TWorkspaceDefinition) -> None:
+    """Saves `doc` as the workspace definition and loads it again in `ctx`."""
+    save_workspace_file(ctx, doc)
+    ctx.reload_workspace_definition()
+
+
+def touch_settings(ctx: WorkspaceRunContext, *file_names: str) -> None:
+    """Creates empty files in the settings dir of `ctx`, an existing file is emptied."""
+    for file_name in file_names:
+        with open(ctx.get_setting(file_name), "w", encoding="utf-8"):
+            pass
+
+
+def empty_workspace_file(ctx: WorkspaceRunContext) -> None:
+    """Empties `.dlt/.workspace`: the next load of the definition migrates it again."""
+    touch_settings(ctx, WORKSPACE_FILE_NAME)
+    ctx.reload_workspace_definition()
+
 
 WORKSPACE_CASES_DIR = os.path.abspath(os.path.join("tests", "workspace", "cases", "workspaces"))
 TEST_SETTINGS_DIR = os.path.abspath(os.path.join("tests", ".dlt"))
@@ -45,27 +95,30 @@ def isolated_workspace(
 ) -> Iterator[WorkspaceRunContext]:
     """Copies `name` workspace from WORKSPACE_CASES_DIR to `_storage` top level folder
     changes cwd to a workspace copy and activates it to create a fully isolated workspace.
-    `global_dir` stands in for the user's `~/.dlt`: an empty folder in the copy unless given.
+    `global_dir` stands in for the user's `~/.dlt` in every workspace context created inside:
+    an empty folder in the copy unless given.
     """
     new_run_dir = restore_clean_workspace(name)
     with set_working_dir(new_run_dir):
-        ctx = switch_context(new_run_dir, profile=profile, required=required)
-        assert ctx.run_dir == new_run_dir
-        # also mock global dir so it does not point to default user ~
-        if hasattr(ctx, "_global_dir"):
-            ctx._global_dir = global_dir or os.path.abspath(".global_dir")
-            os.makedirs(ctx._global_dir, exist_ok=True)
-            # reload toml providers after patching
-            Container()[PluggableRunContext].reload_providers()
-        yield ctx  # type: ignore
+        global_dir = global_dir or os.path.abspath(".global_dir")
+        os.makedirs(global_dir, exist_ok=True)
+        # a workspace context takes the global dir when it is created, also after a profile switch
+        with patch("dlt._workspace._workspace_context.global_dir", return_value=global_dir):
+            ctx = switch_context(new_run_dir, profile=profile, required=required)
+            assert ctx.run_dir == new_run_dir
+            # any other context holds it on the instance, the toml providers read it on reload
+            if not isinstance(ctx, WorkspaceRunContext) and hasattr(ctx, "_global_dir"):
+                ctx._global_dir = global_dir
+                Container()[PluggableRunContext].reload_providers()
+            yield ctx  # type: ignore
 
 
 @contextmanager
 def importable_workspace(
-    name: str, *modules: str, global_dir: str = None
+    name: str, *modules: str, profile: str = None, global_dir: str = None
 ) -> Iterator[WorkspaceRunContext]:
     """`isolated_workspace` with its root on `sys.path`, as `python -m` gives a launcher."""
-    with isolated_workspace(name, global_dir=global_dir) as ctx:
+    with isolated_workspace(name, profile=profile, global_dir=global_dir) as ctx:
         sys.path.insert(0, ctx.run_dir)
         try:
             yield ctx

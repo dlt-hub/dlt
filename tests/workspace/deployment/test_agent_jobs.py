@@ -118,7 +118,7 @@ def test_non_identifier_agent_ref_is_rejected() -> None:
 
 def test_declared_agent_job_definition() -> None:
     with agent_workspace():
-        manifest, _ = manifest_from_module("__deployment__")
+        manifest, _ = manifest_from_module("__deployment__", None)
     jobs = {j["job_ref"]: j for j in manifest["jobs"]}
     definition = jobs[TJobRef("jobs.__deployment__.job_inspector")]
 
@@ -145,7 +145,7 @@ def test_declared_agent_job_definition() -> None:
 def test_an_agent_job_declares_what_can_be_injected() -> None:
     """The `inputs` properties of every agent job match its `config_keys`."""
     with agent_workspace():
-        manifest, _ = manifest_from_module("__deployment__")
+        manifest, _ = manifest_from_module("__deployment__", None)
         import agent_jobs
 
         agent_jobs.inspect_crash.bind_module_attr("agent_jobs", "inspect_crash")
@@ -193,16 +193,16 @@ def test_agent_block_and_config_keys_reach_the_manifest() -> None:
 
 def test_manifest_with_agents_validates() -> None:
     with agent_workspace():
-        manifest, _ = manifest_from_module("__deployment__")
+        manifest, _ = manifest_from_module("__deployment__", None)
     result = validate_manifest(manifest)
     assert result.is_valid, result.errors
     assert result.unresolved_triggers == {}
 
 
-def test_only_an_agent_job_declares_access() -> None:
-    """`access` is a job field, but nothing except an agent fills it yet."""
+def test_agent_job_declares_access() -> None:
+    """An agent job keeps the `access` that its agent declares."""
     with agent_workspace():
-        manifest, _ = manifest_from_module("__deployment__")
+        manifest, _ = manifest_from_module("__deployment__", None)
     jobs = {j["job_ref"]: j for j in manifest["jobs"]}
 
     assert jobs[TJobRef("jobs.__deployment__.job_inspector")]["access"] == {
@@ -210,12 +210,11 @@ def test_only_an_agent_job_declares_access() -> None:
         "data": ["read"],
         "context": ["read"],
     }
-    assert "access" not in jobs[TJobRef("jobs.agent_batch_jobs.transform")]
 
 
 def test_watcher_selector_expands_to_batch_jobs_only() -> None:
     with agent_workspace():
-        manifest, _ = manifest_from_module("__deployment__")
+        manifest, _ = manifest_from_module("__deployment__", None)
     jobs = {j["job_ref"]: j for j in manifest["jobs"]}
     triggers = jobs[TJobRef("jobs.__deployment__.watcher")]["triggers"]
     # every batch job is a target, including agent jobs that are not themselves watchers
@@ -656,7 +655,7 @@ def test_legacy_job_run_entity_type_reaches_the_manifest_unchanged() -> None:
     job.bind_module_attr(__name__, "old")
     with agent_workspace():
         job_def = job.to_job_definition()
-        manifest, _ = manifest_from_module("__deployment__")
+        manifest, _ = manifest_from_module("__deployment__", None)
 
     assert job_def["inputs"]["properties"]["run_id"]["entity_type"] == "job-run"
     assert job_def["expose"]["object_input"]["entity_type"] == "job-run"

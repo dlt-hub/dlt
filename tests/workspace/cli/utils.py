@@ -11,6 +11,7 @@ from dlt.common.utils import uniq_id
 from dlt.sources import SourceReference
 
 from dlt._workspace.cli import echo, DEFAULT_VERIFIED_SOURCES_REPO
+from dlt._workspace.cli._pipeline_files import SOURCES_MODULE_NAME
 
 from tests.utils import get_test_storage_root
 from tests.workspace.utils import empty_workspace_dir
@@ -33,6 +34,7 @@ def _cached_init_repo(tmp_path_factory) -> FileStorage:
         INIT_REPO_LOCATION,
         cache_dir,
         branch=INIT_REPO_BRANCH,
+        path=SOURCES_MODULE_NAME,
     )
 
 

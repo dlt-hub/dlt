@@ -27,13 +27,13 @@ The `.dlt/.workspace` marker activates [profile support](./profiles.md) and enab
 dlthub login
 ```
 
-This opens a GitHub OAuth device flow and authenticates the current user. Then bind this repo to a remote workspace:
+This opens a GitHub OAuth device flow and authenticates the current user. Then connect the local workspace to a remote workspace:
 
 ```cli
 dlthub workspace connect [<workspace>] [--org-id <org_id>]
 ```
 
-With no argument, an interactive picker is shown, grouped by organization. The chosen `workspace_id` (and `organization_id`, on the first connect) is persisted to `.dlt/config.toml`. To list workspaces you have access to, use `dlthub workspace list`.
+With no argument, an interactive picker is shown, grouped by organization. The chosen `workspace_id` (and `organization_id`, on the first connect) is persisted to `.dlt/config.toml`. The command connects the local workspace in the default environment, `prod`. The first deployment to another environment [connects the local workspace in that environment](profiles.md#connect-to-a-remote-workspace-in-each-environment). To list workspaces you have access to, use `dlthub workspace list`.
 
 :::note
 The first time you run `dlthub deploy`, `dlthub run`, or `dlthub serve`, the CLI walks you through GitHub OAuth and then prompts you to pick (or create) a remote workspace — so you can skip this step entirely.
@@ -42,7 +42,7 @@ The first time you run `dlthub deploy`, `dlthub run`, or `dlthub serve`, the CLI
 :::
 
 :::caution
-A single GitHub repository can be connected to only one remote workspace at a time. You connect with `dlthub workspace connect`. If you point the same repo at a different remote workspace, jobs deployed under the previous binding are deactivated — run history is preserved but their triggers no longer fire.
+In each environment, a local workspace is connected to only one remote workspace at a time. You connect with `dlthub workspace connect`. If you point the same repo at a different remote workspace, jobs deployed under the previous connection are deactivated — run history is preserved but their triggers no longer fire.
 
 Connecting multiple local repositories to the same remote workspace is not yet supported.
 :::
@@ -59,22 +59,17 @@ This reuses the same machinery as `dlt init`, so verified sources and templates 
 
 ### Understanding workspace profiles
 
-The dltHub platform uses **profiles** to manage different configurations for different environments. **Some profiles stay local; others are synchronized with the backend.** Local-only profiles live in your repo and are never uploaded. Synced profiles are pushed to the dltHub platform on every deploy so the cloud runtime can use the same configuration when it executes your jobs.
+A **profile** controls access to your data. It holds the credentials that a pipeline or job runs with and declares their data access: write, read or none. It also holds settings. You set up the rights of each credential at the destination, dlt does not check them. A local profile runs only on your machine. A remote profile belongs to an environment and deploys with it. The built-in profiles are:
 
-The built-in profiles are:
+| Profile     | Location | Data access | Used by                                                      |
+| ----------- | -------- | ----------- | ------------------------------------------------------------ |
+| `dev`       | local    | write       | your machine, the default profile                            |
+| `tests`     | local    | write       | automated tests                                              |
+| `prod`      | remote   | write       | batch jobs on the dltHub platform                            |
+| `access`    | remote   | read        | interactive jobs on the dltHub platform                      |
+| `no-access` | remote   | none        | [agent jobs](../agents/index.md) that declare no data access |
 
-| Profile  | Scope               | Purpose                                                                                                       | Credentials                                  |
-| -------- | ------------------- | ------------------------------------------------------------------------------------------------------------- | -------------------------------------------- |
-| `dev`    | Local only          | Local development (default when running on your machine)                                                      | Local DuckDB / test credentials              |
-| `tests`  | Local only          | Automated tests                                                                                               | Test credentials                             |
-| `prod`   | Synced with backend | Production batch jobs running on the dltHub platform                                                          | Read/write access to your destination        |
-| `access` | Synced with backend | Interactive notebooks and dashboards on the dltHub platform, and [agent jobs](../agents/index.md) that pin it | Read-only access (for safe data exploration) |
-
-Any custom profile you reference in a job decorator (e.g. `require={"profile": "analytics"}`) is also synced to the cloud configuration.
-
-When you run a script locally, dlt uses `dev`. When the dltHub platform executes a **batch job**, it uses `prod`. When the dltHub platform serves an **interactive job** (notebook, dashboard, MCP), it uses `access`. If `access` is not configured, interactive jobs fall back to `prod`. An **agent job** is a batch job and takes `prod` too, so declare `require={"profile": "access"}` on it to keep the production credentials out of its environment.
-
-See [profiles in dltHub](./profiles.md) for the full reference.
+A deployment is made to an **environment**, `prod` by default, and gives every job the profile of the environment with the data access that the job declares. See [Profiles and environments](./profiles.md) for the full reference.
 
 ### Setting up configuration files
 
@@ -82,7 +77,7 @@ Configuration files live in the `.dlt/` directory:
 
 ```tree
 .dlt/
-├── .workspace              # Marker file enabling profiles + the `dlthub` CLI
+├── .workspace              # Declares the profiles and environments, enables the `dlthub` CLI
 ├── config.toml             # Workspace-wide config (all profiles)
 ├── secrets.toml            # Workspace-wide secrets (gitignored)
 ├── dev.config.toml         # Dev profile config
@@ -101,9 +96,16 @@ Settings in profile-scoped files override workspace-scoped files. Below is an ex
 log_level = "WARNING"
 dlthub_telemetry = true
 
-# Set automatically by `dlthub workspace connect`
-workspace_id = "your-workspace-id"
+# One organization for the whole workspace
 organization_id = "your-organization-id"
+
+# Written by `dlthub workspace connect`
+[workspace.environment.prod]
+workspace_id = "your-workspace-id"
+
+# Written by the first deployment to `staging`
+[workspace.environment.staging]
+workspace_id = "your-staging-workspace-id"
 ```
 
 `api_base_url` defaults to `https://api.dlthub.com` and only needs to be set when targeting a self-hosted control plane. For non-interactive auth (CI, scripts), set `api_key` in `secrets.toml` under `[runtime]` instead of relying on the OAuth flow.

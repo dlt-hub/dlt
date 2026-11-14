@@ -1,3 +1,7 @@
+import os
+from pathlib import Path
+from typing import Callable, Iterator
+
 import pytest
 
 from dlt.common.configuration.specs import (
@@ -5,6 +9,47 @@ from dlt.common.configuration.specs import (
     AzureCredentialsWithoutDefaults,
 )
 from dlt.common.destination.configuration import CsvFormatConfiguration
+from dlt.common.utils import uniq_id
+
+from tests.utils import get_test_storage_root
+
+
+@pytest.fixture
+def snowflake_home() -> Iterator[Callable[..., Path]]:
+    """Points the connector at a temp `SNOWFLAKE_HOME` and yields a writer of its toml files."""
+    from snowflake.connector.config_manager import CONFIG_MANAGER
+
+    home = Path(get_test_storage_root()) / ("sf_home_" + uniq_id())
+    # the connector resolves its files at import, so swap them like `connections_file_path` does
+    saved_path, saved_slices = CONFIG_MANAGER.file_path, list(CONFIG_MANAGER._slices)
+    idx = next(i for i, s in enumerate(saved_slices) if s.section == "connections")
+    CONFIG_MANAGER.file_path = home / "config.toml"
+    CONFIG_MANAGER._slices[idx] = saved_slices[idx]._replace(path=home / "connections.toml")
+    CONFIG_MANAGER.conf_file_cache = None
+    env_keys = ("SNOWFLAKE_HOME", "SNOWFLAKE_CONNECTIONS", "SNOWFLAKE_DEFAULT_CONNECTION_NAME")
+    saved_env = {k: os.environ.pop(k) for k in env_keys if k in os.environ}
+    os.environ["SNOWFLAKE_HOME"] = str(home)
+
+    def _write(connections: str, config: str = "") -> Path:
+        # other fixtures can wipe the test storage after this fixture started
+        home.mkdir(parents=True, exist_ok=True)
+        for name, content in (("connections.toml", connections), ("config.toml", config)):
+            if content:
+                path = home / name
+                path.write_text(content, encoding="utf-8")
+                # connector 4.x refuses files readable by others and 3.x warns
+                os.chmod(path, 0o600)
+        CONFIG_MANAGER.conf_file_cache = None
+        return home
+
+    try:
+        yield _write
+    finally:
+        CONFIG_MANAGER.file_path = saved_path
+        CONFIG_MANAGER._slices[:] = saved_slices
+        CONFIG_MANAGER.conf_file_cache = None
+        os.environ.pop("SNOWFLAKE_HOME", None)
+        os.environ.update(saved_env)
 
 
 @pytest.fixture

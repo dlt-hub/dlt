@@ -16,6 +16,15 @@ from dlt._workspace.cli._telemetry_command import (
     telemetry_change_status_command_wrapper,
 )
 from dlt._workspace.cli.echo import maybe_no_stdin
+from dlt._workspace.environment import ENVIRONMENT_ARGUMENT_HELP
+from dlt._workspace.exceptions import WorkspaceException
+from dlt._workspace.profile import PROFILE_ARGUMENT_HELP, activate_profile
+
+PROFILE_COMMAND = "profile"
+"""`dlthub profile` and `dlthub local profile` manage profiles and take no `--profile`."""
+
+ENVIRONMENT_DEST = "environment"
+"""`dest` of the `--environment` option: a command that has it takes no `--profile`."""
 
 ACTION_EXECUTED = False
 
@@ -307,14 +316,62 @@ def _create_parser(
 
     add_formatter_class(parser)
 
+    # in a workspace every dlthub command takes --profile, before or after the command
+    if host == "dlthub" and is_workspace_active():
+        _add_profile_argument(parser)
+
     return parser, pre_parser, installed_commands
+
+
+def add_environment_argument(parser: argparse.ArgumentParser) -> None:
+    """Adds `--environment` to the parser of a command that deploys or works with a deployment.
+    Such a command takes no `--profile`. It activates the environment with `activate_environment`
+    before it generates a manifest or works with the deployment."""
+    parser.add_argument(
+        "--environment",
+        metavar="NAME",
+        default=None,
+        dest=ENVIRONMENT_DEST,
+        help=ENVIRONMENT_ARGUMENT_HELP,
+    )
+
+
+def _add_profile_argument(parser: argparse.ArgumentParser) -> None:
+    """Adds `--profile` to `parser` and to every command under it that has no `profile` option,
+    except the commands that manage profiles. A command that takes `--environment` gets a
+    hidden `--profile`, so that `main` can name the option to use instead."""
+    dests = {a.dest for a in parser._actions}
+    if "profile" not in dests:
+        # SUPPRESS so a command parser does not reset a value given before the command
+        parser.add_argument(
+            "--profile",
+            metavar="NAME",
+            default=argparse.SUPPRESS,
+            help=argparse.SUPPRESS if ENVIRONMENT_DEST in dests else PROFILE_ARGUMENT_HELP,
+        )
+    for action in parser._actions:
+        if isinstance(action, argparse._SubParsersAction):
+            for name, subparser in action.choices.items():
+                if name != PROFILE_COMMAND:
+                    _add_profile_argument(subparser)
+
+
+def _manages_profiles(args: argparse.Namespace) -> bool:
+    command: Optional[str] = getattr(args, "command", None)
+    local_op: Optional[str] = getattr(args, "local_op", None)
+    return command == PROFILE_COMMAND or (command == "local" and local_op == PROFILE_COMMAND)
+
+
+def _takes_environment(args: argparse.Namespace) -> bool:
+    return ENVIRONMENT_DEST in vars(args)
 
 
 def main(host: str = "dlt") -> int:
     fmt.set_cli_host_name(host)
     try:
         parser, pre_parser, installed_commands = _create_parser(host)
-    except ValueError as ex:
+    except (ValueError, WorkspaceException) as ex:
+        # the workspace loads here: an invalid `.workspace` or an undeclared profile stops dlt
         fmt.secho(str(ex), err=True, fg="red")
         return -1
     # pre-pass extracts global flags at any argv position; main parse uses namespace=ns to keep them
@@ -326,6 +383,18 @@ def main(host: str = "dlt") -> int:
         if ex.code == 2 and host == "dlthub":
             _print_dlthub_workspace_hint()
         raise
+    profile = getattr(args, "profile", None)
+    if profile and _manages_profiles(args):
+        parser.error(
+            "`dlthub profile` and `dlthub local profile` take no --profile. To show another"
+            " profile with `dlthub profile info`, make it active first with `dlthub local"
+            " profile use NAME`."
+        )
+    if profile and _takes_environment(args):
+        parser.error(
+            "this command deploys or works with a deployment and takes no --profile. Name the"
+            " environment with --environment NAME."
+        )
 
     if Venv.is_virtual_env() and not Venv.is_venv_activated():
         fmt.warning(
@@ -342,6 +411,8 @@ def main(host: str = "dlt") -> int:
                 if not args.no_pwd:
                     if "" not in sys.path:
                         sys.path.insert(0, "")
+                if profile:
+                    activate_profile(profile)
                 cmd.execute(args)
         except Exception as ex:
             docs_url = getattr(cmd, "docs_url", None)
@@ -392,7 +463,12 @@ def _main() -> None:
     """Entry point for the `dlt` console script."""
     # when workspace is active, dlt commands do not execute - the user is pointed to dlthub.
     # only `dlt --version` still dispatches
-    if is_workspace_active() and "--version" not in sys.argv[1:]:
+    try:
+        workspace_active = is_workspace_active()
+    except (ValueError, WorkspaceException) as ex:
+        fmt.secho(str(ex), err=True, fg="red")
+        exit(-1)
+    if workspace_active and "--version" not in sys.argv[1:]:
         command = next((a for a in sys.argv[1:] if not a.startswith("-")), None)
         _print_use_dlthub_note(command)
         exit(-1)

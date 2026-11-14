@@ -5,15 +5,16 @@ from typing import Any, List, Optional, Set
 
 import pytest
 
+from dlt._workspace._workspace_context import WorkspaceRunContext
 from dlt._workspace.cli.dlthub.ai.utils import TOOLKITS_INDEX_FILE
 from dlt._workspace.deployment.file_selector import (
-    ConfigurationFileSelector,
     DEFAULT_IGNORES,
     GitignoreFileSelector,
     WorkspaceFileSelector,
 )
 
-from tests.workspace.utils import isolated_workspace
+from tests.workspace.manifest_utils import shipped_settings
+from tests.workspace.utils import declare_environment, isolated_workspace
 
 
 @pytest.mark.parametrize(
@@ -25,10 +26,12 @@ def test_file_selector_respects_gitignore(with_additional_exclude: bool) -> None
     """Test that .gitignore patterns are respected with and without additional excludes."""
 
     additional_excludes = ["additional_exclude/"] if with_additional_exclude else None
+    # the profiles declared in `.workspace` ship with the code
     expected_files = {
         "additional_exclude/empty_file.py",
         "ducklake_pipeline.py",
         ".ignorefile",
+        ".dlt/.workspace",
     }
     if with_additional_exclude:
         expected_files.remove("additional_exclude/empty_file.py")
@@ -147,79 +150,58 @@ def test_default_ignores_not_applied_with_ignore_file() -> None:
         assert ".venv/somefile" in files
 
 
-def test_configuration_file_selector() -> None:
-    """ConfigurationFileSelector flat-walks `.dlt/` and filters by profile."""
+SHARED_SETTINGS = ["config.toml", "secrets.toml"]
+PROD_SETTINGS = [
+    "access.config.toml",
+    "access.secrets.toml",
+    "prod.config.toml",
+    "prod.secrets.toml",
+]
+# `staging-read` has secrets only and `staging-none` no settings file at all
+STAGING_SETTINGS = [
+    "staging-read.secrets.toml",
+    "staging-write.config.toml",
+    "staging-write.secrets.toml",
+]
+NEVER_SHIPPED = [
+    "dev.config.toml",
+    "dev.secrets.toml",
+    "tests.config.toml",
+    "tests.secrets.toml",
+    "analytics.config.toml",
+    "analytics.secrets.toml",
+    "myconfig.toml",
+    "README.md",
+]
+"""Files of the local profiles, of the undeclared `analytics`, and of no profile at all."""
 
+
+def _configure_environments(ctx: WorkspaceRunContext) -> None:
+    """Declares `staging` next to the built-in `prod` and creates the settings files above."""
+    declare_environment(ctx, "staging")
+    # `analytics` gets its files after the migration of the workspace, so nothing declares it
+    for name in SHARED_SETTINGS + PROD_SETTINGS + STAGING_SETTINGS + NEVER_SHIPPED:
+        Path(ctx.settings_dir, name).touch()
+
+
+@pytest.mark.parametrize(
+    "environment,profile_settings,other_settings",
+    [("prod", PROD_SETTINGS, STAGING_SETTINGS), ("staging", STAGING_SETTINGS, PROD_SETTINGS)],
+    ids=["built-in-prod", "staging"],
+)
+def test_configuration_file_selector(
+    environment: str, profile_settings: List[str], other_settings: List[str]
+) -> None:
+    """A deployment ships the shared settings files and the settings files of the profiles of its
+    environment, sorted by name. `.workspace` ships with the code."""
     with isolated_workspace("configured_workspace") as ctx:
-        settings = Path(ctx.settings_dir)
-        settings.mkdir(parents=True, exist_ok=True)
+        _configure_environments(ctx)
+        assert "analytics" not in ctx.profile_definitions
+        files = shipped_settings(ctx, ctx.get_environment_definition(environment))
 
-        # seed top-level TOMLs covering workspace-wide + every built-in profile +
-        # one custom synced profile, plus a non-TOML decoy
-        for name in (
-            "config.toml",
-            "secrets.toml",
-            "dev.config.toml",
-            "dev.secrets.toml",
-            "tests.config.toml",
-            "tests.secrets.toml",
-            "prod.config.toml",
-            "prod.secrets.toml",
-            "access.config.toml",
-            "access.secrets.toml",
-            "analytics.config.toml",
-            "README.md",
-        ):
-            (settings / name).write_text("# placeholder")
-        # nested decoys — must be ignored once recursion is gone
-        for subdir, fname in (("state/dev", "config.toml"), ("data/prod", "secrets.toml")):
-            nested = settings / subdir
-            nested.mkdir(parents=True, exist_ok=True)
-            (nested / fname).write_text("# nested")
-
-        # default: dev/tests excluded, synced + custom + workspace-wide kept,
-        # nested decoys ignored, non-TOML skipped
-        files = {rel.as_posix() for _, rel in ConfigurationFileSelector(ctx)}
-        assert files == {
-            "config.toml",
-            "secrets.toml",
-            "prod.config.toml",
-            "prod.secrets.toml",
-            "access.config.toml",
-            "access.secrets.toml",
-            "analytics.config.toml",
-        }
-        # decoys exist on disk but are not yielded
-        assert (settings / "state" / "dev" / "config.toml").exists()
-
-        # local_profiles=[] recovers the pre-fix "include every profile" behavior
-        files_all = {rel.as_posix() for _, rel in ConfigurationFileSelector(ctx, local_profiles=[])}
-        assert {
-            "config.toml",
-            "secrets.toml",
-            "dev.config.toml",
-            "dev.secrets.toml",
-            "tests.config.toml",
-            "tests.secrets.toml",
-            "prod.config.toml",
-            "prod.secrets.toml",
-            "access.config.toml",
-            "access.secrets.toml",
-            "analytics.config.toml",
-        } <= files_all
-        # still no recursion or non-TOML even when filter is empty
-        assert "state/dev/config.toml" not in files_all
-        assert "README.md" not in files_all
-
-        # custom exclude list overrides the default LOCAL_PROFILES
-        files_custom = {
-            rel.as_posix()
-            for _, rel in ConfigurationFileSelector(ctx, local_profiles=["prod", "analytics"])
-        }
-        assert {"prod.config.toml", "prod.secrets.toml", "analytics.config.toml"}.isdisjoint(
-            files_custom
-        )
-        assert {"dev.config.toml", "tests.config.toml"} <= files_custom
+    assert files == sorted(SHARED_SETTINGS + profile_settings)
+    # the settings of the other environment, of local and of undeclared profiles never ship
+    assert set(files).isdisjoint(other_settings + NEVER_SHIPPED)
 
 
 def test_toolkits_index_ships_but_secrets_do_not() -> None:

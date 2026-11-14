@@ -135,6 +135,7 @@ Groups defined so far:
 | [G7 — Jobs, triggers and the deployment manifest](references/vocabulary/g7-jobs-triggers-and-the-deployment-manifest.md) | jobs, job runs, launchers, triggers, selectors | `dlt/_workspace/deployment/` outside `agent/`, `dlt/hub/run.py`, `__deployment__.py` files, `dlthub local run` |
 | [G8 — Agents, loops and prompts](references/vocabulary/g8-agents-loops-and-prompts.md) | agent definitions, agent jobs, agent runs, loops, system prompts, user turns, traces | `dlt/_workspace/deployment/agent/`, `launchers/agent.py`, `AGENT.md` files, `run.agent` |
 | [G9 — Workspace access and tools](references/vocabulary/g9-workspace-access-and-tools.md) | the `access` declaration, axes, verbs, tools, feature groups | `access` blocks, `TWorkspaceAccess`, `dlt/_workspace/mcp/`, the tools a loop wires |
+| [G10 — Profiles and environments](references/vocabulary/g10-profiles-and-environments.md) | profiles, local and remote profiles, data access, environments, default profiles, active profile, strict environments, the remote workspace of an environment | `dlt/_workspace/profile.py`, `environment.py`, `workspace_definition.py`, `dlthub profile` and `dlthub local profile`, `attach_job_profiles`, `profiles.md` and the pages that link to it |
 
 Read every group the diff touches before you audit, and give each subagent only the groups its
 files map to. G1 to G5 are short: when the mapping is unclear, read them all.
@@ -156,6 +157,9 @@ access, access axis, agent, agent definition, agent definition reference, agent 
 agent output, agent run, agent trace, default trigger, feature group, instructions, job, job definition, job ref, job result,
 job run, launcher, loop, placeholder, runner, runtime, selector, skill, system prompt, tool, toolkit,
 trigger, turn, user turn, verb.
+
+active profile, data access, default environment, default profile, default write profile,
+environment, local profile, profile, remote profile, remote workspace, strict environment.
 
 ## Rules this codebase breaks most
 

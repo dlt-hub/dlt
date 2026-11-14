@@ -32,6 +32,7 @@ from dlt._workspace.deployment.typing import (
     TRequireSpec,
     TRequireSpecDeprecated,
     TTrigger,
+    TWorkspaceAccess,
     WORKSPACE_DEPRECATED_SINCE,
 )
 
@@ -85,7 +86,7 @@ def _module_description(module: ModuleType) -> Optional[str]:
 def _apply_module_dunders(module: ModuleType, job_def: TJobDefinition) -> None:
     """Apply module-level dunders to a detected job definition.
 
-    Reads `__trigger__`, `__expose__`, and `__require__` from the module and
+    Reads `__trigger__`, `__expose__`, `__require__` and `__access__` from the module and
     merges them into the job definition produced by a detector.
     """
     # __trigger__: append to detector triggers
@@ -111,6 +112,11 @@ def _apply_module_dunders(module: ModuleType, job_def: TJobDefinition) -> None:
             stacklevel=3,
         )
         job_def["require"] = cast(TRequireSpec, require_spec)
+
+    # __access__: what the job needs to run (matches `access` decorator argument)
+    access = getattr(module, "__access__", None)
+    if access is not None:
+        job_def["access"] = cast(TWorkspaceAccess, dict(access))
 
 
 def _detect_marimo(module: ModuleType) -> Optional[TJobDefinition]:

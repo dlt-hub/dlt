@@ -21,7 +21,6 @@ from dlt._workspace.deployment._run_helpers import (
     resolve_selector,
     select_candidates,
     select_single_job,
-    warn_missing_profiles,
 )
 from dlt._workspace.deployment.exceptions import (
     AmbiguousJobSelector,
@@ -687,7 +686,7 @@ def test_load_manifest_plain_python_module_becomes_module_job(
     script = tmp_path / "my_pipeline.py"
     script.write_text("x = 1\n")
     monkeypatch.chdir(tmp_path)
-    manifest, _, _ = load_manifest_with_warnings("my_pipeline.py", use_all=False)
+    manifest, _, _ = load_manifest_with_warnings("my_pipeline.py", None, use_all=False)
     jobs = manifest["jobs"]
     assert len(jobs) == 1
     assert jobs[0]["entry_point"]["launcher"] == LAUNCHER_MODULE
@@ -699,7 +698,7 @@ def test_load_manifest_missing_default_module_raises_typed(
 ) -> None:
     monkeypatch.chdir(tmp_path)
     with pytest.raises(ManifestImportError, match="__deployment__") as exc:
-        load_manifest_with_warnings("__deployment__", use_all=True)
+        load_manifest_with_warnings("__deployment__", None, use_all=True)
     assert exc.value.kind == "default_missing"
 
 
@@ -708,7 +707,7 @@ def test_load_manifest_missing_file_raises_typed(
 ) -> None:
     monkeypatch.chdir(tmp_path)
     with pytest.raises(ManifestImportError, match="Could not import") as exc:
-        load_manifest_with_warnings("does_not_exist_abc123", use_all=True)
+        load_manifest_with_warnings("does_not_exist_abc123", None, use_all=True)
     assert exc.value.kind == "module_missing"
 
 
@@ -719,30 +718,5 @@ def test_load_manifest_import_error_inside_file_surfaces_real_error(
     script.write_text("import definitely_not_installed_xyz123\n")
     monkeypatch.chdir(tmp_path)
     with pytest.raises(ManifestImportError, match="Failed to import") as exc:
-        load_manifest_with_warnings("bad.py", use_all=False)
+        load_manifest_with_warnings("bad.py", None, use_all=False)
     assert exc.value.kind == "import_failed"
-
-
-def test_warn_missing_profiles_returns_advisory_for_each_missing(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    class _MockCtx:
-        def available_profiles(self) -> List[str]:
-            return ["dev"]
-
-    monkeypatch.setattr(run_helpers, "active", lambda: _MockCtx())
-    warnings = warn_missing_profiles()
-    joined = "\n".join(warnings)
-    assert "'prod'" in joined
-    assert "'access'" in joined
-
-
-def test_warn_missing_profiles_returns_empty_when_both_present(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    class _MockCtx:
-        def available_profiles(self) -> List[str]:
-            return ["prod", "access", "dev"]
-
-    monkeypatch.setattr(run_helpers, "active", lambda: _MockCtx())
-    assert warn_missing_profiles() == []
