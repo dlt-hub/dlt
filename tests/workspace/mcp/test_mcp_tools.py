@@ -2,7 +2,7 @@ import json
 import os
 import re
 from pathlib import Path
-from typing import Generator, List
+from typing import Generator, List, Optional, Set
 from unittest.mock import patch
 
 import pytest
@@ -388,6 +388,42 @@ def test_list_toolkits_returns_dict() -> None:
         mock_base.return_value = Path("/fake")
         result = list_toolkits()
     assert result == mock_toolkits
+
+
+@pytest.mark.parametrize(
+    ("agent_name", "visible"),
+    [("cortex", {"everyone"}), (None, {"everyone", "not-cortex"})],
+    ids=["cortex", "no-agent"],
+)
+def test_toolkits_show_what_the_agent_sees(
+    tmp_path: Path, agent_name: Optional[str], visible: Set[str]
+) -> None:
+    """The MCP server runs inside the agent, so toolkits are filtered for that agent."""
+    for name, toolkit_json in (
+        ("everyone", {}),
+        ("not-cortex", {"agents": {"exclude": ["cortex"]}}),
+    ):
+        meta_dir = tmp_path / name / ".claude-plugin"
+        meta_dir.mkdir(parents=True)
+        (meta_dir / "plugin.json").write_text(
+            json.dumps({"name": name, "version": "1.0.0", "description": name}), encoding="utf-8"
+        )
+        (meta_dir / "toolkit.json").write_text(json.dumps(toolkit_json), encoding="utf-8")
+    with (
+        patch("dlt._workspace.mcp.tools.toolkit_tools.fetch_workbench_base", return_value=tmp_path),
+        patch("dlt._workspace.cli.dlthub.ai.utils.fetch_workbench_base", return_value=tmp_path),
+        patch(
+            "dlt._workspace.cli.dlthub.ai.agents._AIAgent.detect_agent_name",
+            return_value=agent_name,
+        ),
+    ):
+        assert set(list_toolkits()) == visible
+        assert toolkit_info("everyone")["name"] == "everyone"
+        if "not-cortex" in visible:
+            assert toolkit_info("not-cortex")["name"] == "not-cortex"
+        else:
+            with pytest.raises(ToolError, match="not available for cortex"):
+                toolkit_info("not-cortex")
 
 
 def test_list_toolkits_raises_tool_error_on_missing_repo() -> None:

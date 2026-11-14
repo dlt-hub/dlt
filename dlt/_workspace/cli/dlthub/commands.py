@@ -3,12 +3,14 @@
 import argparse
 import os
 import sys
-from typing import List, Optional
+from pathlib import Path
+from typing import TYPE_CHECKING, List, Optional, get_args
 
 from dlt.common.configuration.plugins import TCliCommandCompose
 
 from dlt._workspace.cli import echo as fmt
 from dlt._workspace.cli import SupportsCliCommand
+from dlt._workspace.cli.dlthub.ai.typing import TAIAgentName
 from dlt._workspace.cli.exceptions import CliCommandException
 from dlt._workspace.workspace_definition import DATA_ACCESS_LEVELS
 from dlt._workspace.cli.utils import (
@@ -22,6 +24,11 @@ from dlt._workspace.cli.commands import (
     SchemaCommand,
     TelemetryCommand,
 )
+
+if TYPE_CHECKING:
+    from dlt._workspace.cli.dlthub.ai.agents import _AIAgent
+
+AI_AGENT_CHOICES: List[str] = list(get_args(TAIAgentName))
 
 
 class AiCommand(SupportsCliCommand):
@@ -51,7 +58,7 @@ class AiCommand(SupportsCliCommand):
         )
         init_cmd.add_argument(
             "--agent",
-            choices=["claude", "cursor", "codex"],
+            choices=AI_AGENT_CHOICES,
             default=None,
             help="AI coding agent to install for. Auto-detected if omitted.",
         )
@@ -73,6 +80,21 @@ class AiCommand(SupportsCliCommand):
                 "Overwrite existing files instead of skipping them and remove files the"
                 " installed version shipped but the new one does not."
             ),
+        )
+
+        rules_cmd = ai_subparsers.add_parser(
+            "rules",
+            help="Print the rules your AI coding agent gets when a session starts",
+            description=(
+                "Prints links to the installed rule skills for agents without rule files. Codex"
+                " runs it from the session start hook that toolkit install adds."
+            ),
+        )
+        rules_cmd.add_argument(
+            "--agent",
+            choices=AI_AGENT_CHOICES,
+            default=None,
+            help="AI coding agent to print the rules for. The one set up by `ai init` if omitted.",
         )
 
         # secrets command group
@@ -137,7 +159,14 @@ class AiCommand(SupportsCliCommand):
             help="Advanced. Git branch to fetch toolkit from.",
         )
 
-        toolkit_sub.add_parser(
+        toolkit_common.add_argument(
+            "--see-all",
+            default=False,
+            action="store_true",
+            help="Include toolkits and components that are hidden from the AI coding agent.",
+        )
+
+        list_cmd = toolkit_sub.add_parser(
             "list",
             help="List available toolkits",
             parents=[toolkit_common],
@@ -148,6 +177,13 @@ class AiCommand(SupportsCliCommand):
             parents=[toolkit_common],
         )
         info_cmd.add_argument("name", help="Toolkit name")
+        for agent_scoped_cmd in (list_cmd, info_cmd):
+            agent_scoped_cmd.add_argument(
+                "--agent",
+                choices=AI_AGENT_CHOICES,
+                default=None,
+                help="AI coding agent whose toolkits to show. Auto-detected if omitted.",
+            )
         install_cmd = toolkit_sub.add_parser(
             "install",
             help="Install toolkit components into project",
@@ -156,7 +192,7 @@ class AiCommand(SupportsCliCommand):
         install_cmd.add_argument("name", help="Toolkit name")
         install_cmd.add_argument(
             "--agent",
-            choices=["claude", "cursor", "codex"],
+            choices=AI_AGENT_CHOICES,
             default=None,
             help="AI coding agent to install for. Auto-detected if omitted.",
         )
@@ -194,7 +230,7 @@ class AiCommand(SupportsCliCommand):
         )
         mcp_install_cmd.add_argument(
             "--agent",
-            choices=["claude", "cursor", "codex"],
+            choices=AI_AGENT_CHOICES,
             default=None,
             help="AI coding agent to install for. Auto-detected if omitted.",
         )
@@ -225,6 +261,7 @@ class AiCommand(SupportsCliCommand):
             ai_init_command,
             ai_mcp_run_command,
             ai_mcp_install_command,
+            ai_rules_command,
             ai_secrets_list_command,
             ai_secrets_view_redacted_command,
             ai_secrets_update_fragment_command,
@@ -241,6 +278,8 @@ class AiCommand(SupportsCliCommand):
                 branch=args.branch,
                 overwrite=args.overwrite,
             )
+        elif args.operation == "rules":
+            ai_rules_command(agent=args.agent)
         elif args.operation == "secrets":
             op = getattr(args, "secrets_operation", None)
             if op == "view-redacted":
@@ -256,6 +295,8 @@ class AiCommand(SupportsCliCommand):
                 ai_toolkit_list_command(
                     location=args.location,
                     branch=args.branch,
+                    agent=args.agent,
+                    see_all=args.see_all,
                 )
             elif tk_op == "info":
                 if not args.name:
@@ -265,6 +306,8 @@ class AiCommand(SupportsCliCommand):
                     name=args.name,
                     location=args.location,
                     branch=args.branch,
+                    agent=args.agent,
+                    see_all=args.see_all,
                 )
             elif tk_op == "install":
                 if not args.name:
@@ -277,6 +320,7 @@ class AiCommand(SupportsCliCommand):
                     branch=args.branch,
                     overwrite=args.overwrite,
                     strict=args.strict,
+                    see_all=args.see_all,
                 )
             else:
                 # default: list toolkits
@@ -803,6 +847,18 @@ class InitWorkspaceCommand(SupportsCliCommand):
             action="store_true",
             help="Print the file plan without writing anything.",
         )
+        parser.add_argument(
+            "--agent",
+            nargs="?",
+            const="auto",
+            default=None,
+            choices=["auto", *AI_AGENT_CHOICES],
+            help=(
+                "Set up an AI coding agent after the workspace is created: install its rules"
+                " and skills and pick the workspace dependencies it needs. Without a name, the"
+                " agent is detected. Without the flag, no agent is set up."
+            ),
+        )
 
     def execute(self, args: argparse.Namespace) -> None:
         _execute_init(
@@ -811,6 +867,7 @@ class InitWorkspaceCommand(SupportsCliCommand):
             dry_run=args.dry_run,
             dependencies=args.dependencies,
             verbosity=getattr(args, "verbosity", 0),
+            agent=args.agent,
         )
 
 
@@ -822,6 +879,7 @@ def _execute_init(
     dry_run: bool,
     dependencies: str = "auto",
     verbosity: int = 0,
+    agent: Optional[str] = None,
 ) -> None:
     from dlt._workspace.cli.dlthub.utils import fetch_init_plan
     from dlt._workspace.cli.dlthub._init_command import (
@@ -830,11 +888,19 @@ def _execute_init(
         init_dlthub_workspace,
     )
 
+    # the agent decides the dependencies, so it is resolved before anything is written
+    ai_agent: Optional["_AIAgent"] = None
+    if agent is not None:
+        from dlt._workspace.cli.dlthub.ai.commands import _resolve_agent
+
+        ai_agent = _resolve_agent(None if agent == "auto" else agent, Path(os.getcwd()))
+
     plan = fetch_init_plan(
         os.getcwd(),
         name=name,
         force=force,
         dependencies=dependencies,  # type: ignore[arg-type]
+        agent=ai_agent,
     )
 
     # bail on existing workspace before showing anything noisy; verbose still prints the plan
@@ -850,10 +916,26 @@ def _execute_init(
 
     # plan only shown when --dry-run or -v
     if dry_run or verbosity > 0:
-        _print_init_plan(plan)
+        _print_init_plan(plan, agent_name=ai_agent.name if ai_agent else None)
 
     if dry_run:
         return
 
     init_dlthub_workspace(plan, force=force)
-    _print_init_welcome(plan)
+    agent_configured = False
+    if ai_agent is not None:
+        from dlt._workspace._workspace_context import switch_context
+        from dlt._workspace.cli._urls import DEFAULT_AI_WORKBENCH_BRANCH, DEFAULT_AI_WORKBENCH_REPO
+        from dlt._workspace.cli.dlthub.ai.commands import ai_init_command
+        from dlt._workspace.cli.dlthub.ai.utils import _INIT_TOOLKIT, is_toolkit_installed
+
+        # the agent setup writes into the workspace that was just created
+        switch_context(plan["run_dir"], required="WorkspaceRunContext")
+        ai_init_command(
+            agent=ai_agent.name,
+            location=DEFAULT_AI_WORKBENCH_REPO,
+            branch=DEFAULT_AI_WORKBENCH_BRANCH,
+        )
+        # the harness may be unreachable, then the user still has to configure the agent
+        agent_configured = is_toolkit_installed(_INIT_TOOLKIT)
+    _print_init_welcome(plan, agent_configured=agent_configured)

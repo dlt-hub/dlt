@@ -1,7 +1,7 @@
 """dlthub init — workspace scaffold writer and views."""
 
 import os
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 import tomlkit
 
@@ -128,11 +128,13 @@ def _render_pyproject(name: str, deps: List[str], uv_sources: Dict[str, Dict[str
     return tomlkit.dumps(doc)
 
 
-def _print_init_plan(plan: TInitPlan) -> None:
+def _print_init_plan(plan: TInitPlan, agent_name: Optional[str] = None) -> None:
     """Show the user what `dlthub init` will create."""
     fmt.echo()
     fmt.echo("Creating dlthub workspace at %s" % fmt.bold(plan["run_dir"]))
     fmt.echo("  project name: %s" % fmt.bold(plan["project_name"]))
+    if agent_name:
+        fmt.echo("  AI coding agent: %s" % fmt.bold(agent_name))
     fmt.echo(
         "  dependency system: %s%s"
         % (
@@ -149,10 +151,13 @@ def _print_init_plan(plan: TInitPlan) -> None:
         else:
             label = "[CONFLICT] "
         fmt.echo("    %s%s" % (label, f["path"]))
+    fmt.echo("  dependencies:")
+    for spec in plan["dependency_specs"]:
+        fmt.echo("    %s" % spec)
     fmt.echo()
 
 
-def _print_init_welcome(plan: TInitPlan) -> None:
+def _print_init_welcome(plan: TInitPlan, agent_configured: bool = False) -> None:
     """Print next-steps after a successful init."""
     # the install hint follows the file that was actually written, not uv presence:
     # `uv sync` only resolves pyproject.toml; requirements.txt always uses pip
@@ -164,5 +169,6 @@ def _print_init_welcome(plan: TInitPlan) -> None:
         fmt.echo("* Install dependencies: %s" % fmt.bold("pip install -r requirements.txt"))
     fmt.echo("* Add credentials in %s." % fmt.bold(".dlt/secrets.toml"))
     fmt.echo("* Run %s to verify." % fmt.bold("dlthub local info"))
-    fmt.echo("* Configure your AI coding agent: %s." % fmt.bold("dlthub ai init"))
+    if not agent_configured:
+        fmt.echo("* Configure your AI coding agent: %s." % fmt.bold("dlthub ai init"))
     fmt.echo()

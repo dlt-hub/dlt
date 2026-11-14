@@ -1,9 +1,11 @@
 import os
+import shutil
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 import pytest
 import tomlkit
+from packaging.requirements import Requirement
 
 from dlt._workspace.cli.dlthub import utils as dlthub_utils
 from dlt._workspace.cli.dlthub._init_command import (
@@ -22,6 +24,8 @@ from dlt._workspace.workspace_definition import (
     stored_workspace_definition,
 )
 from dlt._workspace.settings_files import load_yaml_file
+
+from tests.workspace.cli.dlthub.ai.utils import AI_CASES_DIR
 
 
 def _set_uv(monkeypatch: pytest.MonkeyPatch, available: bool) -> None:
@@ -63,13 +67,26 @@ def _run_init(
     force: bool = False,
     dry_run: bool = False,
     verbosity: int = 0,
+    agent: Optional[str] = None,
 ) -> None:
     """Run `_execute_init` from `tmp_path` with sensible defaults."""
     from dlt._workspace.cli.dlthub.commands import _execute_init
 
     monkeypatch.chdir(str(tmp_path))
     _set_uv(monkeypatch, True)
-    _execute_init(name=name, force=force, dry_run=dry_run, verbosity=verbosity)
+    _execute_init(name=name, force=force, dry_run=dry_run, verbosity=verbosity, agent=agent)
+
+
+def _mock_harness(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+    """Copies the mock AI harness and makes it the default one; returns the workspace dir."""
+    harness = tmp_path / "harness"
+    shutil.copytree(os.path.join(AI_CASES_DIR, "mock_workbench"), harness / "workbench")
+    monkeypatch.setattr("dlt._workspace.cli._urls.DEFAULT_AI_WORKBENCH_REPO", str(harness))
+    # cortex writes its user MCP config to SNOWFLAKE_HOME
+    monkeypatch.setenv("SNOWFLAKE_HOME", str(tmp_path / "snowflake_home"))
+    workspace_dir = tmp_path / "ws"
+    workspace_dir.mkdir()
+    return workspace_dir
 
 
 def test_workspace_deps_match_pyproject_group() -> None:
@@ -435,6 +452,79 @@ def test_dlthub_init_dry_run_implies_verbose_and_writes_nothing(
     # nothing on disk
     assert not (tmp_path / "pyproject.toml").exists()
     assert not (tmp_path / ".dlt").exists()
+
+
+def test_dlthub_init_without_agent_sets_up_no_agent(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    workspace_dir = _mock_harness(tmp_path, monkeypatch)
+    _run_init(monkeypatch, workspace_dir)
+    assert not (workspace_dir / ".dlt" / ".toolkits").exists()
+    assert not (workspace_dir / ".claude").exists()
+    assert "Configure your AI coding agent" in capsys.readouterr().out
+
+
+def test_dlthub_init_with_agent(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """The agent's rules are installed into the new workspace right after the scaffold."""
+    workspace_dir = _mock_harness(tmp_path, monkeypatch)
+    _run_init(monkeypatch, workspace_dir, agent="claude")
+    out = capsys.readouterr().out
+    assert (workspace_dir / ".claude" / "rules" / "init-base.md").is_file()
+    index = load_yaml_file(str(workspace_dir / ".dlt" / ".toolkits"))
+    assert index["init"]["agent"] == "claude"
+    assert "Workspace ready at" in out
+    assert "Configure your AI coding agent" not in out
+    # claude gets the default dependencies
+    _assert_seeded_deps(workspace_dir / "pyproject.toml")
+
+
+def test_dlthub_init_with_cortex_agent(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """A cortex workspace depends on dlthub without dlthub-client and without marimo."""
+    workspace_dir = _mock_harness(tmp_path, monkeypatch)
+    _run_init(monkeypatch, workspace_dir, agent="cortex", verbosity=1)
+    out = capsys.readouterr().out
+    assert "AI coding agent: cortex" in out
+
+    parsed = tomlkit.parse(_read(workspace_dir / "pyproject.toml"))
+    listed = [str(d) for d in parsed["project"]["dependencies"]]  # type: ignore[index, union-attr]
+    names = {Requirement(d).name for d in listed if not d.startswith("-e ")}
+    assert "dlthub-client" not in names
+    assert "marimo" not in names
+    assert "mowidgets" not in names
+    assert "dlthub" in names
+    assert not any(d.startswith("dlt[hub]") for d in listed)
+    assert (workspace_dir / "CORTEX.md").is_file()
+    assert (workspace_dir / ".cortex" / "rules" / "init-base.md").is_file()
+
+
+def test_dlthub_init_ambiguous_agent_writes_nothing(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """When no single agent is detected, init stops before writing anything."""
+    workspace_dir = _mock_harness(tmp_path, monkeypatch)
+    monkeypatch.setenv("CLAUDECODE", "1")
+    monkeypatch.setenv("CORTEX_CODE_CLIENT_SURFACE", "coco_cli")
+    with pytest.raises(CliCommandException):
+        _run_init(monkeypatch, workspace_dir, agent="auto")
+    assert "Multiple AI coding agents detected" in capsys.readouterr().out
+    assert not (workspace_dir / ".dlt").exists()
+    assert not (workspace_dir / "pyproject.toml").exists()
+
+
+def test_dlthub_init_dry_run_with_agent(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    workspace_dir = _mock_harness(tmp_path, monkeypatch)
+    _run_init(monkeypatch, workspace_dir, agent="cortex", dry_run=True)
+    out = capsys.readouterr().out
+    assert "AI coding agent: cortex" in out
+    assert "dependencies:" in out
+    assert not (workspace_dir / ".dlt").exists()
+    assert not (workspace_dir / ".cortex").exists()
 
 
 def test_dlthub_init_bails_when_workspace_exists(

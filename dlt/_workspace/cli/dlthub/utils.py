@@ -2,7 +2,7 @@
 
 import os
 import shutil
-from typing import Any, Dict, List, Optional, Set
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Set
 
 import dlt
 from dlt.common.configuration.container import Container
@@ -24,6 +24,9 @@ from dlt._workspace.cli.utils import (
     make_dlt_settings_path,
 )
 from dlt._workspace.cli.dlthub.ai.typing import TToolkitIndexEntry
+
+if TYPE_CHECKING:
+    from dlt._workspace.cli.dlthub.ai.agents import _AIAgent
 from dlt._workspace.cli.dlthub.typing import (
     TCurrentProfileFullInfo,
     TCurrentProfileInfo,
@@ -477,8 +480,12 @@ def fetch_init_plan(
     name: Optional[str] = None,
     force: bool = False,
     dependencies: TInitDependencyChoice = "auto",
+    agent: Optional["_AIAgent"] = None,
 ) -> TInitPlan:
-    """Build a plan describing what `dlthub init` would write."""
+    """Build a plan describing what `dlthub init` would write.
+
+    `agent`, when given, decides which packages the workspace depends on.
+    """
     # `dependencies` overrides uv detection: "pyproject" forces pyproject.toml,
     # "requirements" forces requirements.txt, "auto" uses uv-on-PATH as the signal
     abs_run_dir = os.path.abspath(run_dir)
@@ -522,9 +529,12 @@ def fetch_init_plan(
     # reproduce dlt[hub]/dlthub/dlthub-client install modes (editable/path/git) in the
     # scaffold via uv.sources / `-e <path>` so a fresh `uv sync` matches the dev env
     workspace_specs = get_workspace_install_specs()
+    deps = workspace_deps()
+    if agent is not None:
+        workspace_specs, deps = agent.workspace_python_dependencies(workspace_specs, deps)
     dependency_specs: List[str] = [
         render_pep508(s, for_deployment=False) for s in workspace_specs
-    ] + workspace_deps()
+    ] + deps
     uv_sources: Dict[str, Dict[str, Any]] = {}
     for s in workspace_specs:
         src = render_uv_source(s)
@@ -533,7 +543,7 @@ def fetch_init_plan(
     requirements_lines: List[str] = []
     for s in workspace_specs:
         requirements_lines.extend(render_requirements_lines(s))
-    requirements_lines.extend(workspace_deps())
+    requirements_lines.extend(deps)
 
     return TInitPlan(
         run_dir=abs_run_dir,
@@ -543,7 +553,7 @@ def fetch_init_plan(
         dependency_specs=dependency_specs,
         uv_sources=uv_sources,
         requirements_lines=requirements_lines,
-        workspace_deps=workspace_deps(),
+        workspace_deps=deps,
         files=files,
         workspace_exists=os.path.isfile(workspace_marker),
     )
