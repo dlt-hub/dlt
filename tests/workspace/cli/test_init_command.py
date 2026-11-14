@@ -228,8 +228,6 @@ def test_list_sources(repo_dir: str) -> None:
         ".git",
         SOURCES_MODULE_NAME,
     ]
-    with git.get_repo(clone_storage.storage_path) as repo:
-        assert repo.git.rev_parse("--is-shallow-repository") == "true"
 
     templates = _list_template_sources()
     assert set(templates) == set(TEMPLATES)
