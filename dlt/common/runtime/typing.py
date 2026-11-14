@@ -22,6 +22,9 @@ TExecInfoNames = Literal[
     "claude_code_cli",
     "cursor",
     "codex",
+    "cortex",
+    "cortex_cli",
+    "cortex_desktop",
 ]
 
 
