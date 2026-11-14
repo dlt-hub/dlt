@@ -13,13 +13,9 @@ from dlt.common import logger, validation
 from dlt.common.exceptions import DictValidationException
 from dlt.common.reflection.ref import import_folder_module
 
-from dlt._workspace.cli.dlthub.ai.agents import (
-    COMPONENT_MARKERS,
-    TComponentType,
-    resolve_installed_component,
-)
+from dlt._workspace.cli.dlthub.ai.agents import COMPONENT_MARKERS, TComponentType, _AIAgent
 from dlt._workspace.cli.dlthub.ai.utils import load_toolkits_index
-from dlt._workspace.cli.formatters import parse_frontmatter
+from dlt._workspace.cli.markdown import MarkdownDocument
 from dlt._workspace.deployment.agent.exceptions import (
     AgentComponentNotFound,
     InvalidAgentSpec,
@@ -80,7 +76,9 @@ def load_agent_spec(agent_dir: str) -> TAgentSpec:
     if not os.path.isfile(path):
         raise InvalidAgentSpec(path, "file does not exist")
     try:
-        frontmatter, body = parse_frontmatter(open(path, "r", encoding="utf-8").read())
+        frontmatter, body = MarkdownDocument(
+            Path(path).read_text(encoding="utf-8")
+        ).split_frontmatter()
     except yaml.YAMLError as ex:
         raise InvalidAgentSpec(path, f"frontmatter is not valid YAML: {ex}") from ex
     if not body.strip():
@@ -257,7 +255,7 @@ def resolve_agent_dir(agent_ref: str, workspace_root: str) -> str:
         raise AgentComponentNotFound(agent_ref, "agent", [agent_manifest_path(candidate)])
 
     toolkit, _, name = agent_ref.rpartition(":")
-    path = resolve_installed_component(toolkit, name, "agent", Path(workspace_root))
+    path = _AIAgent.resolve_installed_component(toolkit, name, "agent", Path(workspace_root))
     if path is None:
         raise AgentComponentNotFound(
             agent_ref,
@@ -278,7 +276,7 @@ def resolve_component_ref(ref: str, kind: "TComponentType", workspace_root: str)
         raise AgentComponentNotFound(ref, kind, [candidate])
 
     toolkit, _, name = ref.rpartition(":")
-    path = resolve_installed_component(toolkit, name, kind, Path(workspace_root))
+    path = _AIAgent.resolve_installed_component(toolkit, name, kind, Path(workspace_root))
     if path is None:
         raise AgentComponentNotFound(
             ref,

@@ -2,7 +2,7 @@ import json
 import os
 import shutil
 from pathlib import Path
-from typing import List, Optional
+from typing import Dict, List, Optional
 
 AI_CASES_DIR = os.path.join(os.path.dirname(__file__), "cases")
 
@@ -72,12 +72,12 @@ def assert_toolkit_install(
     mcp_servers: Optional[List[str]] = entry.get("mcp_servers")
     if mcp_servers:
         agent = AI_AGENTS[agent_name]()
-        mcp_path = agent.mcp_config_path(project_root)
-        assert mcp_path.is_file(), "MCP config missing at %s" % mcp_path
-        content = mcp_path.read_text(encoding="utf-8")
-        parsed_servers = agent.parse_mcp_servers(content)
-        for srv in mcp_servers:
-            assert srv in parsed_servers, "MCP server %s not in config" % srv
+        for mcp_path in agent.mcp_config_paths(project_root):
+            assert mcp_path.is_file(), "MCP config missing at %s" % mcp_path
+            content = mcp_path.read_text(encoding="utf-8")
+            parsed_servers = agent.parse_mcp_servers(content)
+            for srv in mcp_servers:
+                assert srv in parsed_servers, "MCP server %s not in config at %s" % (srv, mcp_path)
 
     return entry
 
@@ -88,6 +88,7 @@ def make_mock_toolkit_info(
     description: str = "",
     tags: None = None,
     workflow_entry_skill: str = "",
+    mcp_features: Optional[Dict[str, List[str]]] = None,
 ) -> TToolkitInfo:
     """Build a `TToolkitInfo` for tests."""
     meta = TToolkitInfo(
@@ -98,27 +99,19 @@ def make_mock_toolkit_info(
     )
     if workflow_entry_skill:
         meta["workflow_entry_skill"] = workflow_entry_skill
+    if mcp_features:
+        meta["mcp_features"] = mcp_features
     return meta
 
 
-MOCK_AGENTS_MD_TEMPLATE = (
-    "## ALWAYS ACTIVATE those skills\nthey are essential for ANY work in this project\n"
-)
-
-
-def _ensure_init_agents_template(base: Path) -> None:
-    """Create init/AGENTS.md template in workbench base if missing."""
-    init_dir = base / "init"
-    agents_md = init_dir / "AGENTS.md"
-    if not agents_md.exists():
-        init_dir.mkdir(parents=True, exist_ok=True)
-        agents_md.write_text(MOCK_AGENTS_MD_TEMPLATE, encoding="utf-8")
-
-
-def make_mock_toolkit(toolkit_name: str = "test-toolkit", with_mcp: bool = False) -> Path:
-    """Copy mock_toolkit case into repo/<toolkit_name>, patch name in plugin.json."""
+def make_mock_toolkit(
+    toolkit_name: str = "test-toolkit",
+    with_mcp: bool = False,
+    mcp_features: Optional[Dict[str, List[str]]] = None,
+) -> Path:
+    """Copy mock_toolkit case into repo/<toolkit_name>, patch name in plugin.json. `mcp_features`
+    go to its `toolkit.json`."""
     toolkit_dir = Path("repo") / toolkit_name
-    _ensure_init_agents_template(toolkit_dir.parent)
     shutil.copytree(os.path.join(AI_CASES_DIR, "mock_toolkit"), toolkit_dir)
     # patch toolkit name
     plugin_json = toolkit_dir / ".claude-plugin" / "plugin.json"
@@ -127,7 +120,15 @@ def make_mock_toolkit(toolkit_name: str = "test-toolkit", with_mcp: bool = False
     plugin_json.write_text(json.dumps(meta), encoding="utf-8")
     if not with_mcp:
         (toolkit_dir / "mcp.json").unlink()
+    if mcp_features:
+        toolkit_json = toolkit_dir / ".claude-plugin" / "toolkit.json"
+        toolkit_json.write_text(json.dumps({"mcp_features": mcp_features}), encoding="utf-8")
     return toolkit_dir
+
+
+MOCK_WORKBENCH_LOCATION = "."
+"""Harness location of `make_mock_workbench` and `make_versioned_workbench`: they copy the
+harness into the cwd, and a local folder is a valid location."""
 
 
 def make_mock_workbench() -> Path:
