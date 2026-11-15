@@ -99,6 +99,52 @@ WHERE purchases.quantity > 1
 joined_relation = dataset(query)
 ```
 
+## Access a dataset from another script, job or notebook
+
+Notebooks, transformations and data quality checks often read a dataset that another script loaded. Pick the first option that applies.
+
+1. **From the pipeline.** `pipeline.dataset()` knows every schema of the pipeline. If a module creates the pipeline, import it:
+
+```py notype
+from orders_pipeline import pipeline
+
+dataset = pipeline.dataset()
+```
+
+If the pipeline instance is not available, create one with the same name, destination and dataset name just to get its dataset:
+
+```py
+dataset = dlt.pipeline(
+    "orders_pipeline", destination="warehouse", dataset_name="orders_data"
+).dataset()
+```
+
+2. **Without a pipeline**, for example for a dataset that another tool loaded, pass the destination and the dataset name to `dlt.dataset()`:
+
+```py
+dataset = dlt.dataset("warehouse", "orders_data")
+```
+
+`dlt.dataset()` loads only the schema stored last. When several pipelines or sources load into the same dataset, select the schema that holds your table:
+
+```py
+dataset = dlt.dataset("warehouse", "orders_data", schema="orders")
+```
+
+SQL queries are not limited to that schema: `dataset("SELECT count(*) FROM orders")` reads any table of the dataset.
+
+:::note
+On DuckDB, `dlt.dataset()` needs a named destination or the path of the database file, for example `dlt.dataset(dlt.destinations.duckdb("orders_pipeline.duckdb"), "orders_data")`. The plain `duckdb` destination names the file after the pipeline, so without a pipeline it opens `duckdb.duckdb`. See [Destination config](../../dlt-ecosystem/destinations/duckdb.md#destination-config) for how the file is named.
+:::
+
+3. **`dlt.attach()`** restores a pipeline from its local working folder in the active profile:
+
+```py
+pipeline = dlt.attach("orders_pipeline")
+```
+
+Use it only when the pipeline already ran on this machine with the active profile, for example earlier in the same job run. On a runner, another machine or with another profile there is no working folder: `dlt.attach()` fails, or, given `destination` and `dataset_name`, restores the state from the destination.
+
 ## Reading data
 
 Once you have a `Relation`, you can read data in various formats and sizes.
