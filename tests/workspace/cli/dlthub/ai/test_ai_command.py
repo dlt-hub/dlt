@@ -200,6 +200,21 @@ def _make_toolkit(base: Path, name: str, dependencies: List[str], **toolkit_json
     (base / name / "rules" / "rule.md").write_text("# %s\nrule" % name, encoding="utf-8")
 
 
+def test_ai_init_installs_init_dependencies(capsys: pytest.CaptureFixture[str]) -> None:
+    """ai init installs the toolkits that init depends on and skips the hidden ones."""
+    base = make_mock_workbench()
+    _make_toolkit(base, "local-workspace", [], listed=False)
+    _make_toolkit(base, "not-for-claude", [], agents={"exclude": ["claude"]})
+    _update_toolkit_json(base, "init", dependencies=["local-workspace", "not-for-claude"])
+
+    ai_init_command(agent="claude", location=MOCK_WORKBENCH_LOCATION)
+    out = capsys.readouterr().out
+    assert set(load_toolkits_index()) == {"init", "local-workspace"}
+    assert "Skipping dependency not-for-claude: not available for claude" in out
+    # the dependencies of init do not count as a first toolkit
+    assert "install your first toolkit" in out
+
+
 def test_toolkit_visibility_nested_dependencies(capsys: pytest.CaptureFixture[str]) -> None:
     """A hidden dependency is skipped with everything only it needs, at any depth."""
     base = make_mock_workbench()
@@ -492,7 +507,7 @@ def test_user_session_e2e(
 
         # 4. install all installable toolkits
         base = Path(workbench_repo) / AI_WORKBENCH_BASE_DIR
-        available, _ = fetch_workbench_toolkits(base, listed_only=True)
+        available, _ = fetch_workbench_toolkits(base, listed_only=True, agent_name="claude")
         installable = [name for name in available if name != "init"]
 
         for toolkit_name in installable:
@@ -628,12 +643,15 @@ def test_dependency_map_workbench(workbench_repo: str) -> None:
     dep_map = build_toolkits_dependency_map(toolkits)
     for name in KNOWN_TOOLKITS:
         assert name in dep_map, "%s missing from workbench" % name
+    # every toolkit depends on init, except the toolkits that init itself depends on
+    init_deps = resolve_toolkit_dependencies("init", dep_map)
+    assert "init" not in init_deps
     for name in dep_map:
-        resolved = resolve_toolkit_dependencies(name, dep_map)
-        if name == "init":
-            assert resolved == [], "init should have no dependencies"
-        else:
-            assert "init" in resolved, "%s should depend on init" % name
+        if name == "init" or name in init_deps:
+            continue
+        assert "init" in resolve_toolkit_dependencies(name, dep_map), (
+            "%s should depend on init" % name
+        )
 
     # every plugin.json must link to the license; only `workbench/` is checked out
     for name in toolkits:
@@ -663,7 +681,7 @@ def test_toolkit_install_all_together_workbench(
 
     # get available toolkits from the workbench (same source as list command)
     available, _ = fetch_workbench_toolkits(
-        Path(workbench_repo) / AI_WORKBENCH_BASE_DIR, listed_only=True
+        Path(workbench_repo) / AI_WORKBENCH_BASE_DIR, listed_only=True, agent_name=agent_name
     )
     installable = [name for name in available if name != "init"]
 

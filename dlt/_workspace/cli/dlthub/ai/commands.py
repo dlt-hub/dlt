@@ -684,8 +684,8 @@ def _install_dependencies(
     agent: "_AIAgent",
     project_root: Path,
     see_all: bool = False,
-) -> None:
-    """Install upstream dependencies for `name` that are not yet installed.
+) -> List[str]:
+    """Install upstream dependencies for `name` that are not yet installed and return their names.
 
     Dependencies hidden from the agent are skipped with their own dependencies, unless `see_all`.
     """
@@ -700,7 +700,7 @@ def _install_dependencies(
         skipped = [d for d in resolve_toolkit_dependencies(name, dep_map) if d not in deps]
     except ValueError as ex:
         fmt.warning(str(ex))
-        return
+        return []
     for dep in skipped:
         fmt.echo(
             "Skipping dependency %s: not available for %s. Use --see-all to install it."
@@ -710,6 +710,36 @@ def _install_dependencies(
         if is_toolkit_installed(dep):
             continue
         _install_toolkit(dep, base, agent, project_root, see_all=see_all)
+    return deps
+
+
+def _install_toolkit_with_dependencies(
+    name: str,
+    base: Path,
+    agent: "_AIAgent",
+    project_root: Path,
+    overwrite: bool = False,
+    strict: bool = False,
+    see_all: bool = False,
+) -> List[str]:
+    """Install toolkit `name` after its dependencies and return the names of the dependencies."""
+    toolkits, warnings = fetch_workbench_toolkits(base, strict=strict)
+    for w in warnings:
+        fmt.warning(w)
+    # what an earlier --see-all install brought in stays on update
+    installed = load_toolkits_index().get(name)
+    see_all = see_all or bool(installed and installed.get("see_all"))
+    if name in toolkits and not see_all and not is_toolkit_visible(toolkits[name], agent.name):
+        fmt.error(
+            "Toolkit %s is not available for %s. Use --see-all to install it anyway."
+            % (fmt.bold(name), agent.name)
+        )
+        raise CliCommandException()
+    deps = _install_dependencies(name, toolkits, base, agent, project_root, see_all=see_all)
+    _install_toolkit(
+        name, base, agent, project_root, overwrite=overwrite, strict=strict, see_all=see_all
+    )
+    return deps
 
 
 def _warning_message(code: str) -> str:
@@ -783,7 +813,9 @@ def ai_init_command(
     if base is None:
         return
 
-    _install_toolkit(_INIT_TOOLKIT, base, var, project_root, overwrite=overwrite)
+    deps = _install_toolkit_with_dependencies(
+        _INIT_TOOLKIT, base, var, project_root, overwrite=overwrite
+    )
 
     status = fetch_ai_status(project_root)
     if "mcp_unavailable" in status["warnings"]:
@@ -791,7 +823,7 @@ def ai_init_command(
     for note in var.install_notes():
         fmt.warning(note)
 
-    if len(load_toolkits_index()) == 1:
+    if set(load_toolkits_index()) <= {_INIT_TOOLKIT, *deps}:
         fmt.echo()
         fmt.echo(
             f"Now you can install your first toolkit. Use `{fmt.cli_cmd('ai toolkit list')}` for"
@@ -822,20 +854,7 @@ def ai_toolkit_install_command(
     if base is None:
         return
 
-    toolkits, warnings = fetch_workbench_toolkits(base, strict=strict)
-    for w in warnings:
-        fmt.warning(w)
-    # what an earlier --see-all install brought in stays on update
-    installed = load_toolkits_index().get(name)
-    see_all = see_all or bool(installed and installed.get("see_all"))
-    if name in toolkits and not see_all and not is_toolkit_visible(toolkits[name], var.name):
-        fmt.error(
-            "Toolkit %s is not available for %s. Use --see-all to install it anyway."
-            % (fmt.bold(name), var.name)
-        )
-        raise CliCommandException()
-    _install_dependencies(name, toolkits, base, var, project_root, see_all=see_all)
-    _install_toolkit(
+    _install_toolkit_with_dependencies(
         name, base, var, project_root, overwrite=overwrite, strict=strict, see_all=see_all
     )
 
