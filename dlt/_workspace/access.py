@@ -33,6 +33,9 @@ FULL_ACCESS: TWorkspaceAccess = typing.cast(
 )
 """Everything there is to grant."""
 
+DATA_ACCESS_LEVELS: Tuple[str, ...] = ("none",) + ACCESS_AXIS_VERBS["data"]
+"""Data access levels, the lowest first: `none`, then the data verbs of job access."""
+
 
 @dataclasses.dataclass(frozen=True)
 class RequiresAccess:
@@ -74,7 +77,7 @@ def granted_verbs(access: Optional[TWorkspaceAccess], axis: str) -> Set[str]:
     return set(ACCESS_AXIS_VERBS[axis]) if "all" in verbs else verbs
 
 
-def data_access_level(access: Optional[TWorkspaceAccess]) -> TProfileDataAccess:
+def get_data_access_level(access: Optional[TWorkspaceAccess]) -> TProfileDataAccess:
     """Data access that `access` declares: `write` when it grants `write`, else `read`, else
     `none`."""
     verbs = granted_verbs(access, "data")
@@ -83,11 +86,15 @@ def data_access_level(access: Optional[TWorkspaceAccess]) -> TProfileDataAccess:
     return "read" if "read" in verbs else "none"
 
 
-def data_access_verbs(data_access: str) -> List[TWorkspaceDataVerb]:
+def get_data_access_verbs(data_access: str) -> List[TWorkspaceDataVerb]:
     """Data verbs of a data access level. `write` and `all` include `read`."""
     if data_access in ("write", "all"):
         return ["read", "write"]
     return ["read"] if data_access == "read" else []
+
+
+def format_data_access(data_access: str) -> str:
+    return "no data access" if data_access == "none" else f"{data_access} data access"
 
 
 def format_access(access: TWorkspaceAccess) -> str:
@@ -141,9 +148,11 @@ __all__ = [
     "parse_access",
     "ACCESS_AXIS_VERBS",
     "ACCESS_AXIS_VOCABULARY",
+    "DATA_ACCESS_LEVELS",
     "RequiresAccess",
-    "data_access_level",
-    "data_access_verbs",
+    "get_data_access_level",
+    "get_data_access_verbs",
+    "format_data_access",
     "granted_verbs",
     "missing_access",
     "required_access",

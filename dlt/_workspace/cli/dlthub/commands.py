@@ -12,7 +12,7 @@ from dlt._workspace.cli import echo as fmt
 from dlt._workspace.cli import SupportsCliCommand
 from dlt._workspace.cli.dlthub.ai.typing import TAIAgentName
 from dlt._workspace.cli.exceptions import CliCommandException
-from dlt._workspace.workspace_definition import DATA_ACCESS_LEVELS
+from dlt._workspace.access import DATA_ACCESS_LEVELS
 from dlt._workspace.cli.utils import (
     display_run_context_info,
     make_mcp_run_flags,
@@ -384,7 +384,10 @@ def _add_common_run_args(
         "--deployment",
         default=None,
         metavar="FILE",
-        help="Path to a .py deployment module. Defaults to __deployment__.py.",
+        help=(
+            "Path to a .py deployment module. Defaults to __deployment__.py or the one configured"
+            " in the deployment environment."
+        ),
     )
     parser.add_argument(
         "--job-ref",

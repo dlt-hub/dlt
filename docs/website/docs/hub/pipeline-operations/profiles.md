@@ -225,6 +225,18 @@ Such a workspace keeps the id of its remote workspace as `workspace_id` under `[
 
 ## How to use profiles and environments
 
+## Choose the deployment module of an environment
+
+dlt imports the deployment module to find the jobs of a deployment. The deployment module is `__deployment__.py` by default. An environment can name another module with `deployment_module` in its section:
+
+```toml
+# .dlt/config.toml
+[workspace.environment.staging]
+deployment_module = "__staging__.py"
+```
+
+`dlthub deploy --environment staging` then imports `__staging__.py`. Give a `.py` path relative to the workspace, or a module name. A local profile uses the deployment module of the default environment, for example in `dlthub local run`. `dlthub profile list` shows the deployment module of each environment. `dlthub local info` shows the deployment module that it reads.
+
 Four use cases, from the simplest to the most advanced.
 
 ### Run on DuckDB locally and on a warehouse in production
@@ -471,7 +483,7 @@ dlthub job list
 
 While `staging-read` is the active profile, a plain `dlthub deploy` deploys to `staging`. Make `dev` the active profile again with `dlthub local profile use dev` when you are done.
 
-Credentials and limits live in the settings files of each profile. The deployment module only changes which jobs deploy and which profile a job declares. The [CI/CD blueprint](../../examples/dlthub_cicd.md) deploys to staging from a GitHub pull request with this layout.
+Credentials and limits live in the settings files of each profile. The deployment module only changes which jobs deploy and which profile a job declares. To keep the jobs of `staging` in a module of their own, make it the [deployment module of `staging`](#choose-the-deployment-module-of-an-environment). The [CI/CD blueprint](../../examples/dlthub_cicd.md) deploys to staging from a GitHub pull request with this layout.
 
 ## Commands
 

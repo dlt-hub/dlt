@@ -42,14 +42,19 @@ from dlt._workspace.cli.dlthub.typing import (
     TWorkspaceInfo,
 )
 from dlt._workspace.deployment import (
-    DEFAULT_DEPLOYMENT_MODULE,
+    get_deployment_module_file,
     humanize_trigger,
     manifest_from_module,
+)
+from dlt._workspace.environment import (
+    get_deployment_module_for_env,
+    get_profiles_for_env,
+    select_environment,
 )
 from dlt._workspace.deployment._job_ref import format_job_label, job_category
 from dlt._workspace.deployment._trigger_helpers import parse_trigger
 from dlt._workspace.deployment.exceptions import InvalidTrigger
-from dlt._workspace.deployment.manifest import expand_triggers
+from dlt._workspace.deployment.manifest import expand_triggers, is_module_missing
 from dlt._workspace.deployment.requirements import (
     dlt_extra_specs,
     floored_spec,
@@ -59,8 +64,7 @@ from dlt._workspace.deployment.requirements import (
     render_uv_source,
 )
 from dlt._workspace.settings_files import read_profile_pin
-from dlt._workspace.workspace_definition import environment_profiles
-from dlt._workspace.typing import TLocationInfo, TProviderInfo
+from dlt._workspace.typing import DEFAULT_DEPLOYMENT_MODULE, TLocationInfo, TProviderInfo
 
 
 def workspace_deps() -> List[str]:
@@ -216,7 +220,7 @@ def delete_local_data(
         _wipe_dir(run_context, attr, "Deleting %s", recreate_dirs)
 
 
-def _profile_info(ctx: WorkspaceRunContext, name: str) -> TProfileInfo:
+def _build_profile_info(ctx: WorkspaceRunContext, name: str) -> TProfileInfo:
     profile = ctx.get_profile_definition(name)
     env = profile.get("env")
     environment = ctx.get_environment_definition(env) if env else None
@@ -224,7 +228,7 @@ def _profile_info(ctx: WorkspaceRunContext, name: str) -> TProfileInfo:
         **profile,
         name=name,
         also_in_env=(
-            [n for n in environment_profiles(environment) if n != name] if environment else []
+            [n for n in get_profiles_for_env(environment) if n != name] if environment else []
         ),
         is_current=name == ctx.profile,
         is_pinned=name == read_profile_pin(ctx),
@@ -243,7 +247,7 @@ def fetch_profiles_list() -> List[TProfileInfo]:
     ctx = Container()[PluggableRunContext].context
     if not isinstance(ctx, WorkspaceRunContext):
         return []
-    return [_profile_info(ctx, name) for name in ctx.available_profiles()]
+    return [_build_profile_info(ctx, name) for name in ctx.available_profiles()]
 
 
 def fetch_environments_list() -> List[TEnvironmentInfo]:
@@ -256,11 +260,14 @@ def fetch_environments_list() -> List[TEnvironmentInfo]:
         return []
     environments: List[TEnvironmentInfo] = []
     for name, environment in ctx.environment_definitions.items():
-        config = ctx.environment_config(name)
+        config = ctx.get_environment_config(name)
         info = TEnvironmentInfo(
             **environment,
             workspace_name=config.settings.name,
-            profile_infos=[_profile_info(ctx, p) for p in environment_profiles(environment)],
+            profile_infos=[_build_profile_info(ctx, p) for p in get_profiles_for_env(environment)],
+        )
+        info["deployment_module"] = get_deployment_module_file(
+            config.deployment_module or DEFAULT_DEPLOYMENT_MODULE
         )
         if config.runtime.workspace_id:
             info["workspace_id"] = config.runtime.workspace_id
@@ -268,14 +275,17 @@ def fetch_environments_list() -> List[TEnvironmentInfo]:
     return environments
 
 
-def _current_profile_info(ctx: WorkspaceRunContext) -> TCurrentProfileInfo:
+def _build_current_profile_info(ctx: WorkspaceRunContext) -> TCurrentProfileInfo:
     info = TCurrentProfileInfo(
-        **_profile_info(ctx, ctx.profile), data_dir=ctx.data_dir, local_dir=ctx.local_dir
+        **_build_profile_info(ctx, ctx.profile), data_dir=ctx.data_dir, local_dir=ctx.local_dir
     )
     if ctx.environment:
         # as the default write profile resolves it, the same that `fetch_environments_list` shows
-        config = ctx.environment_config(ctx.environment)
+        config = ctx.get_environment_config(ctx.environment)
         info["workspace_name"] = config.settings.name
+        info["deployment_module"] = get_deployment_module_file(
+            config.deployment_module or DEFAULT_DEPLOYMENT_MODULE
+        )
         if config.runtime.workspace_id:
             info["workspace_id"] = config.runtime.workspace_id
     return info
@@ -298,7 +308,7 @@ def fetch_workspace_info() -> TWorkspaceInfo:
     if isinstance(ctx, WorkspaceRunContext):
         name = ctx.name
         configured_profiles = ctx.configured_profiles()
-        profile_info = _current_profile_info(ctx)
+        profile_info = _build_current_profile_info(ctx)
 
     # provider locations — always verbose (all locations)
     providers: List[TProviderInfo] = []
@@ -377,7 +387,7 @@ def fetch_profile_info() -> Optional[TCurrentProfileFullInfo]:
         )
 
     return TCurrentProfileFullInfo(
-        **_current_profile_info(ctx),
+        **_build_current_profile_info(ctx),
         providers=providers,
         configured_profiles=configured_profiles,
     )
@@ -390,21 +400,17 @@ def fetch_deployment_info() -> TDeploymentManifestInfo:
     ctx = Container()[PluggableRunContext].context
     environment = None
     if isinstance(ctx, WorkspaceRunContext) and ctx.environment:
-        environment = ctx.get_environment_definition(ctx.environment)
+        environment = select_environment(ctx.environment)
+    module_file = get_deployment_module_file(get_deployment_module_for_env(environment))
     try:
-        manifest, _warnings = manifest_from_module(DEFAULT_DEPLOYMENT_MODULE, environment)
-    except ImportError as exc:
-        default_file = os.path.join(os.getcwd(), f"{DEFAULT_DEPLOYMENT_MODULE}.py")
-        # default deployment module not found
-        if not os.path.isfile(default_file):
-            return TDeploymentManifestInfo(status="not_found")
-        # any other import error
-        return TDeploymentManifestInfo(
-            status="generation_failed", error=f"{type(exc).__name__}: {exc}"
-        )
+        manifest, _warnings = manifest_from_module(module_file, environment)
     except Exception as exc:
+        if isinstance(exc, ImportError) and is_module_missing(exc, module_file):
+            return TDeploymentManifestInfo(status="not_found", deployment_module=module_file)
         return TDeploymentManifestInfo(
-            status="generation_failed", error=f"{type(exc).__name__}: {exc}"
+            status="generation_failed",
+            deployment_module=module_file,
+            error=f"{type(exc).__name__}: {exc}",
         )
 
     jobs_info: List[TDeploymentJobInfo] = []
@@ -451,6 +457,7 @@ def fetch_deployment_info() -> TDeploymentManifestInfo:
 
     info = TDeploymentManifestInfo(
         status="ok",
+        deployment_module=module_file,
         total_jobs=len(jobs_info),
         counts_by_category=counts,
         jobs=jobs_info,

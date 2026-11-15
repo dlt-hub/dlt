@@ -20,7 +20,7 @@ class WorkspaceRunContextNotAvailable(RunContextNotAvailable, WorkspaceException
         super().__init__(run_dir, msg)
 
 
-def _environments(environments: Sequence[str]) -> str:
+def _format_environments(environments: Sequence[str]) -> str:
     return ", ".join(environments) if environments else "none declared"
 
 
@@ -35,8 +35,10 @@ class InvalidWorkspaceFile(WorkspaceException, ValueError):
             " `default` and `strict_access` are optional. One profile of each data access has"
             " `default: true`. Deployments are made with the default profile with write data"
             " access. A local profile is a key under `local_profiles`, `default` is optional."
-            " Each profile has `data_access` (none, read or write). Fix the entries above. Or"
-            " empty the file: dlt then declares the built-in profiles again."
+            " Each profile has `data_access` (none, read or write). The deployment module of an"
+            " environment is not set here, set `deployment_module` under"
+            " `[workspace.environment.<name>]` in `config.toml`. Fix the entries above. Or empty"
+            " the file: dlt then declares the built-in profiles again."
         )
 
 
@@ -141,8 +143,8 @@ class ProfileNotDeclared(ProfileException):
             remedy = (
                 f" To use `{name}` on this machine only, run `dlthub profile add {name} --local`."
                 f" To add it to an environment, run `dlthub profile add {name} --env"
-                f" <environment>`. Environments: {_environments(environments)}. `dlthub profile"
-                " list` shows the declared profiles."
+                f" <environment>`. Environments: {_format_environments(environments)}. `dlthub"
+                " profile list` shows the declared profiles."
             )
         super().__init__(f"`{name}` is not a profile declared in `{path}`.{remedy}")
 
@@ -156,8 +158,8 @@ class EnvironmentNotDeclared(ProfileException):
         self.environments = list(environments)
         super().__init__(
             f"`{env}` is not an environment declared in `{path}` (declared:"
-            f" {_environments(environments)}). Declare it with `dlthub profile add-environment"
-            f" {env}`."
+            f" {_format_environments(environments)}). Declare it with `dlthub profile"
+            f" add-environment {env}`."
         )
 
 

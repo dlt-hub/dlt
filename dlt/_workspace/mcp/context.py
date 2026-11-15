@@ -21,7 +21,7 @@ from dlt._workspace._workspace_context import WorkspaceRunContext
 from dlt._workspace.exceptions import ProfileException
 from dlt._workspace.environment import ENVIRONMENT_ARGUMENT_HELP, select_environment
 from dlt._workspace.profile import PROFILE_ARGUMENT_HELP, check_profile_declared
-from dlt._workspace.workspace_definition import PROFILE_NAME_RE, default_profile
+from dlt._workspace.workspace_definition import PROFILE_NAME_RE, get_default_profile_for_env
 
 # serialize context reloads and tool bodies: the run context is global
 _context_reload_lock = threading.Lock()
@@ -91,7 +91,7 @@ def _activate_call_profile(
         )
     try:
         if environment:
-            profile = default_profile(select_environment(name), "write")
+            profile = get_default_profile_for_env(select_environment(name), "write")
         else:
             check_profile_declared(name)
             profile = name

@@ -15,9 +15,10 @@ from dlt.common.configuration.specs.pluggable_run_context import PluggableRunCon
 from dlt.common.configuration.specs.runtime_configuration import RuntimeConfiguration
 from dlt.common.typing import Annotated, Literal, TSecretStrValue
 
+from dlt._workspace.typing import DEFAULT_DEPLOYMENT_MODULE
+
 ENVIRONMENT_SECTION = "environment"
-"""Per environment, the local workspace is connected to a remote workspace under
-`[workspace.environment.<name>]`."""
+"""The settings of each environment are under `[workspace.environment.<name>]`."""
 
 
 @configspec
@@ -60,19 +61,23 @@ class WorkspaceRuntimeConfiguration(RuntimeConfiguration):
 
 @configspec
 class WorkspaceEnvironmentConfiguration(BaseConfiguration):
-    """The remote workspace that the local workspace is connected to in an environment,
-    `[workspace.environment.<name>]`."""
+    """Settings of an environment, `[workspace.environment.<name>]`: the remote workspace that
+    the local workspace is connected to and the deployment module."""
 
     workspace_id: Optional[str] = None
     workspace_name: Optional[str] = None
+    deployment_module: str = DEFAULT_DEPLOYMENT_MODULE
+    """The deployment module that dlt imports to generate the deployment manifest of the
+    environment: a module name or a `.py` path relative to the workspace."""
 
 
-def _environment_workspace_name(name: str, environment: str) -> str:
+def _get_environment_workspace_name(name: str, environment: str) -> str:
     return f"{name}-{environment}"
 
 
-def resolve_environment_connection(environment: str) -> WorkspaceEnvironmentConfiguration:
-    """Resolves the remote workspace connection of `environment` with the active providers."""
+def resolve_environment_configuration(environment: str) -> WorkspaceEnvironmentConfiguration:
+    """Resolves the configuration of `environment` with the active providers: its remote
+    workspace connection and its deployment module."""
     return resolve_configuration(
         WorkspaceEnvironmentConfiguration(),
         sections=(known_sections.WORKSPACE, ENVIRONMENT_SECTION, environment),
@@ -82,7 +87,7 @@ def resolve_environment_connection(environment: str) -> WorkspaceEnvironmentConf
 TValueSource = Literal["environ", "profile", "shared"]
 
 
-def _value_source(key: str, section: str) -> Optional[TValueSource]:
+def _get_value_source(key: str, section: str) -> Optional[TValueSource]:
     """Where the active providers resolve `key` of the workspace `section` from: the environment
     variables, a settings file of the active profile, or a file that all profiles share. `None`
     when no provider has the value."""
@@ -113,16 +118,19 @@ class WorkspaceConfiguration(BaseConfiguration):
     environment: Annotated[Optional[str], NotResolved()] = None
     """Environment of the active profile, `None` for a local profile"""
     default_environment: Annotated[Optional[str], NotResolved()] = None
+    deployment_module: Annotated[Optional[str], NotResolved()] = None
+    """Deployment module of the environment of the active profile, `None` for a local profile"""
 
     __recommended_sections__: ClassVar[Sequence[str]] = (known_sections.WORKSPACE,)
 
     def on_resolved(self) -> None:
         if not self.environment:
             return
-        connection = resolve_environment_connection(self.environment)
+        connection = resolve_environment_configuration(self.environment)
+        self.deployment_module = connection.deployment_module
         is_default = self.environment == self.default_environment
         # the platform and CI name the remote workspace of the process with a variable
-        id_source = _value_source("workspace_id", WorkspaceRuntimeConfiguration.__section__)
+        id_source = _get_value_source("workspace_id", WorkspaceRuntimeConfiguration.__section__)
         process_id = id_source == "environ"
         if process_id and connection.workspace_id not in (None, self.runtime.workspace_id):
             # the section describes another remote workspace: neither its id nor its name apply
@@ -133,11 +141,11 @@ class WorkspaceConfiguration(BaseConfiguration):
         if connection.workspace_name:
             self.settings.name = connection.workspace_name
         elif name:
-            own_name = _value_source("name", "settings") in ("environ", "profile")
+            own_name = _get_value_source("name", "settings") in ("environ", "profile")
             self.settings.name = (
                 name
                 if is_default or own_name
-                else _environment_workspace_name(name, self.environment)
+                else _get_environment_workspace_name(name, self.environment)
             )
         if process_id:
             return

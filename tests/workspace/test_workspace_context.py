@@ -16,18 +16,21 @@ from dlt._workspace.exceptions import (
     WorkspaceRunContextNotAvailable,
 )
 from dlt._workspace.helpers.runtime.runtime_artifacts import sync_from_runtime
-from dlt._workspace.profile import DEFAULT_PROFILE, add_profiles
+from dlt._workspace.profile import add_profiles
 from dlt._workspace.settings_files import load_yaml_file, read_profile_pin, save_profile_pin
 from dlt._workspace.workspace_definition import (
+    DEFAULT_PROFILE,
+    create_built_in_workspace_definition,
+)
+from dlt._workspace.workspace_file import (
     WORKSPACE_FILE_NAME,
-    built_in_workspace_definition,
     load_workspace_definition,
-    stored_workspace_definition,
+    build_stored_workspace_definition,
 )
 from dlt._workspace.run_context import (
     DEFAULT_LOCAL_FOLDER,
     DEFAULT_WORKSPACE_WORKING_FOLDER,
-    display_path,
+    format_display_path,
     switch_profile,
 )
 from dlt._workspace.cli.echo import always_choose
@@ -254,10 +257,12 @@ def test_migration_declares_no_undeclared_profile(
             with pytest.raises(ProfileNotDeclared) as exc:
                 switch_context(ctx.run_dir, profile=argument)
         assert (exc.value.name, exc.value.source) == (undeclared, source)
-        assert load_yaml_file(path) == stored_workspace_definition(built_in_workspace_definition())
+        assert load_yaml_file(path) == build_stored_workspace_definition(
+            create_built_in_workspace_definition(), path
+        )
         if argument:
             # declared as a local profile, it loads with the files it had
-            add_profiles(ctx, {argument: {"location": "local", "data_access": "write"}})
+            add_profiles(ctx, {argument: {"data_access": "write"}})
             ctx = switch_context(ctx.run_dir, profile=argument)
             assert ctx.profile == argument
             assert ctx.configured_profiles() == ([argument] if files else [])
@@ -363,21 +368,23 @@ def test_undeclared_profile_fails_on_load(
         assert dlt.current.workspace().profile == "dev"
 
 
-def test_display_path() -> None:
+def test_format_display_path() -> None:
     with isolated_workspace("default") as ctx:
         settings = os.path.join(".dlt", WORKSPACE_FILE_NAME)
         # relative to the workspace root, also from a folder under it
-        assert display_path(ctx.get_setting(WORKSPACE_FILE_NAME), ctx.run_dir) == settings
+        assert format_display_path(ctx.get_setting(WORKSPACE_FILE_NAME), ctx.run_dir) == settings
         sub_dir = os.path.join(ctx.run_dir, "sub")
         os.makedirs(sub_dir)
         with set_working_dir(sub_dir):
-            assert display_path(ctx.get_setting(WORKSPACE_FILE_NAME), ctx.run_dir) == settings
+            assert (
+                format_display_path(ctx.get_setting(WORKSPACE_FILE_NAME), ctx.run_dir) == settings
+            )
         # outside of the workspace, and for a path outside of it, the path stays as it is
         with set_working_dir(os.path.dirname(ctx.run_dir)):
             path = ctx.get_setting(WORKSPACE_FILE_NAME)
-            assert display_path(path, ctx.run_dir) == path
+            assert format_display_path(path, ctx.run_dir) == path
         outside = os.path.abspath(os.path.join(ctx.run_dir, "..", "other.toml"))
-        assert display_path(outside, ctx.run_dir) == outside
+        assert format_display_path(outside, ctx.run_dir) == outside
 
 
 def test_available_and_configured_profiles() -> None:
@@ -389,7 +396,7 @@ def test_available_and_configured_profiles() -> None:
         assert "staging" not in ctx.available_profiles()
         assert ctx.configured_profiles() == ["dev"]
         # once declared, the profile is available and configured
-        add_profiles(ctx, {"staging": {"location": "local", "data_access": "write"}})
+        add_profiles(ctx, {"staging": {"data_access": "write"}})
         assert set(ctx.available_profiles()) == {
             "dev",
             "prod",

@@ -320,11 +320,7 @@ def test_display_run_context_info_warns_for_non_local_profile(
     """Yellow advisory printed when active profile is synced (prod/access) or custom."""
     with isolated_workspace("configured_workspace") as ctx:
         if profile not in ctx.profile_definitions:
-            add_profiles(
-                ctx,
-                {profile: {"location": "remote", "data_access": "write", "env": "prod"}},
-                "prod",
-            )
+            add_profiles(ctx, {profile: {"data_access": "write"}}, "prod")
         ctx.switch_profile(profile)
         display_run_context_info()
     err = capsys.readouterr().err

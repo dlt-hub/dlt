@@ -20,7 +20,7 @@ from dlt._workspace.cli.dlthub.utils import (
     fetch_workspace_info,
 )
 from dlt._workspace.typing import TLocationInfo, TProviderInfo
-from dlt._workspace.workspace_definition import format_data_access
+from dlt._workspace.access import format_data_access
 
 
 def _format_location_tag(loc: TLocationInfo) -> str:
@@ -37,7 +37,7 @@ def _format_location_tag(loc: TLocationInfo) -> str:
     return ""
 
 
-def remote_workspace(workspace_name: str, workspace_id: Optional[str]) -> str:
+def format_remote_workspace(workspace_name: str, workspace_id: Optional[str]) -> str:
     """The remote workspace of an environment as name and id, or as name and `not connected`
     while the local workspace is not connected in the environment."""
     if workspace_id:
@@ -63,8 +63,10 @@ def print_profile_section(
         if workspace_name := profile.get("workspace_name"):
             fmt.echo(
                 "  Remote workspace %s"
-                % remote_workspace(workspace_name, profile.get("workspace_id"))
+                % format_remote_workspace(workspace_name, profile.get("workspace_id"))
             )
+        if deployment_module := profile.get("deployment_module"):
+            fmt.echo("  Deployment module %s" % fmt.bold(deployment_module))
     if profile["also_in_env"]:
         fmt.echo(
             "  Other profiles of the environment: %s" % fmt.bold(", ".join(profile["also_in_env"]))
@@ -142,11 +144,13 @@ def print_workspace_info(run_context: WorkspaceRunContext, verbosity: int = 0) -
 
 def _print_deployment_info(info: TDeploymentManifestInfo, verbosity: int) -> None:
     status = info["status"]
+    module = info.get("deployment_module")
+    from_module = " from %s" % fmt.bold(module) if module else ""
     if status == "not_found":
-        fmt.echo("Deployment: no manifest found (create __deployment__.py)")
+        fmt.echo("Deployment: no deployment module found (create %s)" % fmt.bold(module or "one"))
         return
     if status == "generation_failed":
-        fmt.warning("Deployment: manifest generation failed")
+        fmt.warning("Deployment: manifest generation%s failed" % from_module)
         if verbosity > 0 and info.get("error"):
             fmt.echo(info["error"])
         return
@@ -161,7 +165,9 @@ def _print_deployment_info(info: TDeploymentManifestInfo, verbosity: int) -> Non
     for_env = (
         " to environment %s" % fmt.bold(info["environment"]) if info.get("environment") else ""
     )
-    fmt.echo("Deployment%s: %s job(s): %s" % (for_env, fmt.bold(str(total)), breakdown))
+    fmt.echo(
+        "Deployment%s%s: %s job(s): %s" % (for_env, from_module, fmt.bold(str(total)), breakdown)
+    )
 
     if verbosity == 0:
         return

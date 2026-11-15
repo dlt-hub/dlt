@@ -3,38 +3,46 @@ from typing import List, Mapping, Optional, Sequence
 
 from dlt._workspace._known_env import WORKSPACE__PROFILE
 from dlt._workspace._workspace_context import WorkspaceRunContext
+from dlt._workspace.access import format_data_access
 from dlt._workspace.exceptions import (
     EnvironmentAlreadyExists,
     EnvironmentNotDeclared,
     ProfileAlreadyExists,
     ProfileException,
 )
-from dlt._workspace.environment import declare_environments, new_environment
+from dlt._workspace.environment import (
+    create_environment_definition,
+    declare_environments,
+    get_profiles_for_env,
+)
 from dlt._workspace.profile import check_profile_declared, declare_profiles
-from dlt._workspace.run_context import display_path
+from dlt._workspace.run_context import format_display_path
 from dlt._workspace.settings_files import (
     create_profile_settings,
     get_profile_pin_file,
-    profile_settings_files,
+    get_profile_settings_files,
     read_profile_pin,
     save_profile_pin,
 )
 from dlt._workspace.workspace_definition import (
-    default_profile,
-    environment_definition,
-    environment_of_profile,
-    environment_profiles,
-    format_data_access,
+    get_default_profile_for_env,
+    get_environment_definition,
+    get_environment_for_profile,
+    get_profile_data_access,
+    get_profile_definition,
     needs_settings_files,
-    profile_definition,
+)
+from dlt._workspace.workspace_file import (
+    build_stored_workspace_definition,
+    format_workspace_file_path,
+    load_workspace_definition,
     save_workspace_file,
-    shown_workspace_file,
 )
 from dlt._workspace.cli import echo as fmt, utils
 from dlt._workspace.cli.dlthub._local_workspace_command import (
     print_profile_section,
     print_providers,
-    remote_workspace,
+    format_remote_workspace,
 )
 from dlt._workspace.cli.dlthub.typing import (
     TCurrentProfileFullInfo,
@@ -47,6 +55,7 @@ from dlt._workspace.typing import (
     TProfileDefinition,
     TProfileDataAccess,
     TProfileLocation,
+    TProfileStoredDefinition,
     TWorkspaceDefinition,
 )
 
@@ -61,17 +70,30 @@ def print_profile_info(info: TCurrentProfileFullInfo, verbosity: int = 0) -> Non
         print_providers(info["providers"], verbosity)
 
 
-def _profile_line(p: TProfileInfo) -> str:
+def _format_profile_line(p: TProfileInfo) -> str:
     """One line of the profile listing: name, status markers and data access."""
-    flags = (
-        ("active", p["is_current"]),
-        # shown when `WORKSPACE__PROFILE` overrides the recorded profile
-        ("recorded", p["is_pinned"] and not p["is_current"]),
-        ("default", bool(p.get("default"))),
-        ("has settings files", p["is_configured"]),
-    )
-    markers = "".join(" " + fmt.bold("(%s)" % name) for name, on in flags if on)
-    return "%s%s - %s" % (fmt.bold(p["name"]), markers, format_data_access(p["data_access"]))
+
+    def _format_marker(name: str) -> str:
+        return " " + fmt.bold("(%s)" % name)
+
+    markers = [_format_marker("active")] if p["is_current"] else []
+    # shown when `WORKSPACE__PROFILE` overrides the recorded profile
+    if p["is_pinned"] and not p["is_current"]:
+        markers.append(_format_marker("recorded"))
+    # a remote profile is the default of its data access in its environment
+    remote_default = bool(p.get("default")) and p["location"] == "remote"
+    if remote_default:
+        level = get_profile_data_access(p)
+        markers.append(
+            " (%s for %s data access)"
+            % (fmt.bold("default"), fmt.bold("no" if level == "none" else level))
+        )
+    elif p.get("default"):
+        markers.append(_format_marker("default"))
+    if p["is_configured"]:
+        markers.append(_format_marker("has settings files"))
+    line = fmt.bold(p["name"]) + "".join(markers)
+    return line if remote_default else "%s - %s" % (line, format_data_access(p["data_access"]))
 
 
 def _print_environment(env: TEnvironmentInfo) -> None:
@@ -82,15 +104,18 @@ def _print_environment(env: TEnvironmentInfo) -> None:
     suffix = " (%s)" % ", ".join(markers) if markers else ""
     fmt.echo("  environment %s%s:" % (fmt.bold(env["name"]), suffix))
     fmt.echo(
-        "    remote workspace %s" % remote_workspace(env["workspace_name"], env.get("workspace_id"))
+        "    remote workspace %s"
+        % format_remote_workspace(env["workspace_name"], env.get("workspace_id"))
     )
+    if deployment_module := env.get("deployment_module"):
+        fmt.echo("    deployment module %s" % fmt.bold(deployment_module))
     for p in env["profile_infos"]:
-        fmt.echo("    * %s" % _profile_line(p))
+        fmt.echo("    * %s" % _format_profile_line(p))
 
 
 def _print_profile(p: TProfileInfo, settings: Sequence[str]) -> None:
     """The profile line of the listing, with its environment and settings files below it."""
-    fmt.echo("  * %s" % _profile_line(p))
+    fmt.echo("  * %s" % _format_profile_line(p))
     if env := p.get("env"):
         also = (
             ", other profiles of the environment: %s" % ", ".join(p["also_in_env"])
@@ -111,12 +136,14 @@ def _print_profile(p: TProfileInfo, settings: Sequence[str]) -> None:
 @utils.track_command("profile", track_before=False, operation="list")
 def list_profiles(workspace_run_context: WorkspaceRunContext) -> None:
     """Lists the local profiles, then each environment with its profiles."""
-    fmt.echo("Profiles declared in %s" % fmt.bold(shown_workspace_file(workspace_run_context)))
+    fmt.echo(
+        "Profiles declared in %s" % fmt.bold(format_workspace_file_path(workspace_run_context))
+    )
     local = [p for p in fetch_profiles_list() if p["location"] == "local"]
     fmt.echo()
     fmt.echo("Local profiles:")
     for p in local:
-        fmt.echo("  * %s" % _profile_line(p))
+        fmt.echo("  * %s" % _format_profile_line(p))
     if not local:
         fmt.echo("  (none)")
     fmt.echo()
@@ -139,7 +166,7 @@ def _describe_profile(name: str, profile: TProfileDefinition) -> str:
 
 
 def _describe_environment(environment: TEnvironmentDefinition) -> str:
-    parts = ["deployed with %s" % fmt.bold(default_profile(environment, "write"))]
+    parts = ["deployed with %s" % fmt.bold(get_default_profile_for_env(environment, "write"))]
     if environment.get("strict_access"):
         parts.append("strict about access")
     if environment.get("default"):
@@ -157,29 +184,35 @@ def _confirm() -> bool:
 def _declare(
     workspace_run_context: WorkspaceRunContext,
     doc: TWorkspaceDefinition,
-    profiles: Mapping[str, TProfileDefinition],
+    profiles: Mapping[str, TProfileStoredDefinition],
     environments: Mapping[str, TEnvironmentDefinition],
 ) -> bool:
-    """Shows what `doc`, the validated definition, adds to the workspace and the settings files
-    to create. Asks for confirmation, then saves `doc` and creates the files."""
-    path = shown_workspace_file(workspace_run_context)
+    """Validates `doc`, then shows what it adds to the workspace and the settings files to create.
+    Asks for confirmation, then saves `doc` and creates the files.
+
+    Raises:
+        InvalidWorkspaceFile: `doc` is not valid, nothing is shown or saved.
+    """
+    path = format_workspace_file_path(workspace_run_context)
+    # refused before dlt asks, never after the confirmation
+    build_stored_workspace_definition(doc, path)
     run_dir = workspace_run_context.run_dir
     with_settings = [n for n, p in profiles.items() if needs_settings_files(p)]
-    files = [f for n in with_settings for f in profile_settings_files(workspace_run_context, n)]
+    files = [f for n in with_settings for f in get_profile_settings_files(workspace_run_context, n)]
     fmt.echo("dlt will add to %s:" % fmt.bold(path))
     for name in environments:
         fmt.echo("  * %s" % _describe_environment(doc["environments"][name]))
     for name in profiles:
         # as declared in `doc`, with the default that the declaration gave it
-        fmt.echo("  * %s" % _describe_profile(name, profile_definition(doc, name)))
+        fmt.echo("  * %s" % _describe_profile(name, get_profile_definition(doc, name)))
     to_create = [f for f in files if not os.path.exists(f)]
     if to_create:
         fmt.echo("dlt will create:")
         for f in to_create:
-            fmt.echo("  * %s" % fmt.bold(display_path(f, run_dir)))
+            fmt.echo("  * %s" % fmt.bold(format_display_path(f, run_dir)))
     for f in files:
         if f not in to_create:
-            fmt.echo("dlt will keep the existing %s" % fmt.bold(display_path(f, run_dir)))
+            fmt.echo("dlt will keep the existing %s" % fmt.bold(format_display_path(f, run_dir)))
     if not _confirm():
         return False
     save_workspace_file(workspace_run_context, doc)
@@ -197,13 +230,15 @@ def _echo_settings_hint() -> None:
     )
 
 
-def _settings_of(workspace_run_context: WorkspaceRunContext, names: Sequence[str]) -> List[str]:
+def _list_settings_files(
+    workspace_run_context: WorkspaceRunContext, names: Sequence[str]
+) -> List[str]:
     """Settings files of the declared profiles `names` that need them."""
     return [
         f
         for n in names
         if needs_settings_files(workspace_run_context.get_profile_definition(n))
-        for f in profile_settings_files(workspace_run_context, n)
+        for f in get_profile_settings_files(workspace_run_context, n)
     ]
 
 
@@ -214,7 +249,7 @@ def _create_missing_settings(
     confirmation."""
     fmt.echo("dlt will create the missing settings files:")
     for f in missing:
-        fmt.echo("  * %s" % fmt.bold(display_path(f, workspace_run_context.run_dir)))
+        fmt.echo("  * %s" % fmt.bold(format_display_path(f, workspace_run_context.run_dir)))
     if not _confirm():
         return
     create_profile_settings(
@@ -226,7 +261,7 @@ def _create_missing_settings(
     _echo_settings_hint()
 
 
-def _conflicting_options(
+def _find_conflicting_options(
     profile: TProfileDefinition,
     location: Optional[TProfileLocation],
     data_access: Optional[TProfileDataAccess],
@@ -260,18 +295,20 @@ def add_profile(
         ProfileAlreadyExists: The profile is declared and has its settings files, or is declared
             differently than the options say.
     """
-    path = shown_workspace_file(workspace_run_context)
+    path = format_workspace_file_path(workspace_run_context)
     if (declared := workspace_run_context.profile_definitions.get(profile_name)) is not None:
-        if conflicting := _conflicting_options(declared, location, data_access, env):
+        if conflicting := _find_conflicting_options(declared, location, data_access, env):
             raise ProfileAlreadyExists(profile_name, path, conflicting)
-        settings = _settings_of(workspace_run_context, [profile_name])
+        settings = _list_settings_files(workspace_run_context, [profile_name])
         if missing := [f for f in settings if not os.path.exists(f)]:
             _create_missing_settings(workspace_run_context, [profile_name], missing)
             return
         info = next(p for p in fetch_profiles_list() if p["name"] == profile_name)
-        _print_profile(info, [display_path(f, workspace_run_context.run_dir) for f in settings])
+        _print_profile(
+            info, [format_display_path(f, workspace_run_context.run_dir) for f in settings]
+        )
         raise ProfileAlreadyExists(profile_name, path)
-    profile: TProfileDefinition
+    profile: TProfileStoredDefinition
     if location == "local":
         if env or data_access not in (None, "write"):
             raise ProfileException(
@@ -280,7 +317,7 @@ def add_profile(
                 f" environment. Run `dlthub profile add {profile_name} --local` alone."
             )
         env = None
-        profile = {"location": "local", "data_access": "write"}
+        profile = {"data_access": "write"}
     else:
         environments = workspace_run_context.environment_definitions
         env = env or workspace_run_context.default_environment
@@ -291,9 +328,9 @@ def add_profile(
             )
         if env not in environments:
             raise EnvironmentNotDeclared(env, path, list(environments))
-        profile = {"location": "remote", "data_access": data_access or "write", "env": env}
-    # declare_profiles validates before dlt asks, so a refusal never comes after the confirmation
-    doc = declare_profiles(workspace_run_context, {profile_name: profile}, env)
+        profile = {"data_access": data_access or "write"}
+    doc = load_workspace_definition(workspace_run_context)
+    declare_profiles(doc, {profile_name: profile}, env, path)
     _declare(workspace_run_context, doc, {profile_name: profile}, {})
 
 
@@ -309,22 +346,25 @@ def add_environment(workspace_run_context: WorkspaceRunContext, name: str) -> No
             settings files.
     """
     if (declared := workspace_run_context.environment_definitions.get(name)) is not None:
-        profiles = environment_profiles(declared)
-        settings = _settings_of(workspace_run_context, profiles)
+        profiles = get_profiles_for_env(declared)
+        settings = _list_settings_files(workspace_run_context, profiles)
         if missing := [f for f in settings if not os.path.exists(f)]:
             _create_missing_settings(workspace_run_context, profiles, missing)
             return
         _print_environment(next(e for e in fetch_environments_list() if e["name"] == name))
-        raise EnvironmentAlreadyExists(name, shown_workspace_file(workspace_run_context))
-    environment = new_environment(name)
-    doc = declare_environments(workspace_run_context, {name: environment})
+        raise EnvironmentAlreadyExists(name, format_workspace_file_path(workspace_run_context))
+    environment = create_environment_definition(name)
+    doc = load_workspace_definition(workspace_run_context)
+    declare_environments(
+        doc, {name: environment}, format_workspace_file_path(workspace_run_context)
+    )
     if _declare(workspace_run_context, doc, environment["profiles"], {name: environment}):
         fmt.echo(
             "Environment %s is strict about access and deploys with %s. Interactive jobs"
             " (notebooks, dashboards) need a profile with read data access. Declare it with %s."
             % (
                 fmt.bold(name),
-                fmt.bold(default_profile(environment, "write")),
+                fmt.bold(get_default_profile_for_env(environment, "write")),
                 fmt.bold(f"dlthub profile add {name}-read --access read --env {name}"),
             )
         )
@@ -333,7 +373,7 @@ def add_environment(workspace_run_context: WorkspaceRunContext, name: str) -> No
 @utils.track_command("profile", track_before=False, operation="pin")
 def pin_profile(workspace_run_context: WorkspaceRunContext, profile_name: str) -> None:
     """Shows the active profile, or makes `profile_name` the active profile after confirmation."""
-    pin_file = display_path(
+    pin_file = format_display_path(
         get_profile_pin_file(workspace_run_context), workspace_run_context.run_dir
     )
     if not profile_name:
@@ -352,7 +392,7 @@ def pin_profile(workspace_run_context: WorkspaceRunContext, profile_name: str) -
         return
     check_profile_declared(profile_name)
     doc = workspace_run_context.workspace_definition
-    env = environment_of_profile(doc, profile_name)
+    env = get_environment_for_profile(doc, profile_name)
     in_env = " (environment %s)" % fmt.bold(env) if env else ""
     fmt.echo(
         "dlt will make %s%s the active profile and record it in %s."
@@ -370,7 +410,12 @@ def pin_profile(workspace_run_context: WorkspaceRunContext, profile_name: str) -
         fmt.echo(
             "Commands that deploy or work with a deployment now use environment %s and its"
             " default write profile %s."
-            % (fmt.bold(env), fmt.bold(default_profile(environment_definition(doc, env), "write")))
+            % (
+                fmt.bold(env),
+                fmt.bold(
+                    get_default_profile_for_env(get_environment_definition(doc, env), "write")
+                ),
+            )
         )
     elif default_env := workspace_run_context.default_environment:
         fmt.echo(

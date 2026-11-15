@@ -4,7 +4,7 @@ import sys
 from importlib import import_module
 from io import BytesIO
 from types import ModuleType
-from typing import List
+from typing import List, Optional, Tuple
 
 import pytest
 
@@ -13,6 +13,7 @@ from dlt._workspace.deployment.exceptions import InvalidManifest, InvalidTrigger
 from dlt._workspace.deployment.manifest import (
     DASHBOARD_JOB_REF,
     generate_manifest,
+    is_module_missing,
     load_manifest,
     manifest_from_module,
     save_manifest,
@@ -24,6 +25,9 @@ from dlt._workspace.deployment.typing import (
     TJobRef,
     TTrigger,
 )
+from dlt._workspace.typing import TEnvironmentDefinition
+
+from tests.workspace.utils import full_environment, isolated_workspace
 
 WORKSPACE = "tests.workspace.cases.runtime_workspace"
 
@@ -85,8 +89,6 @@ def test_full_deployment() -> None:
     assert "jobs.streamlit_app" in job_refs
 
     assert len(_user_jobs(manifest["jobs"])) == 9
-    # dashboard is only auto-included for the canonical `__deployment__` module
-    assert DASHBOARD_JOB_REF not in {j["job_ref"] for j in manifest["jobs"]}
     assert warnings == []
 
 
@@ -442,11 +444,8 @@ def test_ad_hoc_does_not_pick_up_venv_modules() -> None:
     assert "jobs.batch_jobs.backfill" in refs
 
 
-# -- dashboard auto-include and validation --
-
-
-def test_dashboard_auto_included_for_canonical_deployment() -> None:
-    """The canonical `__deployment__` module gets a dashboard auto-included."""
+def test_default_dashboard_job_shape() -> None:
+    """The dashboard that dlt adds is an interactive gui job served over http."""
     mod = import_module(f"{WORKSPACE}.__deployment__")
     manifest, _ = generate_manifest(mod, None)
 
@@ -459,15 +458,27 @@ def test_dashboard_auto_included_for_canonical_deployment() -> None:
     assert "http:" in dashboard["triggers"]
 
 
-def test_dashboard_not_auto_included_for_non_canonical_module() -> None:
-    """Non-`__deployment__` modules do not get a dashboard — ad-hoc deployments
-    (`--deployment foo.py`, framework apps imported by name, etc.) should never
-    have a workspace dashboard tagged on by the manifest generator.
-    """
+def test_dashboard_goes_to_the_default_environment() -> None:
+    """The dashboard goes to a local run without environment and to the default environment,
+    whatever the module, and never to another environment or to an ad-hoc deployment. The
+    environments are not declared in the workspace: the manifest comes from the arguments alone."""
     mod = import_module(f"{WORKSPACE}.deployment_batch_only")
-    manifest, _ = generate_manifest(mod, None)
-
-    assert DASHBOARD_JOB_REF not in {j["job_ref"] for j in manifest["jobs"]}
+    qa = full_environment("qa")
+    default_qa: TEnvironmentDefinition = {**qa, "default": True}
+    cases: List[Tuple[Optional[TEnvironmentDefinition], bool, bool]] = [
+        (None, True, True),
+        (default_qa, True, True),
+        (qa, True, False),
+        # ad-hoc: `dlthub local serve <file>` serves that file alone
+        (None, False, False),
+        (default_qa, False, False),
+    ]
+    with isolated_workspace("default"):
+        for environment, use_all, has_dashboard in cases:
+            manifest, _ = generate_manifest(mod, environment, use_all=use_all)
+            assert (DASHBOARD_JOB_REF in {j["job_ref"] for j in manifest["jobs"]}) is has_dashboard
+            if environment is not None:
+                assert manifest["environment"] == "qa"
 
 
 @pytest.mark.parametrize(
@@ -523,9 +534,11 @@ def test_manifest_from_module_use_all_false(isolated: bool) -> None:
 
 @pytest.mark.parametrize("isolated", [False, True], ids=["inprocess", "isolated"])
 def test_manifest_from_module_invalid_module(isolated: bool) -> None:
-    """Both modes raise ModuleNotFoundError for a bad module name."""
-    with pytest.raises(ModuleNotFoundError, match="nonexistent_module_xyz_123"):
+    """Both modes raise ModuleNotFoundError for a bad module name, with the name of the module
+    that is missing."""
+    with pytest.raises(ModuleNotFoundError, match="nonexistent_module_xyz_123") as exc_info:
         manifest_from_module("nonexistent_module_xyz_123", None, isolated=isolated)
+    assert is_module_missing(exc_info.value, "nonexistent_module_xyz_123")
 
 
 @pytest.mark.parametrize("isolated", [False, True], ids=["inprocess", "isolated"])

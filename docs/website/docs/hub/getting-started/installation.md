@@ -21,7 +21,7 @@ Every workspace contains:
 - **`.dlt/.workspace`** — a marker file that activates the `dlthub` CLI, [profile support](../pipeline-operations/profiles.md), and the managed-platform commands. Without this file you're using plain OSS `dlt`.
 - **`.dlt/config.toml`** and **`.dlt/secrets.toml`** — settings and credentials, with optional per-profile overrides (`dev`, `prod`, `tests`, `access`).
 - **`pyproject.toml`** (or `requirements.txt`) — workspace-level dependencies like `dlt[hub]`, `duckdb`, `marimo`.
-- **Pipeline files** and an optional **`__deployment__.py`** manifest — the code you run, and the description of how it's deployed.
+- **Pipeline files** and an optional deployment module, **`__deployment__.py`** by default — the code you run, and the description of how it's deployed.
 - **AI toolkit configuration** — skills, rules, and MCP wiring for Claude Code, Cursor, or Codex (added when you opt in during scaffolding).
 
 For the wider feature surface that a workspace unlocks — [profiles](../pipeline-operations/profiles.md), [data quality](../data-quality/index.md), [transformations](../transformations/index.md), the [managed platform](../pipeline-operations/overview.md), the [dashboard](../ingestion/dashboard.md) — see the [introduction](introduction.md).

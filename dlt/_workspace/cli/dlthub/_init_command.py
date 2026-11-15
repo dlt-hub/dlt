@@ -15,11 +15,8 @@ from dlt._workspace.cli._pipeline_files import (
 from dlt._workspace.cli._write_state import WorkspaceWriteState
 from dlt._workspace.cli.dlthub.typing import TInitPlan
 from dlt._workspace.settings_files import dump_yaml
-from dlt._workspace.workspace_definition import (
-    WORKSPACE_FILE_NAME,
-    built_in_workspace_definition,
-    stored_workspace_definition,
-)
+from dlt._workspace.workspace_definition import create_built_in_workspace_definition
+from dlt._workspace.workspace_file import WORKSPACE_FILE_NAME, build_stored_workspace_definition
 
 
 def init_dlthub_workspace(
@@ -71,9 +68,14 @@ def init_dlthub_workspace(
     )
 
     # marks an active dlthub workspace and declares the built-in profiles and environments
+    workspace_file = os.path.join(run_dir, ".dlt", WORKSPACE_FILE_NAME)
     state.add_new_file(
-        os.path.join(run_dir, ".dlt", WORKSPACE_FILE_NAME),
-        dump_yaml(stored_workspace_definition(built_in_workspace_definition())),
+        workspace_file,
+        dump_yaml(
+            build_stored_workspace_definition(
+                create_built_in_workspace_definition(), workspace_file
+            )
+        ),
         accept_existing=keep_existing,
     )
 

@@ -5,7 +5,7 @@ import pytest
 from dlt._workspace.settings_files import (
     create_profile_settings,
     load_yaml_file,
-    profile_settings_files,
+    get_profile_settings_files,
     save_yaml_file,
 )
 
@@ -15,13 +15,13 @@ from tests.workspace.utils import isolated_workspace
 
 def test_create_profile_settings() -> None:
     with isolated_workspace("empty") as ctx:
-        config, secrets = profile_settings_files(ctx, "ci-write")
+        config, secrets = get_profile_settings_files(ctx, "ci-write")
         with open(secrets, "w", encoding="utf-8") as f:
             f.write("key = 1\n")
         # only the missing files are created, an existing one is kept as is
         assert create_profile_settings(ctx, ["ci-write", "ci-read"]) == [
             config,
-            *profile_settings_files(ctx, "ci-read"),
+            *get_profile_settings_files(ctx, "ci-read"),
         ]
         with open(secrets, encoding="utf-8") as f:
             assert f.read() == "key = 1\n"

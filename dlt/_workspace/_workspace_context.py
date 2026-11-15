@@ -1,3 +1,5 @@
+"""The run context of a workspace."""
+
 import os
 from types import ModuleType
 from typing import Any, Dict, List, Optional
@@ -31,18 +33,17 @@ from dlt._workspace.exceptions import (
     TProfileSource,
     WorkspaceRunContextNotAvailable,
 )
-from dlt._workspace.profile import DEFAULT_PROFILE
-from dlt._workspace.settings_files import profiles_with_settings, read_profile_pin
+from dlt._workspace.settings_files import list_profiles_with_settings, read_profile_pin
 from dlt._workspace.workspace_definition import (
-    declared_profiles,
-    default_profile,
-    environment_definition,
-    environment_of_profile,
+    DEFAULT_PROFILE,
+    get_declared_profiles,
+    get_default_profile_for_env,
+    get_environment_definition,
+    get_environment_for_profile,
+    get_profile_definition,
     is_profile_declared,
-    load_workspace_definition,
-    profile_definition,
-    shown_workspace_file,
 )
+from dlt._workspace.workspace_file import format_workspace_file_path, load_workspace_definition
 from dlt._workspace.providers import ProfileConfigTomlProvider, ProfileSecretsTomlProvider
 from dlt._workspace.run_context import (
     DEFAULT_LOCAL_FOLDER,
@@ -154,10 +155,11 @@ class WorkspaceRunContext(ProfilesRunContext):
             )
         return self._config
 
-    def environment_config(self, environment: str) -> WorkspaceConfiguration:
+    def get_environment_config(self, environment: str) -> WorkspaceConfiguration:
         """Workspace configuration as the default write profile of `environment` resolves it: the
-        effective name and the connected remote workspace, without changing the active profile."""
-        profile = default_profile(self.get_environment_definition(environment), "write")
+        effective name, the connected remote workspace and the deployment module, without changing
+        the active profile."""
+        profile = get_default_profile_for_env(self.get_environment_definition(environment), "write")
         if profile == self.profile:
             return self.config
         plug = Container()[PluggableRunContext]
@@ -229,19 +231,19 @@ class WorkspaceRunContext(ProfilesRunContext):
         """
         if self._workspace_definition is None:
             doc = load_workspace_definition(self)
-            profile = self._profile or _default_local_profile(doc)
+            profile = self._profile or _get_default_local_profile(doc)
             if not is_profile_declared(doc, profile):
                 raise ProfileNotDeclared(
                     profile,
-                    shown_workspace_file(self),
+                    format_workspace_file_path(self),
                     list(doc["environments"]),
-                    self._profile_source(profile),
-                    list(declared_profiles(doc)),
+                    self._get_profile_source(profile),
+                    list(get_declared_profiles(doc)),
                 )
             self._workspace_definition = doc
         return self._workspace_definition
 
-    def _profile_source(self, profile: str) -> TProfileSource:
+    def _get_profile_source(self, profile: str) -> TProfileSource:
         if self._profile is None:
             return "default"
         if os.environ.get(WORKSPACE__PROFILE) == profile:
@@ -257,15 +259,15 @@ class WorkspaceRunContext(ProfilesRunContext):
     @property
     def profile_definitions(self) -> Dict[str, TProfileDefinition]:
         """Profiles the workspace declares: the local ones, then those of each environment."""
-        return declared_profiles(self.workspace_definition)
+        return get_declared_profiles(self.workspace_definition)
 
     def get_profile_definition(self, name: str) -> TProfileDefinition:
         """Declared profile `name`."""
-        return profile_definition(self.workspace_definition, name)
+        return get_profile_definition(self.workspace_definition, name)
 
     def get_environment_definition(self, name: str) -> TEnvironmentDefinition:
         """Declared environment `name`, with its profiles."""
-        return environment_definition(self.workspace_definition, name)
+        return get_environment_definition(self.workspace_definition, name)
 
     def is_local_profile(self, name: str) -> bool:
         return self.get_profile_definition(name)["location"] == "local"
@@ -278,12 +280,12 @@ class WorkspaceRunContext(ProfilesRunContext):
     @property
     def environment(self) -> Optional[str]:
         """Environment of the active profile, `None` for a local profile."""
-        return environment_of_profile(self.workspace_definition, self.profile)
+        return get_environment_for_profile(self.workspace_definition, self.profile)
 
     @property
     def default_profile(self) -> str:
         """The default local profile, assumed when nothing names a profile."""
-        return _default_local_profile(self.workspace_definition)
+        return _get_default_local_profile(self.workspace_definition)
 
     @property
     def default_environment(self) -> Optional[str]:
@@ -297,7 +299,7 @@ class WorkspaceRunContext(ProfilesRunContext):
 
     def configured_profiles(self) -> List[str]:
         """Declared profiles that have a `<profile>.config.toml` or `<profile>.secrets.toml`."""
-        with_settings = set(profiles_with_settings(self.settings_dir))
+        with_settings = set(list_profiles_with_settings(self.settings_dir))
         return [name for name in self.profile_definitions if name in with_settings]
 
     def _initial_providers(self, profile_name: str) -> List[ConfigProvider]:
@@ -324,7 +326,7 @@ class WorkspaceRunContext(ProfilesRunContext):
         return switch_context(self.run_dir, new_profile, required="WorkspaceRunContext")
 
 
-def _default_local_profile(doc: TWorkspaceDefinition) -> str:
+def _get_default_local_profile(doc: TWorkspaceDefinition) -> str:
     for name, profile in doc["local_profiles"].items():
         if profile.get("default"):
             return name

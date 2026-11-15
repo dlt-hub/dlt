@@ -20,9 +20,9 @@ from dlt._workspace.cli.dlthub.utils import (
 from dlt._workspace.cli.exceptions import CliCommandException
 from dlt._workspace.workspace_definition import (
     WORKSPACE_ENGINE_VERSION,
-    built_in_workspace_definition,
-    stored_workspace_definition,
+    create_built_in_workspace_definition,
 )
+from dlt._workspace.workspace_file import build_stored_workspace_definition
 from dlt._workspace.settings_files import load_yaml_file
 
 from tests.workspace.cli.dlthub.ai.utils import AI_CASES_DIR
@@ -210,9 +210,12 @@ def test_init_dlthub_workspace_writes_full_scaffold(
     assert (tmp_path / ".dlt" / "config.toml").is_file()
     assert (tmp_path / ".dlt" / "secrets.toml").is_file()
     # marker enables workspace detection by `is_workspace_dir` and declares the built-in profiles
-    workspace_file = load_yaml_file(str(tmp_path / ".dlt" / ".workspace"))
+    workspace_path = str(tmp_path / ".dlt" / ".workspace")
+    workspace_file = load_yaml_file(workspace_path)
     assert workspace_file["engine_version"] == WORKSPACE_ENGINE_VERSION
-    assert workspace_file == stored_workspace_definition(built_in_workspace_definition())
+    assert workspace_file == build_stored_workspace_definition(
+        create_built_in_workspace_definition(), workspace_path
+    )
     assert "name" not in workspace_file["environments"]["prod"]
     assert "env" not in workspace_file["environments"]["prod"]["profiles"]["access"]
 

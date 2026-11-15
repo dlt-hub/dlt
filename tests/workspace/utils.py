@@ -16,16 +16,16 @@ from dlt.common.utils import set_working_dir
 from dlt.pipeline import platform
 
 from dlt._workspace._workspace_context import WorkspaceRunContext
-from dlt._workspace.environment import add_environments, new_environment
+from dlt._workspace.environment import add_environments, create_environment_definition
 from dlt._workspace.typing import TEnvironmentDefinition, TWorkspaceDefinition
-from dlt._workspace.workspace_definition import WORKSPACE_FILE_NAME, save_workspace_file
+from dlt._workspace.workspace_file import WORKSPACE_FILE_NAME, save_workspace_file
 
 from tests.utils import get_test_storage_root
 
 
 def full_environment(name: str) -> TEnvironmentDefinition:
     """Environment `name` with a default profile for write, read and no data access."""
-    environment = new_environment(name)
+    environment = create_environment_definition(name)
     environment["profiles"].update(
         {
             f"{name}-read": {
@@ -54,6 +54,12 @@ def save_definition(ctx: WorkspaceRunContext, doc: TWorkspaceDefinition) -> None
     """Saves `doc` as the workspace definition and loads it again in `ctx`."""
     save_workspace_file(ctx, doc)
     ctx.reload_workspace_definition()
+
+
+def append_settings(ctx: WorkspaceRunContext, file_name: str, content: str) -> None:
+    """Appends `content` to the settings file `file_name` of `ctx`."""
+    with open(os.path.join(ctx.settings_dir, file_name), "a", encoding="utf-8") as f:
+        f.write(content)
 
 
 def touch_settings(ctx: WorkspaceRunContext, *file_names: str) -> None:

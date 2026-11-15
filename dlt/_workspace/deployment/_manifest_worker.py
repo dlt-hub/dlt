@@ -2,7 +2,8 @@
 
 Run via `python -m dlt._workspace.deployment._manifest_worker <module> [--no-use-all]
 [--environment JSON]`. Prints JSON to stdout: `{"manifest": ..., "warnings": [...]}` on
-success, `{"error": "...", "error_type": "..."}` on failure.
+success, `{"error": "...", "error_type": "..."}` on failure, with the `name` of the module for
+an import error.
 """
 
 import os
@@ -13,7 +14,7 @@ def main() -> int:
     import argparse
 
     from dlt._workspace._known_env import WORKSPACE__PROFILE
-    from dlt._workspace.workspace_definition import default_profile
+    from dlt._workspace.workspace_definition import get_default_profile_for_env
 
     parser = argparse.ArgumentParser()
     parser.add_argument("module")
@@ -30,7 +31,7 @@ def main() -> int:
     environment = json.loads(args.environment) if args.environment else None
     # the run context reads WORKSPACE__PROFILE when dlt first creates it, before any import below
     if environment:
-        os.environ[WORKSPACE__PROFILE] = default_profile(environment, "write")
+        os.environ[WORKSPACE__PROFILE] = get_default_profile_for_env(environment, "write")
 
     try:
         from dlt._workspace.deployment.manifest import manifest_from_module
@@ -40,7 +41,10 @@ def main() -> int:
         )
         sys.stdout.write(json.typed_dumps({"manifest": manifest, "warnings": warnings}))
     except Exception as ex:
-        sys.stdout.write(json.typed_dumps({"error": str(ex), "error_type": type(ex).__qualname__}))
+        error = {"error": str(ex), "error_type": type(ex).__qualname__}
+        if isinstance(ex, ImportError):
+            error["name"] = ex.name
+        sys.stdout.write(json.typed_dumps(error))
         return 1
     return 0
 

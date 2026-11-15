@@ -1,5 +1,6 @@
 """Unit tests for `dlt._workspace.deployment._run_helpers` — pure manifest transforms."""
 
+import os
 from datetime import datetime, timezone
 from pathlib import Path
 from zoneinfo import ZoneInfo
@@ -38,7 +39,8 @@ from dlt._workspace.deployment.typing import (
     TRequireSpec,
     TTrigger,
 )
-from dlt._workspace.profile import DEFAULT_PROFILE
+from dlt._workspace.environment import create_environment_definition
+from dlt._workspace.workspace_definition import DEFAULT_PROFILE
 from dlt.version import __version__
 
 from tests.workspace.manifest_utils import make_job, make_manifest
@@ -697,9 +699,26 @@ def test_load_manifest_missing_default_module_raises_typed(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.chdir(tmp_path)
-    with pytest.raises(ManifestImportError, match="__deployment__") as exc:
-        load_manifest_with_warnings("__deployment__", None, use_all=True)
+    with pytest.raises(ManifestImportError) as exc:
+        load_manifest_with_warnings(None, None, use_all=True)
     assert exc.value.kind == "default_missing"
+    # without an environment there is no setting to point at
+    assert (
+        str(exc.value)
+        == "No deployment module __deployment__.py in the workspace. Create it and import your job"
+        " declarations and notebook modules into it."
+    )
+    # the module that the configuration of the environment names
+    environment = {**create_environment_definition("ci"), "deployment_module": "jobs/ci.py"}
+    with pytest.raises(ManifestImportError) as exc:
+        load_manifest_with_warnings(None, environment)  # type: ignore[arg-type]
+    assert (exc.value.kind, exc.value.environment) == ("default_missing", "ci")
+    assert "No deployment module jobs/ci.py in the workspace" in str(exc.value)
+    assert "`[workspace.environment.ci]`" in str(exc.value)
+    # a module the caller names is not the default one
+    with pytest.raises(ManifestImportError) as exc:
+        load_manifest_with_warnings("__deployment__", None)
+    assert exc.value.kind == "module_missing"
 
 
 def test_load_manifest_missing_file_raises_typed(
@@ -711,12 +730,24 @@ def test_load_manifest_missing_file_raises_typed(
     assert exc.value.kind == "module_missing"
 
 
-def test_load_manifest_import_error_inside_file_surfaces_real_error(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+@pytest.mark.parametrize(
+    "module_file,name_or_path",
+    [("bad.py", "bad.py"), ("bad/__init__.py", "bad"), ("jobs/bad.py", "jobs.bad")],
+    ids=["file", "package", "dotted-module"],
+)
+def test_load_manifest_import_error_inside_module_surfaces_real_error(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, module_file: str, name_or_path: str
 ) -> None:
-    script = tmp_path / "bad.py"
-    script.write_text("import definitely_not_installed_xyz123\n")
+    """A module that exists and fails to import reports its own error, also a package or a module
+    in a package, named by the caller or by the environment."""
+    path = tmp_path / module_file
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text("import definitely_not_installed_xyz123\n")
     monkeypatch.chdir(tmp_path)
-    with pytest.raises(ManifestImportError, match="Failed to import") as exc:
-        load_manifest_with_warnings("bad.py", None, use_all=False)
+    with pytest.raises(ManifestImportError, match="definitely_not_installed_xyz123") as exc:
+        load_manifest_with_warnings(name_or_path, None, use_all=False)
+    assert exc.value.kind == "import_failed"
+    environment = {**create_environment_definition("ci"), "deployment_module": name_or_path}
+    with pytest.raises(ManifestImportError, match="definitely_not_installed_xyz123") as exc:
+        load_manifest_with_warnings(None, environment)  # type: ignore[arg-type]
     assert exc.value.kind == "import_failed"
