@@ -1220,7 +1220,7 @@ def test_toolkit_info_lists_mcp_features(capsys: pytest.CaptureFixture[str]) -> 
     output = capsys.readouterr().out
     assert "MCP servers:" not in output
     assert "MCP feature groups:" in output
-    assert "dlt-workspace-mcp" in output and "adds dlthub.jobs, dlthub.logs" in output
+    assert "dlt-workspace-mcp" in output and "+dlthub.jobs, +dlthub.logs" in output
 
 
 def test_toolkit_info_names_skills_and_agents_by_folder() -> None:

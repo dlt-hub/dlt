@@ -350,14 +350,19 @@ def split_mcp_features(args: Sequence[str]) -> Tuple[List[str], List[str]]:
 
 
 def add_mcp_features(args: Sequence[str], features: Sequence[str]) -> List[str]:
-    """MCP server `args` with `features` added to `--features`, unchanged if all are there.
+    """MCP server `args` with `features` tokens (`name`, `+name`, `-name`) added to `--features`,
+    unchanged if all are there.
 
-    A feature already given as `name`, `+name` or `-name` is not added, so a feature the user
-    removed stays removed.
+    A feature the args already name in any form is left as it is, so what the user or another
+    toolkit selected wins.
     """
     other, tokens = split_mcp_features(args)
     named = {token.lstrip("+-") for token in tokens}
-    added = [feature for feature in dict.fromkeys(features) if feature not in named]
+    added: List[str] = []
+    for feature in features:
+        if feature.lstrip("+-") not in named:
+            named.add(feature.lstrip("+-"))
+            added.append(feature)
     if not added:
         return list(args)
     # the comma form also carries `-name` tokens that argparse would read as flags

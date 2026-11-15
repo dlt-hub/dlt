@@ -39,8 +39,8 @@ TOOLKITS_INDEX_FILE = ".toolkits"
 DLTHUB_AGENTS_DIR = "dlthub/agents"
 """Folder of dlt agents in a toolkit and in a host folder, apart from the host's own `agents`."""
 
-MCP_FEATURE_NAME_RE = re.compile(r"[A-Za-z0-9_][A-Za-z0-9_.-]*")
-"""A feature group name a toolkit adds: no `+`/`-` prefix and no comma, like `dlthub.jobs`."""
+MCP_FEATURE_TOKEN_RE = re.compile(r"[+-]?[A-Za-z0-9_][A-Za-z0-9_.-]*")
+"""A feature group a toolkit adds (`name`, `+name`) or removes (`-name`), without commas."""
 
 _workbench_lock = threading.Lock()  # lock git clone operation
 
@@ -590,12 +590,12 @@ def extract_toolkit_info(meta: Dict[str, Any], fallback_name: str) -> TToolkitIn
         if not isinstance(mcp_features, dict) or not all(
             isinstance(features, list)
             and features
-            and all(isinstance(f, str) and MCP_FEATURE_NAME_RE.fullmatch(f) for f in features)
+            and all(isinstance(f, str) and MCP_FEATURE_TOKEN_RE.fullmatch(f) for f in features)
             for features in mcp_features.values()
         ):
             raise ValueError(
                 "toolkit.json for %s: `mcp_features` must map MCP server names to lists of"
-                " feature group names, like `dlthub.jobs`" % fallback_name
+                " feature groups, like `dlthub.jobs`, `+dlthub.jobs` or `-secrets`" % fallback_name
             )
         tk_meta["mcp_features"] = {name: list(features) for name, features in mcp_features.items()}
     return tk_meta
