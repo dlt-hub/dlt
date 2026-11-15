@@ -315,6 +315,11 @@ def _mcp_feature_selection(server: Dict[str, Any]) -> Tuple[List[str], bool]:
     return tokens, "--no-default-features" in other
 
 
+def _format_feature_labels(tokens: Sequence[str]) -> str:
+    """Feature tokens for display, each marked as added (`+name`) or removed (`-name`)."""
+    return ", ".join(token if token[0] in "+-" else "+" + token for token in tokens)
+
+
 def _plan_mcp_config(
     agent: "_AIAgent",
     config_path: Path,
@@ -373,7 +378,7 @@ def _plan_mcp_config(
         before = _mcp_feature_selection(target)[0]
         added = [token for token in _mcp_feature_selection(updated)[0] if token not in before]
         written[name] = updated
-        labels[name] = "%s (+%s)" % (name, ", +".join(added))
+        labels[name] = "%s (%s)" % (name, _format_feature_labels(added))
 
     if not written:
         return None
@@ -585,7 +590,7 @@ def _report_and_execute(
                 continue
             fmt.warning(
                 "MCP server %s changed: reconnect it in %s or restart the session to load its"
-                " new tools" % (fmt.bold(server), agent_name or "your AI coding agent")
+                " changed tools" % (fmt.bold(server), agent_name or "your AI coding agent")
             )
     fmt.echo(
         "%s item(s) installed. Please restart your %s session for changes to take effect"
@@ -961,7 +966,7 @@ def ai_toolkit_info_command(
     if info.get("mcp_features"):
         fmt.echo("\nMCP feature groups:")
         for srv_name, features in info["mcp_features"].items():
-            fmt.echo("  %-20s adds %s" % (fmt.bold(srv_name), ", ".join(features)))
+            fmt.echo("  %-20s %s" % (fmt.bold(srv_name), _format_feature_labels(features)))
 
     if info["has_ignore"]:
         fmt.echo("\nIgnore: .claudeignore")

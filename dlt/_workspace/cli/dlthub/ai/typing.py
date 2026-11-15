@@ -62,8 +62,8 @@ class TToolkitInfo(TypedDict):
     component_visibility: NotRequired[Dict[str, TAgentVisibility]]
     """Agents that see single components, keyed by source folder and name (`skills/setup`)."""
     mcp_features: NotRequired[Dict[str, List[str]]]
-    """Features the toolkit adds to MCP servers of other toolkits, keyed by server name, from
-    `mcp_features` in `toolkit.json`."""
+    """Features the toolkit adds to (`name`, `+name`) or removes from (`-name`) MCP servers of
+    other toolkits, keyed by server name, from `mcp_features` in `toolkit.json`."""
 
 
 class TWorkbenchToolkitInfo(TToolkitInfo):

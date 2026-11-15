@@ -361,6 +361,11 @@ def test_extract_toolkit_info_mcp_features() -> None:
         extract_toolkit_info({**meta, "mcp_features": features}, "tk")["mcp_features"] == features
     )
     assert "mcp_features" not in extract_toolkit_info(meta, "tk")
+    # a toolkit can add a feature group with or without `+`, and remove one with `-`
+    prefixed = {"dlt-workspace-mcp": ["+snowflake", "-secrets", "dlthub.jobs"]}
+    assert (
+        extract_toolkit_info({**meta, "mcp_features": prefixed}, "tk")["mcp_features"] == prefixed
+    )
     bad: Any
     for bad in (
         ["dlthub.jobs"],
@@ -368,8 +373,8 @@ def test_extract_toolkit_info_mcp_features() -> None:
         {"s": [1]},
         {"s": []},
         {"s": ["a,b"]},
-        {"s": ["-secrets"]},
-        {"s": ["+dlthub.jobs"]},
+        {"s": ["+"]},
+        {"s": ["+-secrets"]},
         {"s": [""]},
     ):
         with pytest.raises(ValueError, match="mcp_features"):

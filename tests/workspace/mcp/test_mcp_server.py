@@ -17,7 +17,13 @@ from dlt.common.runtime.anon_tracker import disable_anon_tracker
 from dlt.common.typing import DictStrAny
 
 from dlt._workspace.mcp import PipelineMCP, WorkspaceMCP
-from dlt._workspace.cli.utils import DEFAULT_MCP_FEATURES, resolve_features
+from dlt._workspace.cli.utils import (
+    DEFAULT_MCP_FEATURES,
+    add_mcp_features,
+    make_mcp_run_flags,
+    mcp_stdio_args,
+    resolve_features,
+)
 from dlt._workspace._plugins import (
     McpFeatures,
     plug_mcp_context,
@@ -398,8 +404,6 @@ def test_mcp_tool_telemetry_emits_event(
 
 def test_no_default_features_serves_only_what_was_asked() -> None:
     """A background agent gets its declared feature groups, not the interactive defaults."""
-    from dlt._workspace.cli.utils import make_mcp_run_flags, mcp_stdio_args
-
     assert resolve_features(["telemetry"], set()) == {"telemetry"}
     assert resolve_features(None, set()) == set()
 
@@ -434,50 +438,51 @@ def test_installed_server_serves_the_requested_features(
     tokens: Optional[List[str]], expected: Set[str]
 ) -> None:
     """The arguments `ai mcp install` writes resolve to the requested features in the server."""
-    from dlt._workspace.cli.utils import make_mcp_run_flags, mcp_stdio_args
-
     parsed = make_mcp_run_flags().parse_args(mcp_stdio_args(tokens)[3:])
     defaults: Optional[Set[str]] = set() if parsed.no_default_features else None
     assert resolve_features(parsed.features, defaults) == expected
 
 
 @pytest.mark.parametrize(
-    "args,expected,unchanged",
+    "args,features,expected,unchanged",
     [
-        (["--stdio"], set(DEFAULT_MCP_FEATURES) | {"dlthub.jobs"}, False),
+        (["--stdio"], ["jobs"], DEFAULT_MCP_FEATURES | {"jobs"}, False),
         (
             ["--stdio", "--features", "context", "pipeline"],
-            set(DEFAULT_MCP_FEATURES) | {"dlthub.jobs"},
+            ["jobs"],
+            DEFAULT_MCP_FEATURES | {"jobs"},
             False,
         ),
         (
             ["--stdio", "--features=-secrets", "--access", "data:read"],
-            set(DEFAULT_MCP_FEATURES) - {"secrets"} | {"dlthub.jobs"},
+            ["jobs"],
+            DEFAULT_MCP_FEATURES - {"secrets"} | {"jobs"},
             False,
         ),
         (
             ["--stdio", "--no-default-features", "--features", "context"],
-            {"context", "dlthub.jobs"},
+            ["jobs"],
+            {"context", "jobs"},
             False,
         ),
-        (
-            ["--stdio", "--features", "+dlthub.jobs"],
-            set(DEFAULT_MCP_FEATURES) | {"dlthub.jobs"},
-            True,
-        ),
+        (["--stdio", "--features", "+jobs"], ["jobs"], DEFAULT_MCP_FEATURES | {"jobs"}, True),
         # a feature the user removed stays removed
-        (["--stdio", "--features=-dlthub.jobs"], set(DEFAULT_MCP_FEATURES), True),
-        (["--stdio", "--features="], set(DEFAULT_MCP_FEATURES) | {"dlthub.jobs"}, False),
-        (["--stdio", "--features"], set(DEFAULT_MCP_FEATURES) | {"dlthub.jobs"}, False),
+        (["--stdio", "--features=-jobs"], ["jobs"], DEFAULT_MCP_FEATURES, True),
+        (["--stdio"], ["+jobs", "-secrets"], DEFAULT_MCP_FEATURES - {"secrets"} | {"jobs"}, False),
+        (["--stdio"], ["+jobs", "jobs"], DEFAULT_MCP_FEATURES | {"jobs"}, False),
+        (["--stdio", "--features="], ["jobs"], DEFAULT_MCP_FEATURES | {"jobs"}, False),
+        (["--stdio", "--features"], ["jobs"], DEFAULT_MCP_FEATURES | {"jobs"}, False),
         (
             ["--stdio", "--features", "context", "context"],
-            set(DEFAULT_MCP_FEATURES) | {"dlthub.jobs"},
+            ["jobs"],
+            DEFAULT_MCP_FEATURES | {"jobs"},
             False,
         ),
         # argparse keeps only the last `--features`
         (
             ["--stdio", "--no-default-features", "--features", "pipeline", "--features=context"],
-            {"context", "dlthub.jobs"},
+            ["jobs"],
+            {"context", "jobs"},
             False,
         ),
     ],
@@ -486,20 +491,22 @@ def test_installed_server_serves_the_requested_features(
         "space-form",
         "removed-default",
         "no-defaults",
-        "already-added-with-plus",
+        "plus-already-there",
         "removed-by-user",
+        "add-and-remove",
+        "same-feature-twice",
         "empty-features",
         "features-last",
         "duplicate-tokens",
         "last-features-wins",
     ],
 )
-def test_add_mcp_features(args: List[str], expected: Set[str], unchanged: bool) -> None:
+def test_add_mcp_features(
+    args: List[str], features: List[str], expected: Set[str], unchanged: bool
+) -> None:
     """Features added to the args of an installed server reach the server, other args stay."""
-    from dlt._workspace.cli.utils import add_mcp_features, make_mcp_run_flags
-
     prefix = ["run", "dlthub", "ai", "mcp"]
-    added = add_mcp_features(prefix + args, ["dlthub.jobs"])
+    added = add_mcp_features(prefix + args, features)
     assert (added == prefix + args) is unchanged
     assert added[:4] == prefix
     parsed, rest = make_mcp_run_flags().parse_known_args(added)
@@ -509,4 +516,4 @@ def test_add_mcp_features(args: List[str], expected: Set[str], unchanged: bool) 
     if "--access" in args:
         assert parsed.access == "data:read"
     # the features are there, nothing to add
-    assert add_mcp_features(added, ["dlthub.jobs"]) == added
+    assert add_mcp_features(added, features) == added
