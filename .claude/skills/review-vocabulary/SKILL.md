@@ -69,6 +69,11 @@ Get this right first; every other rule depends on it.
 | Docs — how-to, steps, install | procedural | 20 words | imperative, condition before command (Rule 5.4) |
 | Docs — concept, reference, architecture | descriptive | 25 words | no imperative |
 
+**Concept pages may stretch the rules.** When the 25-word limit or one-fact-per-sentence would split
+a concept apart or drop a qualifier, write the longer, natural sentence: a subordinate clause, a
+connective (*so*, *in turn*, *as long as*), an em-dash aside. The fixed vocabulary still applies,
+and procedural text keeps its limits.
+
 **Messages keep their remedies.** Many errors end in an instruction — "Materialize the dataset…",
 "Set a permanent `pipeline_salt`…". Improve the wording: make it imperative, condition first,
 under 20 words, one instruction per sentence. **Never delete a remedy. Never invent one** where
