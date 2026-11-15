@@ -87,6 +87,8 @@ Configuration files live in the `.dlt/` directory:
 └── access.secrets.toml     # Access secrets (gitignored)
 ```
 
+The [AI Harness](../ai-harness/introduction.md) keeps what its toolkits produce in a separate folder, `.dlthub/`. See [Artifact locations](../ai-harness/artifact-locations.md).
+
 Settings in profile-scoped files override workspace-scoped files. Below is an example using **named destinations** so the same `destination="warehouse"` resolves to DuckDB locally and MotherDuck in production. You can swap MotherDuck for any cloud destination — see for example [BigQuery](../../dlt-ecosystem/destinations/bigquery.md), [Snowflake](../../dlt-ecosystem/destinations/snowflake.md), or [filesystem/S3](../../dlt-ecosystem/destinations/filesystem.md).
 
 **`config.toml`** (defaults shared by all profiles):

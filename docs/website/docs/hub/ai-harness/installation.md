@@ -68,6 +68,8 @@ The base `init` toolkit has an MCP server (`dlt-workspace-mcp`), a rule for the 
 
 Feature toolkits for REST API pipelines, SQL databases, transformations, deployment, and more are not installed by default. `dlthub-router` installs them when it matches your intent to one. You can also install them with the CLI.
 
+The toolkits write what they produce, such as schemas, data models and exploration plans, into `.dlthub/` in your workspace. See [Artifact locations](artifact-locations.md).
+
 ### The MCP server
 
 dlt installs one MCP server, `dlt-workspace-mcp`. Your agent starts it with `uv run dlthub ai mcp --stdio` and uses the stdio transport. A feature toolkit does not add a second server. It can add feature groups to the `--features` argument of `dlt-workspace-mcp` or remove them from it. Each feature group gives more tools.
