@@ -5,19 +5,19 @@ keywords: [dltHub, profiles, environments, workspace, configuration, secrets, da
 ---
 # Profiles and environments
 
-A **profile** controls access to your data. It holds the credentials that a pipeline or job runs with, and it declares what those credentials can do with the data: write, read, or nothing.
+A **profile** controls access to your data. It holds the credentials that a pipeline or job runs with and declares what those credentials may do with the data: **write** it, only **read** it, or not touch it at all (**none**).
 
-dltHub builds on that declaration. Each profile has one of three data access levels: `write`, `read` or `none`. Each job declares the access that it needs to run. A deployment gives every pipeline and job the profile with the data access that the job declares, and you write no code for it. A pipeline writes with the `prod` profile. A notebook reads with the `access` profile.
+Every job, in turn, declares the data access that it needs. When you deploy, dltHub matches the two: each pipeline and job runs with the profile that gives the data access it declares, without any code on your side. In a new workspace, pipelines load with the `prod` profile and notebooks read with the `access` profile.
 
 :::warning
-You are responsible for the credentials. You bring your own destination, and dlt never checks what a credential can do. Set up the rights of each credential at the destination. A profile with read data access gets a read-only database role, or a storage key without write permission.
+dlt trusts the declaration and never checks what a credential can actually do. You bring your own destination, so set up the rights of each credential there: give `access` a read-only database role, or a storage key without write permission.
 :::
 
-A profile also holds settings. This is its second function: the same code loads into a local DuckDB file with `dev` and into your warehouse with `prod`, without changes.
+Profiles also carry settings, so the same code loads into a local DuckDB file with `dev` and into your warehouse with `prod`, unchanged.
 
-An **environment** is what a deployment is made to. Each environment deploys the same workspace to a remote workspace of its own, with profiles of its own. `prod` is for production, `staging` for a review of your changes on small data.
+An **environment** is what you deploy the workspace to. Each environment deploys it into a remote workspace of its own, with its own set of profiles. The predefined `prod` environment is meant for production. Add a `staging` environment to review your changes on a small slice of data before they reach production.
 
-A profile answers one question: what can this code do with your data? An environment answers another: where is this workspace deployed? One environment has several profiles, so the jobs of one deployment run with different data access.
+In short, a profile answers *what may this code do with your data?* and an environment answers *where does this workspace run?* An environment groups several profiles, so the jobs of one deployment can run with different data access.
 
 ## How profiles work
 
@@ -67,7 +67,7 @@ A command that works on your machine, such as `dlthub local run`, runs with one 
 
 `dlthub local profile use prod` makes `prod` the active profile for every local command that follows. To go back to the default profile, remove `.dlt/profile-name`. `--profile` and `WORKSPACE__PROFILE` override the recorded profile for one command or process and do not change it.
 
-Every profile must be declared. dlt stops when the workspace loads with an undeclared profile, from `--profile`, from `WORKSPACE__PROFILE` or from `.dlt/profile-name`. The message names the source and the fix: declare the profile with `dlthub profile add`, unset the variable, or remove `.dlt/profile-name`. An environment name is not a profile name.
+To get more local profiles, or more profiles in an environment, add them with `dlthub profile add`, see [Declare profiles and environments](#declare-profiles-and-environments).
 
 `dlthub profile info` shows the active profile with its location, data access, environment and folders. `dlthub -v local info` lists every file that dlt reads settings from.
 
@@ -121,25 +121,13 @@ A job without `access` declares the data access of its job type:
 | agent jobs without `access`                          | none                                                        |
 | any job with `access`                                | what `data` says: write or read. Without `data` it is none. |
 
-A deployment then gives every job one profile of the environment. A job without a profile gets the default profile of its data access. A job that declares `require={"profile": ...}` keeps that profile. A strict environment requires that the profile gives exactly the data access that the job declares:
+A deployment gives every job the default profile of the data access it declares. A job that names a profile with `require={"profile": ...}` keeps that one.
 
-| The job                                                                        | Strict environment    | Environment that is not strict                         |
-| ------------------------------------------------------------------------------ | --------------------- | ------------------------------------------------------ |
-| declares no profile, the default profile of its data access has settings files | gets that profile     | gets that profile                                      |
-| declares no profile, that default profile is missing or has no settings files  | `dlthub deploy` fails | gets the closest default profile with more data access |
-| declares a profile with exactly its data access                                | keeps it              | keeps it                                               |
-| declares a profile with more data access                                       | `dlthub deploy` fails | keeps it                                               |
-| declares a profile with less data access                                       | `dlthub deploy` fails | keeps it, `dlthub deploy` warns                        |
-| declares a profile without settings files                                      | `dlthub deploy` fails | keeps it, `dlthub deploy` warns                        |
-| declares a profile that is not one of the environment                          | `dlthub deploy` fails | `dlthub deploy` fails                                  |
+A **strict** environment accepts only a profile that gives exactly the data access a job declares and has settings files, `<profile>.config.toml` or `<profile>.secrets.toml`. A profile without data access holds no credentials and needs none. Otherwise `dlthub deploy` fails and its message names the fix. Every environment that `dlthub profile add-environment` creates is strict.
 
-A declared profile is not enough: the profile must have settings files, `<profile>.config.toml` or `<profile>.secrets.toml`. A profile without data access is the exception. It needs no credentials, so it needs no settings files.
+The `prod` environment of a new workspace is not strict. There, a job that declares read data access runs with `prod` as long as `access` has no settings files, and `dlthub deploy` warns about it. This keeps existing workspaces working and lets a small team start with one set of credentials. Add `.dlt/access.secrets.toml` with read-only credentials, and the next deployment gives these jobs `access`. This leniency will be deprecated in a future release.
 
-In an environment that is not strict, a job falls back when its default profile is missing or has no settings files. It gets the closest default profile with more data access that has settings files. `none` falls to `read` and then to `write`, `read` falls to `write`. The default write profile is the last one and is always taken, with or without settings files. `dlthub deploy` warns about every job that gets a profile with more data access than it declares. The access that the job declares does not change.
-
-This is how a new workspace runs with one set of credentials. `prod` is not strict, and `access` has no settings files until you create them. A notebook then gets `prod` and `dlthub deploy` warns about it: the notebook declares read data access and holds credentials that can write. Add `.dlt/access.secrets.toml` with read-only credentials, and the next deployment gives the notebook `access`.
-
-`prod` is not strict. Every environment that `dlthub profile add-environment` declares is strict. When a job in a strict environment gets no profile, `dlthub deploy` fails. The message names the fix: add the profile or its settings files with `dlthub profile add`, declare the access that the job needs with `access=`, or set `strict_access: false` on the environment in `.dlt/.workspace`.
+A job run activates its profile before it imports the job module, on the dltHub platform and in `dlthub local run` alike. A pipeline created at module level therefore picks up the profile of the job, and other jobs and notebooks can import it to read its dataset, see [Access a dataset from another script, job or notebook](../../general-usage/dataset-access/dataset.md#access-a-dataset-from-another-script-job-or-notebook).
 
 ### Select an environment
 
@@ -339,17 +327,18 @@ dlthub local profile use dev
 destination_type = "duckdb"
 ```
 
-2. Make `tests` the active profile for every test with a fixture in `conftest.py`:
+2. Make `tests` the active profile when the test session starts, in `conftest.py`:
 
 ```py
-import pytest
 import dlt
+import pytest
 
 
-@pytest.fixture(autouse=True, scope="session")
-def tests_profile() -> None:
+def pytest_sessionstart(session: pytest.Session) -> None:
     dlt.current.workspace().switch_profile("tests")
 ```
+
+pytest calls the hook before it imports the test modules, so the jobs that the tests import, and the pipelines that they create at the module level, run on `tests`. A fixture runs only after the imports.
 
 Or override the profile for one `pytest` run from the shell:
 
