@@ -223,8 +223,6 @@ CI sets the same values with environment variables, `WORKSPACE__ENVIRONMENT__STA
 Such a workspace keeps the id of its remote workspace as `workspace_id` under `[runtime]` in `config.toml`. dlt still reads it as the remote workspace of the default environment, and nothing needs to change. The same key in the settings file of a profile, `stg.config.toml` for example, connects the local workspace in the environment of that profile.
 :::
 
-## How to use profiles and environments
-
 ## Choose the deployment module of an environment
 
 dlt imports the deployment module to find the jobs of a deployment. The deployment module is `__deployment__.py` by default. An environment can name another module with `deployment_module` in its section:
@@ -236,6 +234,8 @@ deployment_module = "__staging__.py"
 ```
 
 `dlthub deploy --environment staging` then imports `__staging__.py`. Give a `.py` path relative to the workspace, or a module name. A local profile uses the deployment module of the default environment, for example in `dlthub local run`. `dlthub profile list` shows the deployment module of each environment. `dlthub local info` shows the deployment module that it reads.
+
+## How to use profiles and environments
 
 Four use cases, from the simplest to the most advanced.
 
