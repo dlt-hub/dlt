@@ -141,9 +141,9 @@ dq.run_metrics(pipeline)
 `run_metrics` is dispatched on the argument type — pass either the pipeline or a `dlt.Dataset`:
 
 ```python
-# alternative: compute metrics against the loaded dataset
-# (for example, after re-attaching from another script or notebook)
-pipeline = dlt.attach("my_pipeline")
+# alternative: compute metrics against the loaded dataset,
+# for example from another script or notebook
+pipeline = dlt.pipeline("my_pipeline", destination="duckdb")
 dq.run_metrics(pipeline.dataset())
 ```
 
@@ -280,7 +280,9 @@ Each call to `run_checks` writes results to the `_dlt_checks` table — one row 
 import dlt
 from dlt.hub import data_quality as dq
 
-orders_dataset = dlt.attach("orders_pipeline").dataset()
+orders_dataset = dlt.pipeline(
+    "orders_pipeline", destination="warehouse", dataset_name="orders"
+).dataset()
 
 suite = dq.CheckSuite(
     orders_dataset,
