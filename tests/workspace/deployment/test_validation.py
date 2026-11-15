@@ -40,9 +40,9 @@ from dlt._workspace.deployment.manifest import (
     bump_manifest_version,
     compute_default_trigger,
     generate_manifest_hash,
+    get_job_access,
+    get_legacy_job_profile,
     hash_job_definition,
-    job_access,
-    legacy_job_profile,
     load_manifest,
     generate_manifest,
     migrate_job_definition,
@@ -65,7 +65,7 @@ from dlt._workspace.deployment.typing import (
 )
 
 from dlt._workspace.typing import TWorkspaceAccess
-from dlt._workspace.workspace_definition import built_in_workspace_definition
+from dlt._workspace.workspace_definition import create_built_in_workspace_definition
 
 from tests.workspace.manifest_utils import make_job, make_manifest, manifest_case_path
 from tests.workspace.utils import full_environment
@@ -341,7 +341,7 @@ def test_attach_keeps_profile_of_environment(profile_name: str, warned: bool) ->
     job = make_job(
         "jobs.mod.synced", triggers=["schedule:0 0 * * *"], require={"profile": profile_name}
     )
-    environment = built_in_workspace_definition()["environments"]["prod"]
+    environment = create_built_in_workspace_definition()["environments"]["prod"]
     # a batch job needs write data access: it keeps a declared profile with less, with a warning
     warnings = attach_job_profiles([job], environment)
     assert ["`jobs.mod.synced`" in warning for warning in warnings] == [True] * warned
@@ -706,7 +706,7 @@ def test_legacy_job_profile(
     """A job definition without a profile or `access` resolves in the built-in `prod`
     environment, which is not strict."""
     job = make_job("jobs.mod.job", job_type=job_type, **fields)
-    resolved = legacy_job_profile(job, configured)
+    resolved = get_legacy_job_profile(job, configured)
     assert (resolved.profile, resolved.data_access) == (profile, data_access)
     assert ("`jobs.mod.job`" in (resolved.warning or "")) is warned
 
@@ -728,7 +728,7 @@ def test_attach_job_access(
 ) -> None:
     """A job without `access` gets the data access of its job type, a declared one is kept."""
     job = make_job("jobs.mod.job", job_type=job_type, **fields)
-    assert job_access(job) == access
+    assert get_job_access(job) == access
     attach_job_access([job])
     assert job["access"] == access
 

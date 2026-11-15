@@ -13,7 +13,8 @@ from dlt.common.configuration.providers import CONFIG_TOML, SECRETS_TOML
 from dlt._workspace._workspace_context import WorkspaceRunContext
 from dlt._workspace.cli.dlthub.ai.utils import TOOLKITS_INDEX_FILE
 from dlt._workspace.typing import TEnvironmentDefinition
-from dlt._workspace.workspace_definition import WORKSPACE_FILE_NAME, environment_profiles
+from dlt._workspace.environment import get_profiles_for_env
+from dlt._workspace.workspace_file import WORKSPACE_FILE_NAME
 
 
 # fallback ignore patterns used when no ignore file is found in the workspace
@@ -198,7 +199,7 @@ class ConfigurationFileSelector(BaseFileSelector):
     def __init__(self, context: WorkspaceRunContext, environment: TEnvironmentDefinition) -> None:
         self.settings_dir: Path = Path(context.settings_dir).resolve()
         self._file_names: List[str] = [CONFIG_TOML, SECRETS_TOML]
-        for profile in environment_profiles(environment):
+        for profile in get_profiles_for_env(environment):
             self._file_names += [f"{profile}.{CONFIG_TOML}", f"{profile}.{SECRETS_TOML}"]
 
     def __iter__(self) -> Iterator[Tuple[Path, Path]]:

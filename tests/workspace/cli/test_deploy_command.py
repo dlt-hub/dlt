@@ -134,11 +134,7 @@ def test_deploy_command(deployment_method: str, deployment_args: StrAny) -> None
         del os.environ["DESTINATION__DUCKDB__CREDENTIALS__DATABASE"]
 
         # the settings files of `ci` came with the case, after the workspace declared its profiles
-        add_profiles(
-            dlt.current.workspace(),
-            {"ci": {"location": "remote", "data_access": "write", "env": "prod"}},
-            "prod",
-        )
+        add_profiles(dlt.current.workspace(), {"ci": {"data_access": "write"}}, "prod")
         # ci profile has api key value set, prod profile has not so we expect placeholder
         for profile, api_key_value, emit_env in [
             ("ci", "ci_api_key_9x3ehash", False),

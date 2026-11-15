@@ -33,12 +33,14 @@ class TEnvironmentInfo(TEnvironmentDefinition):
 
 class TCurrentProfileInfo(TProfileInfo):
     """The active profile with its session directories. For a profile of an environment, also the
-    remote workspace of the environment."""
+    remote workspace and the deployment module of the environment."""
 
     data_dir: str
     local_dir: str
     workspace_name: NotRequired[str]
     workspace_id: NotRequired[str]
+    deployment_module: NotRequired[str]
+    """File of the deployment module of the environment."""
 
 
 class TCurrentProfileFullInfo(TCurrentProfileInfo):
@@ -83,6 +85,8 @@ class TDeploymentManifestInfo(TypedDict):
     """Summary of the workspace deployment manifest."""
 
     status: TDeploymentManifestStatus
+    deployment_module: NotRequired[str]
+    """File of the deployment module that dlt generated the manifest from, or did not find."""
     error: NotRequired[str]
     environment: NotRequired[str]
     """The environment that dlt generated the manifest for."""

@@ -23,7 +23,12 @@ from dlt._workspace.environment import activate_environment
 from dlt._workspace.settings_files import save_profile_pin
 
 from tests.workspace.manifest_utils import job_profiles, shipped_settings
-from tests.workspace.utils import empty_workspace_file, importable_workspace, isolated_workspace
+from tests.workspace.utils import (
+    append_settings,
+    empty_workspace_file,
+    importable_workspace,
+    isolated_workspace,
+)
 
 WORKSPACE = "cicd_staging"
 MODULES = ("__deployment__", "__staging__", "notebooks")
@@ -114,10 +119,11 @@ def test_ci_deploys_staging_with_the_default_environment(
 
     assert manifest["deployment_module"] == "__staging__"
     assert manifest["environment"] == "prod"
-    # `access` has no settings files: the notebooks get `prod`
-    notebooks = (REVIEW_NOTEBOOK, MIGRATION_NOTEBOOK)
-    assert job_profiles(manifest) == dict.fromkeys([*STAGING_BATCH_REFS, *notebooks], "prod")
-    _assert_fallbacks(warnings, notebooks)
+    # `access` has no settings files: the notebooks and the dashboard of the default environment
+    # get `prod`
+    interactive_refs = (REVIEW_NOTEBOOK, MIGRATION_NOTEBOOK, DASHBOARD_JOB_REF)
+    assert job_profiles(manifest) == dict.fromkeys([*STAGING_BATCH_REFS, *interactive_refs], "prod")
+    _assert_fallbacks(warnings, interactive_refs)
     for job in manifest["jobs"]:
         if job["job_ref"] in STAGING_BATCH_REFS:
             # copies of the production jobs: they belong to `__staging__` and run on demand only
@@ -152,6 +158,23 @@ def test_developer_deploys_to_the_stg_environment(recorded: bool) -> None:
     # access: the notebook gets the default write profile
     assert job_profiles(manifest) == dict.fromkeys([*BATCH_REFS, REVIEW_NOTEBOOK], "stg")
     _assert_fallbacks(warnings, [REVIEW_NOTEBOOK])
+
+
+def test_stg_environment_names_its_deployment_module() -> None:
+    """`stg.config.toml` names `__staging__.py` as the deployment module of `stg`: dlt imports it
+    when no module is given."""
+    with importable_workspace(WORKSPACE, *MODULES) as ctx:
+        append_settings(
+            ctx,
+            "stg.config.toml",
+            '\n[workspace.environment.stg]\ndeployment_module = "__staging__.py"\n',
+        )
+        environment = activate_environment("stg")
+        assert environment["deployment_module"] == "__staging__.py"
+        manifest, _ = manifest_from_module(None, environment)
+
+    assert (manifest["deployment_module"], manifest["environment"]) == ("__staging__", "stg")
+    assert set(STAGING_BATCH_REFS) <= set(job_profiles(manifest))
 
 
 @pytest.mark.parametrize(

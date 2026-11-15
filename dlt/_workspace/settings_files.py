@@ -47,7 +47,7 @@ def save_yaml_file(path: str, doc: Mapping[str, Any]) -> None:
         f.write(dump_yaml(doc))
 
 
-def profiles_with_settings(settings_dir: str) -> List[str]:
+def list_profiles_with_settings(settings_dir: str) -> List[str]:
     """Profiles with a `<profile>.config.toml` or `<profile>.secrets.toml` in `settings_dir`."""
     try:
         names = os.listdir(settings_dir)
@@ -57,7 +57,7 @@ def profiles_with_settings(settings_dir: str) -> List[str]:
     return sorted(found)
 
 
-def profile_settings_files(context: RunContextBase, name: str) -> Tuple[str, str]:
+def get_profile_settings_files(context: RunContextBase, name: str) -> Tuple[str, str]:
     """Paths of the `<name>.config.toml` and `<name>.secrets.toml` of profile `name`."""
     return context.get_setting(f"{name}.config.toml"), context.get_setting(f"{name}.secrets.toml")
 
@@ -70,7 +70,7 @@ def create_profile_settings(context: RunContextBase, names: Sequence[str]) -> Li
     """
     created: List[str] = []
     for name in names:
-        config, secrets = profile_settings_files(context, name)
+        config, secrets = get_profile_settings_files(context, name)
         headers = (
             (config, f"# settings of profile {name}, they override config.toml\n"),
             (secrets, f"# credentials of profile {name}, they override secrets.toml\n"),

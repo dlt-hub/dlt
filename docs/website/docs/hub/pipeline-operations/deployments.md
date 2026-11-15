@@ -116,7 +116,7 @@ An [agent job](../agents/index.md) delivers its job result itself, with the agen
 
 ### The deployment module
 
-`__deployment__.py` is a Python module that declares everything deployable in the workspace. The dltHub platform discovers jobs by inspecting it.
+`__deployment__.py` is a Python module that declares everything deployable in the workspace. The dltHub platform discovers jobs by inspecting it. It is the default deployment module: an environment can name another module, see [Choose the deployment module of an environment](profiles.md#choose-the-deployment-module-of-an-environment).
 
 ```py
 """GitHub ingest workspace -- loads and monitors GitHub API data"""
@@ -148,7 +148,7 @@ You can also define decorated jobs **inline** in `__deployment__.py` — useful 
 
 ### Deploying with `dlthub deploy`
 
-This is the central command for manifest-based deployment. It reads `__deployment__.py`, generates a manifest, and syncs it to the dltHub platform:
+This is the central command for manifest-based deployment. It reads the deployment module of the environment, `__deployment__.py` by default, generates a manifest, and syncs it to the dltHub platform:
 
 ```cli
 dlthub deploy
@@ -162,7 +162,7 @@ dlthub deploy --environment staging
 
 The deploy command:
 
-1. Imports `__deployment__.py` and collects every job
+1. Imports the deployment module and collects every job
 2. Generates a deployment manifest (a JSON document describing every job's triggers, entry point, and metadata)
 3. Syncs your code and configuration to the dltHub platform
 4. Sends the manifest for **reconciliation**

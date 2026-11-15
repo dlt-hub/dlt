@@ -1,8 +1,6 @@
 """Shared `run`/`serve` orchestration helpers — pure manifest transforms, no CLI I/O."""
 
 import copy
-import os
-import os.path
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Tuple, cast
@@ -13,6 +11,7 @@ from packaging.version import Version
 from dlt.common.time import UTC_NAME, ensure_datetime_in_tz, to_tzinfo
 
 from dlt._workspace._workspace_context import active
+from dlt._workspace.environment import get_deployment_environment, get_deployment_module_for_env
 from dlt._workspace.typing import TEnvironmentDefinition
 from dlt._workspace.deployment._job_ref import format_job_label, resolve_job_ref, short_name
 from dlt._workspace.deployment._run_typing import TRunJobInfo
@@ -44,12 +43,13 @@ from dlt._workspace.deployment.manifest import (
     compute_default_trigger,
     expand_triggers,
     generate_manifest_hash,
+    get_deployment_module_file,
+    is_module_missing,
     manifest_from_module,
 )
 from dlt._workspace.deployment.requirements import get_pkg_install_spec
 from dlt._workspace.deployment.trigger import manual
 from dlt._workspace.deployment.typing import (
-    DEFAULT_DEPLOYMENT_MODULE,
     TInstallSpec,
     TJobDefinition,
     TJobsDeploymentManifest,
@@ -85,29 +85,34 @@ def promote_deployment_arg(
 
 
 def load_manifest_with_warnings(
-    name_or_path: str, environment: Optional[TEnvironmentDefinition], *, use_all: bool = True
+    name_or_path: Optional[str],
+    environment: Optional[TEnvironmentDefinition],
+    *,
+    use_all: bool = True,
 ) -> Tuple[TJobsDeploymentManifest, str, List[str]]:
     """Loads a manifest for `environment` and returns `(manifest, manifest_hash, warnings)`.
-    `None` is a local run, see `manifest_from_module`."""
+    `None` is a local run, and a `name_or_path` of `None` is the deployment module of
+    `environment`, see `manifest_from_module`."""
+    explicit = name_or_path is not None
+    module_environment = None
+    if name_or_path is None:
+        module_environment = get_deployment_environment(environment)
+        name_or_path = get_deployment_module_for_env(module_environment)
     try:
         manifest, warnings = manifest_from_module(name_or_path, environment, use_all=use_all)
     except ImportError as exc:
-        # the catch is broad because import_module() raises both for missing
-        # target modules AND for any import failing inside them
-        if name_or_path.endswith(".py") or "/" in name_or_path or os.sep in name_or_path:
-            file_path = Path(name_or_path).resolve()
-        else:
-            file_path = Path.cwd() / f"{name_or_path}.py"
-
-        if file_path.exists():
+        file_path = get_deployment_module_file(name_or_path)
+        if not is_module_missing(exc, name_or_path):
+            raise ManifestImportError(name_or_path, file_path, exc, kind="import_failed") from exc
+        if not explicit:
             raise ManifestImportError(
-                name_or_path, str(file_path), exc, kind="import_failed"
+                name_or_path,
+                file_path,
+                exc,
+                kind="default_missing",
+                environment=module_environment["name"] if module_environment else None,
             ) from exc
-        if name_or_path == DEFAULT_DEPLOYMENT_MODULE:
-            raise ManifestImportError(
-                name_or_path, str(file_path), exc, kind="default_missing"
-            ) from exc
-        raise ManifestImportError(name_or_path, str(file_path), exc, kind="module_missing") from exc
+        raise ManifestImportError(name_or_path, file_path, exc, kind="module_missing") from exc
 
     return manifest, generate_manifest_hash(manifest), warnings
 
@@ -433,12 +438,11 @@ def fetch_run_info(
     else:
         selector, explicit_deployment = promote_deployment_arg(selector, deployment)
 
-    name_or_path = explicit_deployment if explicit_deployment else DEFAULT_DEPLOYMENT_MODULE
     use_all = explicit_deployment is None
 
     # a local run uses the active profile for every job, no job gets a profile of an environment
     manifest, _, manifest_warnings = load_manifest_with_warnings(
-        name_or_path, None, use_all=use_all
+        explicit_deployment or None, None, use_all=use_all
     )
     jobs: List[TJobDefinition] = manifest.get("jobs", [])
     if not jobs:

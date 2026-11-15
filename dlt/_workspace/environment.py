@@ -1,22 +1,15 @@
-"""Environments: what a deployment is made to, with the profiles deployed to it and the remote
-workspace it is connected to."""
+"""Environments of the active workspace: what a deployment is made to. Declare, select and activate
+them, and connect each to its remote workspace."""
 
 import os
-from typing import Any, Mapping, Optional
+from typing import List, Mapping, Optional
 
 import tomlkit
 
 from dlt.common.configuration.container import Container
-from dlt.common.configuration.providers import (
-    CONFIG_TOML,
-    ConfigTomlProvider,
-    SecretsTomlProvider,
-)
+from dlt.common.configuration.providers import CONFIG_TOML, ConfigTomlProvider
 from dlt.common.configuration.specs import known_sections
-from dlt.common.configuration.specs.pluggable_run_context import (
-    PluggableRunContext,
-    RunContextBase,
-)
+from dlt.common.configuration.specs.pluggable_run_context import PluggableRunContext
 
 from dlt._workspace._workspace_context import WorkspaceRunContext, active
 from dlt._workspace.configuration import ENVIRONMENT_SECTION, WorkspaceRuntimeConfiguration
@@ -26,18 +19,20 @@ from dlt._workspace.exceptions import (
     InvalidProfileName,
     NoEnvironment,
     OrganizationMismatch,
+    WorkspaceRunContextNotAvailable,
 )
 from dlt._workspace.profile import activate_profile, check_new_profiles
-from dlt._workspace.run_context import display_path
-from dlt._workspace.typing import TEnvironmentDefinition, TWorkspaceDefinition
-from dlt._workspace.workspace_definition import (
-    PROFILE_NAME_RE,
-    default_profile,
-    environment_profiles,
+from dlt._workspace.run_context import format_display_path
+from dlt._workspace.typing import (
+    DEFAULT_DEPLOYMENT_MODULE,
+    TEnvironmentDefinition,
+    TWorkspaceDefinition,
+)
+from dlt._workspace.workspace_definition import PROFILE_NAME_RE, get_default_profile_for_env
+from dlt._workspace.workspace_file import (
     load_workspace_definition,
     save_workspace_file,
-    shown_workspace_file,
-    validate_workspace_definition,
+    format_workspace_file_path,
 )
 
 ENVIRONMENT_ARGUMENT_HELP = (
@@ -48,7 +43,7 @@ ENVIRONMENT_ARGUMENT_HELP = (
 `environment` argument of MCP tools."""
 
 
-def new_environment(name: str) -> TEnvironmentDefinition:
+def create_environment_definition(name: str) -> TEnvironmentDefinition:
     """A new environment `name`: strict about access, with `<name>-write`, its default write
     profile, as its only profile."""
     return {
@@ -65,21 +60,24 @@ def new_environment(name: str) -> TEnvironmentDefinition:
     }
 
 
+def get_profiles_for_env(environment: TEnvironmentDefinition) -> List[str]:
+    """The profiles of `environment`, deployed together: the default profile with write data
+    access first, then the others in declaration order."""
+    first = get_default_profile_for_env(environment, "write")
+    return ([first] if first else []) + [n for n in environment["profiles"] if n != first]
+
+
 def declare_environments(
-    context: RunContextBase, environments: Mapping[str, TEnvironmentDefinition]
-) -> TWorkspaceDefinition:
-    """The workspace definition with `environments` and their profiles declared, validated and
-    not saved. The first environment becomes the default.
+    doc: TWorkspaceDefinition, environments: Mapping[str, TEnvironmentDefinition], path: str
+) -> None:
+    """Declares `environments` with their profiles in `doc`. Without a default environment, the
+    first one becomes the default.
 
     Raises:
         InvalidProfileName: A name is not a profile name.
         EnvironmentAlreadyExists: An environment is declared already.
         ProfileAlreadyExists: A profile of an environment is declared already.
-        InvalidWorkspaceFile: The declarations are invalid together with the existing ones.
     """
-    path = shown_workspace_file(context)
-    # read from disk, so the declarations never leak into the cached content of the context
-    doc = load_workspace_definition(context)
     declared = doc["environments"]
     for name, environment in environments.items():
         if not PROFILE_NAME_RE.match(name):
@@ -93,16 +91,20 @@ def declare_environments(
         if not has_default:
             environment["default"] = has_default = True
         declared[name] = environment
-    validate_workspace_definition(doc, path)
-    return doc
 
 
 def add_environments(
     context: WorkspaceRunContext, environments: Mapping[str, TEnvironmentDefinition]
 ) -> None:
-    """Declares `environments` in the workspace (see `declare_environments`), saves the
-    definition and reloads it in `context`."""
-    save_workspace_file(context, declare_environments(context, environments))
+    """Declares `environments` in the workspace file (see `declare_environments`) and reloads
+    the definition in `context`.
+
+    Raises:
+        InvalidWorkspaceFile: The declarations are invalid together with the existing ones.
+    """
+    doc = load_workspace_definition(context)
+    declare_environments(doc, environments, format_workspace_file_path(context))
+    save_workspace_file(context, doc)
     context.reload_workspace_definition()
 
 
@@ -113,7 +115,7 @@ def select_environment(name: Optional[str] = None) -> TEnvironmentDefinition:
     environment of the active profile, else the default environment.
 
     Returns:
-        TEnvironmentDefinition: The environment, with its profiles.
+        TEnvironmentDefinition: The environment, with its profiles and its deployment module.
 
     Raises:
         EnvironmentNotDeclared: `name` is not declared.
@@ -121,13 +123,15 @@ def select_environment(name: Optional[str] = None) -> TEnvironmentDefinition:
     """
     ctx = active()
     if name:
-        return _declared_environment(ctx, name)
-    name = ctx.environment or ctx.default_environment
-    if not name:
-        raise NoEnvironment(
-            ctx.profile, shown_workspace_file(ctx), list(ctx.environment_definitions)
-        )
-    return ctx.get_environment_definition(name)
+        definition = _get_declared_environment(ctx, name)
+    else:
+        name = ctx.environment or ctx.default_environment
+        if not name:
+            raise NoEnvironment(
+                ctx.profile, format_workspace_file_path(ctx), list(ctx.environment_definitions)
+            )
+        definition = ctx.get_environment_definition(name)
+    return {**definition, "deployment_module": _get_configured_deployment_module(ctx, name)}
 
 
 def activate_environment(name: Optional[str] = None) -> TEnvironmentDefinition:
@@ -137,15 +141,38 @@ def activate_environment(name: Optional[str] = None) -> TEnvironmentDefinition:
         TEnvironmentDefinition: The environment, with its profiles, to generate the manifest from.
     """
     environment = select_environment(name)
-    activate_profile(default_profile(environment, "write"))
+    activate_profile(get_default_profile_for_env(environment, "write"))
     return environment
 
 
-def _declared_environment(ctx: WorkspaceRunContext, environment: str) -> TEnvironmentDefinition:
-    definitions = ctx.environment_definitions
-    if environment not in definitions:
-        raise EnvironmentNotDeclared(environment, shown_workspace_file(ctx), list(definitions))
-    return definitions[environment]
+def get_deployment_environment(
+    environment: Optional[TEnvironmentDefinition] = None,
+) -> Optional[TEnvironmentDefinition]:
+    """The environment whose deployment module dlt imports: `environment`, else the one that
+    `select_environment` selects. `None` when there is no environment or no workspace."""
+    if environment is not None:
+        return environment
+    try:
+        return select_environment()
+    except (NoEnvironment, WorkspaceRunContextNotAvailable):
+        return None
+
+
+def get_deployment_module_for_env(environment: Optional[TEnvironmentDefinition] = None) -> str:
+    """The deployment module of `get_deployment_environment(environment)`, `__deployment__` when
+    there is none or the workspace does not declare it."""
+    environment = get_deployment_environment(environment)
+    if environment is None:
+        return DEFAULT_DEPLOYMENT_MODULE
+    if "deployment_module" in environment:
+        return environment["deployment_module"]
+    try:
+        ctx = active()
+    except WorkspaceRunContextNotAvailable:
+        return DEFAULT_DEPLOYMENT_MODULE
+    if environment["name"] not in ctx.environment_definitions:
+        return DEFAULT_DEPLOYMENT_MODULE
+    return _get_configured_deployment_module(ctx, environment["name"])
 
 
 def connect_remote_workspace(
@@ -166,8 +193,8 @@ def connect_remote_workspace(
         EnvironmentNotDeclared: `environment` is not declared.
         OrganizationMismatch: The workspace is connected to another organization.
     """
-    _declared_environment(ctx, environment)
-    resolved = ctx.environment_config(environment)
+    _get_declared_environment(ctx, environment)
+    resolved = ctx.get_environment_config(environment)
     sections = (known_sections.WORKSPACE, ENVIRONMENT_SECTION, environment)
     runtime_section = WorkspaceRuntimeConfiguration.__section__
     config = ConfigTomlProvider(ctx.settings_dir)
@@ -179,7 +206,7 @@ def connect_remote_workspace(
                 environment,
                 connected,
                 organization_id,
-                display_path(ctx.settings_dir, ctx.run_dir),
+                format_display_path(ctx.settings_dir, ctx.run_dir),
             )
         if not connected:
             config.set_value("organization_id", organization_id, None, runtime_section)
@@ -192,7 +219,7 @@ def connect_remote_workspace(
         changed = True
     if changed:
         config.write_toml()
-        _reload(ctx)
+        _reload_context(ctx)
 
 
 def disconnect_remote_workspace(ctx: WorkspaceRunContext, environment: str) -> None:
@@ -206,10 +233,10 @@ def disconnect_remote_workspace(ctx: WorkspaceRunContext, environment: str) -> N
     Raises:
         EnvironmentNotDeclared: `environment` is not declared.
     """
-    definition = _declared_environment(ctx, environment)
+    definition = _get_declared_environment(ctx, environment)
     is_default = environment == ctx.default_environment
     files = [(CONFIG_TOML, is_default)]
-    files += [(f"{profile}.{CONFIG_TOML}", True) for profile in environment_profiles(definition)]
+    files += [(f"{profile}.{CONFIG_TOML}", True) for profile in get_profiles_for_env(definition)]
     changed = False
     for file_name, drop_runtime_id in files:
         path = os.path.join(ctx.settings_dir, file_name)
@@ -232,18 +259,23 @@ def disconnect_remote_workspace(ctx: WorkspaceRunContext, environment: str) -> N
                 tomlkit.dump(doc, f)
             changed = True
     if changed:
-        _reload(ctx)
+        _reload_context(ctx)
 
 
-def set_global_secret(ctx: WorkspaceRunContext, key: str, value: Any, *sections: str) -> None:
-    """Writes `value` under `key` in `sections` of the global `secrets.toml` in `ctx.global_dir`."""
-    secrets = SecretsTomlProvider(ctx.global_dir)
-    secrets.set_value(key, value, None, *sections)
-    secrets.write_toml()
-    _reload(ctx)
+def _get_declared_environment(ctx: WorkspaceRunContext, environment: str) -> TEnvironmentDefinition:
+    definitions = ctx.environment_definitions
+    if environment not in definitions:
+        raise EnvironmentNotDeclared(
+            environment, format_workspace_file_path(ctx), list(definitions)
+        )
+    return definitions[environment]
 
 
-def _reload(ctx: WorkspaceRunContext) -> None:
+def _get_configured_deployment_module(ctx: WorkspaceRunContext, environment: str) -> str:
+    return ctx.get_environment_config(environment).deployment_module or DEFAULT_DEPLOYMENT_MODULE
+
+
+def _reload_context(ctx: WorkspaceRunContext) -> None:
     plug = Container()[PluggableRunContext]
     if plug.context is ctx:
         plug.reload_providers()

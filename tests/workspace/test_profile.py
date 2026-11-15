@@ -6,7 +6,11 @@ import dlt
 from dlt.common.utils import custom_environ
 
 from dlt._workspace._known_env import WORKSPACE__PROFILE
-from dlt._workspace.environment import add_environments, new_environment
+from dlt._workspace.environment import (
+    add_environments,
+    create_environment_definition,
+    get_profiles_for_env,
+)
 from dlt._workspace.exceptions import (
     EnvironmentNotDeclared,
     InvalidProfileName,
@@ -21,19 +25,16 @@ from dlt._workspace.profile import (
     declare_profiles,
 )
 from dlt._workspace.settings_files import load_yaml_file
-from dlt._workspace.workspace_definition import (
-    WORKSPACE_FILE_NAME,
-    environment_profiles,
-    load_workspace_definition,
-)
+from dlt._workspace.workspace_file import WORKSPACE_FILE_NAME, load_workspace_definition
 
 from tests.workspace.utils import declare_environment, isolated_workspace, save_definition
 
 
 def test_add_profiles() -> None:
     with isolated_workspace("empty") as ctx:
-        # declared and not saved: neither the file nor the context changed
-        doc = declare_profiles(ctx, {"lab": {"location": "local", "data_access": "write"}})
+        # declared into a loaded definition: neither the file nor the context changed
+        doc = load_workspace_definition(ctx)
+        declare_profiles(doc, {"lab": {"data_access": "write"}}, None, "")
         assert "lab" in doc["local_profiles"]
         stored = load_yaml_file(ctx.get_setting(WORKSPACE_FILE_NAME))
         assert "lab" not in stored["local_profiles"]
@@ -42,39 +43,38 @@ def test_add_profiles() -> None:
         declare_environment(ctx, "ci")
         # refused: a declared profile, an invalid name, an undeclared environment
         with pytest.raises(ProfileAlreadyExists):
-            add_profiles(ctx, {"ci-read": {"location": "remote", "data_access": "read"}}, "ci")
+            add_profiles(ctx, {"ci-read": {"data_access": "read"}}, "ci")
         with pytest.raises(InvalidProfileName):
-            add_profiles(ctx, {"a b": {"location": "local", "data_access": "write"}})
+            add_profiles(ctx, {"a b": {"data_access": "write"}})
         with pytest.raises(EnvironmentNotDeclared):
-            add_profiles(
-                ctx, {"x": {"location": "remote", "data_access": "read", "env": "qa"}}, "qa"
-            )
-        # invalid together with the declared profiles
-        with pytest.raises(InvalidWorkspaceFile, match="under `local_profiles` is local"):
-            add_profiles(ctx, {"x": {"location": "remote", "data_access": "read", "env": "ci"}})
-        with pytest.raises(InvalidWorkspaceFile, match="in environment `ci`, set `env: ci`"):
-            add_profiles(
-                ctx, {"x": {"location": "remote", "data_access": "read", "env": "prod"}}, "ci"
-            )
+            add_profiles(ctx, {"x": {"data_access": "read"}}, "qa")
+        # invalid as stored, so not saved
+        with pytest.raises(InvalidWorkspaceFile, match="a local profile has write data access"):
+            add_profiles(ctx, {"x": {"data_access": "read"}})
         assert "x" not in ctx.profile_definitions
-        # a profile that states no location and no environment gets them from where it is declared
-        add_profiles(ctx, {"x": {"data_access": "read"}}, "ci")  # type: ignore[typeddict-item]
+        # where a profile is declared gives its location and environment, whatever it states
+        stated = {"location": "local", "env": "prod", "data_access": "read"}
+        add_profiles(ctx, {"x": stated}, "ci")  # type: ignore[dict-item]
         assert ctx.get_profile_definition("x") == {
             "location": "remote",
             "data_access": "read",
             "env": "ci",
             "configured": False,
         }
+        stated = {"location": "remote", "env": "ci", "data_access": "write"}
+        add_profiles(ctx, {"lab": stated})  # type: ignore[dict-item]
+        assert ctx.get_profile_definition("lab")["location"] == "local"
+        assert "env" not in ctx.get_profile_definition("lab")
 
         # the first profile of a data access in an environment becomes its default, also among
         # the profiles added in one call
-        add_environments(ctx, {"qa": new_environment("qa")})
+        add_environments(ctx, {"qa": create_environment_definition("qa")})
         add_profiles(
             ctx,
             {
-                "qa-read": {"location": "remote", "data_access": "read"},
-                "qa-read2": {"location": "remote", "data_access": "read"},
-                "qa-write2": {"location": "remote", "data_access": "write"},
+                "qa-read": {"data_access": "read"},
+                "qa-read2": {"data_access": "read"},
+                "qa-write2": {"data_access": "write"},
             },
             "qa",
         )
@@ -91,12 +91,10 @@ def test_add_profiles() -> None:
         doc = load_workspace_definition(ctx)
         del doc["local_profiles"]["dev"]["default"]
         save_definition(ctx, doc)
-        add_profiles(
-            ctx, {"ci-audit": {"location": "remote", "data_access": "none", "env": "ci"}}, "ci"
-        )
+        add_profiles(ctx, {"ci-audit": {"data_access": "none"}}, "ci")
         assert ctx.get_profile_definition("ci-audit").get("default") is None
-        assert environment_profiles(ctx.environment_definitions["ci"])[-1] == "ci-audit"
-        add_profiles(ctx, {"local2": {"location": "local", "data_access": "write"}})
+        assert get_profiles_for_env(ctx.environment_definitions["ci"])[-1] == "ci-audit"
+        add_profiles(ctx, {"local2": {"data_access": "write"}})
         assert ctx.default_profile == "local2"
 
 

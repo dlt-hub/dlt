@@ -13,17 +13,18 @@ from dlt._workspace.cli.dlthub._local_workspace_command import _print_deployment
 from dlt._workspace.cli.dlthub.typing import TDeploymentManifestInfo
 from dlt._workspace.cli.dlthub.utils import fetch_deployment_info
 from dlt._workspace.environment import select_environment
+from dlt._workspace.workspace_definition import get_default_profile_for_env
 from dlt._workspace.exceptions import ProfileNotDeclared
 from dlt._workspace.settings_files import get_profile_pin_file, read_profile_pin
-from dlt._workspace.workspace_definition import default_profile
 
 from tests.workspace.cli.conftest import TParseDlthub, TRunDlthub
-from tests.workspace.utils import declare_environment, isolated_workspace
+from tests.workspace.utils import append_settings, declare_environment, isolated_workspace
 
 
 def test_fetch_deployment_info_not_found(auto_isolated_workspace: Any) -> None:
     info = fetch_deployment_info()
     assert info["status"] == "not_found"
+    assert info["deployment_module"] == "__deployment__.py"
 
 
 def test_fetch_deployment_info_generation_failed(auto_isolated_workspace: Any) -> None:
@@ -31,8 +32,25 @@ def test_fetch_deployment_info_generation_failed(auto_isolated_workspace: Any) -
     (Path(ws_dir) / "__deployment__.py").write_text("import definitely_not_installed_xyz\n")
     info = fetch_deployment_info()
     assert info["status"] == "generation_failed"
+    assert info["deployment_module"] == "__deployment__.py"
     assert "error" in info
     assert "definitely_not_installed_xyz" in info["error"]
+
+
+def test_fetch_deployment_info_of_configured_module() -> None:
+    """A local profile summarizes the deployment module of the default environment."""
+    with isolated_workspace("deployment_mixed", profile="dev") as ctx:
+        append_settings(
+            ctx,
+            "config.toml",
+            '\n[workspace.environment.prod]\ndeployment_module = "__prod__.py"\n',
+        )
+        info = fetch_deployment_info()
+        assert (info["status"], info["deployment_module"]) == ("not_found", "__prod__.py")
+        os.rename("__deployment__.py", "__prod__.py")
+        info = fetch_deployment_info()
+        assert (info["status"], info["deployment_module"]) == ("ok", "__prod__.py")
+        assert "jobs.__prod__.batch_one" in {j["job_ref"] for j in info["jobs"]}
 
 
 def test_fetch_deployment_info_ok_categorizes_and_lists_triggers() -> None:
@@ -44,6 +62,7 @@ def test_fetch_deployment_info_ok_categorizes_and_lists_triggers() -> None:
         info = fetch_deployment_info()
 
     assert info["status"] == "ok"
+    assert info["deployment_module"] == "__deployment__.py"
     assert info["total_jobs"] >= 3
 
     counts = info["counts_by_category"]
@@ -68,11 +87,10 @@ def test_fetch_deployment_info_ok_categorizes_and_lists_triggers() -> None:
 def test_print_deployment_info_not_found_renders_single_line(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    info: TDeploymentManifestInfo = {"status": "not_found"}
+    info: TDeploymentManifestInfo = {"status": "not_found", "deployment_module": "jobs/ci.py"}
     _print_deployment_info(info, verbosity=0)
     out = capsys.readouterr().out
-    assert "no manifest found" in out
-    assert "__deployment__.py" in out
+    assert out == "Deployment: no deployment module found (create jobs/ci.py)\n"
 
 
 def test_print_deployment_info_generation_failed_non_verbose_hides_error(
@@ -80,12 +98,13 @@ def test_print_deployment_info_generation_failed_non_verbose_hides_error(
 ) -> None:
     info: TDeploymentManifestInfo = {
         "status": "generation_failed",
+        "deployment_module": "__deployment__.py",
         "error": "ImportError: bad",
     }
     _print_deployment_info(info, verbosity=0)
     captured = capsys.readouterr()
     combined = captured.out + captured.err
-    assert "manifest generation failed" in combined
+    assert "manifest generation from __deployment__.py failed" in combined
     assert "ImportError: bad" not in combined
 
 
@@ -99,6 +118,7 @@ def test_print_deployment_info_generation_failed_verbose_shows_error(
     _print_deployment_info(info, verbosity=1)
     captured = capsys.readouterr()
     combined = captured.out + captured.err
+    # a summary without the module still renders
     assert "manifest generation failed" in combined
     assert "ImportError: bad" in combined
 
@@ -108,12 +128,14 @@ def test_print_deployment_info_ok_non_verbose_shows_summary(
 ) -> None:
     info: TDeploymentManifestInfo = {
         "status": "ok",
+        "deployment_module": "__prod__.py",
         "total_jobs": 3,
         "counts_by_category": {"pipeline": 2, "notebook": 1},
         "jobs": [],
     }
     _print_deployment_info(info, verbosity=0)
     out = capsys.readouterr().out
+    assert "Deployment from __prod__.py:" in out
     assert "3" in out and "job(s)" in out
     assert "2 pipeline(s)" in out
     assert "1 notebook(s)" in out
@@ -238,7 +260,7 @@ def test_dlthub_local_profile_use(
     assert "now use environment ci and its default write profile ci-write." in out
     reloaded = switch_context(ctx.run_dir)
     assert reloaded.profile == "ci-read"
-    assert default_profile(select_environment(), "write") == "ci-write"
+    assert get_default_profile_for_env(select_environment(), "write") == "ci-write"
     # a local profile keeps the default environment
     out = use("tests")
     assert "use the default environment prod" in out

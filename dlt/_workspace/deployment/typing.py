@@ -5,6 +5,7 @@ from dlt.common.pipeline import TRefreshMode
 from dlt.common.typing import Annotated, NotRequired, TypedDict
 from dlt.common.warnings import Deprecated
 
+from dlt._workspace.typing import DEFAULT_DEPLOYMENT_MODULE  # noqa: F401
 from dlt._workspace.typing import TWorkspaceAccess
 
 
@@ -18,9 +19,6 @@ JOB_RESULT_PAYLOAD_TYPE = "job_result"
 """Beacon payload type for job results, at most 16 characters."""
 MAIN_GROUP = "main"
 """Conventional group name for top-level workspace dependencies."""
-DEFAULT_DEPLOYMENT_MODULE = "__deployment__"
-"""Default deployment module name for manifest generation."""
-
 TJobRef = NewType("TJobRef", str)
 """Resolved job reference in `jobs.<section>.<name>` or `jobs.<name>` form."""
 
@@ -458,7 +456,7 @@ class TJobsDeploymentManifest(TypedDict):
     created_at: str
     """ISO 8601 timestamp of manifest creation."""
     deployment_module: str
-    """Module name, default `"__deployment__"`."""
+    """Name of the deployment module that the manifest was generated from."""
     description: NotRequired[str]
     """First line of the deployment module's `__doc__`."""
     tags: NotRequired[List[str]]

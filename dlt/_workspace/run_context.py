@@ -22,7 +22,7 @@ def default_working_dir(run_dir: str, name: str, profile: str, default_folder: s
     return os.path.join(data_dir, profile)
 
 
-def display_path(path: str, run_dir: str) -> str:
+def format_display_path(path: str, run_dir: str) -> str:
     """`path` relative to `run_dir` when the working dir is under `run_dir`, else `path`."""
     run_dir = os.path.abspath(run_dir)
     path = os.path.abspath(path)

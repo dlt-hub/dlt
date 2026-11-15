@@ -1,7 +1,7 @@
 from typing import TYPE_CHECKING, Dict, List, NamedTuple, Optional, Sequence, Tuple, cast
 
+from dlt._workspace.access import format_data_access
 from dlt._workspace.exceptions import WorkspaceException
-from dlt._workspace.workspace_definition import format_data_access
 
 if TYPE_CHECKING:
     from dlt._workspace.deployment.typing import TJobDefinition, TJobResult
@@ -293,18 +293,32 @@ class JobAbortedException(DeploymentException):
 class ManifestImportError(DeploymentException):
     """Deployment module cannot be loaded for manifest generation."""
 
-    def __init__(self, name_or_path: str, file_path: str, inner: Exception, kind: str) -> None:
+    def __init__(
+        self,
+        name_or_path: str,
+        file_path: str,
+        inner: Exception,
+        kind: str,
+        environment: Optional[str] = None,
+    ) -> None:
         self.name_or_path = name_or_path
         self.file_path = file_path
         self.inner = inner
         self.kind = kind
+        self.environment = environment
         if kind == "import_failed":
             msg = f"Failed to import {file_path!r}: {type(inner).__name__}: {inner}"
         elif kind == "default_missing":
             msg = (
-                f"No {name_or_path!r}.py file found in the workspace. Create one and"
-                " import your job declarations and notebook modules into it."
+                f"No deployment module {file_path} in the workspace. Create it and import your job"
+                " declarations and notebook modules into it"
             )
+            if environment:
+                msg += (
+                    ", or name another module with `deployment_module` under"
+                    f" `[workspace.environment.{environment}]`"
+                )
+            msg += "."
         else:
             msg = (
                 f"Could not import module {name_or_path!r}. Check that the file"

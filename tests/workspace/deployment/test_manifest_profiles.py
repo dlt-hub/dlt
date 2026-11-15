@@ -17,11 +17,16 @@ from dlt._workspace.deployment.exceptions import (
 )
 from dlt._workspace.deployment.manifest import manifest_from_module
 from dlt._workspace.deployment.typing import DASHBOARD_JOB_REF, TJobsDeploymentManifest
-from dlt._workspace.environment import activate_environment, add_environments, new_environment
+from dlt._workspace.environment import (
+    activate_environment,
+    add_environments,
+    create_environment_definition,
+)
 from dlt._workspace.profile import add_profiles
 from dlt._workspace.settings_files import create_profile_settings
 from dlt._workspace.typing import TWorkspaceAccess
-from dlt._workspace.workspace_definition import default_profile, load_workspace_definition
+from dlt._workspace.workspace_definition import get_default_profile_for_env
+from dlt._workspace.workspace_file import load_workspace_definition
 
 from tests.workspace.manifest_utils import job_profiles
 from tests.workspace.utils import (
@@ -110,7 +115,7 @@ def test_manifest_strict_environment_without_profiles(isolated: bool) -> None:
     with importable_workspace(WORKSPACE, *MODULES) as ctx:
         # a strict environment takes only profiles with settings files
         create_profile_settings(ctx, ["solo-write"])
-        add_environments(ctx, {"solo": new_environment("solo")})
+        add_environments(ctx, {"solo": create_environment_definition("solo")})
         environment = activate_environment("solo")
         with pytest.raises(ProfileDataAccessNotAvailable) as exc:
             manifest_from_module("__deployment__", environment, isolated=isolated)
@@ -128,7 +133,7 @@ def test_new_environment_deploys_batch_jobs() -> None:
     with importable_workspace("deployment_mixed", "__deployment__", "plain") as ctx:
         # `add-environment` creates the settings files of `ci-write`, `access` gets its own
         create_profile_settings(ctx, ["ci-write", "access"])
-        add_environments(ctx, {"ci": new_environment("ci")})
+        add_environments(ctx, {"ci": create_environment_definition("ci")})
         manifest, warnings = manifest_from_module("__deployment__", activate_environment("ci"))
         assert warnings == []
         assert job_profiles(manifest) == {
@@ -209,9 +214,7 @@ def _add_to_prod(ctx: WorkspaceRunContext, profile: str) -> str:
     """Declares `profile` like `dlthub profile add <profile> --access write --env prod`, with
     its settings files."""
     create_profile_settings(ctx, [profile])
-    add_profiles(
-        ctx, {profile: {"location": "remote", "data_access": "write", "env": "prod"}}, "prod"
-    )
+    add_profiles(ctx, {profile: {"data_access": "write"}}, "prod")
     return "prod"
 
 
@@ -273,6 +276,6 @@ def test_job_profile_after_migration(
             )
             # a job that declares no profile gets the default write profile
             assert profiles == {
-                LOAD_REF: default_profile(environment, "write"),
+                LOAD_REF: get_default_profile_for_env(environment, "write"),
                 REPORT_REF: job_profile,
             }

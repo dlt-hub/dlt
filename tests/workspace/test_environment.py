@@ -16,11 +16,12 @@ from dlt._workspace.environment import (
     activate_environment,
     add_environments,
     connect_remote_workspace,
+    create_environment_definition,
     declare_environments,
     disconnect_remote_workspace,
-    new_environment,
+    get_deployment_module_for_env,
+    get_profiles_for_env,
     select_environment,
-    set_global_secret,
 )
 from dlt._workspace.exceptions import (
     EnvironmentAlreadyExists,
@@ -34,13 +35,17 @@ from dlt._workspace.profile import activate_profile
 from dlt._workspace.settings_files import load_yaml_file
 from dlt._workspace.typing import TEnvironmentDefinition
 from dlt._workspace.workspace_definition import (
+    create_built_in_workspace_definition,
+    get_default_profile_for_env,
+)
+from dlt._workspace.workspace_file import (
     WORKSPACE_FILE_NAME,
-    built_in_workspace_definition,
-    default_profile,
-    stored_workspace_definition,
+    build_stored_workspace_definition,
+    load_workspace_definition,
 )
 
 from tests.workspace.utils import (
+    append_settings,
     declare_environment,
     full_environment,
     isolated_workspace,
@@ -64,11 +69,6 @@ def _as_declared(environment: TEnvironmentDefinition) -> TEnvironmentDefinition:
     return declared
 
 
-def _append_settings(ctx: WorkspaceRunContext, file_name: str, content: str) -> None:
-    with open(os.path.join(ctx.settings_dir, file_name), "a", encoding="utf-8") as f:
-        f.write(content)
-
-
 def _settings(ctx: WorkspaceRunContext, file_name: str) -> Dict[str, Any]:
     with open(os.path.join(ctx.settings_dir, file_name), "r", encoding="utf-8") as f:
         return tomlkit.parse(f.read()).unwrap()
@@ -89,12 +89,30 @@ def _connections(ctx: WorkspaceRunContext, file_name: str) -> Dict[str, Any]:
     return _settings(ctx, file_name).get("workspace", {}).get("environment", {})
 
 
+def test_get_default_profile_and_profiles_for_env() -> None:
+    # the default write profile is declared last, after another profile with write data access
+    environment: TEnvironmentDefinition = {
+        "name": "x",
+        "profiles": {
+            "x-read": {"location": "remote", "data_access": "read", "env": "x", "default": True},
+            "x-old": {"location": "remote", "data_access": "write", "env": "x"},
+            "x-write": {"location": "remote", "data_access": "write", "env": "x", "default": True},
+        },
+    }
+    assert get_default_profile_for_env(environment, "write") == "x-write"
+    assert get_default_profile_for_env(environment, "read") == "x-read"
+    assert get_default_profile_for_env(environment, "none") is None
+    # deployed together: the default write profile first, the others in declaration order
+    assert get_profiles_for_env(environment) == ["x-write", "x-read", "x-old"]
+
+
 def test_add_environments() -> None:
     with isolated_workspace("empty") as ctx:
         path = ctx.get_setting(WORKSPACE_FILE_NAME)
-        # declared and not saved: neither the file nor the context changed
-        environment = new_environment("ci")
-        doc = declare_environments(ctx, {"ci": environment})
+        # declared into a loaded definition: neither the file nor the context changed
+        environment = create_environment_definition("ci")
+        doc = load_workspace_definition(ctx)
+        declare_environments(doc, {"ci": environment}, path)
         assert doc["environments"]["ci"] == environment
         assert "ci" not in load_yaml_file(path)["environments"]
         assert "ci" not in ctx.environment_definitions
@@ -104,7 +122,9 @@ def test_add_environments() -> None:
         assert list(ctx.environment_definitions) == ["prod", "ci"]
         assert ctx.default_environment == "prod"
         # the file holds the new declarations
-        assert load_yaml_file(path) == stored_workspace_definition(ctx.workspace_definition)
+        assert load_yaml_file(path) == build_stored_workspace_definition(
+            ctx.workspace_definition, path
+        )
 
         # refused: a declared environment, a declared profile, an invalid name
         with pytest.raises(EnvironmentAlreadyExists) as exc:
@@ -115,7 +135,7 @@ def test_add_environments() -> None:
                 ctx,
                 {
                     "qa": {
-                        **new_environment("qa"),
+                        **create_environment_definition("qa"),
                         "profiles": {
                             "dev": {
                                 "location": "remote",
@@ -128,10 +148,10 @@ def test_add_environments() -> None:
                 },
             )
         with pytest.raises(InvalidProfileName):
-            add_environments(ctx, {"a b": new_environment("a b")})
+            add_environments(ctx, {"a b": create_environment_definition("a b")})
 
         # the first environment becomes the default
-        doc = built_in_workspace_definition()
+        doc = create_built_in_workspace_definition()
         doc["environments"] = {}
         save_definition(ctx, doc)
         declare_environment(ctx, "ci")
@@ -162,15 +182,19 @@ def test_add_environments() -> None:
 def test_select_environment(name: Optional[str], profile: str, expected: str) -> None:
     """The named environment, else the environment of the active profile, else the default one."""
     environments = {
-        "prod": built_in_workspace_definition()["environments"]["prod"],
+        "prod": create_built_in_workspace_definition()["environments"]["prod"],
         "ci": full_environment("ci"),
     }
     with isolated_workspace("default") as ctx:
         declare_environment(ctx, "ci")
         ctx = ctx.switch_profile(profile)
         selected = select_environment(name)
-        assert _as_declared(selected) == environments[expected]
-        assert selected is ctx.get_environment_definition(expected)
+        # with the deployment module from the configuration, the declared environment has none
+        assert _as_declared(selected) == {
+            **environments[expected],
+            "deployment_module": "__deployment__",
+        }
+        assert "deployment_module" not in ctx.get_environment_definition(expected)
 
 
 @pytest.mark.parametrize(
@@ -197,7 +221,7 @@ def test_select_environment_not_declared(name: str, profile: str) -> None:
 def test_select_environment_without_default() -> None:
     with isolated_workspace("default") as ctx:
         # `prod` is declared and is not the default: name one
-        doc = built_in_workspace_definition()
+        doc = create_built_in_workspace_definition()
         del doc["environments"]["prod"]["default"]
         save_definition(ctx, doc)
         with pytest.raises(NoEnvironment) as exc:
@@ -215,9 +239,9 @@ def test_select_environment_without_default() -> None:
 @pytest.mark.parametrize("environment", ["b", None], ids=["remote-profile", "local-profile"])
 def test_profile_named_like_environment(environment: Optional[str]) -> None:
     """A profile may take the name of an environment without being its default write profile."""
-    doc = built_in_workspace_definition()
+    doc = create_built_in_workspace_definition()
     # deployed with `b-write`
-    doc["environments"]["b"] = new_environment("b")
+    doc["environments"]["b"] = create_environment_definition("b")
     if environment:
         doc["environments"]["b"]["profiles"]["b"] = {
             "location": "remote",
@@ -233,14 +257,17 @@ def test_profile_named_like_environment(environment: Optional[str]) -> None:
         # the name is a profile where a profile is named and an environment where one is
         ctx = ctx.switch_profile("b")
         assert (ctx.profile, ctx.environment) == ("b", environment)
-        assert default_profile(select_environment("b"), "write") == "b-write"
+        assert get_default_profile_for_env(select_environment("b"), "write") == "b-write"
 
 
 def test_activate_environment() -> None:
     with isolated_workspace("default") as ctx:
         declare_environment(ctx, "ci")
         # the environment is returned and its default write profile is the active profile
-        assert _as_declared(activate_environment("ci")) == full_environment("ci")
+        assert _as_declared(activate_environment("ci")) == {
+            **full_environment("ci"),
+            "deployment_module": "__deployment__",
+        }
         ctx = dlt.current.workspace()
         assert (ctx.profile, ctx.environment) == ("ci-write", "ci")
         assert os.environ[WORKSPACE__PROFILE] == "ci-write"
@@ -253,6 +280,38 @@ def test_activate_environment() -> None:
             activate_environment("ci-read")
         assert dlt.current.workspace().profile == "ci-write"
         assert os.environ[WORKSPACE__PROFILE] == "ci-write"
+
+
+def test_get_deployment_module_for_env() -> None:
+    """An environment names its deployment module under `[workspace.environment.<name>]`.
+    Without an environment, dlt takes the one that `select_environment` selects."""
+    with isolated_workspace("default") as ctx:
+        declare_environment(ctx, "ci")
+        append_settings(
+            ctx, CONFIG_TOML, '[workspace.environment.prod]\ndeployment_module = "__prod__"\n'
+        )
+        with custom_environ({"WORKSPACE__ENVIRONMENT__CI__DEPLOYMENT_MODULE": "jobs/ci.py"}):
+            ctx = ctx.switch_profile("dev")
+            assert select_environment("ci")["deployment_module"] == "jobs/ci.py"
+            assert select_environment("prod")["deployment_module"] == "__prod__"
+            # a declared environment resolves it
+            assert (
+                get_deployment_module_for_env(ctx.get_environment_definition("ci")) == "jobs/ci.py"
+            )
+            # a local profile takes the default environment, a remote profile its own
+            assert get_deployment_module_for_env() == "__prod__"
+            ctx = ctx.switch_profile("ci-read")
+            assert get_deployment_module_for_env() == "jobs/ci.py"
+            assert ctx.config.deployment_module == "jobs/ci.py"
+        # without an environment or its setting, the module is `__deployment__`
+        ctx = ctx.switch_profile("dev")
+        undeclared = create_environment_definition("qa")
+        assert get_deployment_module_for_env(undeclared) == "__deployment__"
+        assert ctx.config.deployment_module is None
+        doc = create_built_in_workspace_definition()
+        doc["environments"] = {}
+        save_definition(ctx, doc)
+        assert get_deployment_module_for_env() == "__deployment__"
 
 
 @pytest.mark.parametrize(
@@ -359,7 +418,7 @@ def test_workspace_id_and_name_precedence(
     with isolated_workspace("default") as ctx:
         declare_environment(ctx, "staging")
         for file_name, content in files.items():
-            _append_settings(ctx, file_name, content)
+            append_settings(ctx, file_name, content)
         with custom_environ(environ):
             ctx = switch_context(ctx.run_dir, profile=profile)
             assert ctx.runtime_config.workspace_id == workspace_id
@@ -367,16 +426,16 @@ def test_workspace_id_and_name_precedence(
             assert ctx.config.settings.name == name
 
 
-def test_environment_config() -> None:
+def test_get_environment_config() -> None:
     """The remote workspace of any environment resolves without a change of the active profile."""
     with isolated_workspace("default") as ctx:
         declare_environment(ctx, "staging")
-        _append_settings(
+        append_settings(
             ctx,
             "prod.config.toml",
             '[workspace.settings]\nname = "ingest-prd"\n[runtime]\nworkspace_id = "prod-id"\n',
         )
-        _append_settings(
+        append_settings(
             ctx,
             "staging-write.config.toml",
             '[workspace.environment.staging]\nworkspace_id = "stg-id"\n',
@@ -385,10 +444,10 @@ def test_environment_config() -> None:
         # dev does not see the profile files of the default write profiles
         assert ctx.name == "default"
         assert ctx.runtime_config.workspace_id is None
-        prod = ctx.environment_config("prod")
+        prod = ctx.get_environment_config("prod")
         assert prod.settings.name == "ingest-prd"
         assert prod.runtime.workspace_id == "prod-id"
-        staging = ctx.environment_config("staging")
+        staging = ctx.get_environment_config("staging")
         assert staging.settings.name == "default-staging"
         assert staging.runtime.workspace_id == "stg-id"
         # the active context is untouched
@@ -397,7 +456,7 @@ def test_environment_config() -> None:
         assert ctx.runtime_config.workspace_id is None
         # the environment of the active profile resolves as the context does
         ctx = switch_context(ctx.run_dir, profile="prod")
-        prod = ctx.environment_config("prod")
+        prod = ctx.get_environment_config("prod")
         assert prod.settings.name == ctx.name == "ingest-prd"
         assert prod.runtime.workspace_id == ctx.runtime_config.workspace_id == "prod-id"
 
@@ -417,13 +476,13 @@ def test_connect_remote_workspace() -> None:
         }
         assert _settings(ctx, CONFIG_TOML)["runtime"]["organization_id"] == "org-id"
         # the active context resolves the connection right away
-        assert ctx.environment_config("staging").runtime.workspace_id == "stg-id"
+        assert ctx.get_environment_config("staging").runtime.workspace_id == "stg-id"
         ctx = switch_context(ctx.run_dir, profile="staging-write")
         assert ctx.name == "ingest-stg"
         assert ctx.runtime_config.workspace_id == "stg-id"
         assert ctx.runtime_config.organization_id == "org-id"
         # the other environment is not affected
-        assert ctx.environment_config("prod").runtime.workspace_id is None
+        assert ctx.get_environment_config("prod").runtime.workspace_id is None
         # values not given are kept, the same organization is accepted
         connect_remote_workspace(ctx, "staging", workspace_id="stg-id-2", organization_id="org-id")
         ctx = switch_context(ctx.run_dir, profile="staging-write")
@@ -434,7 +493,7 @@ def test_connect_remote_workspace() -> None:
             connect_remote_workspace(ctx, "prod", workspace_id="prod-id", organization_id="org-2")
         assert exc.value.connected == "org-id"
         assert "[runtime]" in str(exc.value)
-        assert ctx.environment_config("prod").runtime.workspace_id is None
+        assert ctx.get_environment_config("prod").runtime.workspace_id is None
         # disconnect
         disconnect_remote_workspace(ctx, "staging")
         assert _connections(ctx, CONFIG_TOML) == {}
@@ -507,7 +566,7 @@ def test_disconnect_removes_legacy_workspace_id(
     """Disconnect removes the legacy `[runtime] workspace_id` from the settings file of the
     default write profile, and from `config.toml` for the default environment only."""
     with isolated_workspace("cicd_staging") as ctx:
-        _append_settings(ctx, CONFIG_TOML, '[runtime]\nworkspace_id = "shared-id"\n')
+        append_settings(ctx, CONFIG_TOML, '[runtime]\nworkspace_id = "shared-id"\n')
         disconnect_remote_workspace(ctx, environment)
         assert _settings(ctx, CONFIG_TOML)["runtime"].get("workspace_id") == shared_id
         # the organization and the name stay
@@ -520,19 +579,8 @@ def test_disconnect_removes_legacy_workspace_id(
         assert ctx.runtime_config.organization_id == "org-id"
         assert ctx.name == name
         # in the other environment the local workspace stays connected
-        assert ctx.environment_config(other_environment).runtime.workspace_id == other_id
+        assert ctx.get_environment_config(other_environment).runtime.workspace_id == other_id
         # disconnecting again is a no-op
         after = _settings_bytes(ctx)
         disconnect_remote_workspace(ctx, environment)
         assert _settings_bytes(ctx) == after
-
-
-def test_set_global_secret() -> None:
-    with isolated_workspace("default") as ctx:
-        set_global_secret(ctx, "auth_token", "tok-1", "runtime")
-        with open(os.path.join(ctx.global_dir, SECRETS_TOML), encoding="utf-8") as f:
-            assert tomlkit.parse(f.read()).unwrap() == {"runtime": {"auth_token": "tok-1"}}
-
-        # the secrets provider of the active profile reads the global secrets right away
-        provider = Container()[PluggableRunContext].providers[SECRETS_TOML]
-        assert provider.get_value("auth_token", str, None, "runtime")[0] == "tok-1"
