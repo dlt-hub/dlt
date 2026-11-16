@@ -113,6 +113,9 @@ class TJobExposeSpec(TypedDict, total=False):
     """Show in top-level runtime UI."""
     manual: bool
     """When `True` (default), runner creates a `manual:` trigger for this job."""
+    is_externally_controlled: bool
+    """When `True`, an external runner named by `require.provider` starts and ends the job.
+    The runtime never starts it: no schedules, follow-ups, freshness or manual runs."""
 
 
 class TJobObjectInput(TypedDict):
@@ -343,7 +346,7 @@ class TJobDefinition(TypedDict):
     require: NotRequired[TRequireSpec]
     """Runtime resource requirements."""
     access: NotRequired[TWorkspaceAccess]
-    """Workspace access the job requires. Declared by agent jobs."""
+    """Workspace access the job requires."""
     default_trigger: NotRequired[TTrigger]
     """Primary trigger, computed during manifest generation. Prefers schedule/every triggers."""
     refresh_propagation: NotRequired[TRefreshPolicy]

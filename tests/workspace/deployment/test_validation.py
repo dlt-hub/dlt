@@ -1017,6 +1017,21 @@ def test_validate_job_definition_checks_the_structure_first() -> None:
     assert "triggers" in result.errors[0]
 
 
+def test_externally_controlled_job_passes_structure_check() -> None:
+    job = _make_job(
+        "jobs.mod.ext",
+        expose={"is_externally_controlled": True},
+        require={"provider": "snowflake", "instance": {"size": "small"}},
+    )
+    assert validate_job_definition(job, validate_dict=True).errors == []
+
+    # the flag is a boolean
+    job["expose"] = {"is_externally_controlled": "yes"}  # type: ignore[typeddict-item]
+    result = validate_job_definition(job, validate_dict=True)
+    assert len(result.errors) == 1
+    assert "is_externally_controlled" in result.errors[0]
+
+
 def test_validate_manifest_raises_on_request() -> None:
     """`raise_on_error` turns an invalid result into `InvalidManifest`, a valid one comes back."""
     ok = make_job("jobs.mod.a", triggers=["schedule:0 8 * * *"])

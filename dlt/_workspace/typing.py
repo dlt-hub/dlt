@@ -20,7 +20,8 @@ class TWorkspaceAccess(TypedDict, total=False):
     data: List[TWorkspaceDataVerb]
     """Access to workspace data, governed by the dlt profile in use."""
     context: List[TWorkspaceContextVerb]
-    """Access to the context graph: telemetry, runs and job definitions. Read-only."""
+    """Access to the context graph: telemetry, runs and job definitions. `write` lets a run
+    send traces and logs to the data plane."""
 
 
 TLocationScope = Literal["project", "global"]
