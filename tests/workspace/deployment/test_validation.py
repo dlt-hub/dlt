@@ -1022,6 +1022,7 @@ def test_externally_controlled_job_passes_structure_check() -> None:
         "jobs.mod.ext",
         expose={"is_externally_controlled": True},
         require={"provider": "snowflake", "instance": {"size": "small"}},
+        access={"context": ["write"]},
     )
     assert validate_job_definition(job, validate_dict=True).errors == []
 
