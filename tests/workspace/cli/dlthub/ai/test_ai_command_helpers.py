@@ -1072,7 +1072,6 @@ def test_toolkit_index_lifecycle(capsys: pytest.CaptureFixture[str]) -> None:
         assert idx["my-toolkit"]["installed_at"] != first_date
         assert idx["my-toolkit"]["agent"] == "claude"
 
-        # 5. Matching files are accepted without rewriting or saving the index
         overwrite_date = idx["my-toolkit"]["installed_at"]
         variant = _ClaudeAgent()
         changes = _plan_toolkit_install(base2 / "my-toolkit", variant, project_root, "my-toolkit")

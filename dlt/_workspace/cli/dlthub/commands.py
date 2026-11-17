@@ -73,8 +73,8 @@ class AiCommand(SupportsCliCommand):
             default=False,
             action="store_true",
             help=(
-                "Replace shipped files and remove unmodified files dropped upstream."
-                " Co-owned files stay protected."
+                "Replace installed files with the toolkit's version and remove unmodified"
+                " files it no longer ships. Files from other toolkits are not touched."
             ),
         )
 
@@ -168,8 +168,8 @@ class AiCommand(SupportsCliCommand):
             default=False,
             action="store_true",
             help=(
-                "Replace shipped files and remove unmodified files dropped upstream."
-                " Co-owned files stay protected."
+                "Replace installed files with the toolkit's version and remove unmodified"
+                " files it no longer ships. Files from other toolkits are not touched."
             ),
         )
         install_cmd.add_argument(
@@ -188,7 +188,7 @@ class AiCommand(SupportsCliCommand):
         update_cmd.add_argument(
             "--overwrite",
             action="store_true",
-            help="Replace locally modified or deleted files still shipped upstream.",
+            help="Restore the toolkit's version of files you edited or deleted.",
         )
         update_cmd.add_argument(
             "--strict",

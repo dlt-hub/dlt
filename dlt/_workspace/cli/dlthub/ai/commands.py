@@ -423,7 +423,7 @@ def _reconcile_toolkit_files(
                 continue
         rel = _project_relpath(path, project_root)
         if path in shared_paths:
-            refusal = Refusal("shared document is not an ordinary toolkit file", fatal)
+            refusal = Refusal("toolkits cannot replace this file", fatal)
         elif counts[path] > 1:
             refusal = Refusal("multiple components ship this destination", fatal)
         elif rel is None:
@@ -567,8 +567,6 @@ def _execute_install(ordinary: List[InstallAction], shared: List[InstallAction])
             try:
                 matches = action.dest_path.is_file() and action.dest_path.read_bytes() == data
             except OSError:
-                # Replacement was already allowed. An unreadable old file need not
-                # prevent replacing it; the new file must still be readable afterward.
                 matches = False
             if matches:
                 unchanged.append((action, tracked_hash(action.dest_path)))
@@ -887,8 +885,6 @@ def _next_index_entry(
         or (changes.mcp_servers and result.error is None)
     ):
         return None
-    # protection is an intentional outcome, not a failed update. keep prior
-    # metadata only when validation or execution could not finish
     partial = changes.warnings or result.error
     entry: TToolkitIndexEntry = dict(installed_toolkit_info if installed_toolkit_info and partial else workbench_info)  # type: ignore[assignment]
     entry["agent"] = agent_name

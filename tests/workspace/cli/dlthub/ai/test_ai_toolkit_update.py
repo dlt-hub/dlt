@@ -430,7 +430,6 @@ def test_partial_failure_saves_completed_hashes(source: Path, failure: str) -> N
             raise OSError("injected " + failure)
         return real(path, *args)
 
-    # overwrite avoids baseline-comparison reads so the hash fault is a read-back fault.
     with (
         patch.object(commands, target, side_effect=fail_second),
         patch.object(commands, "save_toolkits_index", wraps=save_toolkits_index) as save,
