@@ -589,6 +589,18 @@ const sidebars = {
         "hub/platform-capabilities/settings",
       ],
     },
+    {
+      type: "category",
+      label: "Security and compliance",
+      items: [
+        { type: "doc", id: "hub/security/soc-2", label: "Overview" },
+        {
+          type: "link",
+          label: "Trust Center",
+          href: "https://app.eu.vanta.com/dlthub.com/trust/3kalag7qbkrdnr55t1fg2z",
+        },
+      ],
+    },
     "hub/command-line-interface",
     {
       type: "category",
