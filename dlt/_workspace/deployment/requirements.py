@@ -279,10 +279,9 @@ def floored_spec(name: str, *, extras: Sequence[str] = ()) -> str:
     return f"{name}{extras_part}{_FLOORS[name]}"
 
 
-def build_launcher_requirements() -> Dict[str, List[str]]:
-    """Per-launcher mandatory specs. dlt is injected separately at build time."""
+def _launcher_specs() -> Dict[str, List[str]]:
     s3 = list(dlt_extra_specs("s3").values())
-    per_launcher: Dict[str, List[str]] = {
+    return {
         LAUNCHER_JOB: s3,
         LAUNCHER_MODULE: s3,
         # loop packages are per-job, so they live in `agent-loop-*` groups instead
@@ -292,7 +291,11 @@ def build_launcher_requirements() -> Dict[str, List[str]]:
         LAUNCHER_STREAMLIT: [floored_spec("streamlit")],
         LAUNCHER_DASHBOARD: [],
     }
-    return {k: sorted(set(v + [_HUB_SPEC])) for k, v in per_launcher.items()}
+
+
+def build_launcher_requirements() -> Dict[str, List[str]]:
+    """Per-launcher mandatory specs. dlt is injected separately at build time."""
+    return {k: sorted(set(v + [_HUB_SPEC])) for k, v in _launcher_specs().items()}
 
 
 def build_dashboard_group() -> List[str]:
@@ -521,20 +524,32 @@ def _compile_requirements_file(workspace_root: Path, file_path: Path) -> List[st
     """Export a `requirements.txt` / `requirements.in` file as sorted PEP 508 specs."""
     # with uv: `uv pip compile --universal` for a resolved, platform-independent
     # lockset. without uv: pure-Python parse, specs returned as authored
-    if is_uv_available():
-        stdout = _run_uv(
-            [
-                "pip",
-                "compile",
-                "--universal",
-                "--no-header",
-                "--no-annotate",
-                file_path.name,
-            ],
+    if not is_uv_available():
+        return _parse_requirements_file(file_path)
+    compile_args = ["pip", "compile", "--universal", "--no-header", "--no-annotate"]
+    # the job specs install next to main, so its pins come from a resolution that saw them. other
+    # launchers stay out: a workspace that never runs them must not fail on their floors
+    job_specs = _launcher_specs()[LAUNCHER_JOB]
+    try:
+        resolved = _run_uv(
+            [*compile_args, file_path.name, "-"],
             cwd=workspace_root,
+            stdin="\n".join(job_specs),
         )
-        return _parse_uv_output(stdout)
-    return _parse_requirements_file(file_path)
+    except WorkspaceRequirementsError as ex:
+        raise WorkspaceRequirementsError(
+            f"{file_path.name} does not resolve with the launcher specs"
+            f" {', '.join(job_specs)}:\n{ex}"
+        ) from ex
+    # the constraint keeps main to the workspace's own packages. unnamed paths and `-e` lines
+    # cannot be constraints
+    constraints = _parse_dep_list(_parse_uv_output(resolved))
+    stdout = _run_uv(
+        [*compile_args, file_path.name, "--constraint", "-"],
+        cwd=workspace_root,
+        stdin="\n".join(constraints),
+    )
+    return _parse_uv_output(stdout)
 
 
 def _parse_requirements_file(file_path: Path) -> List[str]:
@@ -678,12 +693,13 @@ def _require_uv() -> None:
         raise WorkspaceRequirementsError(_UV_MISSING_MESSAGE)
 
 
-def _run_uv(args: List[str], cwd: Path) -> str:
+def _run_uv(args: List[str], cwd: Path, stdin: Optional[str] = None) -> str:
     """Invoke `uv` with the given args, returning stdout on success."""
     try:
         proc = subprocess.run(
             ["uv", *args],
             cwd=str(cwd),
+            input=stdin,
             capture_output=True,
             text=True,
             check=False,
