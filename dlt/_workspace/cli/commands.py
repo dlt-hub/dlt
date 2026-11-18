@@ -6,6 +6,7 @@ from dlt._workspace.cli import echo as fmt, utils
 from dlt._workspace.cli import SupportsCliCommand, DEFAULT_VERIFIED_SOURCES_REPO
 from dlt.common.configuration.plugins import TCliCommandCompose
 from dlt._workspace.cli.exceptions import CliCommandException
+from dlt._workspace.cli._repo_source import add_repo_source_arguments
 from dlt._workspace.cli.utils import add_mcp_arg_parser, is_hub_available
 from dlt._workspace.cli._urls import (
     DLT_INIT_DOCS_URL,
@@ -71,18 +72,8 @@ version if run again with an existing `source` name. You will be warned if files
         parser.add_argument(
             "destination", nargs="?", help="Name of a destination i.e. bigquery or redshift"
         )
-        parser.add_argument(
-            "--location",
-            default=DEFAULT_VERIFIED_SOURCES_REPO,
-            help="Advanced. Uses a specific url or local path to verified sources repository.",
-        )
-        parser.add_argument(
-            "--branch",
-            default=None,
-            help=(
-                "Advanced. Uses specific branch of the verified sources repository to fetch the"
-                " template."
-            ),
+        add_repo_source_arguments(
+            parser, "verified sources repository", DEFAULT_VERIFIED_SOURCES_REPO
         )
 
         parser.add_argument(

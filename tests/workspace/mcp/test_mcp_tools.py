@@ -12,6 +12,7 @@ import dlt
 from dlt.common.configuration.specs.pluggable_run_context import RunContextBase
 
 from dlt._workspace._known_env import WORKSPACE__PROFILE
+from dlt._workspace.cli.dlthub.ai.utils import save_toolkit_entry
 from dlt._workspace.cli.exceptions import AiContextApiError
 from dlt._workspace.cli.utils import list_local_pipelines
 from dlt._workspace.mcp.context import TEnvironmentArgument, with_mcp_tool_telemetry
@@ -33,6 +34,7 @@ from dlt._workspace.mcp.tools.data_tools import (
     get_local_pipeline_state,
 )
 
+from tests.workspace.cli.dlthub.ai.utils import make_mock_toolkit_info
 from tests.workspace.utils import (
     declare_environment,
     isolated_workspace,
@@ -377,17 +379,24 @@ def test_export_schema_unified(
 
 
 def test_list_toolkits_returns_dict() -> None:
+    """The toolkits come from the harness location and branch that the installed `init` recorded."""
     mock_toolkits = {"init": {"name": "init", "version": "1.0"}}
     with (
+        isolated_workspace("default"),
         patch("dlt._workspace.mcp.tools.toolkit_tools.fetch_workbench_base") as mock_base,
         patch(
             "dlt._workspace.mcp.tools.toolkit_tools.fetch_workbench_toolkits",
             return_value=(mock_toolkits, []),
         ),
     ):
+        save_toolkit_entry(
+            make_mock_toolkit_info("init"),
+            source={"location": "https://example.com/fork.git", "branch": "dev"},
+        )
         mock_base.return_value = Path("/fake")
         result = list_toolkits()
     assert result == mock_toolkits
+    mock_base.assert_called_once_with("https://example.com/fork.git", "dev")
 
 
 @pytest.mark.parametrize(

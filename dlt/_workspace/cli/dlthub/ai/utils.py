@@ -3,7 +3,7 @@ import os
 import re
 import threading
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Set, Tuple
+from typing import Any, Dict, List, Mapping, Optional, Set, Tuple
 
 import tomlkit
 import yaml
@@ -18,6 +18,12 @@ from dlt.common.runtime.run_context import active as active_run_context
 from dlt.version import __version__ as dlt_ver
 
 from dlt._workspace._workspace_context import WorkspaceRunContext
+from dlt._workspace.cli import _urls
+from dlt._workspace.cli._repo_source import (
+    TRepoSource,
+    get_recorded_repo_source,
+    resolve_repo_source,
+)
 from dlt._workspace.cli._urls import DEFAULT_AI_WORKBENCH_BRANCH  # noqa: F401
 from dlt._workspace.cli._urls import DEFAULT_AI_WORKBENCH_REPO  # noqa: F401
 from dlt._workspace.cli.dlthub.ai.typing import (
@@ -395,7 +401,7 @@ def read_workbench_toolkit_mcp_servers(toolkit_dir: Path) -> Dict[str, Any]:
 
 
 def build_toolkits_dependency_map(
-    toolkits: Dict[str, TToolkitInfo],
+    toolkits: Mapping[str, TToolkitInfo],
 ) -> Dict[str, List[str]]:
     """Build a map of toolkit name -> list of dependency toolkit names."""
     return {name: list(info.get("dependencies", [])) for name, info in toolkits.items()}
@@ -706,12 +712,16 @@ def fetch_workbench_toolkit_info(
     return info
 
 
+_INIT_TOOLKIT = "init"
+
+
 def _toolkits_index_path() -> str:
     return make_dlt_settings_path(TOOLKITS_INDEX_FILE)
 
 
-def load_toolkits_index() -> Dict[str, TToolkitIndexEntry]:
-    """Load the installed toolkits index from the workspace settings directory."""
+def load_toolkits_index(hide_init: bool = False) -> Dict[str, TToolkitIndexEntry]:
+    """Load the installed toolkits index from the workspace settings directory. `hide_init`
+    leaves out `init` and the toolkits it depends on, which set up the agent."""
     try:
         data: Dict[str, TToolkitIndexEntry] = load_yaml_file(_toolkits_index_path())
     except (ValueError, OSError):
@@ -719,6 +729,14 @@ def load_toolkits_index() -> Dict[str, TToolkitIndexEntry]:
     # restore name from the YAML key (stripped on write)
     for key, entry in data.items():
         entry["name"] = key
+    if hide_init:
+        try:
+            init_deps = resolve_toolkit_dependencies(
+                _INIT_TOOLKIT, build_toolkits_dependency_map(data)
+            )
+        except ValueError:
+            init_deps = []
+        data = {k: v for k, v in data.items() if k not in {_INIT_TOOLKIT, *init_deps}}
     return data
 
 
@@ -733,6 +751,7 @@ def save_toolkit_entry(
     files: Optional[Dict[str, Any]] = None,
     mcp_servers: Optional[List[str]] = None,
     see_all: bool = False,
+    source: Optional[TRepoSource] = None,
 ) -> None:
     """Record that a toolkit was installed or updated in the toolkits index.
 
@@ -742,6 +761,7 @@ def save_toolkit_entry(
         files: Mapping of installed file paths to their content hashes.
         mcp_servers: Names of MCP servers provided by the toolkit.
         see_all: Whether the toolkit was installed with `--see-all`.
+        source: Harness location and branch to record, see `get_recorded_repo_source`.
     """
 
     index = load_toolkits_index()
@@ -760,13 +780,39 @@ def save_toolkit_entry(
         entry["mcp_servers"] = mcp_servers
     if see_all:
         entry["see_all"] = True
+    if source:
+        entry.update(source)
     index[name] = entry  # type: ignore[assignment]
     # the name is the YAML key: `load_toolkits_index` restores it on read
     stored = {key: {k: v for k, v in e.items() if k != "name"} for key, e in index.items()}
     save_yaml_file(_toolkits_index_path(), stored)
 
 
-_INIT_TOOLKIT = "init"
+def resolve_harness_source(
+    location: Optional[str] = None, branch: Optional[str] = None
+) -> Tuple[str, Optional[str]]:
+    """Harness location and branch to fetch from: given, else recorded by the installed `init`
+    toolkit, which every install brings, else the defaults. An empty value resets."""
+    recorded: TRepoSource = {}
+    if init_entry := load_toolkits_index().get(_INIT_TOOLKIT):
+        if "location" in init_entry:
+            recorded["location"] = init_entry["location"]
+        if "branch" in init_entry:
+            recorded["branch"] = init_entry["branch"]
+    return resolve_repo_source(
+        location,
+        branch,
+        recorded,
+        _urls.DEFAULT_AI_WORKBENCH_REPO,
+        _urls.DEFAULT_AI_WORKBENCH_BRANCH,
+    )
+
+
+def get_recorded_harness_source(location: str, branch: Optional[str]) -> TRepoSource:
+    """The part of the harness `location` and `branch` that the toolkits index records."""
+    return get_recorded_repo_source(
+        location, branch, _urls.DEFAULT_AI_WORKBENCH_REPO, _urls.DEFAULT_AI_WORKBENCH_BRANCH
+    )
 
 
 def fetch_ai_status(project_root: Path) -> TAiStatusInfo:
@@ -804,8 +850,7 @@ def fetch_ai_status(project_root: Path) -> TAiStatusInfo:
     if not has_init:
         warnings.append("no_init_toolkit")
 
-    # non-init toolkits
-    toolkits = {k: v for k, v in index.items() if k != _INIT_TOOLKIT}
+    toolkits = load_toolkits_index(hide_init=True)
     if not toolkits:
         warnings.append("no_toolkits")
 

@@ -34,7 +34,11 @@ from dlt._workspace.cli.dlthub.ai.utils import (
     resolve_toolkit_dependencies,
     fetch_workbench_toolkits,
 )
-from dlt._workspace.cli._urls import DEFAULT_AI_WORKBENCH_LICENSE_URL
+from dlt._workspace.cli._urls import (
+    DEFAULT_AI_WORKBENCH_BRANCH,
+    DEFAULT_AI_WORKBENCH_LICENSE_URL,
+    DEFAULT_AI_WORKBENCH_REPO,
+)
 
 from tests.workspace.cli.dlthub.ai.utils import (
     AGENT_NAMES,
@@ -214,6 +218,35 @@ def test_ai_init_installs_init_dependencies(capsys: pytest.CaptureFixture[str]) 
     # the dependencies of init do not count as a first toolkit
     assert "install your first toolkit" in out
 
+    # init is already installed: no readiness checks and no hints
+    with patch("dlt._workspace.cli.dlthub.ai.commands.fetch_ai_status") as fetch_status:
+        ai_init_command(agent="claude", location=MOCK_WORKBENCH_LOCATION)
+    fetch_status.assert_not_called()
+    out = capsys.readouterr().out
+    assert "Toolkit init 1.0.0 is already installed." in out
+    assert "install your first toolkit" not in out
+
+
+def test_toolkits_reuse_recorded_harness_location(capsys: pytest.CaptureFixture[str]) -> None:
+    """An install records a harness location other than the default, later commands reuse it,
+    and an empty `--location` resets to the default."""
+    make_mock_workbench()
+    harness_location = os.path.abspath(MOCK_WORKBENCH_LOCATION)
+    ai_init_command(agent="claude", location=MOCK_WORKBENCH_LOCATION)
+    assert load_toolkits_index()["init"]["location"] == harness_location
+
+    # no location: the recorded one, which is the mock harness
+    ai_toolkit_install_command(name="rest-api-pipeline", agent="claude")
+    assert load_toolkits_index()["rest-api-pipeline"]["location"] == harness_location
+    assert harness_location in capsys.readouterr().out
+
+    with patch(
+        "dlt._workspace.cli.dlthub.ai.commands.fetch_workbench_base",
+        side_effect=FileNotFoundError("no harness"),
+    ) as fetch_base:
+        ai_toolkit_list_command(location="")
+    fetch_base.assert_called_once_with(DEFAULT_AI_WORKBENCH_REPO, DEFAULT_AI_WORKBENCH_BRANCH)
+
 
 def test_toolkit_visibility_nested_dependencies(capsys: pytest.CaptureFixture[str]) -> None:
     """A hidden dependency is skipped with everything only it needs, at any depth."""
@@ -256,8 +289,8 @@ def test_cortex_install(
     assert "start a new session" in out
     ai_toolkit_install_command(name="rest-api-pipeline", agent="cortex", location=location)
     out = capsys.readouterr().out
-    # each MCP config gets its own line
-    for mcp_path in (project_root / ".cortex/mcp.json", _snowflake_home / "cortex/mcp.json"):
+    # each MCP config gets its own line, relative to the workspace when it is in the workspace
+    for mcp_path in (os.path.join(".cortex", "mcp.json"), _snowflake_home / "cortex/mcp.json"):
         assert "+ mcp dlt-workspace-mcp -> %s" % mcp_path in out
 
     assert (project_root / ".cortex/skills/find-source/SKILL.md").is_file()
@@ -305,7 +338,7 @@ def test_cortex_install(
     user_mcp.unlink()
     ai_mcp_install_command(agent="cortex", name="dlt-workspace-mcp")
     out = capsys.readouterr().out
-    assert "already configured in %s" % (project_root / ".cortex/mcp.json") in out
+    assert "already configured in %s" % os.path.join(".cortex", "mcp.json") in out
     assert "Installed MCP server dlt-workspace-mcp in %s" % user_mcp in out
     server = json.loads(user_mcp.read_text(encoding="utf-8"))["mcpServers"]["dlt-workspace-mcp"]
     assert server["type"] == "stdio"
@@ -319,7 +352,7 @@ def test_codex_install(
     make_mock_workbench()
     ai_init_command(agent="codex", location=MOCK_WORKBENCH_LOCATION)
     out = capsys.readouterr().out
-    assert "+ hook SessionStart -> %s" % (project_root / ".codex/hooks.json") in out
+    assert "+ hook SessionStart -> %s" % os.path.join(".codex", "hooks.json") in out
     assert "/hooks" in out
     ai_toolkit_install_command(
         name="rest-api-pipeline", agent="codex", location=MOCK_WORKBENCH_LOCATION

@@ -175,6 +175,32 @@ def test_init_command_new_pipeline_same_name(repo_dir: str, workspace_files: Fil
     assert "already exists, exiting" in _out
 
 
+def test_init_command_reuses_recorded_repo_location(
+    repo_dir: str, workspace_files: FileStorage
+) -> None:
+    """A verified source records the repo it came from in `.sources` and the next init without
+    `--location` reuses it. A `.sources` that an older dlt wrote still loads and keeps its
+    sources."""
+    legacy_source = files_ops.load_verified_sources_local_index("legacy")
+    files_ops._save_dot_sources(
+        {
+            "engine_version": files_ops.SOURCES_INIT_INFO_ENGINE_VERSION,
+            "sources": {"legacy": legacy_source},
+        }
+    )
+    assert files_ops.resolve_verified_sources_repo() == (DEFAULT_VERIFIED_SOURCES_REPO, None)
+
+    _init_command.init_command("chess", "duckdb", repo_dir)
+    index = files_ops._load_dot_sources()
+    assert index["location"] == os.path.abspath(repo_dir)
+    assert "branch" not in index
+    assert set(index["sources"]) == {"legacy", "chess"}
+
+    assert files_ops.resolve_verified_sources_repo() == (os.path.abspath(repo_dir), None)
+    _init_command.init_command("pipedrive", "duckdb")
+    assert "pipedrive" in files_ops._load_dot_sources()["sources"]
+
+
 def test_init_command_chess_verified_source(
     repo_dir: str, workspace_files: FileStorage, monkeypatch: MonkeyPatch
 ) -> None:

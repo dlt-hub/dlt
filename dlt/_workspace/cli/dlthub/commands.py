@@ -47,10 +47,8 @@ class AiCommand(SupportsCliCommand):
         )
 
         # init command
-        from dlt._workspace.cli._urls import (
-            DEFAULT_AI_WORKBENCH_BRANCH,
-            DEFAULT_AI_WORKBENCH_REPO,
-        )
+        from dlt._workspace.cli._repo_source import add_repo_source_arguments
+        from dlt._workspace.cli._urls import DEFAULT_AI_WORKBENCH_REPO
 
         init_cmd = ai_subparsers.add_parser(
             "init",
@@ -62,15 +60,8 @@ class AiCommand(SupportsCliCommand):
             default=None,
             help="AI coding agent to install for. Auto-detected if omitted.",
         )
-        init_cmd.add_argument(
-            "--location",
-            default=DEFAULT_AI_WORKBENCH_REPO,
-            help="Advanced. Git URL or local path to dltHub AI Harness repository.",
-        )
-        init_cmd.add_argument(
-            "--branch",
-            default=DEFAULT_AI_WORKBENCH_BRANCH,
-            help="Advanced. Git branch to fetch from.",
+        add_repo_source_arguments(
+            init_cmd, "dltHub AI Harness repository", DEFAULT_AI_WORKBENCH_REPO
         )
         init_cmd.add_argument(
             "--overwrite",
@@ -148,17 +139,9 @@ class AiCommand(SupportsCliCommand):
 
         # shared parent with --location and --branch
         toolkit_common = argparse.ArgumentParser(add_help=False)
-        toolkit_common.add_argument(
-            "--location",
-            default=DEFAULT_AI_WORKBENCH_REPO,
-            help="Advanced. Git URL or local path to toolkit repository.",
+        add_repo_source_arguments(
+            toolkit_common, "dltHub AI Harness repository", DEFAULT_AI_WORKBENCH_REPO
         )
-        toolkit_common.add_argument(
-            "--branch",
-            default=DEFAULT_AI_WORKBENCH_BRANCH,
-            help="Advanced. Git branch to fetch toolkit from.",
-        )
-
         toolkit_common.add_argument(
             "--see-all",
             default=False,
@@ -253,10 +236,6 @@ class AiCommand(SupportsCliCommand):
         )
 
     def execute(self, args: argparse.Namespace) -> None:
-        from dlt._workspace.cli._urls import (
-            DEFAULT_AI_WORKBENCH_BRANCH,
-            DEFAULT_AI_WORKBENCH_REPO,
-        )
         from dlt._workspace.cli.dlthub.ai import (
             ai_init_command,
             ai_mcp_run_command,
@@ -324,10 +303,7 @@ class AiCommand(SupportsCliCommand):
                 )
             else:
                 # default: list toolkits
-                ai_toolkit_list_command(
-                    location=getattr(args, "location", DEFAULT_AI_WORKBENCH_REPO),
-                    branch=getattr(args, "branch", DEFAULT_AI_WORKBENCH_BRANCH),
-                )
+                ai_toolkit_list_command()
         elif args.operation == "mcp":
             mcp_op = getattr(args, "mcp_operation", None)
             if mcp_op == "install":

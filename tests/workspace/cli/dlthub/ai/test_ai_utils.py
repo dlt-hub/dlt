@@ -524,13 +524,26 @@ def test_fetch_ai_status_empty_workspace(environment: Any) -> None:
 
 
 def test_fetch_ai_status_initialized_with_init_toolkit() -> None:
-    """Workspace with config.toml and init toolkit: only no_toolkits warning."""
+    """Workspace with config.toml, init toolkit and its dependencies: only no_toolkits warning."""
     project_root = Path("project")
     project_root.mkdir()
     _make_settings(project_root, with_config=True)
     _write_toolkits_index(
         project_root,
-        {"init": {"version": "1.0.0", "agent": "claude", "description": "Init"}},
+        {
+            "init": {
+                "version": "1.0.0",
+                "agent": "claude",
+                "description": "Init",
+                "dependencies": ["local-workspace"],
+            },
+            "local-workspace": {
+                "version": "1.0.0",
+                "description": "Local workspace",
+                "dependencies": ["base"],
+            },
+            "base": {"version": "1.0.0", "description": "Base"},
+        },
     )
 
     with _patch_settings_paths(project_root):
@@ -539,6 +552,8 @@ def test_fetch_ai_status_initialized_with_init_toolkit() -> None:
     assert status["initialized"] is True
     assert status["has_init_toolkit"] is True
     assert status["agent_name"] == "claude"
+    # the dependencies of init, at any depth, are not toolkits
+    assert status["toolkits"] == {}
     assert "not_initialized" not in status["warnings"]
     assert "no_init_toolkit" not in status["warnings"]
     assert "no_toolkits" in status["warnings"]

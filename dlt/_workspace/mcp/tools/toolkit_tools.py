@@ -7,12 +7,11 @@ from fastmcp.exceptions import ToolError
 from dlt.common.runtime import run_context
 from dlt.common.typing import Annotated
 from dlt._workspace.cli.dlthub.ai.utils import (
-    DEFAULT_AI_WORKBENCH_BRANCH,
-    DEFAULT_AI_WORKBENCH_REPO,
     fetch_workbench_base,
     fetch_workbench_toolkit_info,
     fetch_workbench_toolkits,
     is_toolkit_visible,
+    resolve_harness_source,
 )
 from dlt._workspace.cli.dlthub.ai.typing import TToolkitInfo, TWorkbenchToolkitInfo
 from dlt._workspace.access import RequiresAccess
@@ -29,7 +28,7 @@ def _agent_name() -> Optional[str]:
 def list_toolkits() -> Annotated[Dict[str, TToolkitInfo], RequiresAccess()]:
     """List the dlt AI toolkits available to the AI coding agent, with names and descriptions."""
     try:
-        base = fetch_workbench_base(DEFAULT_AI_WORKBENCH_REPO, DEFAULT_AI_WORKBENCH_BRANCH)
+        base = fetch_workbench_base(*resolve_harness_source())
     except FileNotFoundError as ex:
         raise ToolError(str(ex))
     toolkits, _ = fetch_workbench_toolkits(base, listed_only=True, agent_name=_agent_name())
@@ -43,9 +42,7 @@ def toolkit_info(
     """Show detailed contents of a dlt AI toolkit."""
     agent_name = _agent_name()
     try:
-        info = fetch_workbench_toolkit_info(
-            name, DEFAULT_AI_WORKBENCH_REPO, DEFAULT_AI_WORKBENCH_BRANCH, agent_name=agent_name
-        )
+        info = fetch_workbench_toolkit_info(name, *resolve_harness_source(), agent_name=agent_name)
     except (FileNotFoundError, ValueError) as ex:
         raise ToolError(str(ex))
     if info is None:

@@ -7,6 +7,8 @@ import yaml
 
 from dlt.common.runtime import run_context
 from dlt._workspace.access import FULL_ACCESS, format_access, parse_access
+from dlt._workspace.run_context import format_display_path
+from dlt._workspace.cli._repo_source import TRepoSource, format_repo_source
 from dlt._workspace.cli import echo as fmt, utils
 from dlt._workspace.cli.utils import (
     DEFAULT_MCP_FEATURES,
@@ -38,12 +40,14 @@ from dlt._workspace.cli.dlthub.ai.utils import (
     fetch_secrets_view_redacted,
     fetch_workbench_toolkit_info,
     fetch_workbench_base,
+    get_recorded_harness_source,
     is_component_visible,
     is_toolkit_installed,
     is_toolkit_visible,
     load_toolkits_index,
     read_workbench_toolkit_mcp_servers,
     read_workbench_toolkit_combined_info,
+    resolve_harness_source,
     resolve_toolkit_dependencies,
     safe_write_bytes,
     save_toolkit_entry,
@@ -136,6 +140,7 @@ def ai_mcp_install_command(
     new_servers = {name: server_config}
 
     for config_path in variant.mcp_config_paths(project_root):
+        display_path = _format_component_path(config_path, project_root)
         existing_content = ""
         if config_path.is_file():
             existing_content = config_path.read_text(encoding="utf-8")
@@ -143,13 +148,13 @@ def ai_mcp_install_command(
         if not overwrite:
             existing_servers = variant.parse_mcp_servers(existing_content)
             if name in existing_servers:
-                fmt.echo("MCP server %s already configured in %s" % (fmt.bold(name), config_path))
+                fmt.echo("MCP server %s already configured in %s" % (fmt.bold(name), display_path))
                 continue
 
         merged = variant.merge_mcp_servers(existing_content, new_servers)
         config_path.parent.mkdir(parents=True, exist_ok=True)
         config_path.write_text(merged, encoding="utf-8")
-        fmt.echo("Installed MCP server %s in %s" % (fmt.bold(name), config_path))
+        fmt.echo("Installed MCP server %s in %s" % (fmt.bold(name), display_path))
 
 
 def _fetch_workbench_base_cli(location: str, branch: Optional[str]) -> Optional[Path]:
@@ -450,6 +455,7 @@ def _execute_install(
     agent_name: Optional[str] = None,
     project_root: Optional[Path] = None,
     see_all: bool = False,
+    source: Optional[TRepoSource] = None,
 ) -> Tuple[int, List["InstallAction"]]:
     """Commits non-conflicting actions and the toolkit index. Returns count of items installed
     and the render actions that changed their file.
@@ -499,6 +505,7 @@ def _execute_install(
             files=tracked_files,
             mcp_servers=mcp_servers or None,
             see_all=see_all,
+            source=source,
         )
     return installed, rendered
 
@@ -527,6 +534,12 @@ def _resolve_agent(agent: Optional[str], project_root: Path) -> "_AIAgent":
     return best[0]
 
 
+def _format_component_path(path: Any, project_root: Optional[Path]) -> str:
+    if project_root is None:
+        return str(path)
+    return format_display_path(str(path), str(project_root))
+
+
 def _report_and_execute(
     actions: List["InstallAction"],
     validation_warnings: List[str],
@@ -535,6 +548,7 @@ def _report_and_execute(
     agent_name: Optional[str] = None,
     project_root: Optional[Path] = None,
     see_all: bool = False,
+    source: Optional[TRepoSource] = None,
 ) -> int:
     """Print planned actions, skip conflicts, execute, return count installed.
 
@@ -553,7 +567,14 @@ def _report_and_execute(
     components: Dict[Tuple[str, str, Optional[str], Optional[Path]], List[InstallAction]] = {}
     for a in actions:
         if a.op == "remove":
-            fmt.echo("  - %s %s (%s)" % (a.kind, fmt.bold(a.source_name), a.dest_path))
+            fmt.echo(
+                "  - %s %s (%s)"
+                % (
+                    a.kind,
+                    fmt.bold(a.source_name),
+                    _format_component_path(a.dest_path, project_root),
+                )
+            )
         elif a.op != "render":
             dest_key = None if a.op == "copy" else a.dest_path
             components.setdefault((a.kind, a.source_name, a.source_kind, dest_key), []).append(a)
@@ -567,6 +588,7 @@ def _report_and_execute(
             )
         else:
             dest = dest_paths[0]
+        dest = _format_component_path(dest, project_root)
         if component_actions[0].conflict:
             fmt.warning("  Skipping %s %s (already exists at %s)" % (kind, source_name, dest))
         else:
@@ -577,11 +599,12 @@ def _report_and_execute(
         agent_name=agent_name,
         project_root=project_root,
         see_all=see_all,
+        source=source,
     )
     for a in rendered:
         fmt.echo(
             "  ~ %s %s -> %s (rendered from the installed files)"
-            % (a.kind, fmt.bold(a.source_name), a.dest_path)
+            % (a.kind, fmt.bold(a.source_name), _format_component_path(a.dest_path, project_root))
         )
     # a running agent keeps the old server process until it reconnects
     if toolkit_meta and any(a.kind == "mcp" for a in actions):
@@ -610,15 +633,17 @@ def _install_toolkit(
     overwrite: bool = False,
     strict: bool = False,
     see_all: bool = False,
-) -> None:
-    """Core install logic: read plugin.json, version-check, plan, execute."""
+    source: Optional[TRepoSource] = None,
+) -> int:
+    """Core install logic: read plugin.json, version-check, plan, execute. Returns count of items
+    installed."""
     toolkit_dir = base / name
     meta = read_workbench_toolkit_combined_info(toolkit_dir)
     if meta is None:
         fmt.warning(
             "Toolkit %s not found (missing %s)" % (fmt.bold(name), ".claude-plugin/plugin.json")
         )
-        return
+        return 0
 
     toolkit_meta = extract_toolkit_info(meta, name)
     toolkit_name = toolkit_meta["name"]
@@ -637,7 +662,7 @@ def _install_toolkit(
             )
         if workflow_entry_skill := toolkit_meta.get("workflow_entry_skill"):
             fmt.echo("Use %s skill to start!" % fmt.bold(workflow_entry_skill))
-        return
+        return 0
 
     # a file another toolkit also installed (e.g. the ignore file) is not ours to remove
     files_of_others = {
@@ -664,9 +689,9 @@ def _install_toolkit(
     # render actions only rewrite files from what the toolkit installs
     if not any(a.op != "render" for a in actions) and not warnings:
         fmt.echo("No components found in toolkit %s." % fmt.bold(name))
-        return
+        return 0
 
-    _report_and_execute(
+    return _report_and_execute(
         actions,
         warnings,
         strict=strict,
@@ -674,6 +699,7 @@ def _install_toolkit(
         agent_name=agent.name,
         project_root=project_root,
         see_all=see_all,
+        source=source,
     )
 
 
@@ -684,8 +710,9 @@ def _install_dependencies(
     agent: "_AIAgent",
     project_root: Path,
     see_all: bool = False,
-) -> List[str]:
-    """Install upstream dependencies for `name` that are not yet installed and return their names.
+    source: Optional[TRepoSource] = None,
+) -> None:
+    """Install upstream dependencies for `name` that are not yet installed.
 
     Dependencies hidden from the agent are skipped with their own dependencies, unless `see_all`.
     """
@@ -700,7 +727,7 @@ def _install_dependencies(
         skipped = [d for d in resolve_toolkit_dependencies(name, dep_map) if d not in deps]
     except ValueError as ex:
         fmt.warning(str(ex))
-        return []
+        return
     for dep in skipped:
         fmt.echo(
             "Skipping dependency %s: not available for %s. Use --see-all to install it."
@@ -709,8 +736,7 @@ def _install_dependencies(
     for dep in deps:
         if is_toolkit_installed(dep):
             continue
-        _install_toolkit(dep, base, agent, project_root, see_all=see_all)
-    return deps
+        _install_toolkit(dep, base, agent, project_root, see_all=see_all, source=source)
 
 
 def _install_toolkit_with_dependencies(
@@ -721,8 +747,10 @@ def _install_toolkit_with_dependencies(
     overwrite: bool = False,
     strict: bool = False,
     see_all: bool = False,
-) -> List[str]:
-    """Install toolkit `name` after its dependencies and return the names of the dependencies."""
+    source: Optional[TRepoSource] = None,
+) -> int:
+    """Install toolkit `name` after its dependencies. Returns count of items installed for
+    `name`."""
     toolkits, warnings = fetch_workbench_toolkits(base, strict=strict)
     for w in warnings:
         fmt.warning(w)
@@ -735,11 +763,17 @@ def _install_toolkit_with_dependencies(
             % (fmt.bold(name), agent.name)
         )
         raise CliCommandException()
-    deps = _install_dependencies(name, toolkits, base, agent, project_root, see_all=see_all)
-    _install_toolkit(
-        name, base, agent, project_root, overwrite=overwrite, strict=strict, see_all=see_all
+    _install_dependencies(name, toolkits, base, agent, project_root, see_all=see_all, source=source)
+    return _install_toolkit(
+        name,
+        base,
+        agent,
+        project_root,
+        overwrite=overwrite,
+        strict=strict,
+        see_all=see_all,
+        source=source,
     )
-    return deps
 
 
 def _warning_message(code: str) -> str:
@@ -799,23 +833,37 @@ def ai_rules_command(agent: Optional[str] = None) -> None:
 @utils.track_command("ai", False, operation="init")
 def ai_init_command(
     agent: Optional[str],
-    location: str,
+    location: Optional[str] = None,
     branch: Optional[str] = None,
     overwrite: bool = False,
 ) -> None:
-    """Install the init toolkit into the current project."""
+    """Install the init toolkit into the current project.
+
+    `location` and `branch` default to the ones the installed toolkits came from.
+    """
     project_root = Path(run_context.active().run_dir)
     var = _resolve_agent(agent, project_root)
+    location, branch = resolve_harness_source(location, branch)
 
-    fmt.echo("Initializing AI rules for %s from %s..." % (fmt.bold(var.name), fmt.bold(location)))
+    fmt.echo(
+        "Initializing AI rules for %s from %s..."
+        % (fmt.bold(var.name), format_repo_source(location, branch))
+    )
 
     base = _fetch_workbench_base_cli(location, branch)
     if base is None:
         return
 
-    deps = _install_toolkit_with_dependencies(
-        _INIT_TOOLKIT, base, var, project_root, overwrite=overwrite
+    installed = _install_toolkit_with_dependencies(
+        _INIT_TOOLKIT,
+        base,
+        var,
+        project_root,
+        overwrite=overwrite,
+        source=get_recorded_harness_source(location, branch),
     )
+    if not installed:
+        return
 
     status = fetch_ai_status(project_root)
     if "mcp_unavailable" in status["warnings"]:
@@ -823,7 +871,7 @@ def ai_init_command(
     for note in var.install_notes():
         fmt.warning(note)
 
-    if set(load_toolkits_index()) <= {_INIT_TOOLKIT, *deps}:
+    if "no_toolkits" in status["warnings"]:
         fmt.echo()
         fmt.echo(
             f"Now you can install your first toolkit. Use `{fmt.cli_cmd('ai toolkit list')}` for"
@@ -835,19 +883,23 @@ def ai_init_command(
 def ai_toolkit_install_command(
     name: str,
     agent: Optional[str],
-    location: str,
+    location: Optional[str] = None,
     branch: Optional[str] = None,
     overwrite: bool = False,
     strict: bool = False,
     see_all: bool = False,
 ) -> None:
-    """Install toolkit components into the current project."""
+    """Install toolkit components into the current project.
+
+    `location` and `branch` default to the ones the installed toolkits came from.
+    """
     project_root = Path(run_context.active().run_dir)
     var = _resolve_agent(agent, project_root)
+    location, branch = resolve_harness_source(location, branch)
 
     fmt.echo(
         "Installing toolkit %s for %s from %s..."
-        % (fmt.bold(name), fmt.bold(var.name), fmt.bold(location))
+        % (fmt.bold(name), fmt.bold(var.name), format_repo_source(location, branch))
     )
 
     base = _fetch_workbench_base_cli(location, branch)
@@ -855,7 +907,14 @@ def ai_toolkit_install_command(
         return
 
     _install_toolkit_with_dependencies(
-        name, base, var, project_root, overwrite=overwrite, strict=strict, see_all=see_all
+        name,
+        base,
+        var,
+        project_root,
+        overwrite=overwrite,
+        strict=strict,
+        see_all=see_all,
+        source=get_recorded_harness_source(location, branch),
     )
 
 
@@ -882,12 +941,13 @@ def _agent_scope(agent: Optional[str], see_all: bool) -> Optional[str]:
 
 @utils.track_command("ai", False, operation="toolkit.list")
 def ai_toolkit_list_command(
-    location: str,
+    location: Optional[str] = None,
     branch: Optional[str] = None,
     agent: Optional[str] = None,
     see_all: bool = False,
 ) -> None:
     """List available toolkits with name and description."""
+    location, branch = resolve_harness_source(location, branch)
     base = _fetch_workbench_base_cli(location, branch)
     if base is None:
         return
@@ -938,12 +998,13 @@ def ai_toolkit_list_command(
 @utils.track_command("ai", False, "name", operation="toolkit.info")
 def ai_toolkit_info_command(
     name: str,
-    location: str,
+    location: Optional[str] = None,
     branch: Optional[str] = None,
     agent: Optional[str] = None,
     see_all: bool = False,
 ) -> None:
     """Show what's inside a toolkit."""
+    location, branch = resolve_harness_source(location, branch)
     agent_name = _agent_scope(agent, see_all)
     info = fetch_workbench_toolkit_info(name, location, branch, agent_name=agent_name)
     if info is None:
