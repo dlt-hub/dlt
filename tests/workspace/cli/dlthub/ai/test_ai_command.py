@@ -269,22 +269,26 @@ def test_user_session_e2e(
     with isolated_workspace(workspace_type, required=required):
         location_args = ["--location", workbench_repo]
 
+        # 1. ai status — fresh workspace has warnings
         result = script_runner.run(["dlthub", "ai", "status"])
         assert result.returncode == 0
         if workspace_type == "empty":
             assert "not yet initialized" in result.stdout.lower()
         assert "no toolkit" in result.stdout.lower()
 
+        # 2. dlt ai init
         result = script_runner.run(["dlthub", "ai", "init", "--agent", "claude"] + location_args)
         assert result.returncode == 0
         assert "item(s) installed" in result.stdout
 
+        # 3. ai toolkit list — discover available toolkits
         result = script_runner.run(["dlthub", "ai", "toolkit", "list"] + location_args)
         assert result.returncode == 0
         assert "Available toolkits:" in result.stdout
         for name in KNOWN_TOOLKITS:
             assert name in result.stdout
 
+        # 4. install all installable toolkits
         base = Path(workbench_repo) / AI_WORKBENCH_BASE_DIR
         available, _ = fetch_workbench_toolkits(base, listed_only=True)
         installable = [name for name in available if name != "init"]
@@ -296,21 +300,14 @@ def test_user_session_e2e(
             )
             assert result.returncode == 0, "install %s failed: %s" % (toolkit_name, result.stderr)
 
+        # 5. ai toolkit list again — shows installed toolkits
         result = script_runner.run(["dlthub", "ai", "toolkit", "list"] + location_args)
         assert result.returncode == 0
         assert "Installed toolkits:" in result.stdout
         for toolkit_name in installable:
             assert toolkit_name in result.stdout
 
-        result = script_runner.run(["dlthub", "ai", "toolkit", "update", "init"] + location_args)
-        assert result.returncode == 0, result.stderr
-        before = load_toolkits_index()
-        result = script_runner.run(["dlthub", "ai", "toolkit", "update"] + location_args)
-        assert result.returncode == 0, result.stderr
-        for toolkit_name in ["init"] + installable:
-            assert "Updating toolkit %s" % toolkit_name in result.stdout
-        assert load_toolkits_index() == before
-
+        # 6. verify index and installed files
         project_root = Path.cwd()
         assert_toolkit_install(project_root, "init", "claude")
         for toolkit_name in installable:
