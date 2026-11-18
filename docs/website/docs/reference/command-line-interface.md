@@ -606,8 +606,8 @@ Inherits arguments from [`dlt`](#dlt).
 * `-h, --help` - Show this help message and exit
 * `--list-sources, -l` - Shows all available verified sources and their short descriptions. for each source, it checks if your local `dlt` version requires an update and prints the relevant warning.
 * `--list-destinations` - Shows the name of all core dlt destinations.
-* `--location LOCATION` - Advanced. uses a specific url or local path to verified sources repository.
-* `--branch BRANCH` - Advanced. uses specific branch of the verified sources repository to fetch the template.
+* `--location LOCATION` - Advanced. git url or local path of the verified sources repository. defaults to the location the last install used, else https://github.com/dlt-hub/verified-sources.git. an empty value resets it.
+* `--branch BRANCH` - Advanced. branch to fetch from. defaults to the branch the last install from the same location used, else the default branch. an empty value resets it.
 * `--eject` - Ejects the source code of the core source like sql_database or rest_api so they will be editable by you.
 
 </details>
