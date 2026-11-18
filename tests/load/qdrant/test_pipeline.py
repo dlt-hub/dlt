@@ -2,6 +2,10 @@ import pytest
 from typing import Iterator
 from tempfile import TemporaryDirectory
 import os
+import uuid
+from pathlib import Path
+
+from qdrant_client import QdrantClient as SDKQdrantClient, models
 
 import dlt
 from dlt.common import json
@@ -24,6 +28,58 @@ pytestmark = pytest.mark.essential
 def drop_qdrant_data() -> Iterator[None]:
     yield
     drop_active_pipeline_data()
+
+
+@pytest.mark.parametrize(
+    "external,model",
+    [(False, "BAAI/bge-small-en"), (True, "sentence-transformers/all-MiniLM-L6-v2")],
+)
+def test_local_embeddings_and_merge(tmp_path: Path, external: bool, model: str) -> None:
+    db = SDKQdrantClient(":memory:") if external else None
+    if db is not None and hasattr(db, "set_model"):
+        db.set_model(model)
+    destination = dlt.destinations.qdrant(
+        credentials=db,  # type: ignore[arg-type]
+        qd_path=None if external else str(tmp_path / "qdrant"),
+        model=model,
+    )
+    pipeline = dlt.pipeline(pipeline_name="local_embeddings_" + uniq_id(), destination=destination)
+    vector_name = "fast-" + model.split("/")[-1].lower()
+    try:
+        for rows in [
+            [{"id": 1, "text": "old document"}, {"id": 2, "text": "another document"}],
+            [{"id": 1, "text": "updated document"}],
+        ]:
+            resource = dlt.resource(
+                rows, name="documents", primary_key="id", write_disposition="merge"
+            )
+            info = pipeline.run(qdrant_adapter(resource, embed="text"))
+            assert_load_info(info)
+            client: QdrantClient
+            with pipeline.destination_client() as client:  # type: ignore[assignment]
+                points, _ = client.db_client.scroll("documents", with_vectors=True)
+                assert len(points) == 2
+                by_id = {point.payload["id"]: point for point in points}
+                for row in rows:
+                    point = by_id[row["id"]]
+                    assert point.payload["text"] == row["text"]
+                    assert point.id == str(
+                        uuid.uuid5(uuid.NAMESPACE_DNS, "documents" + str(row["id"]))
+                    )
+                    assert isinstance(point.vector, dict)
+                    vector = point.vector[vector_name]
+                    assert isinstance(vector, list)
+                    assert len(vector) == 384
+                    assert any(vector)
+                params = client.db_client.get_collection("documents").config.params.vectors
+                assert isinstance(params, dict)
+                assert params[vector_name].size == 384
+                assert params[vector_name].distance == models.Distance.COSINE
+                assert client.get_stored_state(pipeline.pipeline_name) is not None
+    finally:
+        pipeline.deactivate()
+        if db is not None:
+            db.close()
 
 
 def test_adapter_and_hints() -> None:
