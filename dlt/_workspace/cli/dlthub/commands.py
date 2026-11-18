@@ -795,7 +795,9 @@ class InitWorkspaceCommand(SupportsCliCommand):
     help_string = "Initialize a new dlthub workspace"
     description = (
         "Creates local workspace files: config, secrets, gitignore and Python"
-        " pyproject/requirements."
+        " pyproject/requirements. In an existing project or workspace, adds the missing"
+        " .gitignore entries and the missing or outdated dependencies. Shows these changes and"
+        " asks for confirmation first; `-y` accepts without asking."
     )
     docs_url: Optional[str] = None
 
@@ -806,10 +808,26 @@ class InitWorkspaceCommand(SupportsCliCommand):
             default=None,
             help="Workspace name (defaults to current directory basename).",
         )
-        parser.add_argument(
-            "--force",
+        existing = parser.add_mutually_exclusive_group()
+        existing.add_argument(
+            "--overwrite",
             action="store_true",
-            help="Overwrite existing pyproject.toml/requirements.txt/.gitignore/config.toml.",
+            help=(
+                "Overwrite existing pyproject.toml/requirements.txt, .gitignore and"
+                " .dlt/.workspace instead of merging into them. Shows what it overwrites and asks"
+                " for confirmation first. The settings files are never overwritten."
+            ),
+        )
+        # the name of --overwrite before 1.33
+        existing.add_argument(
+            "--force", dest="overwrite", action="store_true", help=argparse.SUPPRESS
+        )
+        existing.add_argument(
+            "--skip",
+            action="store_true",
+            help=(
+                "Keep existing files as they are and create only the missing ones, without asking."
+            ),
         )
         parser.add_argument(
             "--dependencies",
@@ -824,7 +842,7 @@ class InitWorkspaceCommand(SupportsCliCommand):
         parser.add_argument(
             "--dry-run",
             action="store_true",
-            help="Print the file plan without writing anything.",
+            help="Print the full file plan without writing anything.",
         )
         parser.add_argument(
             "--agent",
@@ -842,7 +860,8 @@ class InitWorkspaceCommand(SupportsCliCommand):
     def execute(self, args: argparse.Namespace) -> None:
         _execute_init(
             name=args.name,
-            force=args.force,
+            overwrite=args.overwrite,
+            skip=args.skip,
             dry_run=args.dry_run,
             dependencies=args.dependencies,
             verbosity=getattr(args, "verbosity", 0),
@@ -854,16 +873,20 @@ class InitWorkspaceCommand(SupportsCliCommand):
 def _execute_init(
     *,
     name: Optional[str],
-    force: bool,
     dry_run: bool,
+    overwrite: bool = False,
+    skip: bool = False,
     dependencies: str = "auto",
     verbosity: int = 0,
     agent: Optional[str] = None,
 ) -> None:
     from dlt._workspace.cli.dlthub.utils import fetch_init_plan
     from dlt._workspace.cli.dlthub._init_command import (
+        _print_init_changes,
+        _print_init_merge_error,
         _print_init_plan,
         _print_init_welcome,
+        _print_newer_dependencies,
         init_dlthub_workspace,
     )
 
@@ -877,44 +900,54 @@ def _execute_init(
     plan = fetch_init_plan(
         os.getcwd(),
         name=name,
-        force=force,
+        overwrite=overwrite,
+        skip=skip,
         dependencies=dependencies,  # type: ignore[arg-type]
         agent=ai_agent,
     )
 
-    # bail on existing workspace before showing anything noisy; verbose still prints the plan
-    # for diagnostics
-    if plan["workspace_exists"] and not force:
-        if verbosity > 0:
-            _print_init_plan(plan)
-        fmt.error(
-            "Workspace already exists at %s. Re-run with %s to overwrite."
-            % (fmt.bold(plan["run_dir"]), fmt.bold("--force"))
-        )
-        raise CliCommandException()
-
-    # plan only shown when --dry-run or -v
-    if dry_run or verbosity > 0:
+    plan_shown = dry_run or verbosity > 0
+    if plan_shown:
         _print_init_plan(plan, agent_name=ai_agent.name if ai_agent else None)
-
+    if "merge_error" in plan:
+        _print_init_merge_error(plan)
+        raise CliCommandException()
     if dry_run:
         return
 
-    init_dlthub_workspace(plan, force=force)
+    statuses = {f["status"] for f in plan["files"]}
+    if statuses & {"merge", "overwrite"}:
+        if not plan_shown:
+            _print_init_changes(plan)
+        if not fmt.confirm("Proceed?", default=False):
+            fmt.echo("dlt changed nothing.")
+            raise CliCommandException()
+    elif not plan_shown:
+        _print_newer_dependencies(plan)
+
+    changed = bool(statuses & {"create", "merge", "overwrite"})
+    if changed:
+        init_dlthub_workspace(plan, overwrite=overwrite)
     agent_configured = False
     if ai_agent is not None:
         from dlt._workspace._workspace_context import switch_context
-        from dlt._workspace.cli._urls import DEFAULT_AI_WORKBENCH_BRANCH, DEFAULT_AI_WORKBENCH_REPO
         from dlt._workspace.cli.dlthub.ai.commands import ai_init_command
-        from dlt._workspace.cli.dlthub.ai.utils import _INIT_TOOLKIT, is_toolkit_installed
-
-        # the agent setup writes into the workspace that was just created
-        switch_context(plan["run_dir"], required="WorkspaceRunContext")
-        ai_init_command(
-            agent=ai_agent.name,
-            location=DEFAULT_AI_WORKBENCH_REPO,
-            branch=DEFAULT_AI_WORKBENCH_BRANCH,
+        from dlt._workspace.cli.dlthub.ai.utils import (
+            _INIT_TOOLKIT,
+            is_toolkit_installed,
+            load_toolkits_index,
         )
+
+        # the agent setup writes into the workspace that was just created, from the harness
+        # location its installed toolkits recorded
+        switch_context(plan["run_dir"], required="WorkspaceRunContext")
+        installed_toolkits = load_toolkits_index()
+        ai_init_command(agent=ai_agent.name)
+        # every file the agent setup writes is recorded in the toolkits index
+        changed = changed or load_toolkits_index() != installed_toolkits
         # the harness may be unreachable, then the user still has to configure the agent
         agent_configured = is_toolkit_installed(_INIT_TOOLKIT)
-    _print_init_welcome(plan, agent_configured=agent_configured)
+    if changed:
+        _print_init_welcome(plan, agent_configured=agent_configured)
+    else:
+        fmt.echo("Workspace exists. Nothing to do.")

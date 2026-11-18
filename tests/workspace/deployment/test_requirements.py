@@ -4,10 +4,11 @@ import re
 import subprocess
 import sys
 from pathlib import Path
-from typing import Dict, List, Literal, Set, get_args
+from typing import Any, Dict, List, Literal, Set, Tuple, get_args
 from unittest.mock import patch
 
 import pytest
+import tomlkit
 from packaging.requirements import Requirement
 
 import dlt
@@ -43,7 +44,9 @@ from dlt._workspace.deployment.requirements import (
     get_pkg_install_spec,
     load_requirements,
     migrate_requirements,
+    plan_dependency_changes,
     python_version,
+    render_pyproject,
     save_requirements,
     _add_transitive_names,
     _collect_package_names,
@@ -1097,6 +1100,88 @@ def test_render_requirements_lines(spec, expected) -> None:
     from dlt._workspace.deployment.requirements import render_requirements_lines
 
     assert render_requirements_lines(spec) == expected
+
+
+@pytest.mark.parametrize(
+    "uv_sources,expect_tool_section",
+    [
+        ({}, False),
+        ({"dlt": {"path": "/home/me/dlt", "editable": True}}, True),
+        ({"dlt": {"git": "https://example.com/dlt.git", "rev": "abc123"}}, True),
+    ],
+    ids=["empty-omits-tool", "editable-path", "git-with-rev"],
+)
+def test_render_pyproject_emits_uv_sources_when_present(
+    uv_sources: Dict[str, Dict[str, Any]], expect_tool_section: bool
+) -> None:
+    """Valid TOML with `[project]` always; `[tool.uv.sources]` iff the map is non-empty."""
+    deps: List[str] = ["dlt[hub]==1.26.0", "duckdb>=0.9"]
+    parsed = tomlkit.parse(render_pyproject("hello", deps, uv_sources))
+    assert parsed["project"]["name"] == "hello"  # type: ignore[index]
+    assert list(parsed["project"]["dependencies"]) == deps  # type: ignore[index, arg-type]
+    if not expect_tool_section:
+        assert "tool" not in parsed
+        return
+    rendered = parsed["tool"]["uv"]["sources"]  # type: ignore[index]
+    for pkg, src in uv_sources.items():
+        assert dict(rendered[pkg]) == src  # type: ignore[index, arg-type]
+
+
+@pytest.mark.parametrize(
+    "declared,desired,expected",
+    [
+        (["requests"], ["fastmcp>=3.1.0"], [("add", "fastmcp>=3.1.0")]),
+        (["fastmcp>=3.0"], ["fastmcp>=3.1.0"], []),
+        (["dlt[hub]>=1.30"], ["dlt[hub]==1.33.0a1"], []),
+        (["dlt[hub]==1.20.0"], ["dlt[hub]==1.33.0a1"], [("upgrade", "dlt[hub]==1.33.0a1")]),
+        (
+            ["dlt[snowflake]==1.20.0"],
+            ["dlt[hub]==1.33.0a1"],
+            [("upgrade", "dlt[hub,snowflake]==1.33.0a1")],
+        ),
+        (
+            ["DLT[snowflake]>=1.30"],
+            ["dlt[hub]==1.33.0a1"],
+            [("upgrade", "DLT[hub,snowflake]>=1.30")],
+        ),
+        (["fastmcp==4.0"], ["fastmcp>=3.1.0"], [("newer", "fastmcp>=3.1.0")]),
+        (["dlt==2.0"], ["dlt[hub]==1.33.0a1"], [("upgrade", "dlt[hub]==2.0")]),
+        (
+            ["mowidgets==0.1 ; python_version >= '3.11'"],
+            ["mowidgets>=0.2.1"],
+            [("upgrade", 'mowidgets>=0.2.1; python_version >= "3.11"')],
+        ),
+        (
+            ["dlt[hub]==1.20.0"],
+            ["dlt[hub] @ file:///home/me/dlt"],
+            [("upgrade", "dlt[hub]@ file:///home/me/dlt")],
+        ),
+        (["dlt @ git+https://example.com/dlt.git"], ["dlt[hub]==1.33.0a1"], []),
+    ],
+    ids=[
+        "missing-adds",
+        "admits-keeps",
+        "admits-prerelease-keeps",
+        "older-pin-upgrades",
+        "older-pin-keeps-other-extras",
+        "missing-extra-keeps-version",
+        "newer-pin-kept",
+        "newer-pin-gets-extra",
+        "marker-kept",
+        "direct-reference-replaces",
+        "own-source-kept",
+    ],
+)
+def test_plan_dependency_changes(
+    declared: List[str], desired: List[str], expected: List[Tuple[str, str]]
+) -> None:
+    changes = plan_dependency_changes(declared, desired)
+    assert [(change["op"], change["spec"]) for change in changes] == expected
+    for change in changes:
+        if change["op"] == "add":
+            assert "declared" not in change
+        else:
+            assert change["declared"] in declared
 
 
 def test_get_workspace_install_specs_includes_dlt_with_hub_extra() -> None:

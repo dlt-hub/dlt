@@ -3,6 +3,7 @@ from typing import Any, Dict, List, Literal, Optional
 from dlt.common.typing import NotRequired, TypedDict
 
 from dlt._workspace.cli.dlthub.ai.typing import TToolkitIndexEntry
+from dlt._workspace.deployment.typing import TDependencyChange
 from dlt._workspace.typing import TEnvironmentDefinition, TProfileDefinition, TProviderInfo
 
 
@@ -97,7 +98,8 @@ class TDeploymentManifestInfo(TypedDict):
 
 TInitDependencySystem = Literal["pyproject.toml", "requirements.txt"]
 TInitDependencyChoice = Literal["auto", "pyproject", "requirements"]
-TInitFileStatus = Literal["create", "skip", "conflict"]
+TInitFileStatus = Literal["create", "skip", "merge", "overwrite"]
+TInitMergeError = Literal["uv_missing", "no_project_table"]
 
 
 class TInitFileEntry(TypedDict):
@@ -117,6 +119,8 @@ class TInitPlan(TypedDict):
     uv_available: bool
     dependency_specs: List[str]
     """`[project.dependencies]` array contents."""
+    requires_python: str
+    """`[project] requires-python`: the running Python and newer ones that dlt supports."""
     uv_sources: Dict[str, Dict[str, Any]]
     """`[tool.uv.sources]` map; empty for pure-PyPI installs."""
     requirements_lines: List[str]
@@ -124,3 +128,9 @@ class TInitPlan(TypedDict):
     workspace_deps: List[str]
     files: List[TInitFileEntry]
     workspace_exists: bool
+    gitignore_additions: List[str]
+    """Required entries that an existing `.gitignore` lacks, written on merge."""
+    dependency_changes: List[TDependencyChange]
+    """Changes to the existing dependency file, written on merge."""
+    merge_error: NotRequired[TInitMergeError]
+    """Why the existing dependency file cannot take the dependency changes."""

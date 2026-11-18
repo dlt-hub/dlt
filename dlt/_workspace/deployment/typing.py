@@ -168,6 +168,21 @@ class TInstallSpec(TypedDict):
     archive_url: NotRequired[str]
 
 
+TDependencyChangeOp = Literal["add", "upgrade", "newer"]
+
+
+class TDependencyChange(TypedDict):
+    """A change that brings a declared dependency up to what a workspace needs."""
+
+    name: str
+    op: TDependencyChangeOp
+    """`add` a missing spec, `upgrade` a declared one, or keep a declared `newer` one."""
+    spec: str
+    """The spec to write. For `newer`, the spec the workspace needs."""
+    declared: NotRequired[str]
+    """The declared spec that `upgrade` replaces or `newer` keeps."""
+
+
 class TEntryPoint(TypedDict):
     """How to invoke the job code."""
 

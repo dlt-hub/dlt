@@ -2,7 +2,12 @@
 
 import os
 import shutil
+from pathlib import Path
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Set
+
+import tomlkit
+from packaging.specifiers import SpecifierSet
+from packaging.utils import canonicalize_name
 
 import dlt
 from dlt.common.configuration.container import Container
@@ -13,9 +18,11 @@ from dlt.common.configuration.specs.pluggable_run_context import (
 )
 from dlt.common.runtime.exec_info import get_dlthub_version
 from dlt.common.storages.file_storage import FileStorage
+from dlt.version import get_requires_python
 
 from dlt._workspace._workspace_context import WorkspaceRunContext
 from dlt._workspace.cli import echo as fmt
+from dlt._workspace.cli._pipeline_files import get_single_file_templates_storage
 from dlt._workspace.cli.exceptions import CliCommandException
 from dlt._workspace.cli.utils import (
     PYPROJECT_TOML,
@@ -36,6 +43,7 @@ from dlt._workspace.cli.dlthub.typing import (
     TInitDependencySystem,
     TInitFileEntry,
     TInitFileStatus,
+    TInitMergeError,
     TInitPlan,
     TEnvironmentInfo,
     TProfileInfo,
@@ -59,10 +67,14 @@ from dlt._workspace.deployment.requirements import (
     dlt_extra_specs,
     floored_spec,
     get_workspace_install_specs,
+    is_uv_available,
+    plan_dependency_file_changes,
+    python_version,
     render_pep508,
     render_requirements_lines,
     render_uv_source,
 )
+from dlt._workspace.deployment.typing import TDependencyChange, TInstallSpec
 from dlt._workspace.settings_files import read_profile_pin
 from dlt._workspace.typing import DEFAULT_DEPLOYMENT_MODULE, TLocationInfo, TProviderInfo
 
@@ -83,9 +95,23 @@ def workspace_deps() -> List[str]:
     ]
 
 
-def is_uv_available() -> bool:
-    """Return `True` if the `uv` binary is on PATH."""
-    return shutil.which("uv") is not None
+GITIGNORE_FILE = ".gitignore"
+
+
+def get_missing_gitignore_entries(existing: str, template: str) -> List[str]:
+    """Patterns of the required block of the `.gitignore` `template` that `existing` lacks.
+
+    The required block is the top of the template, up to the first empty line.
+    """
+    present = {line.strip() for line in existing.splitlines()}
+    missing: List[str] = []
+    for line in template.splitlines():
+        pattern = line.strip()
+        if not pattern:
+            break
+        if not pattern.startswith("#") and pattern not in present:
+            missing.append(pattern)
+    return missing
 
 
 def _may_safe_delete_local(run_context: RunContextBase, deleted_dir_type: str) -> bool:
@@ -336,8 +362,7 @@ def fetch_workspace_info() -> TWorkspaceInfo:
     # initialized: config.toml exists in settings dir
     initialized = os.path.isfile(make_dlt_settings_path("config.toml"))
 
-    # installed toolkits from local index
-    installed_toolkits: Dict[str, TToolkitIndexEntry] = load_toolkits_index()
+    installed_toolkits: Dict[str, TToolkitIndexEntry] = load_toolkits_index(hide_init=True)
 
     return TWorkspaceInfo(
         name=name,
@@ -467,70 +492,66 @@ def fetch_deployment_info() -> TDeploymentManifestInfo:
     return info
 
 
-def _make_init_entry(path: str, *, accept_existing: bool, force: bool) -> TInitFileEntry:
+def _make_init_entry(path: str, *, keep: bool) -> TInitFileEntry:
     status: TInitFileStatus
-    if os.path.exists(path):
-        if accept_existing:
-            status = "skip"
-        elif force:
-            status = "create"
-        else:
-            status = "conflict"
-    else:
+    if not os.path.exists(path):
         status = "create"
-    return TInitFileEntry(path=path, status=status, accept_existing=accept_existing)
+    elif keep:
+        status = "skip"
+    else:
+        status = "overwrite"
+    return TInitFileEntry(path=path, status=status, accept_existing=keep)
+
+
+def _has_project_table(pyproject_path: str) -> bool:
+    with open(pyproject_path, encoding="utf-8") as f:
+        return "project" in tomlkit.parse(f.read())
 
 
 def fetch_init_plan(
     run_dir: str,
     *,
     name: Optional[str] = None,
-    force: bool = False,
+    overwrite: bool = False,
+    skip: bool = False,
     dependencies: TInitDependencyChoice = "auto",
     agent: Optional["_AIAgent"] = None,
 ) -> TInitPlan:
     """Build a plan describing what `dlthub init` would write.
 
-    `agent`, when given, decides which packages the workspace depends on.
+    `agent`, when given, decides which packages the workspace depends on. Without `overwrite` or
+    `skip`, an existing `.gitignore` gets the missing required entries and an existing dependency
+    file the missing or outdated dependencies.
     """
     # `dependencies` overrides uv detection: "pyproject" forces pyproject.toml,
     # "requirements" forces requirements.txt, "auto" uses uv-on-PATH as the signal
     abs_run_dir = os.path.abspath(run_dir)
     project_name = name or os.path.basename(abs_run_dir)
+    merge = not (overwrite or skip)
     uv = is_uv_available()
     if dependencies == "pyproject":
         dependency_system: TInitDependencySystem = PYPROJECT_TOML  # type: ignore[assignment]
     elif dependencies == "requirements":
         dependency_system = REQUIREMENTS_TXT  # type: ignore[assignment]
+    elif not skip and os.path.isfile(os.path.join(abs_run_dir, PYPROJECT_TOML)):
+        dependency_system = PYPROJECT_TOML  # type: ignore[assignment]
+    elif not skip and os.path.isfile(os.path.join(abs_run_dir, REQUIREMENTS_TXT)):
+        dependency_system = REQUIREMENTS_TXT  # type: ignore[assignment]
     else:
         dependency_system = PYPROJECT_TOML if uv else REQUIREMENTS_TXT  # type: ignore[assignment]
 
     # .workspace is overall marker if workspace exists or not
-    keep_existing = not force
     workspace_marker = os.path.join(abs_run_dir, ".dlt", ".workspace")
+    dependency_path = os.path.join(abs_run_dir, dependency_system)
+    gitignore_path = os.path.join(abs_run_dir, GITIGNORE_FILE)
 
+    # settings files are always kept, the dlthub scaffold is replaced only with `overwrite`
     files: List[TInitFileEntry] = [
-        _make_init_entry(
-            os.path.join(abs_run_dir, dependency_system),
-            accept_existing=keep_existing,
-            force=force,
-        ),
-        _make_init_entry(
-            os.path.join(abs_run_dir, ".gitignore"),
-            accept_existing=keep_existing,
-            force=force,
-        ),
-        _make_init_entry(
-            os.path.join(abs_run_dir, ".dlt", "config.toml"),
-            accept_existing=True,
-            force=force,
-        ),
-        _make_init_entry(
-            os.path.join(abs_run_dir, ".dlt", "secrets.toml"),
-            accept_existing=True,
-            force=force,
-        ),
-        _make_init_entry(workspace_marker, accept_existing=keep_existing, force=force),
+        _make_init_entry(dependency_path, keep=not overwrite),
+        _make_init_entry(gitignore_path, keep=not overwrite),
+        _make_init_entry(os.path.join(abs_run_dir, ".dlt", "config.toml"), keep=True),
+        _make_init_entry(os.path.join(abs_run_dir, ".dlt", "secrets.toml"), keep=True),
+        _make_init_entry(workspace_marker, keep=not overwrite),
     ]
 
     # reproduce dlt[hub]/dlthub/dlthub-client install modes (editable/path/git) in the
@@ -552,15 +573,50 @@ def fetch_init_plan(
         requirements_lines.extend(render_requirements_lines(s))
     requirements_lines.extend(deps)
 
-    return TInitPlan(
+    gitignore_additions: List[str] = []
+    dependency_changes: List[TDependencyChange] = []
+    merge_error: Optional[TInitMergeError] = None
+    if merge and os.path.isfile(gitignore_path):
+        with open(gitignore_path, encoding="utf-8") as f:
+            existing_gitignore = f.read()
+        gitignore_additions = get_missing_gitignore_entries(
+            existing_gitignore, get_single_file_templates_storage().load(GITIGNORE_FILE)
+        )
+        if gitignore_additions:
+            files[1]["status"] = "merge"
+    if merge and os.path.isfile(dependency_path):
+        # `uv add` needs a `[project]` table, a pyproject with tool settings only has none
+        if dependency_system == PYPROJECT_TOML and not _has_project_table(dependency_path):
+            merge_error = "no_project_table"
+        else:
+            dependency_changes = plan_dependency_file_changes(
+                Path(dependency_path), dependency_specs, workspace_specs
+            )
+        if any(change["op"] != "newer" for change in dependency_changes):
+            files[0]["status"] = "merge"
+            if dependency_system == PYPROJECT_TOML and not uv:
+                merge_error = "uv_missing"
+
+    # like `uv init`: the running Python and newer ones, which the packages pinned from this
+    # environment all support, up to the newest Python dlt supports
+    dlt_upper_bounds = [
+        str(s) for s in SpecifierSet(get_requires_python() or "") if s.operator in ("<", "<=")
+    ]
+    plan = TInitPlan(
         run_dir=abs_run_dir,
         project_name=project_name,
         dependency_system=dependency_system,
         uv_available=uv,
         dependency_specs=dependency_specs,
+        requires_python=", ".join([f">={python_version()}", *dlt_upper_bounds]),
         uv_sources=uv_sources,
         requirements_lines=requirements_lines,
         workspace_deps=deps,
         files=files,
         workspace_exists=os.path.isfile(workspace_marker),
+        gitignore_additions=gitignore_additions,
+        dependency_changes=dependency_changes,
     )
+    if merge_error:
+        plan["merge_error"] = merge_error
+    return plan
