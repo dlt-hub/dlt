@@ -4,6 +4,7 @@ from fsspec import AbstractFileSystem
 
 import dlt
 from dlt.common import logger
+from dlt.common.utils import sanitize_location_url
 from dlt.common.configuration import resolve_type
 from dlt.common.configuration.specs import known_sections
 from dlt.common.configuration.specs.config_section_context import ConfigSectionContext
@@ -52,7 +53,7 @@ def record_bucket_input(bucket_url: str, file_glob: str) -> None:
             TFilesystemDataLocation(
                 kind="filesystem",
                 resource_name=resource.name,
-                location=(
+                location=sanitize_location_url(
                     FilesystemConfiguration.make_file_url(bucket_url)
                     if FilesystemConfiguration.is_local_path(bucket_url)
                     else bucket_url

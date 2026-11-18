@@ -9,6 +9,7 @@ from packaging.version import Version
 from dlt.common.typing import DictStrAny, DictStrOptionalStr
 
 from dlt.common import logger
+from dlt.common.utils import sanitize_location_url
 from dlt.common.configuration import configspec, resolve_type
 from dlt.common.configuration.specs.hf_credentials import HfCredentials
 from dlt.common.destination.attach import TAttachType
@@ -102,7 +103,9 @@ class FilesystemDestinationClientConfiguration(  # type: ignore[misc]
         url = urlparse(self.bucket_url)
         if url.scheme == "file":
             return self.make_local_path(self.bucket_url)
-        return f"{url.scheme}://{url.netloc}"
+        # Do not include userinfo (username/password) in trace lineage. Note
+        # scheme://netloc may still contain the username for abfss (container).
+        return sanitize_location_url(f"{url.scheme}://{url.netloc}")
 
     def can_write_from(self, other: DestinationClientConfiguration) -> bool:
         """Filesystem does not have an engine that can write. `dlt` is that engine,
