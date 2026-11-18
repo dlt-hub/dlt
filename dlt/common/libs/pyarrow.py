@@ -1,5 +1,6 @@
 import base64
 import gzip
+import secrets
 import uuid
 from datetime import time  # noqa: I251
 from functools import lru_cache
@@ -28,7 +29,10 @@ from dlt.common.schema.typing import TColumnType
 from dlt.common.schema.utils import is_nullable_column, dlt_load_id_column
 from dlt.common.time import UTC_NAME, get_context_timezone_name, get_precision_from_datetime_unit
 from dlt.common.typing import AnyType, StrStr, TFileOrPath, TDataItems
+from dlt.common.normalizers.json.helpers import get_row_hash
 from dlt.common.normalizers.naming import NamingConvention
+from dlt.common.normalizers.typing import TRowIdType
+from dlt.common.normalizers.utils import DLT_ID_LENGTH_BYTES
 
 try:
     import pyarrow
@@ -50,6 +54,8 @@ TAnyArrowItem = Union[pyarrow.Table, pyarrow.RecordBatch]
 
 ARROW_DECIMAL_MAX_PRECISION = 76
 ARROW_UUID_EXTENSION_NAME = "arrow.uuid"
+ROW_HASH_CHUNK_SIZE = 10000
+"""Number of rows converted to Python objects at once when hashing rows"""
 
 
 class UnsupportedArrowTypeException(DltException):
@@ -786,6 +792,76 @@ def add_dlt_load_id_column(
     )
 
     return item
+
+
+def generate_dlt_ids_array(num_rows: int, len_: int = DLT_ID_LENGTH_BYTES) -> pyarrow.Array:
+    """Generates `num_rows` random dlt ids like `generate_dlt_ids`, as an arrow string array."""
+    # pad each id to whole 3 byte groups so the joined buffer encodes id by id in a single call
+    padded_len = -(-len_ // 3) * 3
+    buffer: Union[bytes, bytearray] = secrets.token_bytes(num_rows * len_)
+    if padded_len != len_:
+        padded = bytearray(num_rows * padded_len)
+        view = memoryview(padded)
+        for i in range(len_):
+            view[i::padded_len] = buffer[i::len_]
+        buffer = padded
+    encoded = pyarrow.FixedSizeBinaryArray.from_buffers(
+        pyarrow.binary(padded_len // 3 * 4),
+        num_rows,
+        [None, pyarrow.py_buffer(base64.b64encode(buffer))],
+    )
+    # drop the characters that encode the padding, like `rstrip("=")` does
+    return pyarrow.compute.binary_slice(encoded, 0, -(-len_ * 4 // 3)).cast(pyarrow.string())
+
+
+def get_dlt_ids(
+    item: TAnyArrowItem,
+    naming: NamingConvention,
+    row_id_type: TRowIdType = "random",
+    primary_key: Sequence[str] = None,
+) -> pyarrow.Array:
+    """Generates `_dlt_id` values for the rows of `item` like the relational normalizer does.
+
+    Args:
+        item (TAnyArrowItem): Arrow table or record batch.
+        naming (NamingConvention): Naming convention that normalizes field names of `item`.
+        row_id_type (TRowIdType): `random` ids, `key_hash` of `primary_key` columns or
+            `row_hash` of all columns except dlt columns.
+        primary_key (Sequence[str]): Normalized names of primary key columns used by `key_hash`.
+
+    Returns:
+        pyarrow.Array: String array with an id for each row.
+    """
+    if row_id_type == "random":
+        return generate_dlt_ids_array(item.num_rows)
+    subset: List[str] = None
+    if row_id_type == "key_hash":
+        subset = list(primary_key)
+        rev_mapping = {
+            v: k for k, v in get_normalized_arrow_fields_mapping(item.schema, naming).items()
+        }
+        # key hash is computed on normalized names
+        item = rename_columns(item.select([rev_mapping[key] for key in subset]), subset)
+    hashes: List[str] = []
+    for offset in range(0, item.num_rows, ROW_HASH_CHUNK_SIZE):
+        rows = item.slice(offset, ROW_HASH_CHUNK_SIZE).to_pylist()
+        hashes.extend(get_row_hash(row, subset) for row in rows)
+    return pyarrow.array(hashes, type=pyarrow.string())
+
+
+def add_dlt_id_column(
+    item: TAnyArrowItem,
+    naming: NamingConvention,
+    row_id_type: TRowIdType = "random",
+    primary_key: Sequence[str] = None,
+) -> TAnyArrowItem:
+    """Appends the `_dlt_id` column with ids from `get_dlt_ids`. An existing column is kept,
+    like in the relational normalizer.
+    """
+    dlt_id_col_name = naming.normalize_identifier(C_DLT_ID)
+    if dlt_id_col_name in get_normalized_arrow_fields_mapping(item.schema, naming).values():
+        return item
+    return append_column(item, dlt_id_col_name, get_dlt_ids(item, naming, row_id_type, primary_key))
 
 
 def get_normalized_arrow_fields_mapping(schema: pyarrow.Schema, naming: NamingConvention) -> StrStr:

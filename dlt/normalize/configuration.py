@@ -14,7 +14,8 @@ from dlt.common.storages import (
 @configspec
 class ItemsNormalizerConfiguration(BaseConfiguration):
     add_dlt_id: bool = False
-    """When true, items to be normalized will have `_dlt_id` column added with a unique ID for each row."""
+    """When true, items to be normalized will have `_dlt_id` column added with an ID for each row:
+    random or a hash of the primary key or of the row, depending on the merge strategy."""
     add_dlt_load_id: bool = False
     """When true, items to be normalized will have `_dlt_load_id` column added with the current load ID."""
 

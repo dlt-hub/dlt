@@ -700,8 +700,14 @@ If your source data contains nested fields (like lists or arrays) that may retur
 
 ### 🧪 Use scd2 with Arrow tables, Pandas or Polars DataFrames
 
-`dlt` will not add a **row hash** column to the tabular data automatically (we are working on it).
-You need to do that yourself by adding a transform function to the `scd2` resource that computes row hashes (using pandas.util, should be fairly fast).
+`dlt` does not add a **row hash** column to tabular data by default. Enable `add_dlt_id` of the [parquet normalizer](../dlt-ecosystem/verified-sources/arrow-pandas.md#add-_dlt_load_id-and-_dlt_id-to-your-tables) to compute it into `_dlt_id`, like for Python objects:
+
+```toml
+[normalize.parquet_normalizer]
+add_dlt_id = true
+```
+
+The hash is computed row by row. For large tables, add your own row hash column with a transform function that computes row hashes with `pandas.util`, which is faster.
 
 ```py notype
 import dlt

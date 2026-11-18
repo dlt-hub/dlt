@@ -15,6 +15,7 @@ from dlt.common.runtime.collector import Collector, NULL_COLLECTOR
 from dlt.common.typing import TDataItems, TDataItem, TLoaderFileFormat
 from dlt.common.schema import Schema, utils
 from dlt.common.schema.typing import (
+    C_DLT_ID,
     C_DLT_LOAD_ID,
     TSchemaContractDict,
     TSchemaEvolutionMode,
@@ -24,6 +25,7 @@ from dlt.common.schema.typing import (
 )
 from dlt.common.libs.sqlglot import filter_select_column_names
 from dlt.common.normalizers.json import helpers as normalize_helpers
+from dlt.common.normalizers.json.relational import DataItemNormalizer as RelationalNormalizer
 
 from dlt.extract.hints import TResourceHints
 from dlt.extract.resource import DltResource
@@ -370,8 +372,8 @@ class ModelExtractor(Extractor):
 class ArrowExtractor(Extractor):
     """Extracts arrow data items into parquet. Normalizes arrow items column names.
     Compares the arrow schema to actual dlt table schema to reorder the columns and to
-    insert missing columns (without data). Adds _dlt_load_id column to the table if
-    `add_dlt_load_id` is set to True in normalizer config.
+    insert missing columns (without data). Adds `_dlt_load_id` and `_dlt_id` columns to the
+    table if `add_dlt_load_id` and `add_dlt_id` are set to True in normalizer config.
 
     We do things that normalizer should do here so we do not need to load and save parquet
     files again later.
@@ -385,8 +387,13 @@ class ArrowExtractor(Extractor):
     def __init__(self, *args: Any, **kwargs: Any) -> None:
         super().__init__(*args, **kwargs)
         self._normalize_config = self._retrieve_normalize_config()
+        # only the relational normalizer generates `_dlt_id` for Python objects
+        self._add_dlt_id = self._normalize_config.add_dlt_id and isinstance(
+            self.schema.data_item_normalizer, RelationalNormalizer
+        )
         self._computed_arrow_fields: Dict[str, Tuple[str, Dict[str, "pa.Field"]]] = {}
         """Resource name and arrow fields of items that last computed each table"""
+        self._verified_tables: Set[str] = set()
 
     def _retrieve_normalize_config(self) -> ItemsNormalizerConfiguration:
         """Get normalizer settings that are used here"""
@@ -460,6 +467,26 @@ class ArrowExtractor(Extractor):
         columns = columns or self.schema.get_table_columns(table_name)
         # tables with dynamic names receive a single item
         items_list = items if isinstance(items, list) else [items]
+        # dlt columns are added before normalization which puts them in the schema order
+        if self._add_dlt_id:
+            row_id_type = normalize_helpers.get_root_row_id_type(self.schema, table_name)
+            primary_key = normalize_helpers.get_primary_key(self.schema, table_name)
+            # rows are hashed before contract filters, like in the relational normalizer
+            items_list = [
+                pyarrow.add_dlt_id_column(item, self.naming, row_id_type, primary_key)
+                for item in items_list
+            ]
+        if self._normalize_config.add_dlt_load_id:
+            items_list = [
+                pyarrow.add_dlt_load_id_column(
+                    item,
+                    columns,
+                    self._caps,
+                    self.naming,
+                    self.load_id,
+                )
+                for item in items_list
+            ]
         items = [
             pyarrow.normalize_py_arrow_item(
                 # contract filters are known after the table was computed
@@ -470,18 +497,6 @@ class ArrowExtractor(Extractor):
             )
             for item in items_list
         ]
-
-        if self._normalize_config.add_dlt_load_id:
-            items = [
-                pyarrow.add_dlt_load_id_column(
-                    item,
-                    columns,
-                    self._caps,
-                    self.naming,
-                    self.load_id,
-                )
-                for item in items
-            ]
 
         # write items one by one
         super()._write_item(table_name, resource_name, items, columns)
@@ -564,6 +579,11 @@ class ArrowExtractor(Extractor):
                         " schema and data were unmodified. It is up to destination to coerce the"
                         " differences when loading. Change log level to INFO for more details."
                     )
+                # added after the override check: resource hints (ie. scd2 row version) override
+                # `row_key` and `unique` of the default definition
+                dlt_id = self.naming.normalize_identifier(C_DLT_ID)
+                if self._add_dlt_id and dlt_id not in arrow_table["columns"]:
+                    arrow_table["columns"][dlt_id] = {**utils.dlt_id_column(), "name": dlt_id}
                 utils.merge_columns(arrow_table["columns"], computed_table["columns"])
                 arrow_tables[computed_table["name"]] = arrow_table
 
@@ -575,5 +595,14 @@ class ArrowExtractor(Extractor):
         # contract filters are computed again for `items`
         self._filtered_columns.pop(root_table_name, None)
         items = super()._compute_and_update_tables(resource, root_table_name, items, meta)
-        self._computed_arrow_fields[root_table_name] = (resource.name, get_arrow_fields(items))
+        arrow_fields = get_arrow_fields(items)
+        self._computed_arrow_fields[root_table_name] = (resource.name, arrow_fields)
+        if root_table_name not in self._verified_tables:
+            self._verified_tables.add(root_table_name)
+            column_names = {self.naming.normalize_path(name) for name in arrow_fields}
+            if self._normalize_config.add_dlt_load_id:
+                column_names.add(self.naming.normalize_identifier(C_DLT_LOAD_ID))
+            if self._add_dlt_id:
+                column_names.add(self.naming.normalize_identifier(C_DLT_ID))
+            normalize_helpers.verify_arrow_dlt_columns(self.schema, root_table_name, column_names)
         return items

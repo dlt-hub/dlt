@@ -8,10 +8,12 @@ import pandas as pd
 import pyarrow as pa
 
 import dlt
-from dlt.common import json, Decimal
+from dlt.common import json, logger, Decimal
 from dlt.common.configuration.container import Container
 from dlt.common.configuration.specs.timezone_context import TimezoneContext
 from dlt.common.data_writers.writers import count_rows_in_items
+from dlt.common.schema.exceptions import UnboundColumnException
+from dlt.common.schema.typing import TLoaderMergeStrategy
 from dlt.common.time import ensure_pendulum_datetime
 from dlt.common.utils import uniq_id
 from dlt.common.libs.pyarrow import (
@@ -22,6 +24,7 @@ from dlt.common.libs.pyarrow import (
 from dlt.extract.hints import make_hints
 
 from dlt.pipeline.exceptions import PipelineStepFailed
+from dlt.sources.helpers.transform import add_row_hash_to_table
 from tests.cases import (
     arrow_table_all_data_types,
     prepare_shuffled_tables,
@@ -744,6 +747,232 @@ def test_replace_or_keep_existing_dlt_load_id(has_dlt_column: bool, add_dlt_load
 
         # Assert the other columns remain unchanged, just in case
         assert normalized_table["column1"].to_pylist() == [f"value_{i}" for i in range(num_rows)]
+
+
+@pytest.mark.parametrize("item_type", ["pandas", "arrow-table", "arrow-batch"])
+def test_extract_adds_dlt_id(item_type: TPythonTableFormat) -> None:
+    os.environ["NORMALIZE__PARQUET_NORMALIZER__ADD_DLT_LOAD_ID"] = "True"
+    os.environ["NORMALIZE__PARQUET_NORMALIZER__ADD_DLT_ID"] = "True"
+    os.environ["DESTINATION__LOADER_FILE_FORMAT"] = "parquet"
+
+    item, _, _ = arrow_table_all_data_types(item_type, num_rows=5432)
+
+    @dlt.resource
+    def some_data():
+        yield item
+
+    pipeline: dlt.Pipeline = dlt.pipeline("arrow_" + uniq_id(), destination="duckdb")
+    info = pipeline.extract(some_data())
+
+    jobs = info.load_packages[0].jobs["new_jobs"]
+    extracted_file = [job for job in jobs if "some_data" in job.file_path][0].file_path
+    extracted = pa.parquet.read_table(extracted_file)
+    dlt_ids = extracted["_dlt_id"].to_pylist()
+    assert len(set(dlt_ids)) == 5432
+    # file and schema have the same column order so normalize does not need to rewrite the file
+    assert extracted.schema.names == list(pipeline.default_schema.get_table_columns("some_data"))
+    assert extracted.schema.names[-2:] == ["_dlt_load_id", "_dlt_id"]
+
+    n_info = pipeline.normalize()
+    jobs = n_info.load_packages[0].jobs["new_jobs"]
+    normalized_file = [job for job in jobs if "some_data" in job.file_path][0].file_path
+    # ids are not generated again
+    assert pa.parquet.read_table(normalized_file)["_dlt_id"].to_pylist() == dlt_ids
+
+
+@pytest.mark.parametrize("strategy", ["upsert", "scd2"])
+def test_arrow_dlt_id_follows_row_id_type(strategy: TLoaderMergeStrategy) -> None:
+    """Arrow tables get the same `_dlt_id` as Python objects: a primary key hash for upsert and a
+    row hash for scd2, so unchanged rows keep their ids between loads."""
+    os.environ["NORMALIZE__PARQUET_NORMALIZER__ADD_DLT_LOAD_ID"] = "True"
+    os.environ["NORMALIZE__PARQUET_NORMALIZER__ADD_DLT_ID"] = "True"
+
+    def items(rows: Any, as_arrow: bool, table_name: str) -> Any:
+        resource = dlt.resource(
+            pa.Table.from_pylist(rows) if as_arrow else rows,
+            name=table_name,
+            write_disposition={"disposition": "merge", "strategy": strategy},
+        )
+        if strategy == "upsert":
+            resource.apply_hints(primary_key="id")
+        return resource
+
+    def dlt_ids(table_name: str) -> Any:
+        return sorted(r["_dlt_id"] for r in load_tables_to_dicts(pipeline, table_name)[table_name])
+
+    pipeline = dlt.pipeline("arrow_" + uniq_id(), destination="duckdb", dev_mode=True)
+    rows = [{"id": 1, "name": "a"}, {"id": 2, "name": "b"}]
+    pipeline.run([items(rows, True, "arrow_items"), items(rows, False, "python_items")])
+    assert dlt_ids("arrow_items") == dlt_ids("python_items")
+
+    # change one row
+    pipeline.run(items([{"id": 1, "name": "a"}, {"id": 2, "name": "B"}], True, "arrow_items"))
+    arrow_rows = load_tables_to_dicts(pipeline, "arrow_items")["arrow_items"]
+    if strategy == "scd2":
+        # only the changed row was retired
+        assert len(arrow_rows) == 3
+        assert [r["name"] for r in arrow_rows if r["_dlt_valid_to"] is not None] == ["b"]
+    else:
+        assert sorted(r["name"] for r in arrow_rows) == ["B", "a"]
+        assert dlt_ids("arrow_items") == dlt_ids("python_items")
+
+
+@pytest.mark.parametrize("add_dlt_id", [True, False], ids=["add-dlt-id", "no-dlt-id"])
+@pytest.mark.parametrize("item_type", ["pandas", "arrow-table", "arrow-batch"])
+def test_arrow_scd2_keeps_own_row_version(item_type: TPythonTableFormat, add_dlt_id: bool) -> None:
+    """scd2 with a row hash from `add_row_hash_to_table` in `row_version_column_name` keeps the
+    hash. `_dlt_id` gets a random id like for Python objects."""
+    os.environ["NORMALIZE__PARQUET_NORMALIZER__ADD_DLT_ID"] = str(add_dlt_id)
+
+    def items(rows: Any) -> Any:
+        item = (
+            pd.DataFrame(rows)
+            if item_type == "pandas"
+            else arrow_item_from_table(pa.Table.from_pylist(rows), item_type)
+        )
+        return dlt.resource(
+            item,
+            name="items",
+            write_disposition={
+                "disposition": "merge",
+                "strategy": "scd2",
+                "row_version_column_name": "row_hash",
+            },
+        ).add_map(add_row_hash_to_table("row_hash"))
+
+    def expected_hashes(rows: Any) -> Any:
+        return sorted(
+            add_row_hash_to_table("row_hash")(pa.Table.from_pylist(rows))["row_hash"].to_pylist()
+        )
+
+    pipeline = dlt.pipeline("arrow_" + uniq_id(), destination="duckdb", dev_mode=True)
+    rows = [{"id": 1, "name": "a"}, {"id": 2, "name": "b"}]
+    pipeline.run(items(rows))
+    loaded = load_tables_to_dicts(pipeline, "items")["items"]
+    assert sorted(r["row_hash"] for r in loaded) == expected_hashes(rows)
+    if add_dlt_id:
+        assert pipeline.default_schema.tables["items"]["columns"]["_dlt_id"]["row_key"] is True
+        assert len({r["_dlt_id"] for r in loaded}) == 2
+    else:
+        assert "_dlt_id" not in pipeline.default_schema.tables["items"]["columns"]
+
+    # unchanged rows are not retired
+    pipeline.run(items(rows))
+    assert len(load_tables_to_dicts(pipeline, "items")["items"]) == 2
+
+    # change one row
+    pipeline.run(items([{"id": 1, "name": "a"}, {"id": 2, "name": "B"}]))
+    loaded = load_tables_to_dicts(pipeline, "items")["items"]
+    assert len(loaded) == 3
+    assert [r["name"] for r in loaded if r["_dlt_valid_to"] is not None] == ["b"]
+
+
+@pytest.mark.parametrize("add_dlt_id", [True, False], ids=["add-dlt-id", "no-dlt-id"])
+@pytest.mark.parametrize("strategy", [None, "scd2"], ids=["append", "scd2"])
+def test_arrow_keeps_own_dlt_id(strategy: TLoaderMergeStrategy, add_dlt_id: bool) -> None:
+    """Own `_dlt_id` in the data (bring your own `row_key`) is kept for arrow tables like for
+    Python objects."""
+    os.environ["NORMALIZE__PARQUET_NORMALIZER__ADD_DLT_ID"] = str(add_dlt_id)
+
+    def items(rows: Any, as_arrow: bool, table_name: str) -> Any:
+        resource = dlt.resource(pa.Table.from_pylist(rows) if as_arrow else rows, name=table_name)
+        if strategy:
+            resource.apply_hints(write_disposition={"disposition": "merge", "strategy": strategy})
+        return resource
+
+    def loaded_ids(table_name: str) -> Any:
+        return sorted(r["_dlt_id"] for r in load_tables_to_dicts(pipeline, table_name)[table_name])
+
+    pipeline = dlt.pipeline("arrow_" + uniq_id(), destination="duckdb", dev_mode=True)
+    rows = [{"id": 1, "name": "a", "_dlt_id": 10}, {"id": 2, "name": "b", "_dlt_id": 20}]
+    pipeline.run([items(rows, True, "arrow_items"), items(rows, False, "python_items")])
+    for table_name in ("arrow_items", "python_items"):
+        assert loaded_ids(table_name) == [10, 20]
+        columns = pipeline.default_schema.tables[table_name]["columns"]
+        assert columns["_dlt_id"]["data_type"] == "bigint"
+
+    if strategy == "scd2":
+        # own ids are row versions: unchanged rows are not retired
+        pipeline.run([items(rows, True, "arrow_items"), items(rows, False, "python_items")])
+        assert loaded_ids("arrow_items") == loaded_ids("python_items") == [10, 20]
+
+
+@pytest.mark.parametrize("add_dlt_columns", [False, True], ids=["default", "add-dlt-columns"])
+@pytest.mark.parametrize(
+    "first_backend", ["arrow", "python"], ids=["arrow-to-python", "python-to-arrow"]
+)
+def test_backend_switch_warns(first_backend: str, add_dlt_columns: bool, mocker: Any) -> None:
+    """Python objects get NOT NULL `_dlt_load_id` and `_dlt_id`, arrow tables do not by default.
+    Normalize warns when a table switches between them, unless the parquet normalizer adds
+    the dlt columns to arrow tables."""
+    if add_dlt_columns:
+        os.environ["NORMALIZE__PARQUET_NORMALIZER__ADD_DLT_LOAD_ID"] = "True"
+        os.environ["NORMALIZE__PARQUET_NORMALIZER__ADD_DLT_ID"] = "True"
+    rows = [{"id": i, "name": f"n{i}"} for i in range(3)]
+
+    def items(backend: str) -> Any:
+        return dlt.resource(
+            pa.Table.from_pylist(rows) if backend == "arrow" else rows,
+            name="items",
+            primary_key="id",
+            write_disposition="merge",
+        )
+
+    pipeline = dlt.pipeline("arrow_" + uniq_id(), destination="duckdb", dev_mode=True)
+    pipeline.run(items(first_backend))
+
+    logger_spy = mocker.spy(logger, "warning")
+    pipeline.extract(items("python" if first_backend == "arrow" else "arrow"))
+    pipeline.normalize()
+    warnings = [
+        call.args[0]
+        for call in logger_spy.call_args_list
+        if "[normalize.parquet_normalizer]" in call.args[0]
+    ]
+    if add_dlt_columns:
+        assert warnings == []
+        pipeline.load()
+        assert len(load_tables_to_dicts(pipeline, "items")["items"]) == 3
+    else:
+        assert len(warnings) == 1
+        assert "['_dlt_load_id', '_dlt_id']" in warnings[0]
+        assert 'refresh="drop_resources"' in warnings[0]
+
+
+@pytest.mark.parametrize("python_first", [False, True], ids=["arrow-only", "python-to-arrow"])
+def test_arrow_scd2_without_row_hash_warns(python_first: bool, mocker: Any) -> None:
+    """scd2 compares row hashes in `_dlt_id` which arrow tables do not get by default. Extract
+    warns before any data is normalized."""
+    rows = [{"id": 1, "name": "a"}, {"id": 2, "name": "b"}]
+
+    def items(as_arrow: bool) -> Any:
+        return dlt.resource(
+            pa.Table.from_pylist(rows) if as_arrow else rows,
+            name="items",
+            write_disposition={"disposition": "merge", "strategy": "scd2"},
+        )
+
+    pipeline = dlt.pipeline("arrow_" + uniq_id(), destination="duckdb", dev_mode=True)
+    if python_first:
+        pipeline.run(items(False))
+
+    logger_spy = mocker.spy(logger, "warning")
+    pipeline.extract(items(True))
+    warnings = [call.args[0] for call in logger_spy.call_args_list]
+    scd2_warnings = [w for w in warnings if "scd2 merge strategy" in w]
+    assert len(scd2_warnings) == 1
+    assert "`add_dlt_id = true`" in scd2_warnings[0]
+    assert "`row_version_column_name`" in scd2_warnings[0]
+    switch_warnings = [w for w in warnings if "to add the columns to arrow tables" in w]
+    if python_first:
+        # the scd2 warning covers `_dlt_id`
+        assert len(switch_warnings) == 1
+        assert "['_dlt_load_id']" in switch_warnings[0]
+    else:
+        assert switch_warnings == []
+        with pytest.raises(PipelineStepFailed) as py_ex:
+            pipeline.normalize()
+        assert isinstance(py_ex.value.exception, UnboundColumnException)
 
 
 @pytest.mark.parametrize(

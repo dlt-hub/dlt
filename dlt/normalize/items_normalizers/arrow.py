@@ -1,11 +1,12 @@
+from functools import partial
 from typing import List, Dict, Set, Any
 
 from dlt.common import logger
 from dlt.common.data_writers.writers import ArrowToObjectAdapter
 from dlt.common.json import json
 from dlt.common.metrics import DataWriterMetrics
+from dlt.common.normalizers.json import helpers as normalize_helpers
 from dlt.common.normalizers.json.relational import DataItemNormalizer as RelationalNormalizer
-from dlt.common.normalizers.utils import generate_dlt_ids
 from dlt.common.schema.typing import C_DLT_ID
 from dlt.common.schema.utils import dlt_id_column, normalize_table_identifiers
 from dlt.common.schema import TSchemaUpdate, Schema
@@ -81,24 +82,27 @@ class ArrowItemsNormalizer(ItemsNormalizer):
         data_normalizer = schema.data_item_normalizer
 
         if add_dlt_id and isinstance(data_normalizer, RelationalNormalizer):
-            partial_table = normalize_table_identifiers(
-                {
-                    "name": root_table_name,
-                    "columns": {C_DLT_ID: dlt_id_column()},
-                },
-                schema.naming,
-            )
-            schema.update_table(partial_table, normalize_identifiers=False)
-            table_updates = schema_update.setdefault(root_table_name, [])
-            table_updates.append(partial_table)
-            # TODO: use get_root_row_id_type to get row id type and generate deterministic
-            #  row ids as well (using pandas helper function prepared for scd2)
-            #  we could also generate random columns with pandas or duckdb if present
+            # keep hints of an existing column ie. scd2 row version
+            if data_normalizer.c_dlt_id not in schema.get_table_columns(root_table_name):
+                partial_table = normalize_table_identifiers(
+                    {
+                        "name": root_table_name,
+                        "columns": {C_DLT_ID: dlt_id_column()},
+                    },
+                    schema.naming,
+                )
+                schema.update_table(partial_table, normalize_identifiers=False)
+                schema_update.setdefault(root_table_name, []).append(partial_table)
             new_columns.append(
                 (
                     -1,
                     pa.field(data_normalizer.c_dlt_id, pyarrow.pyarrow.string(), nullable=False),
-                    lambda batch: pa.array(generate_dlt_ids(batch.num_rows), type=pa.string()),
+                    partial(
+                        pyarrow.get_dlt_ids,
+                        naming=schema.naming,
+                        row_id_type=normalize_helpers.get_root_row_id_type(schema, root_table_name),
+                        primary_key=normalize_helpers.get_primary_key(schema, root_table_name),
+                    ),
                 )
             )
 
@@ -171,8 +175,11 @@ class ArrowItemsNormalizer(ItemsNormalizer):
         # collect null column metadata from arrow schema
         self._collect_null_columns_from_arrow_metadata(arrow_schema, root_table_name)
 
-        add_dlt_id = self.config.parquet_normalizer.add_dlt_id
-        # TODO: add dlt id only if not present in table
+        # extract adds the column, files extracted by older versions of dlt do not have it
+        add_dlt_id = (
+            self.config.parquet_normalizer.add_dlt_id
+            and self.schema.naming.normalize_identifier(C_DLT_ID) not in arrow_schema.names
+        )
         # if we need to add any columns or the file format is not parquet, we can't just import files
         must_rewrite = add_dlt_id or self.item_storage.writer_spec.file_format != "parquet"
         if not must_rewrite:

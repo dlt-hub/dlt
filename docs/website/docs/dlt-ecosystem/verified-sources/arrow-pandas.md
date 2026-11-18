@@ -179,10 +179,22 @@ add_dlt_load_id = true
 add_dlt_id = true
 ```
 
-Keep in mind that enabling these incurs some performance overhead:
+Both columns are added to the arrow table in memory during the `extract` stage, before the parquet file is written to disk. `_dlt_id` gets the same values as for Python objects:
 
-- `add_dlt_load_id` has minimal overhead since the column is added to the arrow table in memory during the `extract` stage, before the parquet file is written to disk
-- `add_dlt_id` adds the column during the `normalize` stage after the file has been extracted to disk. The file needs to be read back from disk in chunks, processed, and rewritten with new columns
+- a random ID for most tables, generated for the whole table at once
+- a hash of the primary key for the `upsert`, `insert-only` and `cdc` [merge strategies](../../general-usage/merge-loading.md#merge-strategies)
+- a hash of the whole row for the `scd2` merge strategy, unless you set `row_version_column_name`
+
+Keep in mind that enabling these incurs some performance overhead: each row gets more data to store and load, and the hashes are computed row by row in Python.
+
+### Switch between arrow tables and Python objects
+
+A resource may yield Python objects in one run and arrow tables in another one, for example when you change the `backend` of the [sql_database](sql_database/index.md) source. Python objects always get `_dlt_load_id` and `_dlt_id` as `NOT NULL` columns. If the arrow tables do not get them, the loads after the switch fail:
+
+- a table created from arrow tables cannot get the `NOT NULL` columns when it already holds data
+- arrow tables do not fill the `NOT NULL` columns of a table created from Python objects
+
+`dlt` warns about this when it extracts the arrow tables or normalizes the Python objects. To mix arrow tables and Python objects in one table, enable both options above **before the first load**. To fix an existing table, drop it together with the resource state, for example with `pipeline.run(source, refresh="drop_resources")`, and load it again. `refresh="drop_data"` is not enough because `dlt` changes the table before it truncates it.
 
 ## Incremental loading with Arrow tables
 

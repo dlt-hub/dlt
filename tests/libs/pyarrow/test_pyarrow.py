@@ -3,15 +3,19 @@ import struct
 import time
 from datetime import timezone, datetime, date, timedelta  # noqa: I251
 from copy import deepcopy
-from typing import List, Any
+from typing import Dict, List, Any
 
 import pytest
 import pyarrow as pa
 
 from dlt.common import pendulum
 from dlt.common.destination.capabilities import adjust_schema_to_capabilities
+from dlt.common.libs import pyarrow as pyarrow_helpers
 from dlt.common.libs.pyarrow import (
+    add_dlt_id_column,
     columns_to_arrow,
+    generate_dlt_ids_array,
+    get_dlt_ids,
     deserialize_type,
     fill_empty_source_column_values_with_placeholder,
     get_column_type_from_py_arrow,
@@ -31,6 +35,9 @@ from dlt.common.libs.pyarrow import (
     cast_connectorx_temporal_columns,
 )
 from dlt.common.destination import DestinationCapabilitiesContext
+from dlt.common.normalizers.json.helpers import get_row_hash
+from dlt.common.normalizers.naming.snake_case import NamingConvention as SnakeCaseNamingConvention
+from dlt.common.utils import uniq_id_base64
 from tests.cases import table_update_and_row
 
 
@@ -450,6 +457,51 @@ def test_rename_column(pa_type: Any) -> None:
     assert result.column_names == ["one", "two", "three"]
     assert _row_at_index(result, 0) == [1, 2, 5]
     assert _row_at_index(result, 1) == [1, 3, 4]
+
+
+@pytest.mark.parametrize("len_", [10, 12, 16], ids=["len-10", "len-12", "len-16"])
+def test_generate_dlt_ids_array(len_: int) -> None:
+    ids = generate_dlt_ids_array(1000, len_)
+    assert ids.type == pa.string()
+    values = ids.to_pylist()
+    assert len(set(values)) == 1000
+    for value in values:
+        assert len(value) == len(uniq_id_base64(len_))
+        # same encoding as `uniq_id_base64`: random bytes with padding stripped
+        decoded = base64.b64decode(value + "=" * (-len(value) % 4))
+        assert len(decoded) == len_
+        assert base64.b64encode(decoded).decode("ascii").rstrip("=") == value
+    assert generate_dlt_ids_array(0, len_).to_pylist() == []
+
+
+@pytest.mark.parametrize("pa_type", [pa.Table, pa.RecordBatch])
+def test_get_dlt_ids_like_relational_normalizer(
+    pa_type: Any, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # hash rows in more than one chunk
+    monkeypatch.setattr(pyarrow_helpers, "ROW_HASH_CHUNK_SIZE", 2)
+    rows: List[Dict[str, Any]] = [
+        {"Id": 1, "Name": "a", "_dlt_extra": 1},
+        {"Id": 2, "Name": None, "_dlt_extra": 2},
+        {"Id": 3, "Name": "c", "_dlt_extra": 3},
+    ]
+    item = pa_type.from_pylist(rows)
+    naming = SnakeCaseNamingConvention()
+
+    # primary key is hashed with normalized names
+    assert get_dlt_ids(item, naming, "key_hash", ["id"]).to_pylist() == [
+        get_row_hash({"id": row["Id"]}, subset=["id"]) for row in rows
+    ]
+    # row is hashed with names as yielded, dlt columns are skipped
+    assert get_dlt_ids(item, naming, "row_hash").to_pylist() == [
+        get_row_hash({"Id": row["Id"], "Name": row["Name"]}) for row in rows
+    ]
+    assert len(set(get_dlt_ids(item, naming).to_pylist())) == 3
+
+    with_ids = add_dlt_id_column(item, naming)
+    assert with_ids.column_names == ["Id", "Name", "_dlt_extra", "_dlt_id"]
+    # existing ids are kept
+    assert add_dlt_id_column(with_ids, naming, "row_hash").equals(with_ids)
 
 
 @pytest.mark.parametrize("pa_type", [pa.Table, pa.RecordBatch])

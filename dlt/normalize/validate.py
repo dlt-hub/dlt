@@ -1,6 +1,7 @@
 from typing import Dict, List, Set
 
 from dlt.common.destination.capabilities import DestinationCapabilitiesContext
+from dlt.common.normalizers.json.helpers import MIX_BACKENDS_DOCS_URL, get_dlt_columns
 from dlt.common.schema import Schema
 from dlt.common.schema.typing import (
     TPartialTableSchema,
@@ -15,6 +16,7 @@ from dlt.common.schema.utils import (
     has_table_seen_data,
     is_complete_column,
     is_nested_table,
+    is_nullable_column,
 )
 from dlt.common.schema.exceptions import UnboundColumnException, UnboundColumnWithoutTypeException
 from dlt.common import logger
@@ -42,11 +44,30 @@ def verify_partial_table(schema: Schema, partial_table: TPartialTableSchema) -> 
     """Verifies partial tables before they are merged with existing tables in schema
 
     1. warns if root_key is added to existing table that has seen data (this will most likely fail)
+    2. warns if NOT NULL `_dlt_load_id` or row id column is added to existing table that has seen data
     """
     table_name = partial_table["name"]  # names are already normalized
     if existing_table := schema.tables.get(table_name):
         if has_table_seen_data(existing_table):
             # we are adding to a table materialized in the destination
+            added_dlt_columns = [
+                name
+                for name in get_dlt_columns(schema, partial_table)
+                if not is_nullable_column(partial_table["columns"][name])
+            ]
+            if added_dlt_columns:
+                logger.warning(
+                    f"Columns {added_dlt_columns} are added as NOT NULL to table {table_name} that"
+                    " already holds data. This happens when a resource that yielded arrow tables"
+                    ' or data frames (ie. `backend="pyarrow"` in `sql_database`) starts to yield'
+                    " Python objects: arrow tables do not get these columns by default. Adding NOT"
+                    " NULL columns to a table with data fails on most destinations. Drop the table"
+                    ' and its state with `refresh="drop_resources"` and load again'
+                    ' (`refresh="drop_data"` is not enough: tables are altered before they are'
+                    " truncated). To mix backends, set `add_dlt_load_id` and `add_dlt_id` in"
+                    " `[normalize.parquet_normalizer]` before the first load. See"
+                    f" {MIX_BACKENDS_DOCS_URL}"
+                )
             root_key_col = get_first_column_name_with_prop(partial_table, "root_key")
             if root_key_col:
                 logger.warning(
