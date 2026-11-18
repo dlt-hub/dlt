@@ -18,7 +18,7 @@ BASE_PATH = "https://api.chess.com/pub/player"
 @dlt.resource(primary_key="player_id")
 def players():
     """Load player profiles from the chess api."""
-    for player_name in ["magnuscarlsen", "rpragchess"]:
+    for player_name in ["hikaru", "rpragchess"]:
         path = f"{BASE_PATH}/{player_name}"
         response = requests.get(path)
         response.raise_for_status()

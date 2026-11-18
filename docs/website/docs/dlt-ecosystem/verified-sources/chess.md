@@ -203,7 +203,7 @@ To create your data loading pipeline for players and load data, follow these ste
    ```py
    # Loads games for Nov 2022
    source_instance = chess_source(
-       ["magnuscarlsen", "vincentkeymer", "dommarajugukesh", "rpragchess"],
+       ["hikaru", "vincentkeymer", "dommarajugukesh", "rpragchess"],
        start_month="2022/11",
        end_month="2022/11",
    )
