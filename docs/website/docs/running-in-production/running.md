@@ -218,7 +218,7 @@ Sentry. Using `config.toml`:
 enable_runtime_trace=false
 ```
 
-## Set the log level and format
+## Set the log level, format, and output
 
 You can set the log level and switch logging to JSON format.
 
@@ -244,6 +244,14 @@ As with any other configuration, you can use environment variables instead of th
 
 - `RUNTIME__LOG_LEVEL` to set the log level.
 - `LOG_FORMAT` to set the log format.
+
+`log_output` controls where `dlt` sends log records:
+
+- `stderr` (default) writes formatted logs to standard error.
+- `stdout` writes formatted logs to standard output.
+- `propagate` passes the original log records to parent logger handlers without adding a `dlt` stream handler or formatter. Use this when a host such as Airflow should control the log format and destination.
+
+To use the host's logging handlers, set `log_output="propagate"` under `[runtime]` in `config.toml`, or set `RUNTIME__LOG_OUTPUT=propagate` in the environment. Ensure a parent logger has a handler configured to receive the records.
 
 `dlt` logs to a logger named **dlt**. `dlt` logger uses a regular Python logger, so you can configure the handlers as per your requirement.
 
