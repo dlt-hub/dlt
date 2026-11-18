@@ -675,6 +675,9 @@ def test_dlthub_init_merge_into_pyproject(
     lock = tmp_path / "uv.lock"
     if with_lock:
         lock.write_text("version = 1\n", encoding="utf-8")
+    # uv refuses `--frozen` with these, CI sets UV_NO_SYNC
+    monkeypatch.setenv("UV_NO_SYNC", "1")
+    monkeypatch.setenv("UV_LOCKED", "1")
 
     _run_init(monkeypatch, tmp_path, answer=True)
 

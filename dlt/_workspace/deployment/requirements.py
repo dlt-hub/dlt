@@ -4,6 +4,7 @@ poetry/PDM support can be easily added.
 """
 
 import importlib.metadata
+import os
 import re
 import shutil
 import subprocess
@@ -686,7 +687,9 @@ def add_pyproject_dependencies(
     syncing. A package in `uv_sources` keeps its source in `[tool.uv.sources]`."""
     if not changes:
         return
-    run_uv(["add", "--frozen", *(change["spec"] for change in changes)], project_dir)
+    # `--frozen` already skips the sync, uv refuses it together with these settings
+    env = {k: v for k, v in os.environ.items() if k not in ("UV_NO_SYNC", "UV_LOCKED")}
+    run_uv(["add", "--frozen", *(change["spec"] for change in changes)], project_dir, env)
     for change in changes:
         source = uv_sources.get(change["name"])
         if source is None:
@@ -701,7 +704,7 @@ def add_pyproject_dependencies(
         else:
             target = [source["path"]]
         extras = [arg for e in sorted(Requirement(change["spec"]).extras) for arg in ("--extra", e)]
-        run_uv(["add", "--frozen", *target, *extras], project_dir)
+        run_uv(["add", "--frozen", *target, *extras], project_dir, env)
 
 
 def _dependency_group_names(pyproject_doc: Any) -> List[str]:
@@ -818,12 +821,13 @@ def _require_uv() -> None:
         raise WorkspaceRequirementsError(_UV_MISSING_MESSAGE)
 
 
-def run_uv(args: List[str], cwd: Path) -> str:
+def run_uv(args: List[str], cwd: Path, env: Optional[Dict[str, str]] = None) -> str:
     """Invoke `uv` with the given args, returning stdout on success."""
     try:
         proc = subprocess.run(
             ["uv", *args],
             cwd=str(cwd),
+            env=env,
             capture_output=True,
             text=True,
             check=False,
