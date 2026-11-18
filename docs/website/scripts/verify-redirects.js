@@ -71,8 +71,7 @@ try {
 
 if (JSON.stringify(loadedRedirects) !== JSON.stringify(recomputed)) {
   error(
-    `redirects.compiled.js is stale — per-version sources (redirects.js / ` +
-      `versioned_redirects/*.js) changed since it was generated. ` +
+    `redirects.compiled.js is stale — source (redirects.js) changed since it was generated. ` +
       `Re-run 'npm run compile-redirects'.`,
   );
   console.log(`\n=== Redirects: ${errors} errors, ${warnings} warnings ===`);

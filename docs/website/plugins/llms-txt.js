@@ -284,9 +284,6 @@ function buildSidebarMap(sidebarItems, groupDepth = 2) {
  *
  * Versions:
  *   - "current" (devel): path 'devel', source in docs_processed/
- *   - "master": path '/', source in versioned_docs/version-master/
- *   - other versions (e.g. "1.5.0"): path = version name,
- *     source in versioned_docs/version-{name}/
  */
 function buildVersionRoutes(siteDir, docsVersions) {
   const routes = [];
@@ -297,27 +294,8 @@ function buildVersionRoutes(siteDir, docsVersions) {
   routes.push({
     prefix: currentPrefix ? `${currentPrefix}/` : "",
     sourceDir: path.join(siteDir, "docs_processed"),
-    isMaster: false,
+    isMaster: true,
   });
-
-  // Read versions.json for named versions
-  const versionsJsonPath = path.join(siteDir, "versions.json");
-  let knownVersions = [];
-  if (fs.existsSync(versionsJsonPath)) {
-    knownVersions = JSON.parse(fs.readFileSync(versionsJsonPath, "utf8"));
-  }
-
-  for (const version of knownVersions) {
-    const vCfg = docsVersions[version] || {};
-    const vPath = (vCfg.path || version).replace(/^\/+/, "");
-    const vSourceDir = path.join(siteDir, "versioned_docs", `version-${version}`);
-
-    routes.push({
-      prefix: vPath ? `${vPath}/` : "", // master has path='/' → prefix=''
-      sourceDir: vSourceDir,
-      isMaster: version === "master",
-    });
-  }
 
   // Sort: longer prefixes first so "devel/" matches before "" (root)
   routes.sort((a, b) => b.prefix.length - a.prefix.length);

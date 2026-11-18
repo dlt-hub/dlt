@@ -72,13 +72,12 @@ That command delegates to `cd .. && make build` (see `package.json`), which driv
 
 The full build (the `build` target in `docs/Makefile`) runs these steps in order:
 
-1. **`npm run update-versions`** — clones `dlt`, checks out the `master` branch, freezes the content into `versioned_docs/version-master/`. This is the **master snapshot** (served at `/docs/`); your branch is served at `/docs/devel/`. See [Docs versions](#docs-versions) below.
-2. **`npm run compile-redirects`** — merges `redirects.js` (devel) and the per-version snapshots under `versioned_redirects/` into `redirects.compiled.js`. See [Redirects](#redirects) below.
-3. **`make check-orphan-docs`** (from `docs/`) — runs `tools/check_orphan_docs.js`, which fails the build if any page under `docs/` is unreachable from `sidebars.js` (directly, via a category `link`, or as a sidebar item) unless it's marked `unlisted: true` in frontmatter.
-4. **`make preprocess-docs`** (from `docs/`) — Python preprocessor (`docs/tools/preprocess_docs.py`): copies `docs/` to `docs_processed/`, expands `@@@DLT_*` markers, generates the API reference, etc.
-5. **`docusaurus build --out-dir build/docs`** — the static site build itself. Fails on broken internal markdown links.
-6. **`npm run verify-redirects`** — loads `redirects.compiled.js`, recompiles it in memory to check it isn't stale, and checks each `to` target resolves to an existing page in `build/docs`.
-7. **`node scripts/verify-llms-txt.js`** — checks the generated `llms.txt` index against the sidebar.
+1. **`npm run compile-redirects`** — compiles `redirects.js` into `redirects.compiled.js`. See [Redirects](#redirects) below.
+2. **`make check-orphan-docs`** (from `docs/`) — runs `tools/check_orphan_docs.js`, which fails the build if any page under `docs/` is unreachable from `sidebars.js` (directly, via a category `link`, or as a sidebar item) unless it's marked `unlisted: true` in frontmatter.
+3. **`make preprocess-docs`** (from `docs/`) — Python preprocessor (`docs/tools/preprocess_docs.py`): copies `docs/` to `docs_processed/`, expands `@@@DLT_*` markers, generates the API reference, etc.
+4. **`docusaurus build --out-dir build/docs`** — the static site build itself. Fails on broken internal markdown links.
+5. **`npm run verify-redirects`** — loads `redirects.compiled.js`, recompiles it in memory to check it isn't stale, and checks each `to` target resolves to an existing page in `build/docs`.
+6. **`node scripts/verify-llms-txt.js`** — checks the generated `llms.txt` index against the sidebar.
 
 CI (`.github/workflows/docs_build.yml`) simply runs `make build` from `docs/`, so it exercises the exact same 7 steps — there is no separate "verify redirects" CI step.
 
@@ -108,7 +107,7 @@ This will build the project fully and serve via a local wrangler webserver which
 
 ## Redirects
 
-The docs site builds two snapshots: `master` (frozen at the last `dlt` release, mounted at `/docs/`) and `devel` (your current branch, mounted at `/docs/devel/`). Each version owns its own redirect rules, scoped to that version's URL space. A build-time step merges them into a single, version-prefixed list that the Cloudflare worker and the verifier both consume.
+The docs site is built from the current branch and mounted at `/docs/devel/`. A build-time step compiles the redirect rules into a single, version-prefixed list that the Cloudflare worker and the verifier both consume.
 
 ### How to add or change a redirect
 
@@ -122,55 +121,17 @@ The compile step (see below) prefixes both fields with `/docs/devel/` when emitt
 
 A `from` path may only appear **once**. The worker resolves paths through a map where the first rule wins, so a second rule for the same `from` would never fire; `compile-redirects` fails the build on duplicates. To change where a path goes, edit the existing entry.
 
-Pre-snapshotted versions (currently just `master`) have their own redirect files under `versioned_redirects/version-<v>.js`. Those are populated by `tools/update_versions.js`, which clones each tag and snapshots its `docs/website/redirects.js`. You don't edit those files by hand — to change `master`'s redirects, edit `redirects.js` on the `master` branch and push.
-
 The lone catchall `{ from: "/", to: "/docs/devel/intro" }` is the exception: its `from` doesn't start with `/docs/`, so the compiler treats it as version-independent and passes it through unchanged.
 
 ### Compile step
 
-`tools/compile_redirects.js` reads:
-
-1. `./redirects.js` (the devel source).
-2. Every `./versioned_redirects/version-*.js` (snapshotted by `update_versions.js`).
-
-It rewrites each entry's leading `/docs/` to `/docs/<version-path>/` (devel → `/docs/devel/`, master → `/docs/`, any future tag → `/docs/<tag>/`) and writes the merged list to `redirects.compiled.js`. That file is a **build artifact** — gitignored and regenerated on every build.
+`tools/compile_redirects.js` reads `./redirects.js`, rewrites each entry's leading `/docs/` to `/docs/devel/` and writes the merged list to `redirects.compiled.js`. That file is a **build artifact** — gitignored and regenerated on every build.
 
 ### Where the compiled file is used
 
 - **Cloudflare worker (`worker.ts`)** — imports `redirects.compiled.js`. Wrangler bundles the import into the deployed worker. Exact pathname match per entry; no version-routing logic in the worker. Rules, trailing slashes and the legacy `/plus/` → `/hub/` forward are followed to the final target (see `worker-routing.mjs`), so a moved page answers with a single `301` instead of a chain. A chain that does not settle within 10 hops is left to the assets binding rather than redirected to a half-resolved path.
-- **`scripts/verify-redirects.js`** — loads `redirects.compiled.js`, checks each `to` resolves to an HTML page in `build/docs/<rel>`, and **also recompiles in memory** from the per-version sources and diffs the result against the on-disk compiled file to guard against a stale compiled file.
+- **`scripts/verify-redirects.js`** — loads `redirects.compiled.js`, checks each `to` resolves to an HTML page in `build/docs/<rel>`, and **also recompiles in memory** from `redirects.js` and diffs the result against the on-disk compiled file to guard against a stale compiled file.
 
-
-### Lifecycle: what happens after merge to `master`
-
-The build runs the same way on every branch: `update_versions.js` always clones `origin/master` and snapshots its `redirects.js` into `versioned_redirects/version-master.js`. The local `./redirects.js` is always treated as the `current` (devel-prefixed) version.
-
-When a devel→master merge ships the next release, the only thing that changes is what `origin/master` points to. The next build on master snapshots the just-merged `redirects.js` as the master version's source, so the same authored rules that previously compiled with the `/devel/` prefix now also compile with **no** prefix — they catch the bare `/docs/...` URLs on the freshly released master.
-
-## Docs versions
-
-We keep a few additional versions of our docs for the users to be able read about how former and future versions of dlt work. We use docusaurus versions for this but we do not check the historical versions into the repo but rather use a script to build the former versions on deployment. To locally build the versions run:
-
-```
-npm run update-versions
-```
-
-This will execute the script at tools/update_versions.js. This tool will do the following:
-
-* Find all the highest minor versions the tags of the repo (e.g. 0.4.13, 0.5.22, 1.1.3)
-* It will create a version for all of these tags that are larger than the minimum version defined in MINIMUM_SEMVER_VERSION in the script.
-* It will NOT create a version for the highest version, we assume the most up to date docs for the highest versions are the tip of master
-* It will NOT create any docs versions for pre-releases.
-* It will create a future version called "devel" from the current commit of this repo.
-* It will set up docusaurus to display all of these versions correctly.
-
-You can clear these versions with
-
-```
-npm run clear-versions
-```
-
-The cloudflare deployment of these docs needs to happen from the master branch so that the current version gets properly selected.
 
 ## LLM-friendly documentation
 
@@ -178,16 +139,16 @@ The docs build generates LLM-optimized output following the [llms.txt specificat
 
 ### What the plugin produces
 
-- **`/docs/llms.txt`** — Index of all master-version doc pages (excluding hub) with titles and descriptions, grouped by sidebar category (e.g. "Getting started", "Sources > REST APIs"). This is the primary entry point for LLM agents.
+- **`/docs/llms.txt`** — Index of all doc pages (excluding hub) with titles and descriptions, grouped by sidebar category (e.g. "Getting started", "Sources > REST APIs"). This is the primary entry point for LLM agents.
 - **`/docs/hub/llms.txt`** — Separate index for dltHub pages, grouped by `hubSidebar` categories. Configured via `separateIndexes` in the plugin options.
 - **`.md` files next to each HTML page** — For every doc page like `/docs/general-usage/schema`, a clean markdown version is available at `/docs/general-usage/schema.md`. These are copied from the preprocessed source files (with snippets already resolved), not reverse-converted from HTML.
 
 ### How it works
 
 1. **Discovers pages** from the HTML build output (all `*.html` files).
-2. **Maps each HTML path** back to its source `.md` file in `versioned_docs/version-{name}/` or `docs_processed/`, handling custom `slug:` frontmatter.
+2. **Maps each HTML path** back to its source `.md` file in `docs_processed/`, handling custom `slug:` frontmatter.
 3. **Copies source `.md` files** with cleanup: strips MDX `import` lines and self-closing React component tags (`<Header/>`, `<DocCardList/>`, etc.) that are UI-only widgets.
-4. **Generates `llms.txt`** from the master version pages, reading `title` and `description` from YAML frontmatter. Pages are grouped by sidebar categories from `sidebars.js` (up to `groupDepth` levels, joined with " > "); pages not in any sidebar fall back to directory-based grouping. Pages matching a `separateIndexes` prefix (e.g. `hub/`) are split into their own `llms.txt` at that prefix path and removed from the main index.
+4. **Generates `llms.txt`** from the doc pages, reading `title` and `description` from YAML frontmatter. Pages are grouped by sidebar categories from `sidebars.js` (up to `groupDepth` levels, joined with " > "); pages not in any sidebar fall back to directory-based grouping. Pages matching a `separateIndexes` prefix (e.g. `hub/`) are split into their own `llms.txt` at that prefix path and removed from the main index.
 
 ### What gets excluded or separated
 

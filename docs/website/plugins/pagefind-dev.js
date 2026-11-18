@@ -10,12 +10,7 @@
  * does not pick up live edits (re-run `make search-index` to refresh).
  *
  * Only pages of the Docusaurus "last version" are indexed (see
- * `src/theme/DocItem/Layout`), so the docs version you search depends on local state:
- * - `versions.json` exists (written by `npm run update-versions`, also run by
- *   `make build`): the `master` snapshot, i.e. the latest release served at `/docs/`.
- *   This matches production, but it reflects master as of the last `update-versions`
- *   run, not your branch.
- * - no `versions.json`: the current branch, served under `/docs/devel/`.
+ * `src/theme/DocItem/Layout`); with a single version that is the current branch.
  */
 const path = require("node:path");
 

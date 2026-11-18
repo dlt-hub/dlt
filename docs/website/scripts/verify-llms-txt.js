@@ -228,9 +228,7 @@ function checkSidebarCoverage(llmsConfig, sidebars, indexedUrls) {
   const indexedSet = new Set(indexedUrls);
 
   // Determine the source dir for checking if a .md exists
-  // For main sidebar → versioned_docs/version-master, for hub → same
-  const versionedDir = path.join(SITE_DIR, "versioned_docs", "version-master");
-  const sourceDir = fs.existsSync(versionedDir) ? versionedDir : path.join(SITE_DIR, "docs_processed");
+  const sourceDir = path.join(SITE_DIR, "docs_processed");
 
   // Build a slug map so we can resolve slug overrides to their actual URL
   const slugToDocId = {}; // { "dir/slug": "dir/original-name" }

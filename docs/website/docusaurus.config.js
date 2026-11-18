@@ -1,6 +1,5 @@
 // @ts-check
 // Note: type annotations allow type checking and IDEs autocompletion
-const fs = require("node:fs");
 require("dotenv").config();
 
 const synthwave84 = require("prism-react-renderer/themes/synthwave84");
@@ -42,7 +41,7 @@ const lightCodeTheme = {
   ],
 };
 
-// create versions config
+// single docs version, built from the current branch
 const versions = {
   current: {
     label: "devel",
@@ -50,36 +49,6 @@ const versions = {
     noIndex: true,
   },
 };
-
-let knownVersions = [];
-if (fs.existsSync("versions.json")) {
-  knownVersions = JSON.parse(fs.readFileSync("versions.json", "utf8"));
-}
-
-// inject master version renaming only if versions present and master included
-if (knownVersions) {
-  let latestLabel = "latest";
-  if (process.env.DOCUSAURUS_DLT_VERSION) {
-    latestLabel = `${process.env.DOCUSAURUS_DLT_VERSION} (latest)`;
-  }
-
-  if (knownVersions.includes("master")) {
-    versions.master = {
-      label: latestLabel,
-      path: "/",
-    };
-  }
-
-  // disable indexing for all known versions
-  for (const v of knownVersions) {
-    if (v === "master") {
-      continue;
-    }
-    versions[v] = {
-      noIndex: true,
-    };
-  }
-}
 
 /** @type {import('@docusaurus/types').Config} */
 const config = {
@@ -198,9 +167,6 @@ const config = {
           href: "https://dlthub.com",
         },
         items: [
-          {
-            type: "docsVersionDropdown",
-          },
           {
             type: "docSidebar",
             sidebarId: "hubSidebar",

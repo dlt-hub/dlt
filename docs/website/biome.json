@@ -15,9 +15,6 @@
       "!build",
       "!.docusaurus",
       "!docs_processed",
-      "!versioned_docs",
-      "!versioned_sidebars",
-      "!versioned_redirects",
       "!redirects.compiled.js",
       "!.dlt-repo"
     ]
