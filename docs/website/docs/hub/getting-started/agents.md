@@ -27,7 +27,8 @@ Open your coding agent in your dltHub workspace, or in an empty directory to sta
 Set up this directory for dltHub background agents. Use `uv run` and pass
 `--non-interactive` to `dlthub` commands.
 
-1. If there is no `.dlt/.workspace` file, run `uvx dlthub-init@latest`.
+1. If there is no `.dlt/.workspace` file, run `uvx dlthub-init@latest`. If it lists
+   changes to my existing files, show them to me and run it again with `-y` once I agree.
 2. Add these dependencies to pyproject.toml and run `uv sync`:
    "dlt[hub]==1.31.0", "dlthub[mcp]", "dlthub-client>=0.28.7",
    "pydantic-ai-slim[anthropic,openai,google,mcp,spec]>=2.45.0", "aiohttp>=3.14.3"

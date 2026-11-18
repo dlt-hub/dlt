@@ -28,17 +28,14 @@ your-project/
 │   ├── .workspace              # marks this directory as a dltHub workspace
 │   ├── config.toml             # workspace-wide config
 │   └── secrets.toml            # workspace-wide secrets (gitignored)
-├── .agents/
-│   └── skills/                 # vendored source of the `init` toolkit
-│       ├── dlthub-router/
-│       ├── setup-secrets/
-│       └── improve-skills/
 ├── .claude/
-│   └── skills/                 # symlinks to .agents/skills/*
+│   ├── rules/                  # rules of the `init` toolkit
+│   └── skills/                 # skills of the `init` toolkit
 ├── .mcp.json                   # registers `dlt-workspace-mcp`
-├── __deployment__.py           # empty; jobs get declared here
 └── pyproject.toml
 ```
+
+The other agents get the skills, rules, and MCP server in their own folders. See [The MCP server](#the-mcp-server).
 
 To use Cursor, Codex, or Cortex Code in an existing workspace, run:
 
@@ -56,7 +53,7 @@ You can also create the workspace with `dlthub init`. The command adds the depen
 uvx --from dlt@latest dlthub init --agent cortex
 ```
 
-Without a name, `--agent` detects the agent. Without `--agent`, `dlthub init` creates the workspace and installs no toolkit.
+Without a name, `--agent` detects the agent. Without `--agent`, `dlthub init` creates the workspace and installs no toolkit. Run `uv sync` afterwards to install the dependencies.
 
 ## What you get
 
