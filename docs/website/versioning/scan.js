@@ -2,41 +2,48 @@
 const fs = require("node:fs");
 const path = require("node:path");
 const { parseFileContentFrontMatter } = require("@docusaurus/utils/lib/markdownUtils");
-const { DEFAULT_PACKAGE, validateMeta } = require("./badge");
-const { SINCE_DIRECTIVE } = require("./directive");
+const { toConstraints, validateMeta } = require("./badge");
+const { SINCE_DIRECTIVE, parseBlock } = require("./directive");
 
 /**
- * @returns {{page: {since?: string, status?: string, package: string} | null, packages: string[]}}
- *   `page` is null without version metadata; `packages` lists packages the page and its sections use
+ * @returns {{page: {since?: string | object, status?: string, package?: string} | null,
+ *   sections: Record<string, string>[], constraints: Record<string, string>[]}}
+ *   `page` is null without version metadata; `sections` are the constraints of each tagged section;
+ *   `constraints` are all constraints of the page and its sections
  */
 function scanFile(filePath) {
   const fileContent = fs.readFileSync(filePath, "utf8");
-  const packages = new Set();
-  for (const [directive, , , pkg, since] of fileContent.matchAll(SINCE_DIRECTIVE)) {
-    validateMeta({ since, package: pkg }, `${filePath}: ${directive}`);
-    packages.add(pkg || DEFAULT_PACKAGE);
+  const sections = [];
+  for (const [, , , block] of fileContent.matchAll(SINCE_DIRECTIVE)) {
+    const constraints = parseBlock(block, filePath);
+    validateMeta({ since: constraints }, `${filePath}: ${block}`);
+    sections.push(constraints);
   }
   const { since, status, package: pkg } = parseFileContentFrontMatter(fileContent).frontMatter;
-  if (since === undefined && status === undefined) return { page: null, packages: [...packages] };
-  validateMeta({ since, status, package: pkg }, filePath);
-  packages.add(pkg || DEFAULT_PACKAGE);
-  return { page: { since, status, package: pkg || DEFAULT_PACKAGE }, packages: [...packages] };
+  const constraints = [...sections];
+  let page = null;
+  if (since !== undefined || status !== undefined) {
+    validateMeta({ since, status, package: pkg }, filePath);
+    page = { since, status, package: pkg };
+    constraints.push(toConstraints(page));
+  }
+  return { page, sections, constraints };
 }
 
 /**
- * @returns {{pages: Record<string, object>, packages: Set<string>}} `pages` keyed by doc id
+ * @returns {{pages: Record<string, object>, constraints: Record<string, string>[]}} `pages` keyed by doc id
  *   (path without extension), only pages with version metadata
  */
 function scanDocs(dir) {
   const pages = {};
-  const packages = new Set();
+  const constraints = [];
   for (const rel of fs.readdirSync(dir, { recursive: true })) {
     if (!/\.mdx?$/.test(rel)) continue;
     const scan = scanFile(path.join(dir, rel));
-    scan.packages.forEach((p) => packages.add(p));
+    constraints.push(...scan.constraints);
     if (scan.page) pages[rel.split(path.sep).join("/").replace(/\.mdx?$/, "")] = scan.page;
   }
-  return { pages, packages };
+  return { pages, constraints };
 }
 
 module.exports = { scanFile, scanDocs };

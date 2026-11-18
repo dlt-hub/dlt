@@ -1,13 +1,13 @@
 import React from "react";
 import clsx from "clsx";
 import { usePluginData } from "@docusaurus/useGlobalData";
-import { getBadge } from "../../versioning/badge";
+import { getBadge, parseConstraints } from "../../versioning/badge";
 import styles from "./VersionBadge.module.css";
 
 export function Badge({ badge }) {
   if (!badge) return null;
   return (
-    <span className={clsx(styles.badge, styles[badge.kind])} title={`${badge.package} ${badge.label.toLowerCase()}`}>
+    <span className={clsx(styles.badge, styles[badge.kind])} title={badge.title}>
       {badge.label}
     </span>
   );
@@ -20,10 +20,11 @@ export function PageBadge({ docId }) {
 }
 
 /**
- * Section badge. Not written by hand: versioning/remark-since.js turns the markdown directive
- * `<!-- since: [package ]1.32.0 -->` below a heading into this. Renders nothing once the feature is older than the "new" window.
+ * Section badge. Not written by hand: versioning/directive.js turns the markdown directives
+ * `<!-- since: [package ]1.32.0 -->` below a heading into this, `since` being `package=version,...`.
+ * Renders nothing once the feature is older than the "new" window.
  */
-export function Since({ version, package: pkg }) {
-  const { released } = usePluginData("versioning");
-  return <Badge badge={getBadge({ since: version, package: pkg }, released)} />;
+export function Since({ since }) {
+  const { released, requires } = usePluginData("versioning");
+  return <Badge badge={getBadge({ since: parseConstraints(since) }, released, { requires })} />;
 }

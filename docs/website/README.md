@@ -196,7 +196,45 @@ tag is compared with the latest *released* version of that package:
 
 Badges are shown on the sidebar entry, under the page breadcrumbs and next to a section heading.
 Versions are PEP 440 (`1.32.0`, `1.32.0rc1`); pre-releases sort before the final release.
-Badges are package-scoped: `dlt` (default), `dlthub`, `dlthub-client`, `dlthub-sdk`.
+Badges are package-scoped: `dlt` (default), `dlthub`, `dlthub-client`.
+`dlthub_sdk` ships inside `dlthub-client` and shares its version, so tag SDK docs with `dlthub-client`.
+
+### dltHub libraries and stacked constraints
+
+A tag is a set of constraints `{package: first release that has the feature}`. A dltHub feature
+typically names its own library, e.g. `dlthub-client 0.4.0`. That release declares a minimum `dlt`
+(`Requires-Dist: dlt>=1.30.0` on PyPI), so you do not repeat it: the resolver reads it from the
+released package and adds it as an *implied* lower bound.
+
+- A feature is **Preview** until every constraint, explicit or implied, is released.
+- **New in X** lasts while any *explicit* constraint is within the last 3 minors. Implied bounds do
+  not extend it. The label lists the explicit constraints (`New in dlthub-client 0.4.0`; `dlt`
+  alone is shown as just the version).
+- The tooltip shows the implied bound (`requires dlt >= 1.30.0`). It only exists for a package
+  release that is already on PyPI; for an unreleased one add the `dlt` constraint yourself.
+- Requirements behind an extra or an environment marker are ignored.
+
+Stack constraints in frontmatter with a dictionary (do not combine it with `package`):
+
+```md
+---
+title: My dltHub feature
+since:
+  dlthub-client: "0.4.0"
+  dlt: "1.32.0"
+---
+```
+
+and in a section with one comment per package, one after another:
+
+```md
+## My dltHub section
+<!-- since: dlthub-client 0.4.0 -->
+<!-- since: dlt 1.32.0 -->
+```
+
+A package can appear only once per tag. `since: "0.4.0"` with `package: dlthub-client` is the
+one-constraint shorthand of `since: {dlthub-client: "0.4.0"}`.
 
 Tag a page in its frontmatter (quote `since`, YAML would read `1.30` as a number):
 
@@ -217,19 +255,22 @@ no MDX needed:
 <!-- or, for another package: since: dlthub 0.5.0 -->
 ```
 
-Use a release that is not out yet. `node versioning/check.js <changed files>` fails if a file claims
-a `since` that is already released.
+Use a release that is not out yet. `node versioning/check.js <changed files>` fails if a page or
+section claims a `since` that is already released (with stacked constraints: all of them are released).
 
 ### Released versions: PyPI by default, mockable locally
 
 The released versions come from PyPI. Set `DLT_DOCS_RELEASED_VERSIONS` to override them, either inline
 or as a path to a JSON file (`{"dlt": "1.32.0"}`). Only packages used by pages need an entry.
+Requirements that a released package version puts on other packages are read from PyPI, unless
+`DLT_DOCS_RELEASED_VERSIONS` is set: then none are assumed, mock them with `DLT_DOCS_REQUIRES`
+(inline `dlthub-client@0.4.0=dlt>=1.30.0; ...` or a JSON file `{"dlthub-client@0.4.0": {"dlt": "1.30.0"}}`).
 `DLT_DOCS_DEMO=1` additionally serves demo pages from `versioning/demo/` at
 `/docs/versioning-demo` (they are never part of the regular docs build).
 
 ```sh
 # from docs/website; swap in any mocked version and look at /docs/versioning-demo
-DLT_DOCS_DEMO=1 DLT_DOCS_RELEASED_VERSIONS="dlt=1.31.0,dlthub=0.5.0" npm start
+DLT_DOCS_DEMO=1 DLT_DOCS_RELEASED_VERSIONS="dlt=1.31.0,dlthub=0.5.0,dlthub-client=0.4.0" npm start
 ```
 
 Expected demo badges (`dlthub-page` follows `dlthub`; `preview-explicit` is always Preview):
@@ -242,5 +283,7 @@ Expected demo badges (`dlthub-page` follows `dlthub`; `preview-explicit` is alwa
 | `1.34.0` | New | none | none | none |
 | `1.35.0` | none | none | none | none |
 
-The same states apply to the matching sections on the `sections` demo page. Unit tests for the
+The same states apply to the matching sections on the `sections` demo page. The `stacked` page
+needs `dlthub-client` 0.4.0 and `dlt` 1.32.0: Preview until both are released, and with
+`DLT_DOCS_REQUIRES="dlthub-client@0.4.0=dlt>=1.34.0"` it also waits for `dlt` 1.34.0. Unit tests for the
 comparison logic: `npm run test:versioning`.

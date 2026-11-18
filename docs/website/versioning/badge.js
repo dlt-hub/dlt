@@ -4,17 +4,27 @@
  * Versions follow PEP 440 (what PyPI and `dlt` use), not semver: `1.32.0a1`, `1.32.0rc1`
  * and `1.32.0.dev3` all sort *before* `1.32.0`.
  *
- * Badge rules for a page/section with `since` (package-scoped) against the released version:
- *   status: preview, or since > released      -> "preview"
- *   since within the last WINDOW_MINORS minors -> "new in <since>"
- *   older                                      -> no badge
+ * A page/section is tagged with constraints `{package: version}`: the first release of each package
+ * that the feature needs. Written as `since: "1.32.0"` (+ optional `package`) or as a dictionary
+ * `since: {dlthub-client: "0.4.0", dlt: "1.32.0"}`. A released package version may itself require
+ * a minimum of another package (`dlthub-client 0.4.0` requires `dlt>=1.30`); these implied lower
+ * bounds are passed in as `requires` and only affect the preview state.
+ *
+ * Badge rules against the released versions:
+ *   status: preview, or any constraint (explicit or implied) not released yet -> "preview"
+ *   any explicit constraint released within the last WINDOW_MINORS minors      -> "new in <constraints>"
+ *   otherwise                                                                  -> no badge
  */
 
 /** a feature stays "new" for this many minor releases, the release that introduced it included */
 const WINDOW_MINORS = 3;
 
-/** packages that docs can be versioned against, each released independently */
-const PACKAGES = ["dlt", "dlthub", "dlthub-client", "dlthub-sdk"];
+/**
+ * packages that docs can be versioned against, each released independently on PyPI.
+ * `dlthub_sdk` is not one of them: it ships inside `dlthub-client` and shares its version.
+ */
+const PACKAGES = ["dlt", "dlthub", "dlthub-client"];
+const SHIPPED_IN = { "dlthub-sdk": "dlthub-client" };
 const DEFAULT_PACKAGE = "dlt";
 
 const PEP440 = /^(\d+)\.(\d+)(?:\.(\d+))?(?:(a|b|rc)(\d+))?(?:\.dev(\d+))?$/;
@@ -52,47 +62,121 @@ function minorsSince(since, released) {
   return r[0] > s[0] ? Infinity : r[1] - s[1];
 }
 
+/** constraints `{package: version}` of a `{since, package}` meta; `since` is a string or a dictionary */
+function toConstraints(meta) {
+  const { since, package: pkg } = meta;
+  if (since === undefined) return {};
+  if (typeof since === "string") return { [pkg || DEFAULT_PACKAGE]: since };
+  return { ...since };
+}
+
+/** key of a package version in `requires`, e.g. `dlthub-client@0.4.0` */
+const requiresKey = (pkg, version) => `${pkg}@${version}`;
+
+/** `{dlt: "1.2.0", dlthub: "0.5.0"}` <-> `dlt=1.2.0,dlthub=0.5.0`, used as the `<Since since="...">` attribute */
+function formatConstraints(constraints) {
+  return Object.entries(constraints)
+    .map(([pkg, version]) => `${pkg}=${version}`)
+    .join(",");
+}
+
+function parseConstraints(text) {
+  return Object.fromEntries(text.split(",").map((pair) => pair.trim().split("=")));
+}
+
+const describe = (constraints, short) =>
+  Object.entries(constraints)
+    .map(([pkg, version]) => (short && pkg === DEFAULT_PACKAGE ? version : `${pkg} ${version}`))
+    .join(", ");
+
+/** merges lower bounds, keeping the higher version per package */
+function mergeMax(target, [pkg, version]) {
+  if (target[pkg] === undefined || compareVersions(version, target[pkg]) > 0) target[pkg] = version;
+}
+
 /**
- * @param {{since?: string, status?: string, package?: string}} meta
+ * @param {{since?: string | Record<string, string>, status?: string, package?: string}} meta
  * @param {Record<string, string>} released latest released version per package
- * @returns {{kind: "preview" | "new", label: string, package: string} | null}
+ * @param {{windowMinors?: number, requires?: Record<string, Record<string, string>>}} [options]
+ *   `requires`: lower bounds on other packages per released package version, keyed `pkg@version`
+ * @returns {{kind: "preview" | "new", label: string, title: string} | null}
  */
-function getBadge(meta, released, windowMinors = WINDOW_MINORS) {
-  const pkg = meta.package || DEFAULT_PACKAGE;
+function getBadge(meta, released, { windowMinors = WINDOW_MINORS, requires = {} } = {}) {
+  const explicit = toConstraints(meta);
+  const entries = Object.entries(explicit);
+  const needed = describe(explicit);
   if (meta.status === "preview") {
-    return { kind: "preview", label: "Preview", package: pkg };
+    return { kind: "preview", label: "Preview", title: needed ? `preview, needs ${needed}` : "preview" };
   }
-  if (!meta.since) return null;
-  const current = released[pkg];
-  if (current === undefined) throw new Error(`no released version for package "${pkg}"`);
-  if (compareVersions(meta.since, current) > 0) {
-    return { kind: "preview", label: "Preview", package: pkg };
+  if (!entries.length) return null;
+
+  const implied = {};
+  for (const [pkg, version] of entries) {
+    Object.entries(requires[requiresKey(pkg, version)] || {}).forEach((bound) => mergeMax(implied, bound));
   }
-  if (minorsSince(meta.since, current) < windowMinors) {
-    return { kind: "new", label: `New in ${meta.since}`, package: pkg };
+  // implied bounds that the explicit constraints already cover are not worth showing
+  const extra = Object.fromEntries(
+    Object.entries(implied).filter(([pkg, v]) => explicit[pkg] === undefined || compareVersions(v, explicit[pkg]) > 0)
+  );
+  const unreleased = Object.entries({ ...explicit, ...extra }).filter(([pkg, version]) => {
+    if (released[pkg] === undefined) throw new Error(`no released version for package "${pkg}"`);
+    return compareVersions(version, released[pkg]) > 0;
+  });
+  const requirement = Object.keys(extra).length ? `, requires ${Object.entries(extra).map(([pkg, v]) => `${pkg} >= ${v}`).join(", ")}` : "";
+  if (unreleased.length) {
+    return { kind: "preview", label: "Preview", title: `preview, needs ${needed}${requirement}` };
+  }
+  if (entries.some(([pkg, version]) => minorsSince(version, released[pkg]) < windowMinors)) {
+    return { kind: "new", label: `New in ${describe(explicit, true)}`, title: `new in ${needed}${requirement}` };
   }
   return null;
 }
 
-/** throws on unknown package, bad status or unparsable/non-string `since` (YAML turns `1.30` into a float) */
+/** throws on unknown package, bad status or unparsable/non-string versions (YAML turns `1.30` into a float) */
 function validateMeta(meta, where) {
   const fail = (msg) => {
     throw new Error(`${where}: ${msg}`);
   };
-  if (meta.package !== undefined && !PACKAGES.includes(meta.package)) {
-    fail(`unknown package "${meta.package}", expected one of ${PACKAGES.join(", ")}`);
-  }
-  if (meta.status !== undefined && meta.status !== "preview") {
-    fail(`unknown status "${meta.status}", only "preview" is supported`);
-  }
-  if (meta.since !== undefined) {
-    if (typeof meta.since !== "string") fail(`"since" must be a quoted string, got ${meta.since}`);
+  const checkPackage = (pkg) => {
+    if (SHIPPED_IN[pkg]) fail(`"${pkg}" ships inside "${SHIPPED_IN[pkg]}" and shares its version, use "${SHIPPED_IN[pkg]}"`);
+    if (!PACKAGES.includes(pkg)) fail(`unknown package "${pkg}", expected one of ${PACKAGES.join(", ")}`);
+  };
+  const checkVersion = (since) => {
+    if (typeof since !== "string") fail(`"since" must be a quoted string, got ${since}`);
     try {
-      parseVersion(meta.since);
+      parseVersion(since);
     } catch (e) {
       fail(e.message);
     }
+  };
+  if (meta.package !== undefined) checkPackage(meta.package);
+  if (meta.status !== undefined && meta.status !== "preview") {
+    fail(`unknown status "${meta.status}", only "preview" is supported`);
+  }
+  const { since } = meta;
+  if (since === undefined) return;
+  if (since !== null && typeof since === "object" && !Array.isArray(since)) {
+    if (meta.package !== undefined) fail(`"package" cannot be combined with a "since" dictionary, use the package as key`);
+    if (!Object.keys(since).length) fail(`"since" dictionary is empty`);
+    for (const [pkg, version] of Object.entries(since)) {
+      checkPackage(pkg);
+      checkVersion(version);
+    }
+  } else {
+    checkVersion(since);
   }
 }
 
-module.exports = { WINDOW_MINORS, PACKAGES, DEFAULT_PACKAGE, parseVersion, compareVersions, getBadge, validateMeta };
+module.exports = {
+  WINDOW_MINORS,
+  PACKAGES,
+  DEFAULT_PACKAGE,
+  parseVersion,
+  compareVersions,
+  toConstraints,
+  requiresKey,
+  formatConstraints,
+  parseConstraints,
+  getBadge,
+  validateMeta,
+};
