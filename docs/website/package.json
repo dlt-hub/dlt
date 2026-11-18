@@ -17,6 +17,7 @@
     "deploy:cloudflare": "npm run build && wrangler deploy",
     "verify-llms": "node scripts/verify-llms-txt.js",
     "verify-redirects": "node scripts/verify-redirects.js",
+    "test:versioning": "node --test versioning/",
     "lint": "biome check .",
     "lint:format": "biome check --write ."
   },

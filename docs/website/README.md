@@ -182,3 +182,65 @@ In production, the Cloudflare worker (`worker.ts`) redirects the legacy `/plus/`
 ## Page overlays (Root.js)
 
 `src/theme/Root.js` wraps the entire Docusaurus app to inject page-specific modal overlays, e.g. a floating button that opens a Loom video walkthrough for the page. The overlay configuration is a simple object mapping URL paths to `{buttonTitle, title, loomId, text}` (currently empty).
+
+## Version badges
+
+Pages and sections can be tagged with the package release that introduced them. At build time the
+tag is compared with the latest *released* version of that package:
+
+| tag vs. released version | badge |
+| --- | --- |
+| `status: preview`, or `since` newer than released | **Preview** |
+| `since` released in the last 3 minors (the release itself counts) | **New in X** |
+| older | none |
+
+Badges are shown on the sidebar entry, under the page breadcrumbs and next to a section heading.
+Versions are PEP 440 (`1.32.0`, `1.32.0rc1`); pre-releases sort before the final release.
+Badges are package-scoped: `dlt` (default), `dlthub`, `dlthub-client`, `dlthub-sdk`.
+
+Tag a page in its frontmatter (quote `since`, YAML would read `1.30` as a number):
+
+```md
+---
+title: My feature
+since: "1.32.0"        # or: status: preview
+package: dlt           # optional, default dlt
+---
+```
+
+Tag a section with an HTML comment directly below the heading. It is invisible in plain markdown,
+no MDX needed:
+
+```md
+## My new section
+<!-- since: 1.32.0 -->
+<!-- or, for another package: since: dlthub 0.5.0 -->
+```
+
+Use a release that is not out yet. `node versioning/check.js <changed files>` fails if a file claims
+a `since` that is already released.
+
+### Released versions: PyPI by default, mockable locally
+
+The released versions come from PyPI. Set `DLT_DOCS_RELEASED_VERSIONS` to override them, either inline
+or as a path to a JSON file (`{"dlt": "1.32.0"}`). Only packages used by pages need an entry.
+`DLT_DOCS_DEMO=1` additionally serves demo pages from `versioning/demo/` at
+`/docs/versioning-demo` (they are never part of the regular docs build).
+
+```sh
+# from docs/website; swap in any mocked version and look at /docs/versioning-demo
+DLT_DOCS_DEMO=1 DLT_DOCS_RELEASED_VERSIONS="dlt=1.31.0,dlthub=0.5.0" npm start
+```
+
+Expected demo badges (`dlthub-page` follows `dlthub`; `preview-explicit` is always Preview):
+
+| mocked `dlt` | `upcoming` (1.32.0) | `recent` (1.30.0) | `older` (1.28.0) | `expired` (1.20.0) |
+| --- | --- | --- | --- | --- |
+| `1.29.0` | Preview | Preview | New | none |
+| `1.31.0` | Preview | New | none | none |
+| `1.32.0` | New | New | none | none |
+| `1.34.0` | New | none | none | none |
+| `1.35.0` | none | none | none | none |
+
+The same states apply to the matching sections on the `sections` demo page. Unit tests for the
+comparison logic: `npm run test:versioning`.
