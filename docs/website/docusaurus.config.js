@@ -1,6 +1,7 @@
 // @ts-check
 // Note: type annotations allow type checking and IDEs autocompletion
 require("dotenv").config();
+const path = require("node:path");
 
 const synthwave84 = require("prism-react-renderer/themes/synthwave84");
 
@@ -41,6 +42,11 @@ const lightCodeTheme = {
   ],
 };
 
+// `DLT_DOCS_DEMO=1` also serves the version-badge demo pages at /docs/versioning-demo (see README.md)
+const versioningDemo = Boolean(process.env.DLT_DOCS_DEMO);
+const versionedDocDirs = [path.join(__dirname, "docs_processed")];
+if (versioningDemo) versionedDocDirs.push(path.join(__dirname, "versioning/demo"));
+
 /** @type {import('@docusaurus/types').Config} */
 const config = {
   title: "dlt Docs",
@@ -76,6 +82,8 @@ const config = {
   },
 
   markdown: {
+    // turns `<!-- since: 1.32.0 -->` section directives into version badges
+    preprocessor: require("./versioning/directive").preprocess,
     mermaid: true,
     hooks: {
       onBrokenMarkdownLinks: "throw",
@@ -120,6 +128,20 @@ const config = {
   ],
 
   plugins: [
+    // resolves version badges against released versions, see versioning/ and README.md
+    [require.resolve("./plugins/versioning"), { docDirs: versionedDocDirs }],
+    ...(versioningDemo
+      ? [
+          [
+            "@docusaurus/plugin-content-docs",
+            {
+              id: "versioning-demo",
+              path: "versioning/demo",
+              routeBasePath: "versioning-demo",
+            },
+          ],
+        ]
+      : []),
     // re-runs the python docs preprocessor when `website/docs` sources change
     require.resolve("./plugins/preprocess-docs"),
     // serves the last built search index during `docusaurus start`

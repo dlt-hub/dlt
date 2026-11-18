@@ -985,3 +985,23 @@ html[data-theme="dark"] .api-details code.api-error {
 .doc-screenshot--small img {
   max-height: 400px;
 }
+
+/* sidebar badges for new/preview pages, set by src/theme/DocSidebarItem/Link */
+.sidebar-badge-new > .menu__link::after,
+.sidebar-badge-preview > .menu__link::after {
+  margin-left: auto;
+  padding: 0 0.5em;
+  border-radius: 1em;
+  font-size: 0.65rem;
+  font-weight: 600;
+}
+.sidebar-badge-new > .menu__link::after {
+  content: "New";
+  background: var(--ifm-color-success-contrast-background);
+  color: var(--ifm-color-success-darkest);
+}
+.sidebar-badge-preview > .menu__link::after {
+  content: "Preview";
+  background: var(--ifm-color-warning-contrast-background);
+  color: var(--ifm-color-warning-darkest);
+}

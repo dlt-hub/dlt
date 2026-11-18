@@ -18,6 +18,7 @@ import DocItemTOCMobile from '@theme/DocItem/TOC/Mobile';
 import DocItemTOCDesktop from '@theme/DocItem/TOC/Desktop';
 import DocItemContent from '@theme/DocItem/Content';
 import DocBreadcrumbs from '@theme/DocBreadcrumbs';
+import {PageBadge} from '../../../components/VersionBadge';
 import ContentVisibility from '@theme/ContentVisibility';
 
 import styles from './styles.module.css';
@@ -75,6 +76,7 @@ export default function DocItemLayout({children}) {
           <article>
             <DocBreadcrumbs />
             <DocVersionBadge />
+            <PageBadge docId={metadata.id} />
             <DocMarkdownLink />
             {docTOC.mobile}
             <SearchContent>

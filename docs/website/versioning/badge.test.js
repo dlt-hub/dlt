@@ -53,3 +53,12 @@ test("released override: inline, file, and missing package", async () => {
   await assert.rejects(resolveReleased(["dlthub-sdk"], env), /no version/);
   await assert.rejects(resolveReleased(["pip"], env), /unknown packages/);
 });
+
+test("section directive is rewritten into a <Since> heading badge", () => {
+  const { preprocess } = require("./directive");
+  const out = (fileContent) => preprocess({ fileContent });
+  assert.equal(out("## A b\n<!-- since: 1.32.0 -->\n\ntext"), '## A b<Since version="1.32.0" />\n\ntext');
+  assert.equal(out("## A\n<!-- since: dlthub 0.5.0 -->"), '## A<Since version="0.5.0" package="dlthub" />');
+  assert.equal(out("## A {#id}\n<!-- since: 1.2.0 -->"), '## A<Since version="1.2.0" /> {#id}');
+  assert.equal(out("## A\n\ntext <!-- since: 1.2.0 -->"), "## A\n\ntext <!-- since: 1.2.0 -->");
+});
