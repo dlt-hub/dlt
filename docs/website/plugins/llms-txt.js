@@ -427,6 +427,8 @@ module.exports = function llmsTxtPlugin(_context, options) {
           sourceDir: route.sourceDir,
           isMaster: route.isMaster,
           routePrefix: route.prefix,
+          // path relative to the version mount point (no "devel/" prefix)
+          innerRel: relPosix.replace(/\.html$/, ".md").slice(route.prefix.length),
         });
       }
 
@@ -477,7 +479,7 @@ module.exports = function llmsTxtPlugin(_context, options) {
       console.log(`[llms-txt] Copied ${copiedCount} .md files to build output`);
 
       // Step 4: Generate llms.txt (master version only)
-      const masterPages = pages.filter((p) => p.isMaster && !excludeFromIndex.some((pat) => p.mdRel.includes(pat)));
+      const masterPages = pages.filter((p) => p.isMaster && !excludeFromIndex.some((pat) => p.innerRel.includes(pat)));
 
       // Build sidebar map for main docs (docsSidebar)
       let mainSidebarMap = null;
@@ -508,7 +510,7 @@ module.exports = function llmsTxtPlugin(_context, options) {
           const pageDesc = fm.description || "";
 
           // Derive docId (strip .md extension only — keep full path for sidebar lookup)
-          const docId = page.mdRel.replace(/\.md$/, "");
+          const docId = page.innerRel.replace(/\.md$/, "");
 
           let group = null;
           let sidebarOrder = null;
@@ -539,7 +541,7 @@ module.exports = function llmsTxtPlugin(_context, options) {
             continue;
           } else {
             // No sidebar available — fall back to directory-based grouping
-            const groupPath = pathPrefix ? page.mdRel.slice(pathPrefix.length) : page.mdRel;
+            const groupPath = pathPrefix ? page.innerRel.slice(pathPrefix.length) : page.innerRel;
             const parts = groupPath.split("/");
             group = parts.length > 1 ? parts[0] : "";
           }
@@ -613,8 +615,8 @@ module.exports = function llmsTxtPlugin(_context, options) {
       let remainingPages = masterPages;
       for (const sep of separateIndexes) {
         const prefix = sep.prefix;
-        const matching = remainingPages.filter((p) => p.mdRel.startsWith(prefix));
-        remainingPages = remainingPages.filter((p) => !p.mdRel.startsWith(prefix));
+        const matching = remainingPages.filter((p) => p.innerRel.startsWith(prefix));
+        remainingPages = remainingPages.filter((p) => !p.innerRel.startsWith(prefix));
 
         if (matching.length === 0) continue;
 
@@ -628,13 +630,15 @@ module.exports = function llmsTxtPlugin(_context, options) {
         }
 
         const { txt, groups, count } = buildLlmsTxt(sep.title, sep.description, matching, sepSidebarMap, prefix);
-        const sepPath = path.join(outDir, prefix, "llms.txt");
+        const sepPath = path.join(outDir, matching[0].routePrefix, prefix, "llms.txt");
         const sepDir = path.dirname(sepPath);
         if (!fs.existsSync(sepDir)) {
           fs.mkdirSync(sepDir, { recursive: true });
         }
         fs.writeFileSync(sepPath, txt);
-        console.log(`[llms-txt] Generated ${prefix}llms.txt with ${count} entries in ${groups.length} groups`);
+        console.log(
+          `[llms-txt] Generated ${matching[0].routePrefix}${prefix}llms.txt with ${count} entries in ${groups.length} groups`,
+        );
       }
 
       // Generate main llms.txt from remaining pages
@@ -643,8 +647,12 @@ module.exports = function llmsTxtPlugin(_context, options) {
         groups: mainGroups,
         count: mainCount,
       } = buildLlmsTxt(siteTitle, siteDescription, remainingPages, mainSidebarMap);
-      fs.writeFileSync(path.join(outDir, "llms.txt"), mainTxt);
-      console.log(`[llms-txt] Generated llms.txt with ${mainCount} entries in ${mainGroups.length} groups`);
+      const mainPrefix = remainingPages.length > 0 ? remainingPages[0].routePrefix : "";
+      fs.mkdirSync(path.join(outDir, mainPrefix), { recursive: true });
+      fs.writeFileSync(path.join(outDir, mainPrefix, "llms.txt"), mainTxt);
+      console.log(
+        `[llms-txt] Generated ${mainPrefix}llms.txt with ${mainCount} entries in ${mainGroups.length} groups`,
+      );
     },
   };
 };

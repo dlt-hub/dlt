@@ -139,8 +139,8 @@ The docs build generates LLM-optimized output following the [llms.txt specificat
 
 ### What the plugin produces
 
-- **`/docs/llms.txt`** — Index of all doc pages (excluding hub) with titles and descriptions, grouped by sidebar category (e.g. "Getting started", "Sources > REST APIs"). This is the primary entry point for LLM agents.
-- **`/docs/hub/llms.txt`** — Separate index for dltHub pages, grouped by `hubSidebar` categories. Configured via `separateIndexes` in the plugin options.
+- **`/docs/devel/llms.txt`** — Index of all doc pages (excluding hub) with titles and descriptions, grouped by sidebar category (e.g. "Getting started", "Sources > REST APIs"). This is the primary entry point for LLM agents.
+- **`/docs/devel/hub/llms.txt`** — Separate index for dltHub pages, grouped by `hubSidebar` categories. Configured via `separateIndexes` in the plugin options.
 - **`.md` files next to each HTML page** — For every doc page like `/docs/general-usage/schema`, a clean markdown version is available at `/docs/general-usage/schema.md`. These are copied from the preprocessed source files (with snippets already resolved), not reverse-converted from HTML.
 
 ### How it works
@@ -153,8 +153,7 @@ The docs build generates LLM-optimized output following the [llms.txt specificat
 ### What gets excluded or separated
 
 - **`api_reference/`** pages — auto-generated, no source `.md` files. Excluded from both `.md` generation and `llms.txt`.
-- **`devel/`** pages — get `.md` files (so "View Markdown" links work) but are excluded from `llms.txt`.
-- **`hub/`** pages — get `.md` files and their own `/docs/hub/llms.txt` index (via `separateIndexes`), but are excluded from the main `/docs/llms.txt`.
+- **`hub/`** pages — get `.md` files and their own `/docs/devel/hub/llms.txt` index (via `separateIndexes`), but are excluded from the main `/docs/devel/llms.txt`.
 - **Underscore-prefixed files** (`_source-info-header.md`, etc.) — MDX partials imported by other pages, not standalone content.
 
 ### Theme components

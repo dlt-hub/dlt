@@ -141,7 +141,7 @@ const config = {
         siteDescription:
           "dlt is an open-source Python library that loads data from various sources into well-structured datasets. Built for LLMs with 11,000+ source connectors.",
         excludeFromMd: ["api_reference/"],
-        excludeFromIndex: ["devel/"],
+        excludeFromIndex: [],
         groupDepth: 2,
         separateIndexes: [
           {
@@ -196,9 +196,7 @@ const config = {
             label: "What's new?",
             position: "left",
             items: [
-              { to: "/release-highlights", label: "dlt" },
-              // devel-scoped until this page reaches master; retarget to
-              // /hub/release-highlights once it is in the released version
+              { to: "/devel/release-highlights", label: "dlt" },
               { to: "/devel/hub/release-highlights", label: "dltHub" },
             ],
           },
