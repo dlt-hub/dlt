@@ -226,8 +226,19 @@ def test_dlthub_profile_without_operation_shows_info(
         (["local", "run", "job", "--profile", "prod"], "prod"),
         (["--profile", "prod", "local", "pipeline", "run", "p"], "prod"),
         (["local", "info"], None),
+        (["ai", "secrets", "list", "--profile", "prod"], "prod"),
+        (["ai", "mcp", "run", "--profile", "prod"], "prod"),
     ],
-    ids=["before-command", "after-command", "between", "local-run", "pipeline-run", "absent"],
+    ids=[
+        "before-command",
+        "after-command",
+        "between",
+        "local-run",
+        "pipeline-run",
+        "absent",
+        "ai-secrets",
+        "ai-mcp-run",
+    ],
 )
 def test_dlthub_profile_option_at_any_position(
     auto_isolated_workspace: WorkspaceRunContext,
@@ -246,8 +257,25 @@ def test_dlthub_profile_option_at_any_position(
         ["local", "profile", "use", "prod", "--profile", "prod"],
         ["--profile", "prod", "profile", "list"],
         ["--profile", "prod", "local", "profile", "use", "prod"],
+        ["init", "--profile", "prod"],
+        ["--profile", "prod", "init"],
+        ["ai", "toolkit", "list", "--profile", "prod"],
+        ["ai", "--profile", "prod", "toolkit", "list"],
+        ["ai", "status", "--profile", "prod"],
+        ["ai", "mcp", "install", "--profile", "prod"],
     ],
-    ids=["after-profile", "after-local-profile", "before-profile", "before-local-profile"],
+    ids=[
+        "after-profile",
+        "after-local-profile",
+        "before-profile",
+        "before-local-profile",
+        "after-init",
+        "before-init",
+        "after-ai-toolkit",
+        "before-ai-toolkit",
+        "after-ai-status",
+        "after-ai-mcp-install",
+    ],
 )
 def test_dlthub_profile_commands_take_no_profile_option(
     auto_isolated_workspace: WorkspaceRunContext, main_dlthub: TMainDlthub, argv: List[str]

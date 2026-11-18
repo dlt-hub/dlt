@@ -26,6 +26,17 @@ PROFILE_COMMAND = "profile"
 ENVIRONMENT_DEST = "environment"
 """`dest` of the `--environment` option: a command that has it takes no `--profile`."""
 
+COMMANDS_WITHOUT_PROFILE = (
+    "init",
+    "ai init",
+    "ai toolkit",
+    "ai rules",
+    "ai status",
+    "ai mcp install",
+)
+"""Commands, with their subcommands, that never read the active profile and take no `--profile`.
+`ai secrets` and `ai mcp run` read it."""
+
 ACTION_EXECUTED = False
 
 
@@ -336,10 +347,12 @@ def add_environment_argument(parser: argparse.ArgumentParser) -> None:
     )
 
 
-def _add_profile_argument(parser: argparse.ArgumentParser) -> None:
+def _add_profile_argument(parser: argparse.ArgumentParser, command_path: str = "") -> None:
     """Adds `--profile` to `parser` and to every command under it that has no `profile` option,
-    except the commands that manage profiles. A command that takes `--environment` gets a
-    hidden `--profile`, so that `main` can name the option to use instead."""
+    except the commands that manage profiles and `COMMANDS_WITHOUT_PROFILE`. A command that takes
+    `--environment` gets a hidden `--profile`, so that `main` can name the option to use instead."""
+    if _is_command_without_profile(command_path):
+        return
     dests = {a.dest for a in parser._actions}
     if "profile" not in dests:
         # SUPPRESS so a command parser does not reset a value given before the command
@@ -353,7 +366,25 @@ def _add_profile_argument(parser: argparse.ArgumentParser) -> None:
         if isinstance(action, argparse._SubParsersAction):
             for name, subparser in action.choices.items():
                 if name != PROFILE_COMMAND:
-                    _add_profile_argument(subparser)
+                    _add_profile_argument(subparser, f"{command_path} {name}".strip())
+
+
+def _is_command_without_profile(command_path: str) -> bool:
+    return any(
+        command_path == command or command_path.startswith(command + " ")
+        for command in COMMANDS_WITHOUT_PROFILE
+    )
+
+
+def _get_command_path(args: argparse.Namespace) -> str:
+    """The command path of parsed `args` as far as `COMMANDS_WITHOUT_PROFILE` needs it."""
+    parts = [getattr(args, "command", None)]
+    if parts[0] == "ai":
+        parts.append(getattr(args, "operation", None))
+        if parts[-1] == "mcp":
+            # `ai mcp` without a subcommand runs the server
+            parts.append(getattr(args, "mcp_operation", None) or "run")
+    return " ".join(part for part in parts if part)
 
 
 def _manages_profiles(args: argparse.Namespace) -> bool:
@@ -394,6 +425,10 @@ def main(host: str = "dlt") -> int:
         parser.error(
             "this command deploys or works with a deployment and takes no --profile. Name the"
             " environment with --environment NAME."
+        )
+    if profile and _is_command_without_profile(command_path := _get_command_path(args)):
+        parser.error(
+            "`%s %s` does not use a profile and takes no --profile." % (host, command_path)
         )
 
     if Venv.is_virtual_env() and not Venv.is_venv_activated():
