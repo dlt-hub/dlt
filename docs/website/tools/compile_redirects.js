@@ -1,18 +1,11 @@
 #!/usr/bin/env node
 /**
- * Compile per-version redirect sources into a single, version-prefixed list.
+ * Compile ./redirects.js into ./redirects.compiled.js, the list the Cloudflare
+ * worker bundles and scripts/verify-redirects.js checks.
  *
- * Sources:
- *   - ./redirects.js    (the current branch)
- *
- * Per the version-path map in docusaurus.config.js, the current version is
- * served at /docs/devel/...
- *
- * For each entry whose `from` and `to` both start with /docs/, this script
- * rewrites the leading /docs/ to /docs/<path>/, so the worker can match
- * exact pathnames against version-scoped URLs. Entries whose from/to do not
- * start with /docs/ (e.g. the root catchall { from: "/", ... }) are passed
- * through unchanged.
+ * Entries are written as final URLs (e.g. "/docs/old/path" -> "/docs/new/path");
+ * nothing is rewritten. The compile step rejects duplicate `from` paths and
+ * gives the verifier a build artifact it can diff against for staleness.
  *
  * Output: ./redirects.compiled.js (build artifact, gitignored).
  *
@@ -23,49 +16,8 @@ const fs = require("node:fs");
 const path = require("node:path");
 
 const WEBSITE_DIR = path.resolve(__dirname, "..");
-const CURRENT_REDIRECTS_FILE = path.join(WEBSITE_DIR, "redirects.js");
+const REDIRECTS_FILE = path.join(WEBSITE_DIR, "redirects.js");
 const OUTPUT_FILE = path.join(WEBSITE_DIR, "redirects.compiled.js");
-
-const CURRENT_VERSION_KEY = "current";
-
-/**
- * Return the URL path segment for a given version, matching the mapping in
- * docusaurus.config.js. Empty string means "served at the docs root".
- */
-function versionPath(version) {
-  if (version === CURRENT_VERSION_KEY) return "devel";
-  return version;
-}
-
-function prefixDocsPath(p, versionPathSegment) {
-  if (!p.startsWith("/docs/") && p !== "/docs") return p;
-  if (versionPathSegment === "") return p;
-  if (p === "/docs") return `/docs/${versionPathSegment}`;
-  return `/docs/${versionPathSegment}/${p.slice("/docs/".length)}`;
-}
-
-function isPassthrough(entry) {
-  // An entry is "version-independent" iff its `from` does not start with
-  // /docs/
-  return !entry.from.startsWith("/docs");
-}
-
-function transformVersionEntries(entries, version) {
-  const segment = versionPath(version);
-  const passthrough = [];
-  const scoped = [];
-  for (const entry of entries) {
-    if (isPassthrough(entry)) {
-      passthrough.push(entry);
-      continue;
-    }
-    scoped.push({
-      from: prefixDocsPath(entry.from, segment),
-      to: prefixDocsPath(entry.to, segment),
-    });
-  }
-  return { passthrough, scoped };
-}
 
 function loadModule(filePath) {
   delete require.cache[require.resolve(filePath)];
@@ -73,48 +25,12 @@ function loadModule(filePath) {
 }
 
 /**
- * Pure compile: returns the final array of {from, to} entries and a list of
- * the input files involved (used by the verifier for staleness diagnostics).
+ * Pure compile: returns the final array of {from, to} entries.
  */
 function compile() {
-  const versions = [];
-
-  if (fs.existsSync(CURRENT_REDIRECTS_FILE)) {
-    versions.push({
-      version: CURRENT_VERSION_KEY,
-      file: CURRENT_REDIRECTS_FILE,
-      entries: loadModule(CURRENT_REDIRECTS_FILE),
-    });
-  }
-
-  const passthroughSeen = new Set();
-  const passthrough = [];
-  const grouped = [];
-
-  for (const v of versions) {
-    const { passthrough: p, scoped } = transformVersionEntries(v.entries, v.version);
-    for (const entry of p) {
-      const key = `${entry.from} ${entry.to}`;
-      if (passthroughSeen.has(key)) continue;
-      passthroughSeen.add(key);
-      passthrough.push(entry);
-    }
-    grouped.push({ version: v.version, path: versionPath(v.version), entries: scoped });
-  }
-
-  const compiled = [...passthrough];
-  for (const g of grouped) {
-    for (const entry of g.entries) compiled.push(entry);
-  }
-
+  const compiled = loadModule(REDIRECTS_FILE).map(({ from, to }) => ({ from, to }));
   assertNoDuplicateSources(compiled);
-
-  return {
-    compiled,
-    groups: grouped,
-    passthrough,
-    inputs: versions.map((v) => v.file),
-  };
+  return { compiled, inputs: [REDIRECTS_FILE] };
 }
 
 /**
@@ -132,13 +48,9 @@ function assertNoDuplicateSources(entries) {
   if (duplicates.length === 0) return;
   const details = duplicates.map(([from, targets]) => `  ${from} -> ${targets.join(", ")}`).join("\n");
   throw new Error(
-    `duplicate "from" paths in the redirect sources - the worker would only ever apply ` +
+    `duplicate "from" paths in redirects.js - the worker would only ever apply ` +
       `the first rule for each. Edit the existing entry instead of adding a second one:\n${details}`,
   );
-}
-
-function renderEntry(entry) {
-  return `  {\n    from: ${JSON.stringify(entry.from)},\n    to: ${JSON.stringify(entry.to)}\n  },\n`;
 }
 
 function renderOutput(result) {
@@ -148,25 +60,9 @@ function renderOutput(result) {
   out += "\n";
   out += "/** @type {Array<{from: string, to: string}>} */\n";
   out += "const REDIRECTS = [\n";
-
-  if (result.passthrough.length > 0) {
-    out += "  // pass-through (no /docs/ prefix; apply to every version)\n";
-    for (const entry of result.passthrough) out += renderEntry(entry);
-    out += "\n";
+  for (const entry of result.compiled) {
+    out += `  {\n    from: ${JSON.stringify(entry.from)},\n    to: ${JSON.stringify(entry.to)}\n  },\n`;
   }
-
-  for (const group of result.groups) {
-    const label =
-      group.path === "" ? `${group.version} (served at /docs/)` : `${group.version} (served at /docs/${group.path}/)`;
-    out += `  // ${label}\n`;
-    if (group.entries.length === 0) {
-      out += "  // (no version-scoped entries)\n";
-    } else {
-      for (const entry of group.entries) out += renderEntry(entry);
-    }
-    out += "\n";
-  }
-
   out += "];\n\n";
   out += "module.exports = REDIRECTS;\n";
   return out;
@@ -182,11 +78,8 @@ function writeCompiled() {
 if (require.main === module) {
   try {
     const { result } = writeCompiled();
-    const total = result.compiled.length;
-    const groupSummary = result.groups.map((g) => `${g.version}=${g.entries.length}`).join(", ");
     console.log(
-      `compile-redirects: wrote ${path.relative(WEBSITE_DIR, OUTPUT_FILE)} ` +
-        `(${total} entries — passthrough=${result.passthrough.length}, ${groupSummary})`,
+      `compile-redirects: wrote ${path.relative(WEBSITE_DIR, OUTPUT_FILE)} (${result.compiled.length} entries)`,
     );
   } catch (err) {
     console.error(`compile-redirects: ${err.message}`);
@@ -194,4 +87,4 @@ if (require.main === module) {
   }
 }
 
-module.exports = { compile, renderOutput, writeCompiled, OUTPUT_FILE, CURRENT_REDIRECTS_FILE };
+module.exports = { compile, renderOutput, writeCompiled, OUTPUT_FILE, REDIRECTS_FILE };

@@ -5,9 +5,8 @@
 const REDIRECTS = [
   // basic root redirects
   {
-    // NOTE: We only ever hit the root path on dev previews, so we can redirect to the devel version
     from: "/",
-    to: "/docs/devel/intro",
+    to: "/docs/intro",
   },
   {
     from: "/docs",

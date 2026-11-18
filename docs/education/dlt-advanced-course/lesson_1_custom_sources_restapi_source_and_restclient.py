@@ -17,7 +17,7 @@ app = marimo.App()
 @app.cell(hide_code=True)
 def _(mo):
     mo.md(
-        r"""# **Building custom sources with [dlt REST API source](https://dlthub.com/docs/devel/dlt-ecosystem/verified-sources/rest_api/basic) and [RESTClient](https://dlthub.com/docs/devel/general-usage/http/rest-client)** [![Open in molab](https://marimo.io/molab-shield.svg)](https://molab.marimo.io/github/dlt-hub/dlt/blob/master/docs/education/dlt-advanced-course/lesson_1_custom_sources_restapi_source_and_restclient.py) [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/dlt-hub/dlt/blob/master/docs/education/dlt-advanced-course/lesson_1_custom_sources_restapi_source_and_restclient.ipynb) [![GitHub badge](https://img.shields.io/badge/github-view_source-2b3137?logo=github)](https://github.com/dlt-hub/dlt/blob/master/docs/education/dlt-advanced-course/lesson_1_custom_sources_restapi_source_and_restclient.ipynb)"""
+        r"""# **Building custom sources with [dlt REST API source](https://dlthub.com/docs/dlt-ecosystem/verified-sources/rest_api/basic) and [RESTClient](https://dlthub.com/docs/general-usage/http/rest-client)** [![Open in molab](https://marimo.io/molab-shield.svg)](https://molab.marimo.io/github/dlt-hub/dlt/blob/master/docs/education/dlt-advanced-course/lesson_1_custom_sources_restapi_source_and_restclient.py) [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/dlt-hub/dlt/blob/master/docs/education/dlt-advanced-course/lesson_1_custom_sources_restapi_source_and_restclient.ipynb) [![GitHub badge](https://img.shields.io/badge/github-view_source-2b3137?logo=github)](https://github.com/dlt-hub/dlt/blob/master/docs/education/dlt-advanced-course/lesson_1_custom_sources_restapi_source_and_restclient.ipynb)"""
     )
     return
 
@@ -35,8 +35,8 @@ def _(mo):
 
     In the **[dlt Fundamentals](https://github.com/dlt-hub/dlthub-education/tree/main/courses/dlt_fundamentals_dec_2024)** course, we learned two primary ways to build sources for REST APIs:
 
-    1. **Using low-level dlt decorators** (`@dlt.source` and `@dlt.resource`) with [`RESTClient`](https://dlthub.com/docs/devel/general-usage/http/rest-client).
-    2. **Using the built-in [`rest_api` source](https://dlthub.com/docs/devel/dlt-ecosystem/verified-sources/rest_api/basic)** with declarative configuration.
+    1. **Using low-level dlt decorators** (`@dlt.source` and `@dlt.resource`) with [`RESTClient`](https://dlthub.com/docs/general-usage/http/rest-client).
+    2. **Using the built-in [`rest_api` source](https://dlthub.com/docs/dlt-ecosystem/verified-sources/rest_api/basic)** with declarative configuration.
 
     ---
     """)
@@ -255,13 +255,13 @@ def _(mo):
 
     The **available authentication methods** are defined in the `dlt.sources.helpers.rest_client.auth` module:
 
-    - [BearerTokenAuth](https://dlthub.com/docs/devel/general-usage/http/rest-client#bearer-token-authentication)
-    - [APIKeyAuth](https://dlthub.com/docs/devel/general-usage/http/rest-client#api-key-authentication)
-    - [HttpBasicAuth](https://dlthub.com/docs/devel/general-usage/http/rest-client#http-basic-authentication)
-    - [OAuth2ClientCredentials](https://dlthub.com/docs/devel/general-usage/http/rest-client#oauth-20-authorization)
+    - [BearerTokenAuth](https://dlthub.com/docs/general-usage/http/rest-client#bearer-token-authentication)
+    - [APIKeyAuth](https://dlthub.com/docs/general-usage/http/rest-client#api-key-authentication)
+    - [HttpBasicAuth](https://dlthub.com/docs/general-usage/http/rest-client#http-basic-authentication)
+    - [OAuth2ClientCredentials](https://dlthub.com/docs/general-usage/http/rest-client#oauth-20-authorization)
 
-    For specific use cases, you can [implement custom authentication](https://dlthub.com/docs/devel/general-usage/http/rest-client#implementing-custom-authentication) by subclassing the `AuthConfigBase` class from the [`dlt.sources.helpers.rest_client.auth`](https://github.com/dlt-hub/dlt/blob/devel/dlt/sources/helpers/rest_client/auth.py) module.
-    For specific flavors of OAuth 2.0, you can [implement custom OAuth 2.0](https://dlthub.com/docs/devel/general-usage/http/rest-client#oauth-20-authorization) by subclassing `OAuth2ClientCredentials`.
+    For specific use cases, you can [implement custom authentication](https://dlthub.com/docs/general-usage/http/rest-client#implementing-custom-authentication) by subclassing the `AuthConfigBase` class from the [`dlt.sources.helpers.rest_client.auth`](https://github.com/dlt-hub/dlt/blob/devel/dlt/sources/helpers/rest_client/auth.py) module.
+    For specific flavors of OAuth 2.0, you can [implement custom OAuth 2.0](https://dlthub.com/docs/general-usage/http/rest-client#oauth-20-authorization) by subclassing `OAuth2ClientCredentials`.
     """)
     return
 

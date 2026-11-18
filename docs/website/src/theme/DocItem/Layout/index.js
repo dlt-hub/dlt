@@ -38,7 +38,7 @@ function useDocTOC() {
   return {hidden, mobile, desktop};
 }
 
-// Pagefind attributes: only the latest version is indexed (no devel/old
+// Pagefind attributes: only the latest version is indexed (no old
 // duplicates) and only the doc content (no navbar, sidebar, footer).
 function SearchContent({children}) {
   const {metadata} = useDoc();

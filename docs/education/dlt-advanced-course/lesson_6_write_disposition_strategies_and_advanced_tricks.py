@@ -1110,12 +1110,12 @@ def _(TDataItems, data_9, dlt):
 @app.cell(hide_code=True)
 def _(mo):
     mo.md(r"""
-    You can also define a [fall back column](https://dlthub.com/docs/devel/general-usage/incremental-loading#transform-records-before-incremental-processing) for an incremental cursor, as described below.
+    You can also define a [fall back column](https://dlthub.com/docs/general-usage/incremental-loading#transform-records-before-incremental-processing) for an incremental cursor, as described below.
 
     ## **Transform records before incremental processing**
 
     If you want to load data that includes `None` values, you can transform the records before the incremental processing.
-    You can add steps to the pipeline that [filter, transform, or pivot your data](https://dlthub.com/docs/devel/general-usage/resource#filter-transform-and-pivot-data).
+    You can add steps to the pipeline that [filter, transform, or pivot your data](https://dlthub.com/docs/general-usage/resource#filter-transform-and-pivot-data).
 
     In the following example
     - the step of data yielding is at `index = 0`,

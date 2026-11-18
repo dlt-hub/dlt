@@ -18,7 +18,7 @@ async function notFound(request, env): Promise<Response> {
 
 // the theme's search page marks itself noindex with `property="robots"`, which search
 // engines ignore; a response header is honoured. Matched per version, so /docs/search
-// and /docs/devel/search are both covered.
+// and /docs/1.17.0/search are both covered.
 const NOINDEX_ROUTES = ["search"];
 
 const resolveRedirect = createRedirectResolver(REDIRECTS);

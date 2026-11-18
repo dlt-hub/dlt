@@ -107,29 +107,27 @@ This will build the project fully and serve via a local wrangler webserver which
 
 ## Redirects
 
-The docs site is built from the current branch and mounted at `/docs/devel/`. A build-time step compiles the redirect rules into a single, version-prefixed list that the Cloudflare worker and the verifier both consume.
+The docs site is built from the `devel` branch and served at `/docs/`. The redirect rules in `redirects.js` are compiled into a list that the Cloudflare worker and the verifier both consume.
 
 ### How to add or change a redirect
 
-Edit [`redirects.js`](redirects.js) — that file is the **devel** version's redirect source. Write entries with bare `/docs/...` paths, **without any `/devel/` prefix**:
+Edit [`redirects.js`](redirects.js). Write entries with full `/docs/...` paths:
 
 ```js
 { from: "/docs/old/path",   to: "/docs/new/path" },
 ```
 
-The compile step (see below) prefixes both fields with `/docs/devel/` when emitting the version-scoped output. So the entry above ends up matching the URL `/docs/devel/old/path` in production — exactly where the page lives in this version.
-
 A `from` path may only appear **once**. The worker resolves paths through a map where the first rule wins, so a second rule for the same `from` would never fire; `compile-redirects` fails the build on duplicates. To change where a path goes, edit the existing entry.
 
-The lone catchall `{ from: "/", to: "/docs/devel/intro" }` is the exception: its `from` doesn't start with `/docs/`, so the compiler treats it as version-independent and passes it through unchanged.
+The legacy `/docs/*` URLs are forwarded to `/docs/*` by the worker (see `worker-routing.mjs`), so do not add rules for them.
 
 ### Compile step
 
-`tools/compile_redirects.js` reads `./redirects.js`, rewrites each entry's leading `/docs/` to `/docs/devel/` and writes the merged list to `redirects.compiled.js`. That file is a **build artifact** — gitignored and regenerated on every build.
+`tools/compile_redirects.js` reads `./redirects.js`, checks it for duplicate `from` paths and writes the list to `redirects.compiled.js`. That file is a **build artifact** — gitignored and regenerated on every build.
 
 ### Where the compiled file is used
 
-- **Cloudflare worker (`worker.ts`)** — imports `redirects.compiled.js`. Wrangler bundles the import into the deployed worker. Exact pathname match per entry; no version-routing logic in the worker. Rules, trailing slashes and the legacy `/plus/` → `/hub/` forward are followed to the final target (see `worker-routing.mjs`), so a moved page answers with a single `301` instead of a chain. A chain that does not settle within 10 hops is left to the assets binding rather than redirected to a half-resolved path.
+- **Cloudflare worker (`worker.ts`)** — imports `redirects.compiled.js`. Wrangler bundles the import into the deployed worker. Exact pathname match per entry, and `/docs/devel/*` is forwarded to `/docs/*`. Rules, trailing slashes and the legacy `/plus/` → `/hub/` forward are followed to the final target (see `worker-routing.mjs`), so a moved page answers with a single `301` instead of a chain. A chain that does not settle within 10 hops is left to the assets binding rather than redirected to a half-resolved path.
 - **`scripts/verify-redirects.js`** — loads `redirects.compiled.js`, checks each `to` resolves to an HTML page in `build/docs/<rel>`, and **also recompiles in memory** from `redirects.js` and diffs the result against the on-disk compiled file to guard against a stale compiled file.
 
 
@@ -139,8 +137,8 @@ The docs build generates LLM-optimized output following the [llms.txt specificat
 
 ### What the plugin produces
 
-- **`/docs/devel/llms.txt`** — Index of all doc pages (excluding hub) with titles and descriptions, grouped by sidebar category (e.g. "Getting started", "Sources > REST APIs"). This is the primary entry point for LLM agents.
-- **`/docs/devel/hub/llms.txt`** — Separate index for dltHub pages, grouped by `hubSidebar` categories. Configured via `separateIndexes` in the plugin options.
+- **`/docs/llms.txt`** — Index of all doc pages (excluding hub) with titles and descriptions, grouped by sidebar category (e.g. "Getting started", "Sources > REST APIs"). This is the primary entry point for LLM agents.
+- **`/docs/hub/llms.txt`** — Separate index for dltHub pages, grouped by `hubSidebar` categories. Configured via `separateIndexes` in the plugin options.
 - **`.md` files next to each HTML page** — For every doc page like `/docs/general-usage/schema`, a clean markdown version is available at `/docs/general-usage/schema.md`. These are copied from the preprocessed source files (with snippets already resolved), not reverse-converted from HTML.
 
 ### How it works
@@ -153,7 +151,7 @@ The docs build generates LLM-optimized output following the [llms.txt specificat
 ### What gets excluded or separated
 
 - **`api_reference/`** pages — auto-generated, no source `.md` files. Excluded from both `.md` generation and `llms.txt`.
-- **`hub/`** pages — get `.md` files and their own `/docs/devel/hub/llms.txt` index (via `separateIndexes`), but are excluded from the main `/docs/devel/llms.txt`.
+- **`hub/`** pages — get `.md` files and their own `/docs/hub/llms.txt` index (via `separateIndexes`), but are excluded from the main `/docs/llms.txt`.
 - **Underscore-prefixed files** (`_source-info-header.md`, etc.) — MDX partials imported by other pages, not standalone content.
 
 ### Theme components

@@ -2,7 +2,7 @@
 /**
  * Post-build verification for redirect targets.
  *
- * Loads the compiled, version-prefixed redirect list (./redirects.compiled.js)
+ * Loads the compiled redirect list (./redirects.compiled.js)
  * and checks that every `to` target resolves to an existing HTML page in the
  * build output. Run after `docusaurus build`:
  *

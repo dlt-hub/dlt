@@ -41,15 +41,6 @@ const lightCodeTheme = {
   ],
 };
 
-// single docs version, built from the current branch
-const versions = {
-  current: {
-    label: "devel",
-    path: "devel",
-    noIndex: true,
-  },
-};
-
 /** @type {import('@docusaurus/types').Config} */
 const config = {
   title: "dlt Docs",
@@ -114,7 +105,6 @@ const config = {
           editUrl: (params) => {
             return `https://github.com/dlt-hub/dlt/tree/devel/docs/website/docs/${params.docPath}`;
           },
-          versions: versions,
           showLastUpdateAuthor: true,
           showLastUpdateTime: true,
         },
@@ -141,7 +131,6 @@ const config = {
         siteDescription:
           "dlt is an open-source Python library that loads data from various sources into well-structured datasets. Built for LLMs with 11,000+ source connectors.",
         excludeFromMd: ["api_reference/"],
-        excludeFromIndex: [],
         groupDepth: 2,
         separateIndexes: [
           {
@@ -196,8 +185,8 @@ const config = {
             label: "What's new?",
             position: "left",
             items: [
-              { to: "/devel/release-highlights", label: "dlt" },
-              { to: "/devel/hub/release-highlights", label: "dltHub" },
+              { to: "/release-highlights", label: "dlt" },
+              { to: "/hub/release-highlights", label: "dltHub" },
             ],
           },
           { to: "https://dlthub.com/blog", label: "Blog", position: "right" },

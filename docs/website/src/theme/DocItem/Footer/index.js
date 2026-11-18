@@ -8,7 +8,7 @@ import { useDoc, useDocsVersion, useVersions } from "@docusaurus/plugin-content-
 import { getGoFurtherLinks } from "@site/src/data/go-further";
 import styles from "./styles.module.css";
 
-// "/docs/devel/intro" and "/docs/intro" both become "/docs/intro".
+// "/docs/1.17.0/intro" and "/docs/intro" both become "/docs/intro".
 function useVersionlessPath() {
   const { metadata } = useDoc();
   const { pluginId, version } = useDocsVersion();

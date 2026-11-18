@@ -279,25 +279,25 @@ function buildSidebarMap(sidebarItems, groupDepth = 2) {
  *
  * Each entry maps a URL path prefix to:
  *   - sourceDir: where the .md source files live
- *   - isMaster: whether this is the master (latest) version
- *   - prefix: the URL path prefix ('' for root-mounted master)
+ *   - isMaster: whether this is the latest version
+ *   - prefix: the URL path prefix ('' for the root-mounted version)
  *
  * Versions:
- *   - "current" (devel): path 'devel', source in docs_processed/
+ *   - "current": mounted at the docs root, source in docs_processed/
  */
 function buildVersionRoutes(siteDir, docsVersions) {
   const routes = [];
 
-  // "current" version (devel) — always uses docs_processed/
+  // "current" version — always uses docs_processed/
   const currentCfg = docsVersions.current || {};
-  const currentPrefix = (currentCfg.path || "devel").replace(/^\/+/, "");
+  const currentPrefix = (currentCfg.path || "/").replace(/^\/+/, "");
   routes.push({
     prefix: currentPrefix ? `${currentPrefix}/` : "",
     sourceDir: path.join(siteDir, "docs_processed"),
     isMaster: true,
   });
 
-  // Sort: longer prefixes first so "devel/" matches before "" (root)
+  // Sort: longer prefixes first so a mounted version matches before "" (root)
   routes.sort((a, b) => b.prefix.length - a.prefix.length);
   return routes;
 }
@@ -307,7 +307,7 @@ module.exports = function llmsTxtPlugin(_context, options) {
     siteTitle = "dlt - data load tool",
     siteDescription = "",
     excludeFromMd = ["api_reference/"],
-    excludeFromIndex = ["devel/"],
+    excludeFromIndex = [],
     separateIndexes = [],
     groupDepth = 2,
   } = options;
@@ -427,7 +427,7 @@ module.exports = function llmsTxtPlugin(_context, options) {
           sourceDir: route.sourceDir,
           isMaster: route.isMaster,
           routePrefix: route.prefix,
-          // path relative to the version mount point (no "devel/" prefix)
+          // path relative to the version mount point (no version prefix)
           innerRel: relPosix.replace(/\.html$/, ".md").slice(route.prefix.length),
         });
       }

@@ -20,14 +20,12 @@ const SITE_DIR = path.resolve(__dirname, "..");
 const SIDEBARS_PATH = path.join(SITE_DIR, "sidebars.js");
 const EXCLUDE_FROM_MD = ["api_reference/"];
 const EXCLUDE_FROM_INDEX = [];
-// the single docs version is mounted under this path until it moves to the docs root
-const VERSION_PREFIX = "devel/";
 const SEPARATE_INDEX_PREFIXES = ["hub/"];
 const HIDE_MD_PATTERNS = ["/api_reference/"];
 
 const LLMS_TXT_FILES = [
-  { path: `${VERSION_PREFIX}llms.txt`, sidebar: "docsSidebar", label: "main" },
-  { path: `${VERSION_PREFIX}hub/llms.txt`, sidebar: "hubSidebar", label: "hub" },
+  { path: "llms.txt", sidebar: "docsSidebar", label: "main" },
+  { path: "hub/llms.txt", sidebar: "hubSidebar", label: "hub" },
 ];
 
 // ---------------------------------------------------------------------------
@@ -251,7 +249,7 @@ function checkSidebarCoverage(llmsConfig, sidebars, indexedUrls) {
     }
   }
 
-  const urlPrefix = `/docs/${VERSION_PREFIX}`;
+  const urlPrefix = "/docs/";
 
   let missing = 0;
   for (const docId of sidebarDocIds) {
@@ -398,7 +396,7 @@ function checkHtmlMdParity() {
     // Skip paths excluded from index and separate index prefixes — these are
     // either non-master versions or have their own llms.txt checked separately
     const skipPrefixes = [...EXCLUDE_FROM_INDEX, ...SEPARATE_INDEX_PREFIXES];
-    if (skipPrefixes.some((p) => rel.startsWith(VERSION_PREFIX + p))) continue;
+    if (skipPrefixes.some((p) => rel.startsWith(p))) continue;
 
     // The badge constructs the URL as pathname + '.md', which maps to stem.md
     const mdPath = path.join(BUILD_DIR, rel.replace(/\.html$/, ".md"));

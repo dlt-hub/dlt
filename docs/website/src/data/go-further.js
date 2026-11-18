@@ -1,8 +1,8 @@
 /**
  * "Go further" links shown at the end of selected docs pages.
  *
- * Keys are doc permalinks without the version segment, so "/docs/devel/intro" and
- * "/docs/intro" both match "/docs/intro". A key ending in "/" is a prefix rule and
+ * Keys are doc permalinks without the version segment, e.g. "/docs/intro". A key
+ * ending in "/" is a prefix rule and
  * matches every page below it; exact keys win over prefixes, and the longest prefix wins.
  * Pages without a match render nothing.
  *
