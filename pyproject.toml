@@ -128,7 +128,8 @@ snowflake = [
     "snowflake-connector-python>=4.4.0 ; python_version >= '3.14'",
 ]
 motherduck = [
-    "duckdb>=0.9",
+    # MotherDuck does not yet support DuckDB 2.
+    "duckdb>=0.9,<2",
     "pyarrow>=16.0.0",
 ]
 cli = [
