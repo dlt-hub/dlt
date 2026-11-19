@@ -1,5 +1,5 @@
 from datetime import datetime, timezone  # noqa: I251
-from typing import Any, Dict, List, Optional, Tuple
+from typing import List, Optional, Tuple
 from zoneinfo import ZoneInfo
 
 import pytest
@@ -13,6 +13,7 @@ from dlt.common.normalizers.naming import NamingConvention, direct, duck_case, s
 
 from dlt.common.configuration.container import Container
 from dlt.common.configuration.specs.timezone_context import TimezoneContext
+from dlt.destinations.impl.filesystem.typing import TExtraPlaceholders
 
 from dlt.destinations.path_utils import (
     check_layout,
@@ -487,40 +488,34 @@ def test_get_table_prefix_layout_table_name_at_end(layout: str, expected_prefix:
 
 
 @pytest.mark.parametrize(
-    "layout,extra_placeholders,is_valid",
+    "layout,extra_placeholders,expected_path",
     [
-        ("{table_name}.{ext}", None, True),
-        ("{table_name}/_{ext}", None, True),
-        ("{load_id}/{ext}/{table_name}", None, True),
-        ("{table_name}{ext}", None, False),
-        ("{table_name}/{file_id}{ext}", None, False),
-        ("{table_name}{ext}", {"ext": "dat"}, False),
-        ("{table_name}{ext}", {"ext": dummy_callback}, False),
-        # to support usecases like in #4402
-        ("{table_name}{ext}", {"ext": ""}, True),
-        ("{table_name}/{load_id}-{file_id}{ext}", {"ext": ""}, True),
-    ],
-    ids=[
-        "dot_separator",
-        "literal_separator",
-        "ext_as_folder",
-        "ext_after_table_name",
-        "ext_after_file_id",
-        "non_empty_ext",
-        "callable_ext",
-        "empty_ext_after_table_name",
-        "empty_ext_after_file_id",
+        ("{table_name}.{ext}", None, "event.jsonl"),
+        ("{table_name}/_{ext}", None, "event/_jsonl"),
+        ("{load_id}/{ext}/{table_name}", None, "load/jsonl/event"),
+        ("{table_name}{ext}", {"ext": ""}, "event"),
+        ("{table_name}/{file_id}{ext}", None, "event/abc123jsonl"),
+        ("{table_name}/{file_id}{ext}", {"ext": ".dat"}, "event/abc123.dat"),
+        ("{table_name}/{file_id}{ext}", {"ext": lambda *_: ".dat"}, "event/abc123.dat"),
+        ("{table_name}/{table_name}{ext}", {"ext": ".dat"}, "event/event.dat"),
     ],
 )
-def test_check_layout_unseparated_ext(
-    layout: str, extra_placeholders: Optional[Dict[str, Any]], is_valid: bool
+def test_ext_layout_renders_path(
+    layout: str, extra_placeholders: Optional[TExtraPlaceholders], expected_path: str
 ) -> None:
-    """A non-empty `ext` needs a literal separator before it."""
-    if is_valid:
-        check_layout(layout, extra_placeholders)
-    else:
-        with pytest.raises(InvalidFilesystemLayout):
-            check_layout(layout, extra_placeholders)
+    check_layout(layout, extra_placeholders)
+    path = create_path(
+        layout, "event.abc123.0.jsonl", "schema", "load", extra_placeholders=extra_placeholders
+    )
+    assert path == expected_path
+
+
+@pytest.mark.parametrize("extra_placeholders", [None, {"ext": ".dat"}, {"ext": dummy_callback}])
+def test_table_file_layout_requires_literal_empty_ext(
+    extra_placeholders: Optional[TExtraPlaceholders],
+) -> None:
+    with pytest.raises(InvalidFilesystemLayout, match="without an extension"):
+        check_layout("{table_name}{ext}", extra_placeholders)
 
 
 @pytest.mark.parametrize(
