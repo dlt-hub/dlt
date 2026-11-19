@@ -1,6 +1,8 @@
 ---
 title: Getting started with agents
 description: Set up a new or existing dltHub workspace for background agents and declare the job inspector agent with your coding agent
+package: dlthub-client
+since: "0.28.7"
 keywords: [dlthub, background agents, job inspector, ai harness, dlthub-platform, design partners, getting started]
 ---
 # Getting started with agents

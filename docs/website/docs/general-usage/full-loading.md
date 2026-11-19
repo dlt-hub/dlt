@@ -34,6 +34,8 @@ Note that a table does not need to receive any data to get truncated.
 
 ## Replace with incremental loading
 
+<!-- since: 1.32.0 -->
+
 The shorthand and the dictionary form of the `replace` write disposition handle the resource state differently:
 
 - The shorthand `write_disposition="replace"` **resets** the resource state on each run. An [incremental](incremental-loading.md) on such a resource starts from its `initial_value` again, and dlt reloads the table from scratch.

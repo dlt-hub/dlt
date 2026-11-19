@@ -88,6 +88,8 @@ A toolkit that ships agent definitions installs each one to `.claude/dlthub/agen
 
 ## Updating toolkits
 
+<!-- since: 1.33.0 -->
+
 Update one installed toolkit, or omit its name to update all installed toolkits:
 
 ```sh

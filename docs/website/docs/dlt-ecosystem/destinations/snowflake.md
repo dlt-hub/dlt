@@ -367,6 +367,8 @@ Without this, values with more than 28 significant digits are silently rounded a
 
 ### Nested types (ARRAY and OBJECT)
 
+<!-- since: 1.30.0 -->
+
 :::caution
 This is experimental feature. We plan to promote "json" with struct
 definition to full fledged "nested" type.

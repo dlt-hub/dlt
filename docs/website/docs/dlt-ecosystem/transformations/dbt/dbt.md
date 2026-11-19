@@ -168,6 +168,8 @@ from {{ source('pipedrive', 'deals') }}
 
 ## Microbatch models and time intervals
 
+<!-- since: 1.32.0 -->
+
 dbt [microbatch models](https://docs.getdbt.com/docs/build/incremental-microbatch) split the processed data into time batches. dbt filters the model's inputs to each batch, so the model SQL has no incremental filter. Set the time column of the model with `event_time`. Set the time column of each input with `event_time` in `sources.yml`, for example for a table that `dlt` loaded:
 
 ```yaml

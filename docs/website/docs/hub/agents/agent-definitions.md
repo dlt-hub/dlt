@@ -1,6 +1,8 @@
 ---
 title: Agent definitions
 description: Write a dltHub agent definition as an AGENT.md file or as a decorated Python function
+package: dlthub-client
+since: "0.28.7"
 keywords: [dlthub platform, agents, AGENT.md, agent definition, inputs, output, access, tools, skills, rules, run.agent]
 ---
 # Agent definitions
