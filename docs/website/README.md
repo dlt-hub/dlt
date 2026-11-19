@@ -229,6 +229,7 @@ and in a section with one comment per package, one after another:
 
 ```md
 ## My dltHub section
+
 <!-- since: dlthub-client 0.4.0 -->
 <!-- since: dlt 1.32.0 -->
 ```
@@ -251,6 +252,7 @@ no MDX needed:
 
 ```md
 ## My new section
+
 <!-- since: 1.32.0 -->
 <!-- or, for another package: since: dlthub 0.5.0 -->
 ```

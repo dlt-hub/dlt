@@ -19,7 +19,9 @@ function scanHeadings(fileContent, filePath) {
     const text = m[1].replace(/\[([^\]]*)\]\([^)]*\)/g, "$1").replace(/[`*_]/g, "");
     const id = m[3] || slugger.slug(text);
     const block = [];
-    for (let j = i + 1; j < lines.length && /^<!--[ \t]*since:.*-->[ \t]*$/.test(lines[j]); j++) block.push(lines[j]);
+    let j = i + 1;
+    if (lines[j] !== undefined && lines[j].trim() === "") j++;
+    for (; j < lines.length && /^<!--[ \t]*since:.*-->[ \t]*$/.test(lines[j]); j++) block.push(lines[j]);
     if (block.length) found[id] = parseBlock(block.join("\n"), filePath);
   });
   return found;

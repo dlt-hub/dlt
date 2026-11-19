@@ -126,3 +126,11 @@ test("requirements override and PyPI-free context", async () => {
   // offline without DLT_DOCS_REQUIRES: nothing implied, no network
   assert.deepEqual((await resolveContext([{ "dlthub-client": "0.4.0" }], { DLT_DOCS_RELEASED_VERSIONS: "dlthub-client=0.4.0" })).requires, {});
 });
+
+test("a blank line between heading and section directive is allowed", () => {
+  const { preprocess } = require("./directive");
+  assert.equal(
+    preprocess({ fileContent: "## Title\n\n<!-- since: 1.32.0 -->\n\nText" }),
+    '## Title<Since since="dlt=1.32.0" />\n\nText'
+  );
+});

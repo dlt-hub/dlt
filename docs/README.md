@@ -61,10 +61,11 @@ package: dlt           # optional, default dlt
 ---
 ```
 
-Section, as an HTML comment directly below the heading (plain markdown, no MDX):
+Section, as an HTML comment below the heading, optionally after a blank line, which markdown linting asks for (plain markdown, no MDX):
 
 ```md
 ## My new section
+
 <!-- since: 1.32.0 -->
 <!-- for another package: since: dlthub 0.5.0 -->
 ```
@@ -73,6 +74,7 @@ Packages are `dlt` (default), `dlthub` and `dlthub-client`. `dlthub_sdk` ships i
 
 ```md
 ## My dltHub section
+
 <!-- since: dlthub-client 0.4.0 -->
 <!-- since: dlt 1.32.0 -->
 ```
