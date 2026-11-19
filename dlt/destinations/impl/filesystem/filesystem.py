@@ -516,6 +516,7 @@ class FilesystemClient(
             config.layout,
             naming=self.schema.naming if config.warn_unsafe_layout_separators else None,
         )
+        self._table_prefix_is_file_name = path_utils.is_table_file_layout(config.layout)
         self.dataset_name = self.config.normalize_dataset_name(self.schema)
         self._sql_client: SqlClientBase[Any] = None
         # iceberg catalog
@@ -1104,15 +1105,24 @@ class FilesystemClient(
         # files wrongly (on azure walk on path1/path2/ would also select files from path1/path2_v2/ but returning wrong dirs)
         for details in glob_files(self.fs_client, self.make_remote_url(table_dir), "**"):
             file = details["file_name"]
-            filepath = self.pathlib.join(table_dir, details["relative_path"])
+            # glob_files returns POSIX relative paths even for local Windows buckets.
+            relative_path = details["relative_path"].replace("/", self.pathlib.sep)
+            filepath = self.pathlib.join(table_dir, relative_path)
             # skip INIT files, do not remove: backward compat
             if file == INIT_FILE_NAME:
                 continue
             for p in prefixes:
-                if filepath.startswith(p):
+                if self._matches_table_prefix(filepath, p):
                     result.append(filepath)
                     break
         return result
+
+    def _matches_table_prefix(self, filepath: str, prefix: str) -> bool:
+        """Tells if `filepath` belongs to the table with `prefix`."""
+        if self._table_prefix_is_file_name and not prefix.endswith(self.pathlib.sep):
+            # open tables write a folder named after the table
+            return filepath == prefix or filepath.startswith(prefix + self.pathlib.sep)
+        return filepath.startswith(prefix)
 
     def is_storage_initialized(self) -> bool:
         return self.fs_client.exists(self.init_file_path)  # type: ignore[no-any-return]

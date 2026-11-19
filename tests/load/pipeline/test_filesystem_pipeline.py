@@ -275,6 +275,21 @@ def test_pipeline_parquet_filesystem_destination() -> None:
         assert table.column("value").to_pylist() == [1, 2, 3, 4, 5]
 
 
+def test_pipeline_writes_extensionless_table_file(tmp_path: Path) -> None:
+    pipeline = dlt.pipeline(
+        pipeline_name="export_test",
+        pipelines_dir=str(tmp_path / "pipelines"),
+        dataset_name="dataset",
+        destination=filesystem(
+            bucket_url=str(tmp_path / "bucket"),
+            layout="export/{table_name}{ext}",
+            extra_placeholders={"ext": ""},
+        ),
+    )
+    pipeline.run([{"value": 1}], table_name="event", write_disposition="replace")
+    assert (tmp_path / "bucket" / "dataset" / "export" / "event").is_file()
+
+
 TEST_LAYOUTS = (
     "{schema_name}/{table_name}/{load_id}.{file_id}.{ext}",
     "{schema_name}.{table_name}.{load_id}.{file_id}.{ext}",

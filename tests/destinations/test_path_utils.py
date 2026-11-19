@@ -1,5 +1,5 @@
 from datetime import datetime, timezone  # noqa: I251
-from typing import List, Tuple
+from typing import List, Optional, Tuple
 from zoneinfo import ZoneInfo
 
 import pytest
@@ -13,8 +13,10 @@ from dlt.common.normalizers.naming import NamingConvention, direct, duck_case, s
 
 from dlt.common.configuration.container import Container
 from dlt.common.configuration.specs.timezone_context import TimezoneContext
+from dlt.destinations.impl.filesystem.typing import TExtraPlaceholders
 
 from dlt.destinations.path_utils import (
+    check_layout,
     create_path,
     prepare_datetime_params,
     get_table_prefix_layout,
@@ -22,7 +24,10 @@ from dlt.destinations.path_utils import (
     get_file_format_and_compression,
 )
 
-from dlt.destinations.exceptions import InvalidFilesystemLayout, CantExtractTablePrefix
+from dlt.destinations.exceptions import (
+    CantExtractTablePrefix,
+    InvalidFilesystemLayout,
+)
 from tests.common.storages.utils import start_loading_file, load_storage
 
 
@@ -467,6 +472,11 @@ def test_get_table_prefix_layout() -> None:
         ("{table_name}/", "{table_name}/"),
         # slash before the next placeholder suffices
         ("{schema_name}/{table_name}/{load_id}.{ext}", "{schema_name}/{table_name}/"),
+        # file named after the table, the end of the file name separates it
+        ("{table_name}{ext}", "{table_name}"),
+        ("{schema_name}/{table_name}{ext}", "{schema_name}/{table_name}"),
+        # the first {table_name} defines the prefix
+        ("{table_name}/{table_name}{ext}", "{table_name}/"),
     ],
 )
 def test_get_table_prefix_layout_table_name_at_end(layout: str, expected_prefix: str) -> None:
@@ -478,9 +488,40 @@ def test_get_table_prefix_layout_table_name_at_end(layout: str, expected_prefix:
 
 
 @pytest.mark.parametrize(
+    "layout,extra_placeholders,expected_path",
+    [
+        ("{table_name}.{ext}", None, "event.jsonl"),
+        ("{table_name}/_{ext}", None, "event/_jsonl"),
+        ("{load_id}/{ext}/{table_name}", None, "load/jsonl/event"),
+        ("{table_name}{ext}", {"ext": ""}, "event"),
+        ("{table_name}/{file_id}{ext}", None, "event/abc123jsonl"),
+        ("{table_name}/{file_id}{ext}", {"ext": ".dat"}, "event/abc123.dat"),
+        ("{table_name}/{file_id}{ext}", {"ext": lambda *_: ".dat"}, "event/abc123.dat"),
+        ("{table_name}/{table_name}{ext}", {"ext": ".dat"}, "event/event.dat"),
+    ],
+)
+def test_ext_layout_renders_path(
+    layout: str, extra_placeholders: Optional[TExtraPlaceholders], expected_path: str
+) -> None:
+    check_layout(layout, extra_placeholders)
+    path = create_path(
+        layout, "event.abc123.0.jsonl", "schema", "load", extra_placeholders=extra_placeholders
+    )
+    assert path == expected_path
+
+
+@pytest.mark.parametrize("extra_placeholders", [None, {"ext": ".dat"}, {"ext": dummy_callback}])
+def test_table_file_layout_requires_literal_empty_ext(
+    extra_placeholders: Optional[TExtraPlaceholders],
+) -> None:
+    with pytest.raises(InvalidFilesystemLayout, match="without an extension"):
+        check_layout("{table_name}{ext}", extra_placeholders)
+
+
+@pytest.mark.parametrize(
     "layout",
-    ["{table_name}/", "{schema_name}/{table_name}/", "{table_name}/_{ext}"],
-    ids=["table_folder_only", "schema_and_table_folder", "underscore_file_name"],
+    ["{table_name}/", "{schema_name}/{table_name}/", "{table_name}/_{ext}", "{table_name}{ext}"],
+    ids=["table_folder_only", "schema_and_table_folder", "underscore_file_name", "table_file"],
 )
 def test_table_own_folder_rejects_hidden_file_name(layout: str) -> None:
     """A destination that reads a folder as a table skips files starting with '.' or '_'."""
