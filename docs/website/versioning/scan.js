@@ -2,8 +2,28 @@
 const fs = require("node:fs");
 const path = require("node:path");
 const { parseFileContentFrontMatter } = require("@docusaurus/utils/lib/markdownUtils");
+const { createSlugger } = require("@docusaurus/utils");
 const { toConstraints, validateMeta } = require("./badge");
 const { SINCE_DIRECTIVE, parseBlock } = require("./directive");
+
+/** heading anchors (as Docusaurus slugs them) mapped to the constraints of their `since` directive */
+function scanHeadings(fileContent, filePath) {
+  const slugger = createSlugger();
+  const found = {};
+  let fenced = false;
+  const lines = fileContent.split("\n");
+  lines.forEach((line, i) => {
+    if (/^\s*(```|~~~)/.test(line)) fenced = !fenced;
+    const m = !fenced && /^#{1,6} (.*?)[ \t]*(\{#([\w-]+)\})?[ \t]*$/.exec(line);
+    if (!m) return;
+    const text = m[1].replace(/\[([^\]]*)\]\([^)]*\)/g, "$1").replace(/[`*_]/g, "");
+    const id = m[3] || slugger.slug(text);
+    const block = [];
+    for (let j = i + 1; j < lines.length && /^<!--[ \t]*since:.*-->[ \t]*$/.test(lines[j]); j++) block.push(lines[j]);
+    if (block.length) found[id] = parseBlock(block.join("\n"), filePath);
+  });
+  return found;
+}
 
 /**
  * @returns {{page: {since?: string | object, status?: string, package?: string} | null,
@@ -27,23 +47,26 @@ function scanFile(filePath) {
     page = { since, status, package: pkg };
     constraints.push(toConstraints(page));
   }
-  return { page, sections, constraints };
+  return { page, sections, constraints, headings: scanHeadings(fileContent, filePath) };
 }
 
 /**
  * @returns {{pages: Record<string, object>, constraints: Record<string, string>[]}} `pages` keyed by doc id
- *   (path without extension), only pages with version metadata
+ *   (path without extension), only pages with version metadata; `headings` are the tagged sections per doc id
  */
 function scanDocs(dir) {
   const pages = {};
+  const headings = {};
   const constraints = [];
   for (const rel of fs.readdirSync(dir, { recursive: true })) {
     if (!/\.mdx?$/.test(rel)) continue;
     const scan = scanFile(path.join(dir, rel));
     constraints.push(...scan.constraints);
+    const docId = rel.split(path.sep).join("/").replace(/\.mdx?$/, "");
+    if (Object.keys(scan.headings).length) headings[docId] = scan.headings;
     if (scan.page) pages[rel.split(path.sep).join("/").replace(/\.mdx?$/, "")] = scan.page;
   }
-  return { pages, constraints };
+  return { pages, headings, constraints };
 }
 
 module.exports = { scanFile, scanDocs };

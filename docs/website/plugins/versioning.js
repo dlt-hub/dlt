@@ -23,12 +23,28 @@ module.exports = function versioningPlugin(_context, { docDirs }) {
       const metas = Object.assign({}, ...scans.map((scan) => scan.pages));
       // only packages that pages or sections use are resolved, so an offline override can list just those
       const { released, requires } = await resolveContext(scans.flatMap((scan) => scan.constraints));
+      const headings = Object.assign({}, ...scans.map((scan) => scan.headings));
       const badges = {};
+      // sections that carry a badge, per doc id and heading anchor: {docId: {anchor: badge}}
+      const sections = {};
+      for (const [id, anchors] of Object.entries(headings)) {
+        for (const [anchor, since] of Object.entries(anchors)) {
+          const badge = getBadge({ since }, released, { requires });
+          if (!badge) continue;
+          sections[id] = sections[id] || {};
+          sections[id][anchor] = badge;
+        }
+      }
+      // pages without a page badge but with badged sections are "updated", for the sidebar
       for (const [id, meta] of Object.entries(metas)) {
         const badge = getBadge(meta, released, { requires });
         if (badge) badges[id] = badge;
       }
-      return { released, requires, windowMinors: WINDOW_MINORS, badges };
+      const updated = {};
+      for (const id of Object.keys(sections)) {
+        if (!badges[id]) updated[id] = { kind: "updated", label: "Updated", title: "has new or preview sections" };
+      }
+      return { released, requires, windowMinors: WINDOW_MINORS, badges, sections, updated };
     },
 
     async contentLoaded({ content, actions }) {

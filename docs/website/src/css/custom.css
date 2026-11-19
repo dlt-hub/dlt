@@ -988,7 +988,8 @@ html[data-theme="dark"] .api-details code.api-error {
 
 /* sidebar badges for new/preview pages, set by src/theme/DocSidebarItem/Link */
 .sidebar-badge-new > .menu__link::after,
-.sidebar-badge-preview > .menu__link::after {
+.sidebar-badge-preview > .menu__link::after,
+.sidebar-badge-updated > .menu__link::after {
   margin-left: auto;
   padding: 0 0.5em;
   border-radius: 1em;
@@ -1004,4 +1005,64 @@ html[data-theme="dark"] .api-details code.api-error {
   content: "Preview";
   background: var(--ifm-color-warning-contrast-background);
   color: var(--ifm-color-warning-darkest);
+}
+.sidebar-badge-updated > .menu__link::after {
+  content: "Updated";
+  background: var(--ifm-color-info-contrast-background);
+  color: var(--ifm-color-info-darkest);
+}
+
+/* top-level pages stand in for category headings (no caret), so their pill follows the label like a category's */
+.theme-doc-sidebar-menu > .sidebar-badge-new > .menu__link::after,
+.theme-doc-sidebar-menu > .sidebar-badge-preview > .menu__link::after,
+.theme-doc-sidebar-menu > .sidebar-badge-updated > .menu__link::after {
+  margin-left: 0.5em;
+}
+
+/* badges of new/preview sections in the page outline, added by src/theme/TOC */
+.toc-badge {
+  margin-left: 0.4em;
+  padding: 0 0.45em;
+  border-radius: 1em;
+  font-size: 0.65rem;
+  font-weight: 600;
+  vertical-align: middle;
+}
+.toc-badge--new {
+  background: var(--ifm-color-success-contrast-background);
+  color: var(--ifm-color-success-darkest);
+}
+.toc-badge--updated {
+  background: var(--ifm-color-info-contrast-background);
+  color: var(--ifm-color-info-darkest);
+}
+.toc-badge--preview {
+  background: var(--ifm-color-warning-contrast-background);
+  color: var(--ifm-color-warning-darkest);
+}
+
+/* pill on sidebar categories with badged pages below them, see src/theme/DocSidebarItem/Category */
+.sidebar-category-new > .menu__list-item-collapsible > .menu__link > span::after,
+.sidebar-category-preview > .menu__list-item-collapsible > .menu__link > span::after,
+.sidebar-category-updated > .menu__list-item-collapsible > .menu__link > span::after {
+  margin-left: 0.5em;
+  padding: 0 0.5em;
+  border-radius: 1em;
+  font-size: 0.65rem;
+  font-weight: 600;
+}
+.sidebar-category-new > .menu__list-item-collapsible > .menu__link > span::after {
+  content: "New";
+  background: var(--ifm-color-success-contrast-background);
+  color: var(--ifm-color-success-darkest);
+}
+.sidebar-category-preview > .menu__list-item-collapsible > .menu__link > span::after {
+  content: "Preview";
+  background: var(--ifm-color-warning-contrast-background);
+  color: var(--ifm-color-warning-darkest);
+}
+.sidebar-category-updated > .menu__list-item-collapsible > .menu__link > span::after {
+  content: "Updated";
+  background: var(--ifm-color-info-contrast-background);
+  color: var(--ifm-color-info-darkest);
 }
