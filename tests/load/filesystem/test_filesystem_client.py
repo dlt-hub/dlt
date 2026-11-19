@@ -1,4 +1,5 @@
 from typing import Dict, List, Optional, Type, Union
+import ntpath
 import posixpath
 import os
 import json
@@ -423,6 +424,43 @@ def test_replace_does_not_truncate_sibling_tables(
 def test_unseparated_ext_rejected_on_config() -> None:
     with pytest.raises(InvalidFilesystemLayout):
         _client_factory(filesystem("random_location", layout="{table_name}{ext}"))
+
+
+@pytest.fixture
+def flat_file_client(tmp_path: Path) -> FilesystemClient:
+    return _client_factory(
+        filesystem(str(tmp_path), layout="{table_name}{ext}", extra_placeholders={"ext": ""})
+    )
+
+
+def test_drop_flat_table_file_keeps_neighbors(flat_file_client: FilesystemClient) -> None:
+    client = flat_file_client
+    client.initialize_storage()
+    root = Path(client.dataset_path)
+    for name in ("event", "events", "event__child"):
+        (root / name).touch()
+
+    client.drop_tables("event", delete_schema=False)
+
+    assert not (root / "event").exists()
+    assert (root / "events").is_file()
+    assert (root / "event__child").is_file()
+
+
+def test_flat_layout_lists_open_table_folder_on_windows(flat_file_client: FilesystemClient) -> None:
+    client = flat_file_client
+    # Simulate local Windows joining and the POSIX relative paths returned by glob_files.
+    listed = [
+        {"file_name": "part", "relative_path": f"{name}/data/part"}
+        for name in ("event", "events", "event__child")
+    ]
+    with (
+        patch.object(client, "pathlib", ntpath),
+        patch("dlt.destinations.impl.filesystem.filesystem.glob_files", return_value=listed),
+    ):
+        assert client.list_files_with_prefixes("dataset", [r"dataset\event"]) == [
+            r"dataset\event\data\part"
+        ]
 
 
 def test_truncate_tables_deletes_many_files(default_buckets_env: str) -> None:

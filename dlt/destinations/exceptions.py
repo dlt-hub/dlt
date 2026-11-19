@@ -1,4 +1,4 @@
-from typing import Sequence
+from typing import Optional, Sequence
 
 from dlt.common.destination.exceptions import (
     DestinationTerminalException,
@@ -122,7 +122,7 @@ class InvalidFilesystemLayout(DestinationTerminalException):
         extra_placeholders: Sequence[str],
         invalid_placeholders: Sequence[str],
         unused_placeholders: Sequence[str],
-        details: str = None,
+        details: Optional[str] = None,
     ) -> None:
         self.invalid_placeholders = invalid_placeholders
         self.extra_placeholders = extra_placeholders
