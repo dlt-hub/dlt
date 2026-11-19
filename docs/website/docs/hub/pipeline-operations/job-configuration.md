@@ -30,8 +30,12 @@ Install extra packages only for the jobs that need them. Declare a group in `pyp
 
 ```toml
 [dependency-groups]
-ibis = ["ibis-framework[duckdb]"]
+ibis = ["ibis-framework[duckdb]", "duckdb<2"]
 ```
+
+:::note
+Ibis doesn't yet support DuckDB 2.
+:::
 
 Then opt into it in the decorator:
 
