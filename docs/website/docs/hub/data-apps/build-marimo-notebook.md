@@ -93,7 +93,7 @@ Three things make this file a deployable notebook rather than an ordinary script
 - **`app_title` and the module docstring.** Both are picked up and combined into the job description shown in the dltHub UI.
 - **Cells that declare their inputs.** Each cell takes the variables it reads as arguments and returns the ones later cells need. marimo derives the execution order from that, and re-runs only the cells affected by a change, so the dataset read does not need a cache decorator around it.
 
-[`dlt.dataset(destination, dataset_name)`](../../general-usage/dataset-access/dataset.md) connects directly to a loaded dataset. `warehouse` is a [named destination](../../general-usage/destination.md#use-named-destinations), so the same notebook reads from DuckDB locally and from your production destination once deployed.
+[`dlt.dataset(destination, dataset_name)`](../../general-usage/dataset-access/dataset.md) connects directly to a loaded dataset. `warehouse` is a [named destination](../../general-usage/destination.md#use-named-destinations), so the same notebook reads from DuckDB locally and from your production destination once deployed. When a module of the workspace creates the pipeline that loads the dataset, import that pipeline and use `pipeline.dataset()` instead: it knows every schema of the pipeline. See [Access a dataset from another script, job or notebook](../../general-usage/dataset-access/dataset.md#access-a-dataset-from-another-script-job-or-notebook).
 
 ## Run it locally
 
@@ -115,7 +115,7 @@ The two commands do different things: `marimo edit` opens the editor, while serv
 
 ## Configure the `access` profile
 
-Interactive jobs run under the `access` profile on dltHub: a production profile meant for notebooks, usually holding read-only credentials. The minimal scaffold doesn't ship one, and without it interactive jobs fall back to the `prod` profile, which the CLI warns about before it launches.
+Interactive jobs declare read data access and get the `access` profile in the `prod` environment. A new workspace declares `access` without settings files. Until you create them, these jobs get `prod` and `dlthub deploy` warns.
 
 Add the destination type in `.dlt/access.config.toml`:
 

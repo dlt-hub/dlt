@@ -12,15 +12,15 @@ For a high-level summary of platform capabilities, see [Pipeline operations](../
 
 ## Where to start
 
-| If you want to...                                                                                                                                            | Go to                                             |
-| ------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------- |
-| Convert a Python project into a dltHub workspace and set up credentials                                                                                      | [Workspace setup](workspace-setup.md)             |
-| Push code to the cloud — ad-hoc runs or full manifest deploys                                                                                                | [Deployments](deployments.md)                     |
-| Schedule with cron/intervals, chain follow-ups, backfill with scheduler-driven intervals, gate on freshness, cascade refreshes, tag jobs for bulk operations | [Triggers and scheduling](triggers.md)            |
-| Configure timeouts, dependencies, timezone, and per-job TOML sections                                                                                        | [Job configuration](job-configuration.md)         |
-| Set workspace or profile environment variables for cloud runs                                                                                                | [Environment variables](environment-variables.md) |
-| Stream logs in real time, inspect run states, view metric dashboards, diagnose failures, cancel runs                                                         | [Monitoring and debugging](monitoring.md)         |
-| Pick a deployment region                                                                                                                                     | [Regions](../platform-capabilities/regions.md)    |
+| If you want to...                                                                                                                                                      | Go to                                             |
+| ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------- |
+| Convert a Python project into a dltHub workspace and set up credentials                                                                                                | [Workspace setup](workspace-setup.md)             |
+| Push code to the cloud — ad-hoc runs or full manifest deploys                                                                                                          | [Deployments](deployments.md)                     |
+| Schedule with cron/intervals, chain follow-ups, backfill with scheduler-driven intervals, require fresh upstream data, cascade refreshes, tag jobs for bulk operations | [Triggers and scheduling](triggers.md)            |
+| Configure timeouts, dependencies, timezone, and per-job TOML sections                                                                                                  | [Job configuration](job-configuration.md)         |
+| Set workspace or profile environment variables for cloud runs                                                                                                          | [Environment variables](environment-variables.md) |
+| Stream logs in real time, inspect run states, view metric dashboards, diagnose failures, cancel runs                                                                   | [Monitoring and debugging](monitoring.md)         |
+| Pick a deployment region                                                                                                                                               | [Regions](../platform-capabilities/regions.md)    |
 
 ## Key concepts
 
@@ -31,8 +31,8 @@ For a high-level summary of platform capabilities, see [Pipeline operations](../
 
 ### Batch vs interactive
 
-- **Batch jobs** run with the [`prod` profile](./profiles.md) and are meant for scheduled [data loading](../../general-usage/pipeline.md).
-- **Interactive jobs** run with the [`access` profile](./profiles.md) and are meant for [notebooks](../../general-usage/dataset-access/marimo.md), [dashboards](../ingestion/dashboard.md), and Streamlit apps.
+- **Batch jobs** run with a profile with write data access, [`prod`](./profiles.md) by default, and are meant for scheduled [data loading](../../general-usage/pipeline.md).
+- **Interactive jobs** run with a profile with read data access, [`access`](./profiles.md) by default, and are meant for [notebooks](../../general-usage/dataset-access/marimo.md), [dashboards](../ingestion/dashboard.md), and Streamlit apps.
 
 ### Interactive application types
 
@@ -44,15 +44,15 @@ For a high-level summary of platform capabilities, see [Pipeline operations](../
 
 Each interactive application is exposed via a unique public URL tied to its run.
 
-### Profiles
+### Profiles and environments
 
-[Profiles](./profiles.md) let you keep different configurations for different environments:
+A [profile](./profiles.md) controls access to your data. It holds the credentials that a job runs with and declares their data access: write, read or none. The platform gives each job the profile with the data access that it declares, and you set up the credentials:
 
-- Local development can use [DuckDB](../../dlt-ecosystem/destinations/duckdb.md) with no credentials needed
-- Production runs use [MotherDuck](../../dlt-ecosystem/destinations/motherduck.md) (or [any cloud destination](../../dlt-ecosystem/destinations/index.md)) with full read/write access
-- Interactive sessions use read-only credentials for safety
+- Local development uses [DuckDB](../../dlt-ecosystem/destinations/duckdb.md) with no credentials needed
+- Production jobs use [MotherDuck](../../dlt-ecosystem/destinations/motherduck.md) (or [any cloud destination](../../dlt-ecosystem/destinations/index.md)) with write data access
+- Interactive jobs use read-only credentials
 
-See [profiles in dltHub](./profiles.md) for details, and [Workspace setup](workspace-setup.md#understanding-workspace-profiles) for the relevant profile table.
+An [environment](./profiles.md#how-environments-work) is what a deployment is made to. Each environment deploys the same workspace to a remote workspace of its own, `prod` by default, `staging` for a review of your changes. See [Workspace setup](workspace-setup.md#understanding-workspace-profiles) for the built-in profiles.
 
 ### Deployments and configurations
 
@@ -82,7 +82,7 @@ Verbs have consistent meaning regardless of the scope or the entity they operate
 | `clean`   | Remove local artefacts (e.g. wipe pipeline working dirs and locally loaded data)                     |
 | `sync`    | Push local changes to the cloud counterpart                                                          |
 | `cancel`  | Cancel an in-flight job or run                                                                       |
-| `connect` | Bind a local entity to a remote one                                                                  |
+| `connect` | Connect a local entity to a remote one                                                               |
 | `deploy`  | Push the deployment manifest to the cloud                                                            |
 
 The local/remote split makes most pages of this guide read in pairs:
@@ -151,5 +151,5 @@ For detailed CLI documentation, see [CLI](../command-line-interface.md).
 - **UI operations**: new jobs must currently be created via the CLI; once a job exists, subsequent runs can be triggered from the Web UI (and schedules can be changed there too)
 - **Pagination**: list views are paginated; the page size can be adjusted in the Web UI
 - **Log latency**: logs typically lag a few seconds during execution and are guaranteed complete after the run finishes (completed or failed state)
-- **One workspace per repo**: a single GitHub repository can only be connected to one remote workspace at a time; reconnecting deactivates jobs deployed under the previous binding — see [Workspace setup](workspace-setup.md#2-log-in-to-the-dlthub-platform)
+- **One remote workspace per environment**: in each environment, a local workspace is connected to one remote workspace at a time; reconnecting deactivates jobs deployed under the previous connection — see [Workspace setup](workspace-setup.md#2-log-in-to-the-dlthub-platform)
 - **No drift detection**: the CLI does not yet detect whether local code differs from remote. Run `dlthub workspace deployment sync` (or any `run` / `serve` / `deploy`) to ensure your latest code is deployed

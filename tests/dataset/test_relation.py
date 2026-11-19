@@ -14,6 +14,8 @@ from dlt.common.schema.utils import new_table
 from dlt.dataset import lineage
 from dlt.dataset.dataset import _get_load_ids, _get_latest_load_id
 from dlt.dataset.exceptions import LineageFailedException
+from dlt.pipeline.exceptions import PipelineStepFailed
+from dlt.pipeline.trace import get_exception_traces
 from tests.dataset.utils import TLoadsFixture, crm
 
 # TODO move destination-independent tests from `test_read_interfaces.py` to this module
@@ -544,6 +546,61 @@ def test_multi_schema_schemas_property(multi_schema_dataset: dlt.Dataset) -> Non
     assert len(schemas) == 2
     schema_names = {s.name for s in multi_schema_dataset.schemas}
     assert schema_names == {"crm", "inventory"}
+
+
+def test_lineage_failure_describes_dataset(multi_schema_dataset: dlt.Dataset) -> None:
+    with pytest.raises(LineageFailedException) as exc:
+        multi_schema_dataset("SELECT items.nope FROM items").columns
+    ex = exc.value
+    assert ex.reason == "unknown_column"
+    assert ex.column == "nope"
+    assert ex.dataset_name == multi_schema_dataset.dataset_name
+    assert "SELECT items.nope FROM items" in ex.query
+    assert f"for dataset `{ex.dataset_name}`" in str(ex)
+    assert "item_id" in str(ex)
+    assert ex.resource_name is None
+
+    # a misspelled table gets a hint from the dlt schema
+    with pytest.raises(LineageFailedException) as exc:
+        multi_schema_dataset("SELECT * FROM itemz").columns
+    assert exc.value.reason == "unresolved_star"
+    assert "Did you mean: `items`?" in str(exc.value)
+
+    # a table without typed columns is invisible to lineage
+    schema = Schema("pending")
+    schema.update_table(new_table("pending", columns=[{"name": "id"}]))
+    dataset = dlt.dataset(
+        dlt.destinations.duckdb(destination_name="duck_db"), "pipeline_dataset", schema=schema
+    )
+    with pytest.raises(LineageFailedException) as exc:
+        dataset("SELECT * FROM pending").columns
+    assert "none of its columns has a data type" in str(exc.value)
+
+
+def test_lineage_failure_in_extract_names_resource(
+    multi_schema_pipeline: dlt.Pipeline, tmp_path: pathlib.Path
+) -> None:
+    source_dataset = multi_schema_pipeline.dataset()
+    pipeline = dlt.pipeline(
+        "lineage_failure",
+        pipelines_dir=str(tmp_path / "pipelines"),
+        destination=dlt.destinations.duckdb(str(tmp_path / "lineage.duckdb")),
+        dev_mode=True,
+    )
+
+    @dlt.resource(table_name="items_copy")
+    def items_copy() -> Any:
+        yield source_dataset("SELECT item_id, nope FROM items")
+
+    with pytest.raises(PipelineStepFailed) as pip_ex:
+        pipeline.extract(items_copy())
+    ex = pip_ex.value.exception
+    assert isinstance(ex, LineageFailedException)
+    assert ex.resource_name == "items_copy"
+    assert ex.table_name == "items_copy"
+    assert str(ex).startswith("In resource `items_copy` (table `items_copy`): dlt cannot compute")
+    assert "In resource `items_copy`" in str(pip_ex.value)
+    assert get_exception_traces(ex)[0]["resource_name"] == "items_copy"
 
 
 def test_relation_all_schemas(multi_schema_dataset: dlt.Dataset) -> None:

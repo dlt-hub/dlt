@@ -1,6 +1,6 @@
 [project]
 name = "dlt"
-version = "1.32.0"
+version = "1.33.0a2"
 description = "dlt is an open-source python-first scalable data loading library that does not require any backend to run."
 authors = [{ name = "dltHub Inc.", email = "services@dlthub.com" }]
 requires-python = ">=3.10, <3.15"
@@ -58,12 +58,14 @@ dependencies = [
     "sqlglot>=26.32.0",
     "pywin32>=306 ; sys_platform == 'win32'",
     "rich-argparse>=1.6.0",
+    # already installed through rich-argparse -> rich, parses markdown the AI harness rewrites
+    "markdown-it-py>=2.2.0",
     "croniter>=6.0.0",
 ]
 
 [project.optional-dependencies]
 hub = [
-    "dlthub>=0.31.0, <0.33",
+    "dlthub>=0.32.0, <0.34",
     "dlthub-client>=0.28.3",
 ]
 gcp = [

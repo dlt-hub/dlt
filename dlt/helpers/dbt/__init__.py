@@ -23,14 +23,17 @@ DBT_DESTINATION_MAP = {
 
 def _default_profile_name(credentials: DestinationClientDwhConfiguration) -> str:
     profile_name = credentials.destination_type
-    # in case of credentials with default add default to the profile name
-    if isinstance(credentials.credentials, CredentialsWithDefault):
-        if credentials.credentials.has_default_credentials():
-            profile_name += "_default"
-    elif profile_name == "snowflake":
-        if getattr(credentials.credentials, "private_key", None):
-            # snowflake with private key is a separate profile
+    creds = credentials.credentials
+    has_default = isinstance(creds, CredentialsWithDefault) and creds.has_default_credentials()
+    if profile_name == "snowflake":
+        # dlt loads the credentials of a `connections.toml` connection into the config fields
+        if getattr(creds, "private_key", None):
             profile_name += "_pkey"
+        elif getattr(creds, "authenticator", None) == "oauth":
+            profile_name += "_oauth"
+    elif has_default:
+        # in case of credentials with default add default to the profile name
+        profile_name += "_default"
     return profile_name
 
 

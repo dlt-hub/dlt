@@ -1,13 +1,15 @@
 import io
 import json
+import os
 import re
 import subprocess
 import sys
 from pathlib import Path
-from typing import Dict, List, Literal, Set, get_args
+from typing import Any, Dict, List, Literal, Set, Tuple, get_args
 from unittest.mock import patch
 
 import pytest
+import tomlkit
 from packaging.requirements import Requirement
 
 import dlt
@@ -43,7 +45,9 @@ from dlt._workspace.deployment.requirements import (
     get_pkg_install_spec,
     load_requirements,
     migrate_requirements,
+    plan_dependency_changes,
     python_version,
+    render_pyproject,
     save_requirements,
     _add_transitive_names,
     _collect_package_names,
@@ -882,6 +886,11 @@ def test_default_manifest_includes_python_version() -> None:
     assert manifest["python_version"] == python_version()
 
 
+# absolute on every platform, with a space that a file URL percent-encodes
+LOCAL_INSTALL_PATH = os.path.abspath("/abs/my path")
+LOCAL_INSTALL_URL = Path(LOCAL_INSTALL_PATH).as_uri()
+
+
 def _make_dist(direct_url_payload):
     """Return a fake `importlib.metadata.Distribution`-like object."""
     from unittest.mock import MagicMock
@@ -919,11 +928,11 @@ def test_get_pkg_install_spec_editable(monkeypatch: pytest.MonkeyPatch) -> None:
 
     _patch_distribution(
         monkeypatch,
-        {"url": "file:///abs/path", "dir_info": {"editable": True}},
+        {"url": LOCAL_INSTALL_URL, "dir_info": {"editable": True}},
     )
     spec = get_pkg_install_spec("dlthub-client")
     assert spec["mode"] == "editable"
-    assert spec["path"] == "/abs/path"
+    assert spec["path"] == LOCAL_INSTALL_PATH
 
 
 def test_get_pkg_install_spec_path_non_editable(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -931,11 +940,11 @@ def test_get_pkg_install_spec_path_non_editable(monkeypatch: pytest.MonkeyPatch)
 
     _patch_distribution(
         monkeypatch,
-        {"url": "file:///abs/path", "dir_info": {"editable": False}},
+        {"url": LOCAL_INSTALL_URL, "dir_info": {"editable": False}},
     )
     spec = get_pkg_install_spec("dlthub")
     assert spec["mode"] == "path"
-    assert spec["path"] == "/abs/path"
+    assert spec["path"] == LOCAL_INSTALL_PATH
 
 
 def test_get_pkg_install_spec_git(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -992,7 +1001,11 @@ def _make_install_spec(name, mode, **extra):
         (_make_install_spec("dlt", "pypi", extras=["hub"]), True, "dlt[hub]==9.9.9"),
         (_make_install_spec("dlt", "editable", path="/abs"), True, "dlt==9.9.9"),
         (_make_install_spec("dlt", "editable", path="/abs"), False, "dlt==9.9.9"),
-        (_make_install_spec("dlt", "path", path="/abs"), True, "dlt @ file:///abs"),
+        (
+            _make_install_spec("dlt", "path", path=LOCAL_INSTALL_PATH),
+            True,
+            f"dlt @ {LOCAL_INSTALL_URL}",
+        ),
         (_make_install_spec("dlt", "path", path="/abs"), False, "dlt==9.9.9"),
         (
             _make_install_spec("dlt", "git", git_url="https://example.com/dlt.git", git_rev="abc"),
@@ -1074,7 +1087,10 @@ def test_render_uv_source(spec, expected) -> None:
         (_make_install_spec("dlt", "pypi"), ["dlt==9.9.9"]),
         (_make_install_spec("dlt", "pypi", extras=["hub"]), ["dlt[hub]==9.9.9"]),
         (_make_install_spec("dlt", "editable", path="/abs"), ["-e /abs"]),
-        (_make_install_spec("dlt", "path", path="/abs"), ["dlt @ file:///abs"]),
+        (
+            _make_install_spec("dlt", "path", path=LOCAL_INSTALL_PATH),
+            [f"dlt @ {LOCAL_INSTALL_URL}"],
+        ),
         (
             _make_install_spec("dlt", "git", git_url="https://x/dlt.git", git_rev="abc"),
             ["dlt @ git+https://x/dlt.git@abc"],
@@ -1097,6 +1113,91 @@ def test_render_requirements_lines(spec, expected) -> None:
     from dlt._workspace.deployment.requirements import render_requirements_lines
 
     assert render_requirements_lines(spec) == expected
+
+
+@pytest.mark.parametrize(
+    "uv_sources,expect_tool_section",
+    [
+        ({}, False),
+        ({"dlt": {"path": "/home/me/dlt", "editable": True}}, True),
+        ({"dlt": {"git": "https://example.com/dlt.git", "rev": "abc123"}}, True),
+    ],
+    ids=["empty-omits-tool", "editable-path", "git-with-rev"],
+)
+def test_render_pyproject_emits_uv_sources_when_present(
+    uv_sources: Dict[str, Dict[str, Any]], expect_tool_section: bool
+) -> None:
+    """Valid TOML with `[project]` always; `[tool.uv.sources]` iff the map is non-empty."""
+    deps: List[str] = ["dlt[hub]==1.26.0", "duckdb>=0.9"]
+    parsed = tomlkit.parse(render_pyproject("hello", deps, uv_sources))
+    assert parsed["project"]["name"] == "hello"  # type: ignore[index]
+    assert list(parsed["project"]["dependencies"]) == deps  # type: ignore[index, arg-type]
+    if not expect_tool_section:
+        assert "tool" not in parsed
+        return
+    rendered = parsed["tool"]["uv"]["sources"]  # type: ignore[index]
+    for pkg, src in uv_sources.items():
+        assert dict(rendered[pkg]) == src  # type: ignore[index, arg-type]
+
+
+@pytest.mark.parametrize(
+    "declared,desired,expected",
+    [
+        (["requests"], ["fastmcp>=3.1.0"], [("add", "fastmcp>=3.1.0")]),
+        (["fastmcp>=3.0"], ["fastmcp>=3.1.0"], []),
+        (["dlt[hub]>=1.30"], ["dlt[hub]==1.33.0a1"], []),
+        (["dlt[hub]==1.20.0"], ["dlt[hub]==1.33.0a1"], [("upgrade", "dlt[hub]==1.33.0a1")]),
+        (
+            ["dlt[snowflake]==1.20.0"],
+            ["dlt[hub]==1.33.0a1"],
+            [("upgrade", "dlt[hub,snowflake]==1.33.0a1")],
+        ),
+        (
+            ["DLT[snowflake]>=1.30"],
+            ["dlt[hub]==1.33.0a1"],
+            [("upgrade", "DLT[hub,snowflake]>=1.30")],
+        ),
+        (["fastmcp==4.0"], ["fastmcp>=3.1.0"], [("newer", "fastmcp>=3.1.0")]),
+        (["dlt==2.0"], ["dlt[hub]==1.33.0a1"], [("upgrade", "dlt[hub]==2.0")]),
+        (
+            ["mowidgets==0.1 ; python_version >= '3.11'"],
+            ["mowidgets>=0.2.1"],
+            [("upgrade", 'mowidgets>=0.2.1; python_version >= "3.11"')],
+        ),
+        (
+            ["dlt[hub]==1.20.0"],
+            ["dlt[hub] @ file:///home/me/dlt"],
+            [("upgrade", "dlt[hub]@ file:///home/me/dlt")],
+        ),
+        (["dlt @ git+https://example.com/dlt.git"], ["dlt[hub]==1.33.0a1"], []),
+    ],
+    ids=[
+        "missing-adds",
+        "admits-keeps",
+        "admits-prerelease-keeps",
+        "older-pin-upgrades",
+        "older-pin-keeps-other-extras",
+        "missing-extra-keeps-version",
+        "newer-pin-kept",
+        "newer-pin-gets-extra",
+        "marker-kept",
+        "direct-reference-replaces",
+        "own-source-kept",
+    ],
+)
+def test_plan_dependency_changes(
+    declared: List[str], desired: List[str], expected: List[Tuple[str, str]]
+) -> None:
+    changes = plan_dependency_changes(declared, desired)
+    # packaging versions render a direct reference with or without a space before `@`
+    assert [(change["op"], str(Requirement(change["spec"]))) for change in changes] == [
+        (op, str(Requirement(spec))) for op, spec in expected
+    ]
+    for change in changes:
+        if change["op"] == "add":
+            assert "declared" not in change
+        else:
+            assert change["declared"] in declared
 
 
 def test_get_workspace_install_specs_includes_dlt_with_hub_extra() -> None:

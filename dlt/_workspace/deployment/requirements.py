@@ -4,15 +4,20 @@ poetry/PDM support can be easily added.
 """
 
 import importlib.metadata
+import os
 import re
 import shutil
 import subprocess
 import sys
 from pathlib import Path
-from typing import Any, BinaryIO, Dict, Final, List, Optional, Sequence, Set
+from typing import Any, BinaryIO, Dict, Final, List, Optional, Sequence, Set, Tuple
+from urllib.parse import urlparse
+from urllib.request import url2pathname
 
 import tomlkit
-from packaging.requirements import Requirement
+from packaging.requirements import InvalidRequirement, Requirement
+from packaging.utils import canonicalize_name
+from packaging.version import InvalidVersion, Version
 
 from dlt.common import json
 from dlt.common.exceptions import DictValidationException
@@ -40,6 +45,7 @@ from dlt._workspace.deployment.typing import (
     DASHBOARD_JOB_REF,
     MAIN_GROUP,
     REQUIREMENTS_ENGINE_VERSION,
+    TDependencyChange,
     TInstallMode,
     TInstallSpec,
     TWorkspaceRequirementsManifest,
@@ -56,10 +62,13 @@ __all__ = [
     "DLTHUB_PKG_NAME",
     "MAIN_GROUP",
     "REQUIREMENTS_ENGINE_VERSION",
+    "TDependencyChange",
     "TInstallSpec",
     "TInstallMode",
     "TWorkspaceRequirementsManifest",
     "WorkspaceRequirementsError",
+    "add_pyproject_dependencies",
+    "append_lines",
     "build_dashboard_group",
     "build_launcher_requirements",
     "default_requirements_manifest",
@@ -69,12 +78,20 @@ __all__ = [
     "get_dlt_requirement_spec",
     "get_pkg_install_spec",
     "get_workspace_install_specs",
+    "is_uv_available",
     "load_requirements",
+    "merge_requirements_txt",
     "migrate_requirements",
+    "plan_dependency_changes",
+    "plan_dependency_file_changes",
     "python_version",
+    "read_pyproject_dependencies",
+    "read_requirements_file",
     "render_pep508",
+    "render_pyproject",
     "render_requirements_lines",
     "render_uv_source",
+    "run_uv",
     "save_requirements",
 ]
 
@@ -133,7 +150,7 @@ def get_pkg_install_spec(pkg_name: str, *, extras: Optional[List[str]] = None) -
     # both editable and plain local installs use file:// URIs
     if url.startswith("file://"):
         spec["mode"] = "editable" if dir_info.get("editable") else "path"
-        spec["path"] = url[len("file://") :]
+        spec["path"] = url2pathname(urlparse(url).path)
         return spec
 
     # http(s) archive — `pip install https://.../pkg.zip` (incl. github archive URLs)
@@ -172,7 +189,7 @@ def render_pep508(spec: TInstallSpec, *, for_deployment: bool) -> str:
         return f"{name_extras}=={version}" if version else name_extras
     if mode == "path":
         if for_deployment:
-            return f"{name_extras} @ file://{spec['path']}"
+            return f"{name_extras} @ {Path(spec['path']).as_uri()}"
         return f"{name_extras}=={version}" if version else name_extras
     if mode == "archive":
         # PEP 508 direct ref; portable to pip + uv with no source-override needed
@@ -214,7 +231,7 @@ def render_requirements_lines(spec: TInstallSpec) -> List[str]:
     if mode == "editable":
         return [f"-e {spec['path']}"]
     if mode == "path":
-        return [f"{name_extras} @ file://{spec['path']}"]
+        return [f"{name_extras} @ {Path(spec['path']).as_uri()}"]
     if mode == "archive":
         return [f"{name_extras} @ {spec['archive_url']}"]
     # git
@@ -222,6 +239,44 @@ def render_requirements_lines(spec: TInstallSpec) -> List[str]:
     git_rev = spec.get("git_rev")
     ref = f"git+{git_url}@{git_rev}" if git_rev else f"git+{git_url}"
     return [f"{name_extras} @ {ref}"]
+
+
+def render_pyproject(
+    name: str,
+    deps: Sequence[str],
+    uv_sources: Dict[str, Dict[str, Any]],
+    requires_python: Optional[str] = None,
+) -> str:
+    """A `pyproject.toml` declaring `deps`, with `[tool.uv.sources]` when `uv_sources` is not
+    empty."""
+    doc = tomlkit.document()
+    project = tomlkit.table()
+    project["name"] = name
+    project["version"] = "0.0.1"
+    project["description"] = "A dlthub workspace"
+    if requires_python:
+        project["requires-python"] = requires_python
+    deps_array = tomlkit.array()
+    for d in deps:
+        deps_array.append(d)
+    deps_array.multiline(True)
+    project["dependencies"] = deps_array
+    doc["project"] = project
+
+    if uv_sources:
+        sources_table = tomlkit.table()
+        for pkg, src in uv_sources.items():
+            entry = tomlkit.inline_table()
+            for k, v in src.items():
+                entry[k] = v
+            sources_table[pkg] = entry
+        uv_table = tomlkit.table()
+        uv_table["sources"] = sources_table
+        tool_table = tomlkit.table()
+        tool_table["uv"] = uv_table
+        doc["tool"] = tool_table
+
+    return tomlkit.dumps(doc)
 
 
 def get_workspace_install_specs() -> List[TInstallSpec]:
@@ -473,10 +528,10 @@ def _export_from_pyproject(
         # so this path has no fallback — require uv upfront.
         _require_uv()
         # verify the lock is in sync — non-mutating
-        _run_uv(["lock", "--check"], cwd=workspace_root)
+        run_uv(["lock", "--check"], cwd=workspace_root)
         result: Dict[str, List[str]] = {}
         result[MAIN_GROUP] = _parse_uv_output(
-            _run_uv(
+            run_uv(
                 [
                     "export",
                     "--no-hashes",
@@ -490,7 +545,7 @@ def _export_from_pyproject(
         )
         for name in group_names:
             result[name] = _parse_uv_output(
-                _run_uv(
+                run_uv(
                     [
                         "export",
                         "--no-hashes",
@@ -522,7 +577,7 @@ def _compile_requirements_file(workspace_root: Path, file_path: Path) -> List[st
     # with uv: `uv pip compile --universal` for a resolved, platform-independent
     # lockset. without uv: pure-Python parse, specs returned as authored
     if is_uv_available():
-        stdout = _run_uv(
+        stdout = run_uv(
             [
                 "pip",
                 "compile",
@@ -534,34 +589,124 @@ def _compile_requirements_file(workspace_root: Path, file_path: Path) -> List[st
             cwd=workspace_root,
         )
         return _parse_uv_output(stdout)
-    return _parse_requirements_file(file_path)
+    return read_requirements_file(file_path)
 
 
-def _parse_requirements_file(file_path: Path) -> List[str]:
+def read_pyproject_dependencies(pyproject_path: Path) -> List[str]:
+    """`[project.dependencies]` of a `pyproject.toml` as sorted PEP 508 specs."""
+    try:
+        doc = tomlkit.parse(pyproject_path.read_text(encoding="utf-8"))
+    except Exception as ex:
+        raise WorkspaceRequirementsError(f"Failed to parse {pyproject_path}: {ex}") from ex
+    project = doc.get("project", {}) or {}
+    return _parse_dep_list(list(project.get("dependencies", []) or []))
+
+
+def read_requirements_file(file_path: Path) -> List[str]:
     """Parse a user-authored `requirements.txt` / `.in` file to sorted PEP 508 specs."""
-    # does not resolve; flag lines (-e, -r, --index-url) are skipped
+    # does not resolve
     text = file_path.read_text(encoding="utf-8")
     # join line continuations
     text = text.replace("\\\n", "")
-    specs: List[str] = []
-    for raw_line in text.splitlines():
-        line = raw_line.strip()
-        if not line or line.startswith("#"):
+    specs: Set[str] = set()
+    for line in text.splitlines():
+        requirement = _parse_requirements_line(line)
+        if requirement is not None:
+            specs.add(str(requirement))
+    return sorted(specs)
+
+
+def _parse_requirements_line(line: str) -> Optional[Requirement]:
+    """The requirement a `requirements.txt` line declares, `None` for comments, flag lines (`-e`,
+    `-r`, `--index-url`) and lines that are not PEP 508."""
+    line = line.split(" #", 1)[0].strip()
+    if not line or line.startswith(("#", "-")):
+        return None
+    try:
+        return Requirement(line)
+    except InvalidRequirement:
+        return None
+
+
+def append_lines(text: str, lines: Sequence[str], comment: str) -> str:
+    """Appends `lines` to `text` below the `comment` line, separated by an empty line."""
+    if not lines:
+        return text
+    if text and not text.endswith("\n"):
+        text += "\n"
+    separator = "\n" if text else ""
+    return text + separator + comment + "\n" + "\n".join(lines) + "\n"
+
+
+def merge_requirements_txt(
+    existing: str, changes: Sequence[TDependencyChange], comment: str
+) -> str:
+    """Applies `changes` to the content of a `requirements.txt`. An upgrade replaces the line of its
+    package in place, an added package goes below the `comment` line at the end."""
+    lines = existing.splitlines()
+    present = {line.strip() for line in lines}
+    additions: List[str] = []
+    for change in changes:
+        if change["op"] == "upgrade":
+            for i, line in enumerate(lines):
+                requirement = _parse_requirements_line(line)
+                if requirement and canonicalize_name(requirement.name) == change["name"]:
+                    lines[i] = change["spec"]
+                    break
+            else:
+                additions.append(change["spec"])
+        elif change["spec"] not in present:
+            additions.append(change["spec"])
+    merged = "\n".join(lines) + "\n" if lines else ""
+    return append_lines(merged, additions, comment)
+
+
+def plan_dependency_file_changes(
+    file_path: Path, desired: Sequence[str], workspace_specs: Sequence[TInstallSpec]
+) -> List[TDependencyChange]:
+    """Plans the changes that bring the `pyproject.toml` or `requirements.txt` at `file_path` up to
+    the `desired` specs. In `requirements.txt` an editable install of `workspace_specs` is
+    written as `-e <path>`."""
+    if file_path.name == PYPROJECT_TOML:
+        return plan_dependency_changes(read_pyproject_dependencies(file_path), desired)
+    changes = plan_dependency_changes(read_requirements_file(file_path), desired)
+    lines: Dict[str, str] = {
+        canonicalize_name(s["name"]): render_requirements_lines(s)[0] for s in workspace_specs
+    }
+    for change in changes:
+        line = lines.get(change["name"], "")
+        if line.startswith("-e ") and change["op"] != "newer":
+            change["spec"] = line
+    # the reader skips `-e` lines, so an editable install already listed looks missing
+    present = {line.strip() for line in file_path.read_text(encoding="utf-8").splitlines()}
+    return [c for c in changes if not (c["op"] == "add" and c["spec"] in present)]
+
+
+def add_pyproject_dependencies(
+    changes: Sequence[TDependencyChange], uv_sources: Dict[str, Dict[str, Any]], project_dir: Path
+) -> None:
+    """Writes `changes` into the `pyproject.toml` in `project_dir` with `uv add`, without locking or
+    syncing. A package in `uv_sources` keeps its source in `[tool.uv.sources]`."""
+    if not changes:
+        return
+    # `--frozen` already skips the sync, uv refuses it together with these settings
+    env = {k: v for k, v in os.environ.items() if k not in ("UV_NO_SYNC", "UV_LOCKED")}
+    run_uv(["add", "--frozen", *(change["spec"] for change in changes)], project_dir, env)
+    for change in changes:
+        source = uv_sources.get(change["name"])
+        if source is None:
             continue
-        # flag lines: -e, -r, --index-url, etc.
-        if line.startswith("-"):
-            continue
-        # strip inline comments
-        if " #" in line:
-            line = line.split(" #", 1)[0].strip()
-        if not line:
-            continue
-        try:
-            req = Requirement(line)
-        except Exception:
-            continue
-        specs.append(str(req))
-    return sorted(set(specs))
+        # uv writes the source and keeps the spec added before
+        if "git" in source:
+            target = ["git+" + source["git"]]
+            if source.get("rev"):
+                target += ["--rev", source["rev"]]
+        elif source.get("editable"):
+            target = ["--editable", source["path"]]
+        else:
+            target = [source["path"]]
+        extras = [arg for e in sorted(Requirement(change["spec"]).extras) for arg in ("--extra", e)]
+        run_uv(["add", "--frozen", *target, *extras], project_dir, env)
 
 
 def _dependency_group_names(pyproject_doc: Any) -> List[str]:
@@ -678,12 +823,13 @@ def _require_uv() -> None:
         raise WorkspaceRequirementsError(_UV_MISSING_MESSAGE)
 
 
-def _run_uv(args: List[str], cwd: Path) -> str:
+def run_uv(args: List[str], cwd: Path, env: Optional[Dict[str, str]] = None) -> str:
     """Invoke `uv` with the given args, returning stdout on success."""
     try:
         proc = subprocess.run(
             ["uv", *args],
             cwd=str(cwd),
+            env=env,
             capture_output=True,
             text=True,
             check=False,
@@ -695,3 +841,80 @@ def _run_uv(args: List[str], cwd: Path) -> str:
             f"`uv {' '.join(args)}` failed with exit code {proc.returncode}:\n{proc.stderr}"
         )
     return proc.stdout
+
+
+# clauses whose version a spec pins or starts at
+_LOWER_BOUND_OPERATORS = ("==", "===", ">=", "~=", ">")
+
+
+def _get_lower_bound(requirement: Requirement) -> Optional[Version]:
+    """The version that `requirement` pins or starts at, `None` when it has none."""
+    for specifier in requirement.specifier:
+        if specifier.operator in _LOWER_BOUND_OPERATORS:
+            try:
+                return Version(specifier.version)
+            except InvalidVersion:
+                # a wildcard pin such as `==1.*`
+                return None
+    return None
+
+
+def plan_dependency_changes(
+    declared: Sequence[str], desired: Sequence[str]
+) -> List[TDependencyChange]:
+    """Plans the changes that bring the `declared` specs of a project up to the `desired` ones.
+
+    A missing spec is added. A declared spec that excludes the desired version or lacks a desired
+    extra is upgraded, keeping its other extras. A declared newer version is kept, never
+    downgraded. A spec that admits the desired version is left as is.
+    """
+    declared_by_name: Dict[str, Tuple[Requirement, str]] = {}
+    for spec in declared:
+        try:
+            requirement = Requirement(spec)
+        except InvalidRequirement:
+            continue
+        declared_by_name[canonicalize_name(requirement.name)] = (requirement, spec)
+
+    changes: List[TDependencyChange] = []
+    for spec in desired:
+        wanted = Requirement(spec)
+        name = canonicalize_name(wanted.name)
+        if name not in declared_by_name:
+            changes.append({"name": name, "op": "add", "spec": spec})
+            continue
+        have, declared_spec = declared_by_name[name]
+        lacks_extras = not wanted.extras <= have.extras
+        if wanted.url:
+            # a dev install (editable, path or git) replaces what is declared
+            if have.url != wanted.url or lacks_extras:
+                changes.append(_make_upgrade(name, wanted, have, declared_spec))
+            continue
+        if have.url:
+            # the project installs it from its own source
+            continue
+        wanted_version = _get_lower_bound(wanted)
+        excludes = wanted_version is not None and not have.specifier.contains(
+            wanted_version, prereleases=True
+        )
+        have_version = _get_lower_bound(have)
+        is_newer = bool(wanted_version and have_version and have_version > wanted_version)
+        if excludes and not is_newer:
+            changes.append(_make_upgrade(name, wanted, have, declared_spec))
+        elif lacks_extras:
+            # the declared version stays, only the extras are added
+            changes.append(_make_upgrade(name, have, wanted, declared_spec))
+        elif excludes:
+            changes.append({"name": name, "op": "newer", "spec": spec, "declared": declared_spec})
+    return changes
+
+
+def _make_upgrade(
+    name: str, kept: Requirement, other: Requirement, declared_spec: str
+) -> TDependencyChange:
+    """An upgrade to the version of `kept` with the extras of both and a marker of either."""
+    upgraded = Requirement(str(kept))
+    upgraded.extras = kept.extras | other.extras
+    if upgraded.marker is None:
+        upgraded.marker = other.marker
+    return {"name": name, "op": "upgrade", "spec": str(upgraded), "declared": declared_spec}

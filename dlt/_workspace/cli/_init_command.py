@@ -21,7 +21,14 @@ from dlt.sources import SourceReference
 import dlt.reflection.names as n
 from dlt.reflection.script_inspector import import_pipeline_script
 
-from dlt._workspace.cli import echo as fmt, _pipeline_files as files_ops, source_detection, utils
+from dlt._workspace.cli import (
+    DEFAULT_VERIFIED_SOURCES_REPO,
+    echo as fmt,
+    _pipeline_files as files_ops,
+    source_detection,
+    utils,
+)
+from dlt._workspace.cli._repo_source import format_repo_source, get_recorded_repo_source
 from dlt._workspace.cli.config_toml_writer import WritableConfigValue
 from dlt._workspace.cli._pipeline_files import (
     TEMPLATE_FILES,
@@ -36,7 +43,8 @@ from dlt._workspace.cli.exceptions import CliCommandException, CliCommandInnerEx
 from dlt._workspace.cli._urls import DLT_INIT_DOCS_URL, DLT_AI_DOCS_URL  # noqa: F401
 
 
-def list_sources_command(repo_location: str, branch: str = None) -> None:
+def list_sources_command(repo_location: Optional[str] = None, branch: Optional[str] = None) -> None:
+    repo_location, branch = files_ops.resolve_verified_sources_repo(repo_location, branch)
     fmt.echo("---")
     fmt.echo("Available dlt core sources:")
     fmt.echo("---")
@@ -82,12 +90,14 @@ def list_destinations_command() -> None:
 def init_command(
     source_name: str,
     destination_type: str,
-    repo_location: str,
-    branch: str = None,
+    repo_location: Optional[str] = None,
+    branch: Optional[str] = None,
     eject_source: bool = False,
     dry_run: bool = False,
     add_example_pipeline_script: bool = True,
 ) -> Tuple[Dict[str, str], files_ops.TSourceType]:
+    # `repo_location` and `branch` default to the ones the last verified source came from
+    repo_location, branch = files_ops.resolve_verified_sources_repo(repo_location, branch)
     # detect and warn on deprecated dlthub: pattern
     display_source_name: Optional[str] = None
     if source_name.startswith("dlthub:"):
@@ -516,7 +526,11 @@ def init_pipeline_at_destination(
             if dest_storage.has_file(file_name):
                 dest_storage.delete(file_name)
         files_ops.save_verified_source_local_index(
-            source_name, remote_index, remote_modified, remote_deleted
+            source_name,
+            remote_index,
+            remote_modified,
+            remote_deleted,
+            source=get_recorded_repo_source(repo_location, branch, DEFAULT_VERIFIED_SOURCES_REPO),
         )
 
     if (
@@ -531,8 +545,10 @@ def init_pipeline_at_destination(
 def _clone_and_get_verified_sources_storage(repo_location: str, branch: str = None) -> FileStorage:
     """Clone and get FileStorage for verified sources templates"""
 
-    fmt.echo("Looking up verified sources at %s..." % fmt.bold(repo_location))
-    clone_storage = git.get_fresh_repo_files(repo_location, get_dlt_repos_dir(), branch=branch)
+    fmt.echo("Looking up verified sources at %s..." % format_repo_source(repo_location, branch))
+    clone_storage = git.get_fresh_repo_files(
+        repo_location, get_dlt_repos_dir(), branch=branch, path=SOURCES_MODULE_NAME
+    )
     # copy dlt source files from here
     return FileStorage(clone_storage.make_full_path(SOURCES_MODULE_NAME))
 
@@ -736,8 +752,8 @@ def _list_core_destinations() -> list[str]:
 def init_command_wrapper(
     source_name: str,
     destination_type: str,
-    repo_location: str,
-    branch: str,
+    repo_location: Optional[str],
+    branch: Optional[str],
     eject_source: bool = False,
 ) -> None:
     init_command(
@@ -750,7 +766,7 @@ def init_command_wrapper(
 
 
 @utils.track_command("list_sources", False)
-def list_sources_command_wrapper(repo_location: str, branch: str) -> None:
+def list_sources_command_wrapper(repo_location: Optional[str], branch: Optional[str]) -> None:
     list_sources_command(repo_location, branch)
 
 

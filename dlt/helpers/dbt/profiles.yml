@@ -127,6 +127,23 @@ snowflake_pkey:
       threads: 4
 
 
+# snowflake with oauth token auth, for example the session token of a Snowpark container
+snowflake_oauth:
+  target: analytics
+  outputs:
+    analytics:
+      type: snowflake
+      account: "{{ env_var('DLT__CREDENTIALS__HOST') }}"
+      user: "{{ env_var('DLT__CREDENTIALS__USERNAME', '') }}"
+      database: "{{ env_var('DLT__CREDENTIALS__DATABASE') }}"
+      role: "{{ env_var('DLT__CREDENTIALS__ROLE', '') }}"
+      schema: "{{ var('destination_dataset_name', var('source_dataset_name')) }}"
+      warehouse: "{{ env_var('DLT__CREDENTIALS__WAREHOUSE', '') }}"
+      authenticator: oauth
+      token: "{{ env_var('DLT__CREDENTIALS__TOKEN') }}"
+      threads: 4
+
+
 athena:
   target: analytics
   outputs:

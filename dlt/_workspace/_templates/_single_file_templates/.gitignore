@@ -11,6 +11,10 @@ secrets.toml
 # ignore duckdb
 *.duckdb
 *.wal
+# marimo notebook state
+__marimo__/
+# streamlit secrets
+.streamlit/secrets.toml
 
 # Git repository
 .git/
@@ -188,10 +192,6 @@ cython_debug/
 # Marimo
 marimo/_static/
 marimo/_lsp/
-__marimo__/
-
-# Streamlit
-.streamlit/secrets.toml
 
 # macOS
 .DS_Store

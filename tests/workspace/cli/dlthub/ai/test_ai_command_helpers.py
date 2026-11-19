@@ -1,11 +1,9 @@
-import functools
 import hashlib
 import json
 import os
 import shutil
-from contextlib import contextmanager
 from pathlib import Path
-from typing import Any, Callable, Dict, Iterator, Set, Type
+from typing import Any, Callable, Dict, List, Set, Type
 from unittest.mock import patch
 
 import pytest
@@ -14,11 +12,13 @@ import yaml
 
 from dlt.common.storages import FileStorage
 
+from dlt._workspace._workspace_context import WorkspaceRunContext
 from dlt._workspace.cli.dlthub.ai.commands import (
     _execute_install,
-    _select_install_requests,
+    _install_dependencies,
     _install_toolkit,
     _plan_toolkit_install,
+    _report_and_execute,
     _resolve_agent,
     ai_secrets_update_fragment_command,
     ai_secrets_view_redacted_command,
@@ -30,6 +30,7 @@ from dlt._workspace.cli.dlthub.ai.agents import (
     _AIAgent,
     _ClaudeAgent,
     _CodexAgent,
+    _CortexAgent,
     _CursorAgent,
 )
 from dlt._workspace.cli.dlthub.ai.utils import (
@@ -38,36 +39,22 @@ from dlt._workspace.cli.dlthub.ai.utils import (
     build_toolkits_dependency_map,
     fetch_workbench_base,
     load_toolkits_index,
-    save_toolkits_index,
     resolve_toolkit_dependencies,
     fetch_workbench_toolkit_info,
     fetch_workbench_toolkits,
 )
 from dlt._workspace.cli.exceptions import CliCommandException
-from dlt._workspace.cli.formatters import parse_frontmatter
+from dlt._workspace.cli.markdown import MarkdownDocument
 
 from tests.workspace.cli.dlthub.ai.utils import (
+    AI_CASES_DIR,
+    MOCK_WORKBENCH_LOCATION,
     assert_toolkit_install,
     make_mock_toolkit,
     make_mock_toolkit_info,
     make_mock_workbench,
     make_versioned_workbench,
 )
-
-
-@contextmanager
-def project_index(project_root: Path) -> Iterator[None]:
-    with patch(
-        "dlt._workspace.cli.dlthub.ai.utils._toolkits_index_path",
-        return_value=str(project_root / ".dlt" / ".toolkits"),
-    ):
-        yield
-
-
-def install(
-    name: str, base: Path, agent: _AIAgent, project_root: Path, overwrite: bool = False
-) -> None:
-    _install_toolkit(name, base, agent, project_root, load_toolkits_index(), overwrite=overwrite)
 
 
 @pytest.mark.parametrize(
@@ -89,7 +76,8 @@ def install(
         ),
         (
             _CodexAgent,
-            {"skill", "agent", "ignore", "rule"},
+            # the session start hook lists the rule skills
+            {"skill", "agent", "ignore", "hook"},
             ".agents/skills/test-toolkit-coding/SKILL.md",
             lambda c: "Coding Style" in c,
             ".codexignore",
@@ -118,12 +106,12 @@ def test_toolkit_install_all_variants(
     project_root.mkdir()
 
     variant = variant_cls()
-    changes = _plan_toolkit_install(toolkit_dir, variant, project_root, "test-toolkit")
-    actions = changes.ordinary + changes.shared
+    actions, _warnings = _plan_toolkit_install(toolkit_dir, variant, project_root, "test-toolkit")
 
     assert {a.kind for a in actions} == expected_kinds
+    assert all(not a.conflict for a in actions)
 
-    assert _execute_install(changes.ordinary, changes.shared).error is None
+    _execute_install(actions)
 
     # skill dir always copied with all files
     skill_base = variant.component_dir("skill", project_root) / "find-source"
@@ -156,13 +144,13 @@ def test_toolkit_install_all_variants(
     assert ignore_dest.is_file()
     assert "secrets.toml" in ignore_dest.read_text(encoding="utf-8")
 
-    # codex also creates AGENTS.md with skill entry
+    # codex gets a session start hook that lists the rule skills, AGENTS.md is not touched
     if variant_cls == _CodexAgent:
-        agents_md = project_root / "AGENTS.md"
-        assert agents_md.is_file()
-        agents_content = agents_md.read_text(encoding="utf-8")
-        assert "`test-toolkit-coding`" in agents_content
-        assert "## ALWAYS ACTIVATE those skills" in agents_content
+        assert not (project_root / "AGENTS.md").exists()
+        hooks = json.loads((project_root / ".codex/hooks.json").read_text(encoding="utf-8"))
+        assert hooks["hooks"]["SessionStart"] == [_CodexAgent.RULES_HOOK]
+        context = variant.session_context(project_root)
+        assert context is not None and "`test-toolkit-coding`" in context
 
 
 def test_toolkit_install_skips_bad_frontmatter() -> None:
@@ -185,8 +173,7 @@ def test_toolkit_install_skips_bad_frontmatter() -> None:
     )
 
     variant = _ClaudeAgent()
-    changes = _plan_toolkit_install(toolkit_dir, variant, project_root, "test-toolkit")
-    actions, warn_list = changes.ordinary + changes.shared, changes.warnings
+    actions, warn_list = _plan_toolkit_install(toolkit_dir, variant, project_root, "test-toolkit")
 
     assert any("Skipping skill find-source" in w for w in warn_list)
     assert any("Skipping command bootstrap" in w for w in warn_list)
@@ -212,12 +199,11 @@ def test_toolkit_install_strict_fails_on_bad_frontmatter(
     )
 
     variant = _ClaudeAgent()
-    changes = _plan_toolkit_install(toolkit_dir, variant, project_root, "test-toolkit")
-    warn_list = changes.warnings
+    actions, warn_list = _plan_toolkit_install(toolkit_dir, variant, project_root, "test-toolkit")
     assert len(warn_list) > 0
 
     with pytest.raises(CliCommandException):
-        _install_toolkit("test-toolkit", toolkit_dir.parent, variant, project_root, {}, strict=True)
+        _report_and_execute(actions, warn_list, strict=True)
 
 
 def test_toolkit_install_skip_existing() -> None:
@@ -232,13 +218,12 @@ def test_toolkit_install_skip_existing() -> None:
     existing_skill.mkdir(parents=True)
     (existing_skill / "SKILL.md").write_text("custom content", encoding="utf-8")
 
-    changes = _plan_toolkit_install(toolkit_dir, variant, project_root, "test-toolkit")
-    actions = changes.ordinary + changes.shared
+    actions, _warnings = _plan_toolkit_install(toolkit_dir, variant, project_root, "test-toolkit")
 
-    assert not any(a.source_name == "find-source" for a in actions)
-    assert existing_skill / "SKILL.md" in changes.kept
+    skill_action = next(a for a in actions if a.source_name == "find-source")
+    assert skill_action.conflict is True
 
-    installed = _execute_install(changes.ordinary, changes.shared).installed
+    installed, _ = _execute_install(actions)
     # agent, command, rule and ignore file; the conflicting skill is skipped
     assert installed == 4
     assert (existing_skill / "SKILL.md").read_text(encoding="utf-8") == "custom content"
@@ -267,7 +252,15 @@ def test_codex_install_caps_long_descriptions() -> None:
         encoding="utf-8",
     )
 
-    install("test-toolkit", toolkit_dir.parent, _CodexAgent(), project_root)
+    actions, _warnings = _plan_toolkit_install(
+        toolkit_dir, _CodexAgent(), project_root, "test-toolkit"
+    )
+    _execute_install(
+        actions,
+        toolkit_info=make_mock_toolkit_info(description="mock"),
+        project_root=project_root,
+        agent_name="codex",
+    )
 
     # every installed SKILL.md description fits the limit and is marked truncated
     for rel in (
@@ -275,12 +268,14 @@ def test_codex_install_caps_long_descriptions() -> None:
         ".agents/skills/bootstrap/SKILL.md",
         ".agents/skills/test-toolkit-coding/SKILL.md",
     ):
-        fm, _ = parse_frontmatter((project_root / rel).read_text(encoding="utf-8"))
+        fm, _ = MarkdownDocument(
+            (project_root / rel).read_text(encoding="utf-8")
+        ).split_frontmatter()
         assert len(fm["description"]) <= _CodexAgent._MAX_SKILL_DESCRIPTION
         assert fm["description"].endswith("…")
 
     # workbench source is left untouched
-    src_fm, _ = parse_frontmatter(skill_md.read_text(encoding="utf-8"))
+    src_fm, _ = MarkdownDocument(skill_md.read_text(encoding="utf-8")).split_frontmatter()
     assert len(src_fm["description"]) == 1200
 
     # tracked index hashes match the capped files on disk
@@ -307,14 +302,14 @@ def test_toolkit_install_mcp_all_variants(
     project_root.mkdir()
 
     variant = variant_cls()
-    changes = _plan_toolkit_install(toolkit_dir, variant, project_root, "test-toolkit")
-    actions = changes.ordinary + changes.shared
+    actions, _warnings = _plan_toolkit_install(toolkit_dir, variant, project_root, "test-toolkit")
 
     mcp_actions = [a for a in actions if a.kind == "mcp"]
     assert len(mcp_actions) == 1
+    assert not mcp_actions[0].conflict
     assert isinstance(mcp_actions[0].content_or_path, str)
 
-    assert _execute_install(changes.ordinary, changes.shared).error is None
+    _execute_install(actions)
 
     config_file = project_root / config_rel_path
     assert config_file.is_file()
@@ -333,6 +328,8 @@ def test_toolkit_install_mcp_all_variants(
         srv = doc[top_key]["dlt-workspace-mcp"]  # type: ignore[index]
         assert srv["command"] == "uv"  # type: ignore[index]
         assert "type" not in srv  # type: ignore[operator]
+        # codex waits for the server before the first turn
+        assert doc["mcp_optional_startup_grace_ms"] == 5000
 
 
 def test_toolkit_install_mcp_conflict() -> None:
@@ -346,11 +343,10 @@ def test_toolkit_install_mcp_conflict() -> None:
     original = json.dumps({"mcpServers": {"dlt-workspace-mcp": {"command": "existing"}}})
     config_path.write_text(original, encoding="utf-8")
 
-    changes = _plan_toolkit_install(toolkit_dir, variant, project_root, "test-toolkit")
-    actions = changes.ordinary + changes.shared
+    actions, _warnings = _plan_toolkit_install(toolkit_dir, variant, project_root, "test-toolkit")
     assert not any(a.kind == "mcp" for a in actions)
 
-    assert _execute_install(changes.ordinary, changes.shared).error is None
+    _execute_install(actions)
 
     assert config_path.read_text(encoding="utf-8") == original
 
@@ -368,19 +364,227 @@ def test_toolkit_install_mcp_merge_existing() -> None:
         encoding="utf-8",
     )
 
-    changes = _plan_toolkit_install(toolkit_dir, variant, project_root, "test-toolkit")
-    actions = changes.ordinary + changes.shared
+    actions, _warnings = _plan_toolkit_install(toolkit_dir, variant, project_root, "test-toolkit")
     mcp_actions = [a for a in actions if a.kind == "mcp"]
     assert len(mcp_actions) == 1
     merged_data = json.loads(str(mcp_actions[0].content_or_path))
     assert "other-server" in merged_data["mcpServers"]
     assert "dlt-workspace-mcp" in merged_data["mcpServers"]
 
-    assert _execute_install(changes.ordinary, changes.shared).error is None
+    _execute_install(actions)
 
     data = json.loads(config_path.read_text(encoding="utf-8"))
     assert "other-server" in data["mcpServers"]
     assert "dlt-workspace-mcp" in data["mcpServers"]
+
+
+PLATFORM_FEATURES = {"dlt-workspace-mcp": ["dlthub.jobs", "dlthub.logs"]}
+# the `init` server as dlt 1.32 installed it from the harness
+OLD_INIT_SERVER: Dict[str, Any] = {
+    "command": "uv",
+    "args": ["run", "dlthub", "ai", "mcp", "--stdio"],
+}
+
+
+@pytest.mark.parametrize(
+    "variant_cls",
+    [_ClaudeAgent, _CursorAgent, _CodexAgent, _CortexAgent],
+    ids=["claude", "cursor", "codex", "cortex"],
+)
+def test_toolkit_install_mcp_features(
+    variant_cls: Type[_AIAgent],
+    capsys: pytest.CaptureFixture[str],
+    auto_isolated_workspace: WorkspaceRunContext,
+) -> None:
+    """Features go into the server another toolkit installed, in every MCP config of the agent."""
+    project_root = Path(auto_isolated_workspace.run_dir)
+    variant = variant_cls()
+    config_paths = variant.mcp_config_paths(project_root)
+    for path in config_paths:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        servers = {"dlt-workspace-mcp": OLD_INIT_SERVER, "other": {"command": "other"}}
+        path.write_text(variant.merge_mcp_servers("", servers), encoding="utf-8")
+    toolkit_dir = make_mock_toolkit()
+    info = make_mock_toolkit_info(mcp_features=PLATFORM_FEATURES)
+
+    actions, warnings = _plan_toolkit_install(
+        toolkit_dir, variant, project_root, "test-toolkit", toolkit_info=info
+    )
+    mcp_actions = [a for a in actions if a.kind == "mcp"]
+    assert [a.dest_path for a in mcp_actions] == config_paths
+    for a in mcp_actions:
+        assert a.source_name == "dlt-workspace-mcp (+dlthub.jobs, +dlthub.logs)"
+        # the server is not the toolkit's own
+        assert a.mcp_servers == ()
+    _report_and_execute(actions, warnings, toolkit_meta=info, agent_name=variant.name)
+
+    for path in config_paths:
+        servers = variant.parse_mcp_servers(path.read_text(encoding="utf-8"))
+        assert servers["dlt-workspace-mcp"]["command"] == "uv"
+        assert servers["dlt-workspace-mcp"]["args"] == [
+            *OLD_INIT_SERVER["args"],
+            "--features=dlthub.jobs,dlthub.logs",
+        ]
+        assert servers["other"]["command"] == "other"
+    # one warning per server, also when the agent reads two configs
+    assert capsys.readouterr().out.count("MCP server dlt-workspace-mcp changed") == 1
+
+    # a second install has nothing to add and nothing to reconnect
+    actions, warnings = _plan_toolkit_install(
+        toolkit_dir, variant, project_root, "test-toolkit", toolkit_info=info
+    )
+    assert not any(a.kind == "mcp" for a in actions)
+    _report_and_execute(actions, warnings, toolkit_meta=info, agent_name=variant.name)
+    assert "changed" not in capsys.readouterr().out
+
+
+def test_toolkit_install_mcp_features_hidden_from_agent(
+    capsys: pytest.CaptureFixture[str], auto_isolated_workspace: WorkspaceRunContext
+) -> None:
+    """Features of a server the agent does not see are not merged and need no reconnect."""
+    project_root = Path(auto_isolated_workspace.run_dir)
+    config_path = project_root / ".mcp.json"
+    config_path.write_text(
+        json.dumps({"mcpServers": {"dlt-workspace-mcp": OLD_INIT_SERVER}}), encoding="utf-8"
+    )
+    original = config_path.read_text(encoding="utf-8")
+    toolkit_dir = make_mock_toolkit(with_mcp=True)
+    info = make_mock_toolkit_info(mcp_features=PLATFORM_FEATURES)
+    info["component_visibility"] = {"mcp/dlt-workspace-mcp": {"exclude": ["claude"]}}
+
+    actions, warnings = _plan_toolkit_install(
+        toolkit_dir, _ClaudeAgent(), project_root, "test-toolkit", toolkit_info=info
+    )
+    _report_and_execute(actions, warnings, toolkit_meta=info, agent_name="claude")
+
+    assert config_path.read_text(encoding="utf-8") == original
+    assert "changed" not in capsys.readouterr().out
+
+
+def test_toolkit_install_mcp_features_without_server(
+    auto_isolated_workspace: WorkspaceRunContext,
+) -> None:
+    """Features for a server that is not configured, or not started by a command, are skipped
+    with a warning that `--strict` turns into an error."""
+    project_root = Path(auto_isolated_workspace.run_dir)
+    config_path = project_root / ".mcp.json"
+    info = make_mock_toolkit_info(mcp_features=PLATFORM_FEATURES)
+    toolkit_dir = make_mock_toolkit()
+
+    actions, warnings = _plan_toolkit_install(
+        toolkit_dir, _ClaudeAgent(), project_root, "test-toolkit", toolkit_info=info
+    )
+    assert not any(a.kind == "mcp" for a in actions)
+    assert warnings == [
+        "Toolkit test-toolkit adds feature groups to MCP server dlt-workspace-mcp, but"
+        " dlt-workspace-mcp is not in %s. Install the toolkit that provides dlt-workspace-mcp,"
+        " then run dlthub ai toolkit install test-toolkit --overwrite." % config_path
+    ]
+    assert not config_path.exists()
+    with pytest.raises(CliCommandException):
+        _report_and_execute(actions, warnings, strict=True, toolkit_meta=info)
+
+    # a remote server takes no command line flags
+    config_path.write_text(
+        json.dumps({"mcpServers": {"dlt-workspace-mcp": {"url": "https://mcp.example.com"}}}),
+        encoding="utf-8",
+    )
+    actions, warnings = _plan_toolkit_install(
+        toolkit_dir, _ClaudeAgent(), project_root, "test-toolkit", toolkit_info=info
+    )
+    assert not any(a.kind == "mcp" for a in actions)
+    assert warnings == [
+        "MCP server dlt-workspace-mcp in %s has no command, so toolkit test-toolkit cannot add"
+        " feature groups to it." % config_path
+    ]
+
+
+@pytest.mark.parametrize(
+    "variant_cls",
+    [_ClaudeAgent, _CodexAgent, _CortexAgent],
+    ids=["claude", "codex", "cortex"],
+)
+def test_toolkit_install_mcp_server_keeps_features(
+    variant_cls: Type[_AIAgent], auto_isolated_workspace: WorkspaceRunContext
+) -> None:
+    """A toolkit can add features to its own server, a reinstall keeps the features of others."""
+    toolkit_dir = make_mock_toolkit(with_mcp=True)
+    project_root = Path(auto_isolated_workspace.run_dir)
+    variant = variant_cls()
+    config_paths = variant.mcp_config_paths(project_root)
+    info = make_mock_toolkit_info(mcp_features={"dlt-workspace-mcp": ["dlthub.jobs"]})
+
+    def _servers() -> List[Dict[str, Any]]:
+        return [
+            variant.parse_mcp_servers(path.read_text(encoding="utf-8"))["dlt-workspace-mcp"]
+            for path in config_paths
+        ]
+
+    actions, _ = _plan_toolkit_install(
+        toolkit_dir, variant, project_root, "test-toolkit", toolkit_info=info
+    )
+    assert {a.mcp_servers for a in actions if a.kind == "mcp"} == {("dlt-workspace-mcp",)}
+    _execute_install(actions)
+    servers = _servers()
+    for server in servers:
+        assert server["args"] == [
+            "run",
+            "dlt",
+            "workspace",
+            "mcp",
+            "--stdio",
+            "--features=dlthub.jobs",
+        ]
+
+    # the toolkit reinstalled without features writes the same server
+    actions, _ = _plan_toolkit_install(toolkit_dir, variant, project_root, "test-toolkit", True)
+    _execute_install(actions)
+    assert _servers() == servers
+
+    # a reinstall over a server that changed keeps the features it has
+    for path in config_paths:
+        changed = {"command": "dlt", "args": ["--no-default-features", "--features=dlthub.logs"]}
+        path.write_text(
+            variant.merge_mcp_servers("", {"dlt-workspace-mcp": changed}), encoding="utf-8"
+        )
+    actions, _ = _plan_toolkit_install(toolkit_dir, variant, project_root, "test-toolkit", True)
+    _execute_install(actions)
+    for server in _servers():
+        assert server["command"] == "uv"
+        assert server["args"][-2:] == ["--no-default-features", "--features=dlthub.logs"]
+
+
+def test_toolkit_install_mcp_features_in_workspace_of_older_dlt(
+    auto_isolated_workspace: WorkspaceRunContext,
+) -> None:
+    """A toolkit adds features to the server of a workspace that dlt 1.32 set up."""
+    project_root = Path(auto_isolated_workspace.run_dir)
+    index_path = project_root / ".dlt" / ".toolkits"
+    shutil.copy(os.path.join(AI_CASES_DIR, "toolkits_index_dlt_1_32.yaml"), index_path)
+    original = yaml.safe_load(index_path.read_text(encoding="utf-8"))
+    config_path = project_root / ".mcp.json"
+    config_path.write_text(
+        json.dumps({"mcpServers": {"dlt-workspace-mcp": OLD_INIT_SERVER}}), encoding="utf-8"
+    )
+    make_mock_toolkit("platform", mcp_features=PLATFORM_FEATURES)
+
+    _install_toolkit("platform", Path("repo"), _ClaudeAgent(), project_root)
+    # an update writes nothing new
+    content = config_path.read_text(encoding="utf-8")
+    _install_toolkit("platform", Path("repo"), _ClaudeAgent(), project_root, overwrite=True)
+    assert config_path.read_text(encoding="utf-8") == content
+
+    servers = json.loads(content)["mcpServers"]
+    assert servers["dlt-workspace-mcp"]["args"] == [
+        *OLD_INIT_SERVER["args"],
+        "--features=dlthub.jobs,dlthub.logs",
+    ]
+    saved = yaml.safe_load(index_path.read_text(encoding="utf-8"))
+    assert saved["init"] == {k: v for k, v in original["init"].items() if k != "name"}
+    assert saved["rest-api-pipeline"] == original["rest-api-pipeline"]
+    # features of another toolkit's server are not recorded
+    assert "mcp_features" not in saved["platform"]
+    assert "mcp_servers" not in saved["platform"]
 
 
 def test_build_dependency_map() -> None:
@@ -414,24 +618,52 @@ def test_resolve_dependencies_circular(dep_map: Dict[str, Any], start: str) -> N
         resolve_toolkit_dependencies(start, dep_map)
 
 
-def test_select_install_requests() -> None:
+def test_install_dependencies(
+    capsys: pytest.CaptureFixture[str], auto_isolated_workspace: WorkspaceRunContext
+) -> None:
+    """_install_dependencies installs upstream deps that are not yet installed."""
     base = make_mock_workbench()
+    project_root = Path(auto_isolated_workspace.run_dir)
+    agent = _ClaudeAgent()
     toolkits, _ = fetch_workbench_toolkits(base)
-    assert _select_install_requests("rest-api-pipeline", toolkits, True, True) == [
-        ("init", True, False, False),
-        ("rest-api-pipeline", False, True, True),
-    ]
-    assert _select_install_requests("init", toolkits, False, False) == [
-        ("init", False, False, False)
-    ]
+
+    _install_dependencies("rest-api-pipeline", toolkits, base, agent, project_root)
+
+    assert (project_root / ".claude" / "rules" / "init-base.md").is_file()
+    assert (project_root / ".claudeignore").is_file()
+    output = capsys.readouterr().out
+    assert "item(s) installed" in output
 
 
-def test_select_install_requests_cycle(capsys: pytest.CaptureFixture[str]) -> None:
-    toolkits = {"a": make_mock_toolkit_info("a"), "b": make_mock_toolkit_info("b")}
-    toolkits["a"]["dependencies"] = ["b"]
-    toolkits["b"]["dependencies"] = ["a"]
-    assert _select_install_requests("a", toolkits, True, True) == [("a", False, True, True)]
-    assert "Circular" in capsys.readouterr().out
+def test_install_dependencies_already_installed(
+    capsys: pytest.CaptureFixture[str], auto_isolated_workspace: WorkspaceRunContext
+) -> None:
+    """_install_dependencies skips deps already in the index."""
+    base = make_mock_workbench()
+    project_root = Path(auto_isolated_workspace.run_dir)
+    agent = _ClaudeAgent()
+    toolkits, _ = fetch_workbench_toolkits(base)
+
+    _install_dependencies("rest-api-pipeline", toolkits, base, agent, project_root)
+    capsys.readouterr()
+
+    _install_dependencies("rest-api-pipeline", toolkits, base, agent, project_root)
+
+    output = capsys.readouterr().out
+    assert output == ""
+
+
+def test_install_dependencies_no_deps(capsys: pytest.CaptureFixture[str]) -> None:
+    """_install_dependencies is a no-op for toolkits without dependencies."""
+    base = make_mock_workbench()
+    project_root = Path("project")
+    project_root.mkdir()
+    agent = _ClaudeAgent()
+    toolkits, _ = fetch_workbench_toolkits(base)
+
+    _install_dependencies("init", toolkits, base, agent, project_root)
+    output = capsys.readouterr().out
+    assert output == ""
 
 
 def test_toolkit_install_overwrite() -> None:
@@ -446,18 +678,17 @@ def test_toolkit_install_overwrite() -> None:
     rule_dest.mkdir(parents=True)
     (rule_dest / "test-toolkit-coding.md").write_text("old content", encoding="utf-8")
 
-    changes = _plan_toolkit_install(toolkit_dir, variant, project_root, "test-toolkit")
-    actions = changes.ordinary + changes.shared
-    assert not any(a.source_name == "coding" for a in actions)
-    assert rule_dest / "test-toolkit-coding.md" in changes.kept
+    actions, _warnings = _plan_toolkit_install(toolkit_dir, variant, project_root, "test-toolkit")
+    rule_action = next(a for a in actions if a.source_name == "coding")
+    assert rule_action.conflict is True
 
-    changes = _plan_toolkit_install(
+    actions, _warnings = _plan_toolkit_install(
         toolkit_dir, variant, project_root, "test-toolkit", overwrite=True
     )
-    actions = changes.ordinary + changes.shared
-    assert any(a.source_name == "coding" for a in actions)
+    rule_action = next(a for a in actions if a.source_name == "coding")
+    assert rule_action.conflict is False
 
-    installed = _execute_install(changes.ordinary, changes.shared).installed
+    installed, _ = _execute_install(actions)
     # overwrite clears the conflict: skill, agent, command, rule and ignore file are installed
     assert installed == 5
     new_content = (rule_dest / "test-toolkit-coding.md").read_text(encoding="utf-8")
@@ -478,14 +709,12 @@ def test_toolkit_install_overwrite_mcp() -> None:
         encoding="utf-8",
     )
 
-    changes_no_ow = _plan_toolkit_install(toolkit_dir, variant, project_root, "test-toolkit")
-    actions_no_ow = changes_no_ow.ordinary + changes_no_ow.shared
+    actions_no_ow, _ = _plan_toolkit_install(toolkit_dir, variant, project_root, "test-toolkit")
     assert not any(a.kind == "mcp" for a in actions_no_ow)
 
-    changes_ow = _plan_toolkit_install(
+    actions_ow, _ = _plan_toolkit_install(
         toolkit_dir, variant, project_root, "test-toolkit", overwrite=True
     )
-    actions_ow = changes_ow.ordinary + changes_ow.shared
     mcp_actions = [a for a in actions_ow if a.kind == "mcp"]
     assert len(mcp_actions) == 1
     merged = json.loads(str(mcp_actions[0].content_or_path))
@@ -505,13 +734,13 @@ def test_toolkit_install_overwrite_skill() -> None:
     (existing_skill / "SKILL.md").write_text("custom content", encoding="utf-8")
     (existing_skill / "extra.txt").write_text("user file", encoding="utf-8")
 
-    changes = _plan_toolkit_install(
+    actions, _warnings = _plan_toolkit_install(
         toolkit_dir, variant, project_root, "test-toolkit", overwrite=True
     )
-    actions = changes.ordinary + changes.shared
-    assert any(a.source_name == "find-source" for a in actions)
+    skill_action = next(a for a in actions if a.source_name == "find-source")
+    assert skill_action.conflict is False
 
-    assert _execute_install(changes.ordinary, changes.shared).error is None
+    _execute_install(actions)
 
     assert (existing_skill / "SKILL.md").read_text(encoding="utf-8") != "custom content"
     assert (existing_skill / "helper.py").exists()
@@ -522,29 +751,31 @@ def test_unreadable_source_changes_nothing_on_disk() -> None:
     toolkit_dir = make_mock_toolkit()
     project_root = Path("project")
     project_root.mkdir()
-    changes = _plan_toolkit_install(toolkit_dir, _ClaudeAgent(), project_root, "test-toolkit")
+    actions, _ = _plan_toolkit_install(toolkit_dir, _ClaudeAgent(), project_root, "test-toolkit")
     # a source file disappears after planning; the skill before it must not be written either
     (toolkit_dir / DLTHUB_AGENTS_DIR / "find-crash" / "crash_helper.py").unlink()
 
     with pytest.raises(FileNotFoundError):
-        assert _execute_install(changes.ordinary, changes.shared).error is None
+        _execute_install(actions, project_root=project_root)
     assert not any(p.is_file() for p in project_root.rglob("*"))
 
 
-def test_install_tracks_files_in_index() -> None:
+def test_install_tracks_files_in_index(auto_isolated_workspace: WorkspaceRunContext) -> None:
     """After install, the index has a files dict with correct relative paths and sha3_256 hashes."""
     toolkit_dir = make_mock_toolkit()
-    project_root = Path("project")
-    project_root.mkdir()
+    project_root = Path(auto_isolated_workspace.run_dir)
     variant = _ClaudeAgent()
 
-    changes = _plan_toolkit_install(toolkit_dir, variant, project_root, "test-toolkit")
-    actions = changes.ordinary + changes.shared
+    actions, _ = _plan_toolkit_install(toolkit_dir, variant, project_root, "test-toolkit")
     assert not any(a.kind == "mcp" for a in actions)
 
-    with project_index(project_root):
-        install("test-toolkit", toolkit_dir.parent, variant, project_root)
-        idx = load_toolkits_index()
+    _execute_install(
+        actions,
+        toolkit_info=make_mock_toolkit_info("test-toolkit", "1.0.0"),
+        agent_name="claude",
+        project_root=project_root,
+    )
+    idx = load_toolkits_index()
 
     entry = idx["test-toolkit"]
     assert "files" in entry
@@ -569,21 +800,23 @@ def test_install_tracks_files_in_index() -> None:
     assert "mcp_servers" not in entry
 
 
-def test_install_tracks_mcp_server_names() -> None:
+def test_install_tracks_mcp_server_names(auto_isolated_workspace: WorkspaceRunContext) -> None:
     """MCP server names appear in the mcp_servers list in the index."""
     toolkit_dir = make_mock_toolkit(with_mcp=True)
-    project_root = Path("project")
-    project_root.mkdir()
+    project_root = Path(auto_isolated_workspace.run_dir)
     variant = _ClaudeAgent()
 
-    changes = _plan_toolkit_install(toolkit_dir, variant, project_root, "test-toolkit")
-    actions = changes.ordinary + changes.shared
+    actions, _ = _plan_toolkit_install(toolkit_dir, variant, project_root, "test-toolkit")
     mcp_actions = [a for a in actions if a.kind == "mcp"]
     assert len(mcp_actions) == 1
 
-    with project_index(project_root):
-        install("test-toolkit", toolkit_dir.parent, variant, project_root)
-        idx = load_toolkits_index()
+    _execute_install(
+        actions,
+        toolkit_info=make_mock_toolkit_info("test-toolkit", "1.0.0"),
+        agent_name="claude",
+        project_root=project_root,
+    )
+    idx = load_toolkits_index()
 
     entry = idx["test-toolkit"]
     assert "mcp_servers" in entry
@@ -591,31 +824,38 @@ def test_install_tracks_mcp_server_names() -> None:
     assert ".mcp.json" not in entry.get("files", {})
 
 
-def test_overwrite_replaces_file_index() -> None:
+def test_overwrite_replaces_file_index(auto_isolated_workspace: WorkspaceRunContext) -> None:
     """Overwrite install updates file hashes in the index."""
     toolkit_dir = make_mock_toolkit()
-    project_root = Path("project")
-    project_root.mkdir()
+    project_root = Path(auto_isolated_workspace.run_dir)
     variant = _ClaudeAgent()
 
-    with project_index(project_root):
-        install("test-toolkit", toolkit_dir.parent, variant, project_root)
-        idx = load_toolkits_index()
-        original_files = dict(idx["test-toolkit"]["files"])
+    actions, _ = _plan_toolkit_install(toolkit_dir, variant, project_root, "test-toolkit")
+    _execute_install(
+        actions,
+        toolkit_info=make_mock_toolkit_info("test-toolkit", "1.0.0"),
+        agent_name="claude",
+        project_root=project_root,
+    )
+    idx = load_toolkits_index()
+    original_files = dict(idx["test-toolkit"]["files"])
 
-        meta_path = toolkit_dir / ".claude-plugin" / "plugin.json"
-        meta = json.loads(meta_path.read_text())
-        meta["version"] = "2.0.0"
-        meta_path.write_text(json.dumps(meta))
+    rules_dir = toolkit_dir / "rules"
+    (rules_dir / "coding.md").write_text(
+        "---\ndescription: Updated rule\n---\n# Updated\nNew content.",
+        encoding="utf-8",
+    )
 
-        rules_dir = toolkit_dir / "rules"
-        (rules_dir / "coding.md").write_text(
-            "---\ndescription: Updated rule\n---\n# Updated\nNew content.",
-            encoding="utf-8",
-        )
-
-        install("test-toolkit", toolkit_dir.parent, variant, project_root, overwrite=True)
-        idx2 = load_toolkits_index()
+    actions2, _ = _plan_toolkit_install(
+        toolkit_dir, variant, project_root, "test-toolkit", overwrite=True
+    )
+    _execute_install(
+        actions2,
+        toolkit_info=make_mock_toolkit_info("test-toolkit", "2.0.0"),
+        agent_name="claude",
+        project_root=project_root,
+    )
+    idx2 = load_toolkits_index()
 
     new_files = idx2["test-toolkit"]["files"]
     assert idx2["test-toolkit"]["version"] == "2.0.0"
@@ -631,10 +871,11 @@ def test_overwrite_replaces_file_index() -> None:
     assert new_files[rule_path]["sha3_256"] == expected
 
 
-def test_overwrite_removes_files_the_new_version_does_not_ship() -> None:
+def test_overwrite_removes_files_the_new_version_does_not_ship(
+    auto_isolated_workspace: WorkspaceRunContext,
+) -> None:
     toolkit_dir = make_mock_toolkit()
-    project_root = Path("project")
-    project_root.mkdir()
+    project_root = Path(auto_isolated_workspace.run_dir)
     variant = _ClaudeAgent()
     skill_dest = project_root / ".claude" / "skills" / "find-source"
     agent_dest = project_root / ".claude" / DLTHUB_AGENTS_DIR / "test-toolkit" / "find-crash"
@@ -642,51 +883,58 @@ def test_overwrite_removes_files_the_new_version_does_not_ship() -> None:
     (toolkit_dir / "skills" / "find-source" / "refs").mkdir()
     (toolkit_dir / "skills" / "find-source" / "refs" / "old.md").write_text("old", encoding="utf-8")
 
-    with project_index(project_root):
-        changes = _plan_toolkit_install(toolkit_dir, variant, project_root, "test-toolkit")
-        actions = changes.ordinary + changes.shared
-        install("test-toolkit", toolkit_dir.parent, variant, project_root)
-        previous_files = load_toolkits_index()["test-toolkit"]["files"]
-        assert skill_dest / "refs" / "old.md" in {project_root / p for p in previous_files}
+    actions, _ = _plan_toolkit_install(toolkit_dir, variant, project_root, "test-toolkit")
+    _execute_install(
+        actions,
+        toolkit_info=make_mock_toolkit_info("test-toolkit", "1.0.0"),
+        agent_name="claude",
+        project_root=project_root,
+    )
+    previous_files = load_toolkits_index()["test-toolkit"]["files"]
+    assert skill_dest / "refs" / "old.md" in {project_root / p for p in previous_files}
 
-        # the user adds a file to the skill and edits a rule the new version drops
-        (skill_dest / "mine.txt").write_text("user file", encoding="utf-8")
-        rule_dest.write_text("edited by the user", encoding="utf-8")
-        # the new version drops a skill reference, an agent helper and the rule
-        shutil.rmtree(toolkit_dir / "skills" / "find-source" / "refs")
-        (toolkit_dir / DLTHUB_AGENTS_DIR / "find-crash" / "crash_helper.py").unlink()
-        (toolkit_dir / "rules" / "coding.md").unlink()
+    # the user adds a file to the skill and edits a rule the new version drops
+    (skill_dest / "mine.txt").write_text("user file", encoding="utf-8")
+    rule_dest.write_text("edited by the user", encoding="utf-8")
+    # the new version drops a skill reference, an agent helper and the rule
+    shutil.rmtree(toolkit_dir / "skills" / "find-source" / "refs")
+    (toolkit_dir / DLTHUB_AGENTS_DIR / "find-crash" / "crash_helper.py").unlink()
+    (toolkit_dir / "rules" / "coding.md").unlink()
 
-        changes = _plan_toolkit_install(
-            toolkit_dir,
-            variant,
-            project_root,
-            "test-toolkit",
-            overwrite=True,
-            previous_files=previous_files,
-        )
-        actions = changes.ordinary + changes.shared
-        removals = {a.dest_path: a for a in actions if a.op == "remove"}
-        assert set(removals) == {
-            skill_dest / "refs" / "old.md",
-            agent_dest / "crash_helper.py",
-        }
-        assert removals[agent_dest / "crash_helper.py"].kind == "agent"
-        assert rule_dest in changes.kept
-        install("test-toolkit", toolkit_dir.parent, variant, project_root, overwrite=True)
-        new_files = load_toolkits_index()["test-toolkit"]["files"]
+    actions, _ = _plan_toolkit_install(
+        toolkit_dir,
+        variant,
+        project_root,
+        "test-toolkit",
+        overwrite=True,
+        previous_files=previous_files,
+    )
+    removals = {a.dest_path: a for a in actions if a.op == "remove"}
+    assert set(removals) == {
+        skill_dest / "refs" / "old.md",
+        agent_dest / "crash_helper.py",
+        rule_dest,
+    }
+    assert removals[agent_dest / "crash_helper.py"].kind == "agent"
+    assert removals[rule_dest].kind == "rule"
+    _execute_install(
+        actions,
+        toolkit_info=make_mock_toolkit_info("test-toolkit", "2.0.0"),
+        agent_name="claude",
+        project_root=project_root,
+    )
+    new_files = load_toolkits_index()["test-toolkit"]["files"]
 
-    # unmodified stale files are removed, modified ones keep their baseline
+    # stale files are removed, a modified one too, and the folder they emptied
     assert not (skill_dest / "refs").exists()
     assert not (agent_dest / "crash_helper.py").exists()
-    assert rule_dest.read_text() == "edited by the user"
+    assert not rule_dest.exists()
     # the coding agent's folders stay, even when the last rule was removed
     assert rule_dest.parent.is_dir()
     assert (agent_dest / "AGENT.md").is_file()
     # a file the toolkit never installed stays and is not tracked
     assert (skill_dest / "mine.txt").read_text(encoding="utf-8") == "user file"
     assert {project_root / p for p in new_files} == {
-        rule_dest,
         skill_dest / "SKILL.md",
         skill_dest / "helper.py",
         agent_dest / "AGENT.md",
@@ -696,10 +944,11 @@ def test_overwrite_removes_files_the_new_version_does_not_ship() -> None:
 
 
 @pytest.mark.parametrize("overwrite", [False, True], ids=["no-overwrite", "overwrite"])
-def test_overlapping_toolkits(overwrite: bool) -> None:
+def test_overlapping_toolkits(
+    overwrite: bool, auto_isolated_workspace: WorkspaceRunContext
+) -> None:
     """Two toolkits targeting the same .claudeignore path."""
-    project_root = Path("project")
-    project_root.mkdir()
+    project_root = Path(auto_isolated_workspace.run_dir)
     variant = _ClaudeAgent()
 
     toolkit_a = make_mock_toolkit(toolkit_name="toolkit-a")
@@ -717,71 +966,59 @@ def test_overlapping_toolkits(overwrite: bool) -> None:
         "---\ndescription: Style rule\n---\n# Style\nBe consistent.", encoding="utf-8"
     )
 
-    with project_index(project_root):
-        install("toolkit-a", toolkit_a.parent, variant, project_root)
-        idx = load_toolkits_index()
-        a_ignore_hash = idx["toolkit-a"]["files"][".claudeignore"]["sha3_256"]
+    actions_a, _ = _plan_toolkit_install(toolkit_a, variant, project_root, "toolkit-a")
+    _execute_install(
+        actions_a,
+        toolkit_info=make_mock_toolkit_info("toolkit-a", "1.0.0"),
+        agent_name="claude",
+        project_root=project_root,
+    )
+    idx = load_toolkits_index()
+    a_ignore_hash = idx["toolkit-a"]["files"][".claudeignore"]["sha3_256"]
 
-        install("toolkit-b", toolkit_b_dir.parent, variant, project_root, overwrite=overwrite)
-        idx = load_toolkits_index()
+    actions_b, _ = _plan_toolkit_install(
+        toolkit_b_dir, variant, project_root, "toolkit-b", overwrite=overwrite
+    )
+    _execute_install(
+        actions_b,
+        toolkit_info=make_mock_toolkit_info("toolkit-b", "1.0.0"),
+        agent_name="claude",
+        project_root=project_root,
+    )
+    idx = load_toolkits_index()
 
     assert idx["toolkit-a"]["files"][".claudeignore"]["sha3_256"] == a_ignore_hash
     disk_hash = hashlib.sha3_256((project_root / ".claudeignore").read_bytes()).hexdigest()
 
-    assert disk_hash == a_ignore_hash
-    assert ".claudeignore" not in idx["toolkit-b"]["files"]
-    assert any("style" in p for p in idx["toolkit-b"]["files"])
+    if overwrite:
+        b_ignore_hash = idx["toolkit-b"]["files"][".claudeignore"]["sha3_256"]
+        assert disk_hash == b_ignore_hash
+        assert b_ignore_hash != a_ignore_hash
+        assert idx["toolkit-b"]["installed_at"] > idx["toolkit-a"]["installed_at"]
+    else:
+        assert disk_hash == a_ignore_hash
+        assert ".claudeignore" not in idx["toolkit-b"]["files"]
+        assert any("style" in p for p in idx["toolkit-b"]["files"])
 
 
-def test_update_keeps_files_another_toolkit_installed() -> None:
-    project_root = Path("project")
-    project_root.mkdir()
+def test_update_keeps_files_another_toolkit_installed(
+    auto_isolated_workspace: WorkspaceRunContext,
+) -> None:
+    project_root = Path(auto_isolated_workspace.run_dir)
     variant = _ClaudeAgent()
     toolkit_a = make_mock_toolkit(toolkit_name="toolkit-a")
     make_mock_toolkit(toolkit_name="toolkit-b")
 
-    with project_index(project_root):
-        install("toolkit-a", toolkit_a.parent, variant, project_root)
-        install("toolkit-b", toolkit_a.parent, variant, project_root, overwrite=True)
-        # legacy co-ownership: dropping one claim must preserve the other
-        records = load_toolkits_index()
-        records["toolkit-b"]["files"][".claudeignore"] = records["toolkit-a"]["files"][
-            ".claudeignore"
-        ]
-        save_toolkits_index(records)
-        # the new version of toolkit-a drops the ignore file toolkit-b also installed
-        (toolkit_a / ".claudeignore").unlink()
-        install("toolkit-a", toolkit_a.parent, variant, project_root, overwrite=True)
-        idx = load_toolkits_index()
+    _install_toolkit("toolkit-a", toolkit_a.parent, variant, project_root)
+    _install_toolkit("toolkit-b", toolkit_a.parent, variant, project_root, overwrite=True)
+    # the new version of toolkit-a drops the ignore file toolkit-b also installed
+    (toolkit_a / ".claudeignore").unlink()
+    _install_toolkit("toolkit-a", toolkit_a.parent, variant, project_root, overwrite=True)
+    idx = load_toolkits_index()
 
     assert (project_root / ".claudeignore").is_file()
     assert ".claudeignore" not in idx["toolkit-a"]["files"]
     assert ".claudeignore" in idx["toolkit-b"]["files"]
-
-
-def test_reinstall_blocks_on_recorded_shared_document() -> None:
-    project_root = Path("project")
-    project_root.mkdir()
-    variant = _ClaudeAgent()
-    toolkit = make_mock_toolkit()
-    agents_md = project_root / "AGENTS.md"
-
-    with project_index(project_root):
-        install("test-toolkit", toolkit.parent, variant, project_root)
-        # a record with a matching hash would otherwise make AGENTS.md a removable orphan
-        agents_md.write_text("# shared instructions\n", encoding="utf-8")
-        records = load_toolkits_index()
-        records["test-toolkit"]["files"]["AGENTS.md"] = {
-            "sha3_256": hashlib.sha3_256(agents_md.read_bytes()).hexdigest()
-        }
-        save_toolkits_index(records)
-
-        with pytest.raises(CliCommandException):
-            install("test-toolkit", toolkit.parent, variant, project_root, overwrite=True)
-        idx = load_toolkits_index()
-
-    assert agents_md.read_text(encoding="utf-8") == "# shared instructions\n"
-    assert "AGENTS.md" in idx["test-toolkit"]["files"]
 
 
 def test_resolve_agent_from_init_index(capsys: pytest.CaptureFixture[str]) -> None:
@@ -793,7 +1030,7 @@ def test_resolve_agent_from_init_index(capsys: pytest.CaptureFixture[str]) -> No
 
     with open(index_path, "w", encoding="utf-8") as f:
         yaml.dump({"init": {"version": "1.0.0", "agent": "cursor"}}, f)
-    agent = _resolve_agent(None, project_root, load_toolkits_index())
+    agent = _resolve_agent(None, project_root)
     assert agent.name == "cursor"
 
     with open(index_path, "w", encoding="utf-8") as f:
@@ -803,7 +1040,7 @@ def test_resolve_agent_from_init_index(capsys: pytest.CaptureFixture[str]) -> No
         patch("dlt._workspace.cli.dlthub.ai.agents.home_dir", return_value=None),
         pytest.raises(CliCommandException),
     ):
-        _resolve_agent(None, project_root, load_toolkits_index())
+        _resolve_agent(None, project_root)
 
 
 # ---------------------------------------------------------------------------
@@ -973,6 +1210,19 @@ def test_toolkit_info_lists_agents(capsys: pytest.CaptureFixture[str]) -> None:
     assert "Test agent used by the toolkit install tests." in output
 
 
+def test_toolkit_info_lists_mcp_features(capsys: pytest.CaptureFixture[str]) -> None:
+    """ai_toolkit_info_command shows the features a toolkit adds to the servers of others."""
+    toolkit_dir = make_mock_toolkit(mcp_features=PLATFORM_FEATURES)
+    with patch(
+        "dlt._workspace.cli.dlthub.ai.utils.fetch_workbench_base", return_value=toolkit_dir.parent
+    ):
+        ai_toolkit_info_command(name="test-toolkit", location="mock://repo", branch=None)
+    output = capsys.readouterr().out
+    assert "MCP servers:" not in output
+    assert "MCP feature groups:" in output
+    assert "dlt-workspace-mcp" in output and "+dlthub.jobs, +dlthub.logs" in output
+
+
 def test_toolkit_info_names_skills_and_agents_by_folder() -> None:
     """A SKILL.md or AGENT.md without `name` takes its folder name, not the file stem."""
     toolkit_dir = make_mock_toolkit()
@@ -1002,110 +1252,89 @@ def test_toolkit_info_not_found(capsys: pytest.CaptureFixture[str]) -> None:
     assert "not found" in output.lower()
 
 
-def test_toolkit_index_lifecycle(capsys: pytest.CaptureFixture[str]) -> None:
+def test_toolkit_index_lifecycle(
+    capsys: pytest.CaptureFixture[str], auto_isolated_workspace: WorkspaceRunContext
+) -> None:
     """Full lifecycle: install, same-version skip, version-mismatch hint, overwrite,
     zero-file install keeps old date, and dependency tracking."""
-    project_root = Path("project")
-    project_root.mkdir()
-    base = make_versioned_workbench(version="1.0.0")
+    project_root = Path(auto_isolated_workspace.run_dir)
+    location = MOCK_WORKBENCH_LOCATION
+    make_versioned_workbench(version="1.0.0")
 
-    with (
-        patch("dlt.common.runtime.run_context.active") as mock_ctx,
-        patch("dlt._workspace.cli.dlthub.ai.commands.fetch_workbench_base", return_value=base),
-    ):
-        settings_dir = str(project_root / ".dlt")
-        mock_ctx.return_value.run_dir = str(project_root)
-        mock_ctx.return_value.settings_dir = settings_dir
-        mock_ctx.return_value.get_setting = functools.partial(os.path.join, settings_dir)
+    # 1. First install
+    ai_toolkit_install_command(name="my-toolkit", agent="claude", location=location)
+    out = capsys.readouterr().out
+    assert "item(s) installed" in out
+    idx = load_toolkits_index()
+    assert "my-toolkit" in idx
+    assert idx["my-toolkit"]["version"] == "1.0.0"
+    assert "installed_at" in idx["my-toolkit"]
+    assert idx["my-toolkit"]["agent"] == "claude"
+    assert idx["my-toolkit"]["description"] == "Test toolkit"
+    assert idx["my-toolkit"]["tags"] == ["testing", "dlt"]
+    assert "files" in idx["my-toolkit"]
+    assert isinstance(idx["my-toolkit"]["files"], dict)
+    assert len(idx["my-toolkit"]["files"]) > 0
+    first_date = idx["my-toolkit"]["installed_at"]
+    assert "init" in idx
+    assert "files" in idx["init"]
+    assert idx["init"]["version"] == "1.0.0"
+    assert idx["init"]["agent"] == "claude"
+    assert idx["init"]["description"] == "Init toolkit"
 
-        # 1. First install
-        ai_toolkit_install_command(name="my-toolkit", agent="claude", location="mock://repo")
-        out = capsys.readouterr().out
-        assert "item(s) installed" in out
-        idx = load_toolkits_index()
-        assert "my-toolkit" in idx
-        assert idx["my-toolkit"]["version"] == "1.0.0"
-        assert "installed_at" in idx["my-toolkit"]
-        assert idx["my-toolkit"]["agent"] == "claude"
-        assert idx["my-toolkit"]["description"] == "Test toolkit"
-        assert idx["my-toolkit"]["tags"] == ["testing", "dlt"]
-        assert "files" in idx["my-toolkit"]
-        assert isinstance(idx["my-toolkit"]["files"], dict)
-        assert len(idx["my-toolkit"]["files"]) > 0
-        first_date = idx["my-toolkit"]["installed_at"]
-        assert "init" in idx
-        assert "files" in idx["init"]
-        assert idx["init"]["version"] == "1.0.0"
-        assert idx["init"]["agent"] == "claude"
-        assert idx["init"]["description"] == "Init toolkit"
+    # 2. Reinstall same version — early return "already installed"
+    ai_toolkit_install_command(name="my-toolkit", agent="claude", location=location)
+    out = capsys.readouterr().out
+    assert "already installed" in out
+    idx = load_toolkits_index()
+    assert idx["my-toolkit"]["installed_at"] == first_date
 
-        # 2. Reinstall same version — early return "already installed"
-        ai_toolkit_install_command(name="my-toolkit", agent="claude", location="mock://repo")
-        out = capsys.readouterr().out
-        assert "already installed" in out
-        idx = load_toolkits_index()
-        assert idx["my-toolkit"]["installed_at"] == first_date
+    # 3. Bump remote version — reinstall without overwrite
+    base2 = make_versioned_workbench(version="2.0.0")
+    ai_toolkit_install_command(name="my-toolkit", agent="claude", location=location)
+    out = capsys.readouterr().out
+    assert "Use --overwrite to update" in out
+    idx = load_toolkits_index()
+    assert idx["my-toolkit"]["version"] == "1.0.0"
+    assert idx["my-toolkit"]["installed_at"] == first_date
 
-        # 3. Bump remote version — reinstall without overwrite
-        base2 = make_versioned_workbench(version="2.0.0")
-        with patch(
-            "dlt._workspace.cli.dlthub.ai.commands.fetch_workbench_base", return_value=base2
-        ):
-            ai_toolkit_install_command(name="my-toolkit", agent="claude", location="mock://repo")
-        out = capsys.readouterr().out
-        assert "Use `ai toolkit update` to update" in out
-        idx = load_toolkits_index()
-        assert idx["my-toolkit"]["version"] == "1.0.0"
-        assert idx["my-toolkit"]["installed_at"] == first_date
+    # 4. Overwrite install with new version
+    ai_toolkit_install_command(name="my-toolkit", agent="claude", location=location, overwrite=True)
+    out = capsys.readouterr().out
+    assert "item(s) installed" in out
+    idx = load_toolkits_index()
+    assert idx["my-toolkit"]["version"] == "2.0.0"
+    assert idx["my-toolkit"]["installed_at"] != first_date
+    assert idx["my-toolkit"]["agent"] == "claude"
 
-        # 4. Overwrite install with new version
-        with patch(
-            "dlt._workspace.cli.dlthub.ai.commands.fetch_workbench_base", return_value=base2
-        ):
-            ai_toolkit_install_command(
-                name="my-toolkit", agent="claude", location="mock://repo", overwrite=True
-            )
-        out = capsys.readouterr().out
-        assert "item(s) installed" in out
-        idx = load_toolkits_index()
-        assert idx["my-toolkit"]["version"] == "2.0.0"
-        assert idx["my-toolkit"]["installed_at"] != first_date
-        assert idx["my-toolkit"]["agent"] == "claude"
-
-        overwrite_date = idx["my-toolkit"]["installed_at"]
-        variant = _ClaudeAgent()
-        changes = _plan_toolkit_install(base2 / "my-toolkit", variant, project_root, "my-toolkit")
-        installed = _execute_install(changes.ordinary, changes.shared).installed
-        assert installed == 0
-        idx = load_toolkits_index()
-        assert idx["my-toolkit"]["version"] == "2.0.0"
-        assert idx["my-toolkit"]["installed_at"] == overwrite_date
+    # 5. Install where all files conflict (0 written) — index NOT updated
+    overwrite_date = idx["my-toolkit"]["installed_at"]
+    variant = _ClaudeAgent()
+    actions, _ = _plan_toolkit_install(base2 / "my-toolkit", variant, project_root, "my-toolkit")
+    assert all(a.conflict for a in actions)
+    installed, _ = _execute_install(
+        actions, toolkit_info=make_mock_toolkit_info("my-toolkit", "3.0.0")
+    )
+    assert installed == 0
+    idx = load_toolkits_index()
+    assert idx["my-toolkit"]["version"] == "2.0.0"
+    assert idx["my-toolkit"]["installed_at"] == overwrite_date
 
 
 def test_install_stores_workflow_entry_skill(capsys: pytest.CaptureFixture[str]) -> None:
     """workflow_entry_skill from toolkit.json is stored in the index after install."""
-    base = make_mock_workbench()
-    project_root = Path("project")
-    project_root.mkdir()
+    make_mock_workbench()
+    ai_toolkit_install_command(
+        name="rest-api-pipeline", agent="claude", location=MOCK_WORKBENCH_LOCATION
+    )
 
-    with (
-        patch("dlt.common.runtime.run_context.active") as mock_ctx,
-        patch("dlt._workspace.cli.dlthub.ai.commands.fetch_workbench_base", return_value=base),
-    ):
-        settings_dir = str(project_root / ".dlt")
-        mock_ctx.return_value.run_dir = str(project_root)
-        mock_ctx.return_value.settings_dir = settings_dir
-        mock_ctx.return_value.get_setting = functools.partial(os.path.join, settings_dir)
+    out = capsys.readouterr().out
+    assert "Use find-source skill to start!" in out
 
-        ai_toolkit_install_command(name="rest-api-pipeline", agent="claude", location="mock://repo")
-
-        out = capsys.readouterr().out
-        assert "Use find-source skill to start!" in out
-
-        idx = load_toolkits_index()
-        assert "rest-api-pipeline" in idx
-        assert idx["rest-api-pipeline"]["workflow_entry_skill"] == "find-source"
-        assert not idx["init"].get("workflow_entry_skill")
+    idx = load_toolkits_index()
+    assert "rest-api-pipeline" in idx
+    assert idx["rest-api-pipeline"]["workflow_entry_skill"] == "find-source"
+    assert not idx["init"].get("workflow_entry_skill")
 
 
 def test_fetch_workbench_base_checks_out_only_the_workbench() -> None:

@@ -1,9 +1,8 @@
-import functools
 import json
 import os
 import sys
 from pathlib import Path
-from typing import Any
+from typing import Any, List
 from unittest.mock import patch
 
 import pytest
@@ -13,10 +12,14 @@ from dlt.common.configuration.container import Container
 from dlt.common.configuration.specs.pluggable_run_context import PluggableRunContext
 from dlt.version import __version__ as dlt_version
 
-from dlt._workspace.cli.dlthub.ai.agents import AI_AGENTS
+from dlt._workspace._workspace_context import WorkspaceRunContext
+from dlt._workspace.cli.exceptions import CliCommandException
+from dlt._workspace.cli.dlthub.ai.agents import AI_AGENTS, _CodexAgent, _CortexAgent
 from dlt._workspace.cli.dlthub.ai.commands import (
     ai_status_command,
     ai_init_command,
+    ai_mcp_install_command,
+    ai_rules_command,
     ai_secrets_list_command,
     ai_secrets_update_fragment_command,
     ai_secrets_view_redacted_command,
@@ -31,12 +34,17 @@ from dlt._workspace.cli.dlthub.ai.utils import (
     resolve_toolkit_dependencies,
     fetch_workbench_toolkits,
 )
-from dlt._workspace.cli._urls import DEFAULT_AI_WORKBENCH_LICENSE_URL
+from dlt._workspace.cli._urls import (
+    DEFAULT_AI_WORKBENCH_BRANCH,
+    DEFAULT_AI_WORKBENCH_LICENSE_URL,
+    DEFAULT_AI_WORKBENCH_REPO,
+)
 
 from tests.workspace.cli.dlthub.ai.utils import (
     AGENT_NAMES,
     INSTALLABLE_TOOLKITS,
     KNOWN_TOOLKITS,
+    MOCK_WORKBENCH_LOCATION,
     assert_toolkit_install,
     make_mock_workbench,
     workbench_repo,  # noqa: F401 (session-scoped fixture)
@@ -58,27 +66,15 @@ def test_ai_status_no_toolkits(capsys: pytest.CaptureFixture[str]) -> None:
 
 def test_ai_status_with_toolkits(capsys: pytest.CaptureFixture[str]) -> None:
     """ai info after install shows agent and toolkit with entry skill, no init."""
-    base = make_mock_workbench()
-    project_root = Path("project")
-    project_root.mkdir()
+    make_mock_workbench()
+    # create config.toml so workspace is "initialized"
+    Path(".dlt", "config.toml").write_text("[runtime]\n", encoding="utf-8")
 
-    with (
-        patch("dlt.common.runtime.run_context.active") as mock_ctx,
-        patch("dlt._workspace.cli.dlthub.ai.commands.fetch_workbench_base", return_value=base),
-    ):
-        settings_dir = str(project_root / ".dlt")
-        mock_ctx.return_value.run_dir = str(project_root)
-        mock_ctx.return_value.settings_dir = settings_dir
-        mock_ctx.return_value.get_setting = functools.partial(os.path.join, settings_dir)
-
-        # create config.toml so workspace is "initialized"
-        os.makedirs(settings_dir, exist_ok=True)
-        Path(settings_dir, "config.toml").write_text("[runtime]\n", encoding="utf-8")
-
-        ai_toolkit_install_command(name="rest-api-pipeline", agent="claude", location="mock://repo")
-        capsys.readouterr()  # discard install output
-
-        ai_status_command()
+    ai_toolkit_install_command(
+        name="rest-api-pipeline", agent="claude", location=MOCK_WORKBENCH_LOCATION
+    )
+    capsys.readouterr()  # discard install output
+    ai_status_command()
 
     out = capsys.readouterr().out
     assert "Agent: claude" in out
@@ -101,28 +97,282 @@ def test_ai_status_with_toolkits(capsys: pytest.CaptureFixture[str]) -> None:
 @pytest.mark.skipif(sys.version_info < (3, 10), reason="fastmcp requires Python >=3.10")
 def test_ai_init_warns_mcp(capsys: pytest.CaptureFixture[str]) -> None:
     """ai_init_command shows MCP warning when MCP server cannot start."""
-    base = make_mock_workbench()
-    project_root = Path("project")
-    project_root.mkdir()
+    make_mock_workbench()
 
     def raise_mcp(*_a: Any, **_kw: Any) -> None:
         raise RuntimeError("fastmcp not installed")
 
-    with (
-        patch("dlt.common.runtime.run_context.active") as mock_ctx,
-        patch("dlt._workspace.cli.dlthub.ai.commands.fetch_workbench_base", return_value=base),
-        patch("dlt._workspace.mcp.WorkspaceMCP", side_effect=raise_mcp),
-    ):
-        settings_dir = str(project_root / ".dlt")
-        mock_ctx.return_value.run_dir = str(project_root)
-        mock_ctx.return_value.settings_dir = settings_dir
-        mock_ctx.return_value.get_setting = functools.partial(os.path.join, settings_dir)
-
-        ai_init_command(agent="claude", location="mock://repo")
+    with patch("dlt._workspace.mcp.WorkspaceMCP", side_effect=raise_mcp):
+        ai_init_command(agent="claude", location=MOCK_WORKBENCH_LOCATION)
 
     out = capsys.readouterr().out
     assert "mcp server cannot be started" in out.lower()
     assert "dlthub ai status" in out.lower()
+
+
+def _update_toolkit_json(base: Path, toolkit: str, **fields: Any) -> None:
+    toolkit_json = base / toolkit / ".claude-plugin" / "toolkit.json"
+    meta = json.loads(toolkit_json.read_text(encoding="utf-8")) if toolkit_json.exists() else {}
+    meta.update(fields)
+    toolkit_json.write_text(json.dumps(meta), encoding="utf-8")
+
+
+def test_toolkit_visibility(
+    capsys: pytest.CaptureFixture[str], auto_isolated_workspace: WorkspaceRunContext
+) -> None:
+    """Hidden toolkits, dependencies and components stay out unless `--see-all`."""
+    project_root = Path(auto_isolated_workspace.run_dir)
+    location = MOCK_WORKBENCH_LOCATION
+    base = make_mock_workbench()
+    _update_toolkit_json(base, "sql-database", agents={"exclude": ["cortex"]})
+    (base / "sql-database" / "rules").mkdir()
+    (base / "sql-database" / "rules" / "sql.md").write_text("# SQL\nUse sql.", encoding="utf-8")
+    _update_toolkit_json(
+        base,
+        "rest-api-pipeline",
+        dependencies=["init", "sql-database"],
+        components={"skills/find-source": {"agents": {"include": ["claude"]}}},
+    )
+
+    # the list shows what the agent can install
+    ai_toolkit_list_command(location=location, agent="cortex")
+    out = capsys.readouterr().out
+    assert "Showing what cortex can install" in out
+    assert "sql-database" not in out
+    assert "rest-api-pipeline" in out
+    ai_toolkit_list_command(location=location, agent="cortex", see_all=True)
+    assert "sql-database" in capsys.readouterr().out
+    ai_toolkit_list_command(location=location, agent="claude")
+    assert "sql-database" in capsys.readouterr().out
+
+    # info leaves out hidden components and refuses a hidden toolkit
+    ai_toolkit_info_command(name="rest-api-pipeline", location=location, agent="cortex")
+    out = capsys.readouterr().out
+    assert "Skills:" not in out and "Rules:" in out
+    ai_toolkit_info_command(name="sql-database", location=location, agent="cortex")
+    out = capsys.readouterr().out
+    assert "not available for cortex" in out and "Rules:" not in out
+    ai_toolkit_info_command(name="sql-database", location=location, agent="cortex", see_all=True)
+    assert "Rules:" in capsys.readouterr().out
+
+    # a hidden dependency is skipped, a hidden component is not installed
+    ai_toolkit_install_command(name="rest-api-pipeline", agent="cortex", location=location)
+    out = capsys.readouterr().out
+    assert "Skipping dependency sql-database: not available for cortex" in out
+    index = load_toolkits_index()
+    assert "sql-database" not in index
+    assert set(index) == {"init", "rest-api-pipeline"}
+    assert not (project_root / ".cortex/skills/find-source").exists()
+    assert (project_root / ".cortex/rules/rest-api-pipeline-coding.md").is_file()
+
+    # a hidden toolkit needs --see-all
+    with pytest.raises(CliCommandException):
+        ai_toolkit_install_command(name="sql-database", agent="cortex", location=location)
+    assert "not available for cortex" in capsys.readouterr().out
+    ai_toolkit_install_command(name="sql-database", agent="cortex", location=location, see_all=True)
+    assert load_toolkits_index()["sql-database"]["see_all"] is True
+
+    # an update without --see-all keeps what --see-all installed
+    ai_toolkit_install_command(
+        name="sql-database", agent="cortex", location=location, overwrite=True
+    )
+    assert load_toolkits_index()["sql-database"]["see_all"] is True
+
+
+def test_toolkit_list_with_several_agents_detected(
+    capsys: pytest.CaptureFixture[str], environment: Any
+) -> None:
+    """Several detected agents show every toolkit and ask for --agent."""
+    environment.update({"CLAUDECODE": "1", "CURSOR_AGENT": "1"})
+    make_mock_workbench()
+    ai_toolkit_list_command(location=MOCK_WORKBENCH_LOCATION)
+    out = capsys.readouterr().out
+    assert "Several AI coding agents detected (claude, cursor)" in out
+    assert "sql-database" in out
+
+
+def _make_toolkit(base: Path, name: str, dependencies: List[str], **toolkit_json: Any) -> None:
+    meta_dir = base / name / ".claude-plugin"
+    meta_dir.mkdir(parents=True)
+    (meta_dir / "plugin.json").write_text(
+        json.dumps({"name": name, "version": "1.0.0", "description": name}), encoding="utf-8"
+    )
+    (meta_dir / "toolkit.json").write_text(
+        json.dumps({"dependencies": dependencies, **toolkit_json}), encoding="utf-8"
+    )
+    (base / name / "rules").mkdir()
+    (base / name / "rules" / "rule.md").write_text("# %s\nrule" % name, encoding="utf-8")
+
+
+def test_ai_init_installs_init_dependencies(capsys: pytest.CaptureFixture[str]) -> None:
+    """ai init installs the toolkits that init depends on and skips the hidden ones."""
+    base = make_mock_workbench()
+    _make_toolkit(base, "local-workspace", [], listed=False)
+    _make_toolkit(base, "not-for-claude", [], agents={"exclude": ["claude"]})
+    _update_toolkit_json(base, "init", dependencies=["local-workspace", "not-for-claude"])
+
+    ai_init_command(agent="claude", location=MOCK_WORKBENCH_LOCATION)
+    out = capsys.readouterr().out
+    assert set(load_toolkits_index()) == {"init", "local-workspace"}
+    assert "Skipping dependency not-for-claude: not available for claude" in out
+    # the dependencies of init do not count as a first toolkit
+    assert "install your first toolkit" in out
+
+    # init is already installed: no readiness checks and no hints
+    with patch("dlt._workspace.cli.dlthub.ai.commands.fetch_ai_status") as fetch_status:
+        ai_init_command(agent="claude", location=MOCK_WORKBENCH_LOCATION)
+    fetch_status.assert_not_called()
+    out = capsys.readouterr().out
+    assert "Toolkit init 1.0.0 is already installed." in out
+    assert "install your first toolkit" not in out
+
+
+def test_toolkits_reuse_recorded_harness_location(capsys: pytest.CaptureFixture[str]) -> None:
+    """An install records a harness location other than the default, later commands reuse it,
+    and an empty `--location` resets to the default."""
+    make_mock_workbench()
+    harness_location = os.path.abspath(MOCK_WORKBENCH_LOCATION)
+    ai_init_command(agent="claude", location=MOCK_WORKBENCH_LOCATION)
+    assert load_toolkits_index()["init"]["location"] == harness_location
+
+    # no location: the recorded one, which is the mock harness
+    ai_toolkit_install_command(name="rest-api-pipeline", agent="claude")
+    assert load_toolkits_index()["rest-api-pipeline"]["location"] == harness_location
+    assert harness_location in capsys.readouterr().out
+
+    with patch(
+        "dlt._workspace.cli.dlthub.ai.commands.fetch_workbench_base",
+        side_effect=FileNotFoundError("no harness"),
+    ) as fetch_base:
+        ai_toolkit_list_command(location="")
+    fetch_base.assert_called_once_with(DEFAULT_AI_WORKBENCH_REPO, DEFAULT_AI_WORKBENCH_BRANCH)
+
+
+def test_toolkit_visibility_nested_dependencies(capsys: pytest.CaptureFixture[str]) -> None:
+    """A hidden dependency is skipped with everything only it needs, at any depth."""
+    base = make_mock_workbench()
+    _make_toolkit(base, "app", ["mid"])
+    _make_toolkit(base, "mid", ["hidden", "other-leaf", "shared"])
+    _make_toolkit(base, "hidden", ["leaf", "shared"], agents={"exclude": ["cortex"]})
+    _make_toolkit(base, "leaf", [])
+    _make_toolkit(base, "other-leaf", [])
+    _make_toolkit(base, "shared", [])
+
+    ai_toolkit_install_command(name="app", agent="cortex", location=MOCK_WORKBENCH_LOCATION)
+    out = capsys.readouterr().out
+    # `shared` is needed by `hidden` but also by `mid`, so it stays
+    assert set(load_toolkits_index()) == {"app", "mid", "other-leaf", "shared"}
+    assert "Skipping dependency hidden: not available for cortex" in out
+    assert "Skipping dependency leaf: not available for cortex" in out
+    assert "Skipping dependency shared" not in out
+
+    # --see-all brings in the hidden branch
+    ai_toolkit_install_command(
+        name="app", agent="cortex", location=MOCK_WORKBENCH_LOCATION, see_all=True
+    )
+    index = load_toolkits_index()
+    assert set(index) == {"app", "mid", "other-leaf", "shared", "hidden", "leaf"}
+    assert index["hidden"]["see_all"] is True
+
+
+def test_cortex_install(
+    capsys: pytest.CaptureFixture[str],
+    _snowflake_home: Path,
+    auto_isolated_workspace: WorkspaceRunContext,
+) -> None:
+    """Cortex gets skills, rule files, a CORTEX.md section and both MCP configs."""
+    project_root = Path(auto_isolated_workspace.run_dir)
+    location = MOCK_WORKBENCH_LOCATION
+    make_mock_workbench()
+    ai_init_command(agent="cortex", location=location)
+    out = capsys.readouterr().out
+    assert "start a new session" in out
+    ai_toolkit_install_command(name="rest-api-pipeline", agent="cortex", location=location)
+    out = capsys.readouterr().out
+    # each MCP config gets its own line, relative to the workspace when it is in the workspace
+    for mcp_path in (os.path.join(".cortex", "mcp.json"), _snowflake_home / "cortex/mcp.json"):
+        assert "+ mcp dlt-workspace-mcp -> %s" % mcp_path in out
+
+    assert (project_root / ".cortex/skills/find-source/SKILL.md").is_file()
+    assert (project_root / ".cortex/commands/bootstrap.md").is_file()
+    assert (project_root / ".cortex/rules/init-base.md").is_file()
+    # cortex has no ignore file
+    assert not (project_root / ".claudeignore").exists()
+    assert not list(project_root.glob(".*ignore"))
+
+    cortex_md = (project_root / "CORTEX.md").read_text(encoding="utf-8")
+    assert cortex_md.startswith(_CortexAgent.RULES_HEADING + "\n")
+    # all installed rule files in sorted order, headings demoted, no frontmatter
+    assert cortex_md.index("## Base") < cortex_md.index("## Coding")
+    assert "description:" not in cortex_md
+
+    index = load_toolkits_index()
+    assert index["rest-api-pipeline"]["agent"] == "cortex"
+    assert "CORTEX.md" not in index["rest-api-pipeline"]["files"]
+    assert_toolkit_install(project_root, "rest-api-pipeline", "cortex")
+    for mcp_path in (project_root / ".cortex/mcp.json", _snowflake_home / "cortex" / "mcp.json"):
+        servers = json.loads(mcp_path.read_text(encoding="utf-8"))["mcpServers"]
+        assert servers["dlt-workspace-mcp"]["type"] == "stdio"
+
+    # the next install rewrites the section from the rule files and keeps the user's text
+    (project_root / "CORTEX.md").write_text("# Mine\nkeep\n\n" + cortex_md, encoding="utf-8")
+    (project_root / ".cortex/rules/init-base.md").unlink()
+    capsys.readouterr()
+    ai_toolkit_install_command(
+        name="rest-api-pipeline", agent="cortex", location=location, overwrite=True
+    )
+    assert "~ rule CORTEX.md" in capsys.readouterr().out
+    updated = (project_root / "CORTEX.md").read_text(encoding="utf-8")
+    assert updated.startswith("# Mine\nkeep\n\n" + _CortexAgent.RULES_HEADING)
+    assert updated.count(_CortexAgent.RULES_HEADING) == 1
+    assert "## Coding" in updated
+    assert "## Base" not in updated
+    # an install that leaves CORTEX.md as it is does not report it
+    ai_toolkit_install_command(
+        name="rest-api-pipeline", agent="cortex", location=location, overwrite=True
+    )
+    assert "CORTEX.md" not in capsys.readouterr().out
+
+    # `ai mcp install` writes the project and the user config
+    user_mcp = _snowflake_home / "cortex" / "mcp.json"
+    user_mcp.unlink()
+    ai_mcp_install_command(agent="cortex", name="dlt-workspace-mcp")
+    out = capsys.readouterr().out
+    assert "already configured in %s" % os.path.join(".cortex", "mcp.json") in out
+    assert "Installed MCP server dlt-workspace-mcp in %s" % user_mcp in out
+    server = json.loads(user_mcp.read_text(encoding="utf-8"))["mcpServers"]["dlt-workspace-mcp"]
+    assert server["type"] == "stdio"
+
+
+def test_codex_install(
+    capsys: pytest.CaptureFixture[str], auto_isolated_workspace: WorkspaceRunContext
+) -> None:
+    """Codex gets rules as skills and a session start hook that lists them, never AGENTS.md."""
+    project_root = Path(auto_isolated_workspace.run_dir)
+    make_mock_workbench()
+    ai_init_command(agent="codex", location=MOCK_WORKBENCH_LOCATION)
+    out = capsys.readouterr().out
+    assert "+ hook SessionStart -> %s" % os.path.join(".codex", "hooks.json") in out
+    assert "/hooks" in out
+    ai_toolkit_install_command(
+        name="rest-api-pipeline", agent="codex", location=MOCK_WORKBENCH_LOCATION
+    )
+    # the hook is already there
+    assert "+ hook" not in capsys.readouterr().out
+    assert not (project_root / "AGENTS.md").exists()
+    hooks = json.loads((project_root / ".codex/hooks.json").read_text(encoding="utf-8"))
+    assert hooks["hooks"]["SessionStart"] == [_CodexAgent.RULES_HOOK]
+    assert str(Path(".codex", "hooks.json")) not in load_toolkits_index()["init"]["files"]
+
+    # the hook command prints links to the rule skills of every installed toolkit
+    ai_rules_command()
+    out = capsys.readouterr().out
+    assert out.startswith(_CodexAgent.RULES_INTRO)
+    assert "- `init-base`: .agents/skills/init-base/SKILL.md" in out
+    assert "- `rest-api-pipeline-coding`: " in out
+    # agents with rule files get nothing
+    ai_rules_command(agent="claude")
+    assert capsys.readouterr().out == ""
 
 
 def test_ai_secrets_list_workspace(capsys: pytest.CaptureFixture[str]) -> None:
@@ -269,24 +519,28 @@ def test_user_session_e2e(
     with isolated_workspace(workspace_type, required=required):
         location_args = ["--location", workbench_repo]
 
+        # 1. ai status — fresh workspace has warnings
         result = script_runner.run(["dlthub", "ai", "status"])
         assert result.returncode == 0
         if workspace_type == "empty":
             assert "not yet initialized" in result.stdout.lower()
         assert "no toolkit" in result.stdout.lower()
 
+        # 2. dlt ai init
         result = script_runner.run(["dlthub", "ai", "init", "--agent", "claude"] + location_args)
         assert result.returncode == 0
         assert "item(s) installed" in result.stdout
 
+        # 3. ai toolkit list — discover available toolkits
         result = script_runner.run(["dlthub", "ai", "toolkit", "list"] + location_args)
         assert result.returncode == 0
         assert "Available toolkits:" in result.stdout
         for name in KNOWN_TOOLKITS:
             assert name in result.stdout
 
+        # 4. install all installable toolkits
         base = Path(workbench_repo) / AI_WORKBENCH_BASE_DIR
-        available, _ = fetch_workbench_toolkits(base, listed_only=True)
+        available, _ = fetch_workbench_toolkits(base, listed_only=True, agent_name="claude")
         installable = [name for name in available if name != "init"]
 
         for toolkit_name in installable:
@@ -296,21 +550,14 @@ def test_user_session_e2e(
             )
             assert result.returncode == 0, "install %s failed: %s" % (toolkit_name, result.stderr)
 
+        # 5. ai toolkit list again — shows installed toolkits
         result = script_runner.run(["dlthub", "ai", "toolkit", "list"] + location_args)
         assert result.returncode == 0
         assert "Installed toolkits:" in result.stdout
         for toolkit_name in installable:
             assert toolkit_name in result.stdout
 
-        result = script_runner.run(["dlthub", "ai", "toolkit", "update", "init"] + location_args)
-        assert result.returncode == 0, result.stderr
-        before = load_toolkits_index()
-        result = script_runner.run(["dlthub", "ai", "toolkit", "update"] + location_args)
-        assert result.returncode == 0, result.stderr
-        for toolkit_name in ["init"] + installable:
-            assert "Updating toolkit %s" % toolkit_name in result.stdout
-        assert load_toolkits_index() == before
-
+        # 6. verify index and installed files
         project_root = Path.cwd()
         assert_toolkit_install(project_root, "init", "claude")
         for toolkit_name in installable:
@@ -429,12 +676,15 @@ def test_dependency_map_workbench(workbench_repo: str) -> None:
     dep_map = build_toolkits_dependency_map(toolkits)
     for name in KNOWN_TOOLKITS:
         assert name in dep_map, "%s missing from workbench" % name
+    # every toolkit depends on init, except the toolkits that init itself depends on
+    init_deps = resolve_toolkit_dependencies("init", dep_map)
+    assert "init" not in init_deps
     for name in dep_map:
-        resolved = resolve_toolkit_dependencies(name, dep_map)
-        if name == "init":
-            assert resolved == [], "init should have no dependencies"
-        else:
-            assert "init" in resolved, "%s should depend on init" % name
+        if name == "init" or name in init_deps:
+            continue
+        assert "init" in resolve_toolkit_dependencies(name, dep_map), (
+            "%s should depend on init" % name
+        )
 
     # every plugin.json must link to the license; only `workbench/` is checked out
     for name in toolkits:
@@ -464,7 +714,7 @@ def test_toolkit_install_all_together_workbench(
 
     # get available toolkits from the workbench (same source as list command)
     available, _ = fetch_workbench_toolkits(
-        Path(workbench_repo) / AI_WORKBENCH_BASE_DIR, listed_only=True
+        Path(workbench_repo) / AI_WORKBENCH_BASE_DIR, listed_only=True, agent_name=agent_name
     )
     installable = [name for name in available if name != "init"]
 

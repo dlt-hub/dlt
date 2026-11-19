@@ -123,7 +123,7 @@ def test_various_queries(destination_config: DestinationTestConfiguration, examp
     sql_query = "SELECT unknown_column FROM customers"
     with pytest.raises(LineageFailedException) as exc:
         lineage.compute_columns_schema(sqlglot.parse_one(sql_query), sqlglot_schema, "duckdb")
-    assert "Failed to resolve SQL query against the schema received" in str(exc.value)
+    assert "dlt cannot compute the lineage of the SQL query" in str(exc.value)
 
     # test window function with over and join
     # TODO: total amount data type is not inferred

@@ -1,13 +1,13 @@
 ---
 title: Job configuration
 description: Per-job options on the dltHub platform — execution timeouts, dependency groups, instance size, and TOML configuration sections
-keywords: [dlthub platform, job configuration, timeout, dependency groups, instance, size, require.instance, static egress, execute, require, expose, section]
+keywords: [dlthub platform, job configuration, timeout, access, profile, dependency groups, instance, size, require.instance, static egress, execute, require, expose, section]
 ---
 # Job configuration
 
 This page documents the per-job options that aren't about *when* a job runs (those live in [Triggers and scheduling](triggers.md)) but about *how* it runs — execution limits, runner resources, the Python environment it gets, and the configuration values it reads at runtime.
 
-All options below are arguments to the `@run.pipeline`, `@run.job`, `@run.interactive`, and `@run.agent` decorators.
+All options below are arguments to the `@run.pipeline`, `@run.job`, `@run.interactive`, and `@run.agent` decorators. A job that is a module, such as a notebook, takes them as module variables, see [Options of module jobs](#options-of-module-jobs).
 
 ## Execution constraints
 
@@ -23,6 +23,20 @@ def long_load():
 ```
 
 Accepted timeout formats: a duration string (`"6h"`, `"30m"`) or an integer number of seconds.
+
+## Access and profile
+
+`access` is what a job declares it needs to run. The dltHub platform grants the job no more than it declares, and the [profile](profiles.md) of the job gives the credentials. Declare it per axis: `local` for the files and the shell, `data` for the data in your destinations, `context` for runs, logs, and telemetry.
+
+```py notype
+@run.job(access={"data": ["read"]})
+def check_freshness():
+    ...
+```
+
+A job without `access` declares the data access of its job type: write for batch and stream jobs, read for interactive jobs, none for agent jobs. A job with `access` and no `data` declares no data access.
+
+A deployment gives the job the profile of the environment with the data access that the job declares. To give the job another profile, declare it with `require={"profile": "sensitive-access"}`. A strict environment accepts only a profile that gives exactly the declared data access. See [How a job gets its profile](profiles.md#how-a-job-gets-its-profile) for the rules, and [Access declaration](../agents/agent-definitions.md#access-declaration) for the verbs of each axis.
 
 ## Dependency groups
 
@@ -93,6 +107,29 @@ The static egress IPs for the **US region** are:
 - 34.193.87.36
 - 98.80.106.70
 - 54.81.217.233
+
+## Options of module jobs
+
+A marimo notebook, an MCP server or a Streamlit app is deployed as a module: you import it in `__deployment__.py` and no decorator declares it. Set the options of such a job with variables in the module. They take the same values as the decorator arguments:
+
+| Variable      | Same as    | What it sets                                                                                        |
+| ------------- | ---------- | --------------------------------------------------------------------------------------------------- |
+| `__require__` | `require=` | the profile, dependency groups, instance size and static egress IPs of the job                      |
+| `__access__`  | `access=`  | what the job needs to run, see [Access and profile](#access-and-profile)                            |
+| `__trigger__` | `trigger=` | one trigger or a list, added to the triggers of the job, see [Triggers and scheduling](triggers.md) |
+| `__expose__`  | `expose=`  | how the job is exposed, replaces what dlt detects for the module                                    |
+
+```py notype
+# github_report_notebook.py
+import marimo
+
+__require__ = {"dependency_groups": ["ibis"], "instance": {"size": "medium"}}
+__access__ = {"data": ["read", "write"]}
+
+app = marimo.App()
+```
+
+Without `__access__`, a module job declares read data access, as every interactive job does. The notebook above writes to the destination, so it declares write data access and gets the profile for it.
 
 ## Inputs and outputs
 

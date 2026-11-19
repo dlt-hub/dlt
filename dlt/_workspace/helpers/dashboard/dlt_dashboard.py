@@ -717,7 +717,7 @@ def utils_discover_profiles(mo_query_var_profile: str, mo_cli_arg_profile: str):
     selected_profile = None
 
     if isinstance(run_context, ProfilesRunContext):
-        options = run_context.configured_profiles() or []
+        options = run_context.available_profiles() or []
         current = run_context.profile if options and run_context.profile in options else None
 
         selected_profile = current

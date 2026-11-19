@@ -58,7 +58,6 @@ from dlt.hub import run
 inspector = run.agent(
     "dlthub-platform:job-inspector",
     trigger="job.fail:tag:ingest",
-    require={"profile": "access"},
     model="sonnet",
     limits={"max_turns": 20},
     instructions="focus on the loader step",
@@ -73,7 +72,7 @@ You can call the agent job in process, for example in a script or a test. An age
 
 The inputs of such a function merge with the agent definition instead. The parameters of the function decide which inputs exist. For each parameter, what the signature says wins, and the agent definition fills what it leaves out: the description, `entity_type`, other attributes, and the type when the parameter has no annotation. The inputs that the function doesn't take are dropped.
 
-Don't give the production profile to an agent job. On the platform, an agent job takes the read-only `access` profile by default, and the example pins it. See [Profile of an agent job](#profile-of-an-agent-job).
+An agent job gets the profile of the data access that its agent definition declares. This one declares no `data`, so it gets `no-access` and holds no data credentials. See [Profile of an agent job](#profile-of-an-agent-job).
 
 | Argument                               | Meaning                                                                                                                                                                                                                    |
 | -------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -147,29 +146,37 @@ An agent job that only runs when you start it takes no `trigger=` at all. dlt ad
 
 ### Profile of an agent job
 
-A [profile](../pipeline-operations/profiles.md) names the set of credentials a job runs with. The profile isn't the `access` declaration. `access` selects the tools that the model gets. The profile selects the credentials that the job process holds. An agent job that declares `data: write` and runs on the `access` profile can't write, because its credentials can't.
+`access` is what a job declares it needs to run. The platform grants the job no more than it declares: the tools that the model gets, and the data access of the job. A [profile](../pipeline-operations/profiles.md) gives the credentials that the job process holds. The two go together: a deployment gives the job the profile whose data access is what `access` declares on the `data` axis. An agent job that declares `data: write` and runs on the `access` profile can't write, because its credentials can't.
 
 The profile covers profile-scoped configuration: `prod.secrets.toml`, `prod.config.toml`, and a variable set with `dlthub variable set --profile prod`. A variable set with `--workspace` has no profile, and it reaches the job on every profile. A secret that an agent must not get belongs in a profile scope. `dlthub variable list` prints the scope of each one.
 
-On the platform, an agent job that declares no profile runs on the read-only `access` profile, so the production credentials stay out of its environment. Other batch jobs use `prod` by default. The agent job is the exception. dlt itself doesn't set the profile: `dlthub local run` uses the active profile, and warns when the workspace has no `access` profile.
+A deployment gives an agent job that declares no profile the [default profile of the environment](../pipeline-operations/profiles.md#how-a-job-gets-its-profile) for the data access that its `access` declares:
 
-Pin the profile on the job, to state the intent in the code:
+| `data` in `access` | Profile in the `prod` environment          |
+| ------------------ | ------------------------------------------ |
+| left out           | `no-access`, a profile without data access |
+| `read`             | `access`                                   |
+| `write`            | `prod`                                     |
+
+An agent job that declares no data access gets no data credentials. One that declares `data: read` gets `access`. When `access` has no settings files, that job gets `prod` and `dlthub deploy` warns. A strict environment has no such fallback: the profile of a job gives exactly the data access that the job declares, or `dlthub deploy` fails. Other batch jobs declare write data access and get the default write profile, `prod`. `dlthub local run` uses the active profile for every job.
+
+To give an agent job a profile of its own, declare the profile on the job. This agent definition declares `data: read`, and the profile gives read data access:
 
 ```py notype
-inspector = run.agent(
-    "dlthub-platform:job-inspector",
-    trigger="job.fail:tag:ingest",
-    require={"profile": "access"},
+care_inspector = run.agent(
+    "agents/customer_care",
+    trigger="job.fail:tag:care",
+    require={"profile": "sensitive-access"},
 )
 ```
 
-A declared profile always wins, `prod` included, so nothing stops `require={"profile": "prod"}` on an agent job. Don't give an agent job the production profile. An agent job runs unattended, and a model decides what to do. The production profile gives that model the credentials to change your data. Work that needs production write credentials belongs in a pipeline or a plain job that a person wrote and reviewed.
+In an environment that is not strict, a declared profile always wins, `prod` included, so nothing stops `require={"profile": "prod"}` on an agent job. Don't give an agent job the production profile. An agent job runs unattended, and a model decides what to do. The production profile gives that model the credentials to change your data. Work that needs production write credentials belongs in a pipeline or a plain job that a person wrote and reviewed.
 
 :::warning
-Before you run an agent job, make sure that the destination credentials in your `access` profile are read-only at the destination itself. Use a read-only database role, or a storage key without write permission. dltHub doesn't check what the credentials of a profile can do. An `access` profile that holds a writable credential gives the agent write access under a read-only name. [Define profiles](../pipeline-operations/profiles.md#define-profiles) covers where each profile's credentials live.
+Before you run an agent job, make sure that the destination credentials in your `access` profile are read-only at the destination itself. Use a read-only database role, or a storage key without write permission. dltHub doesn't check what the credentials of a profile can do. An `access` profile that holds a writable credential gives the agent write access under a read-only name. Create the settings files of `access` before you deploy: without them, an agent job that declares `data: read` and no profile gets `prod`. [Settings files](../pipeline-operations/profiles.md#settings-files) covers where each profile's credentials live.
 :::
 
-Manifest validation refuses a local-only profile (`dev`, `tests`) and takes any other name as given, so a typo surfaces as missing credentials at run time. On `dlthub local run` the declaration is a warning rather than a switch: the run uses the active profile and reports the mismatch.
+A deployment refuses a profile that does not belong to its environment: a local profile such as `dev`, a profile of another environment or a typo stops `dlthub deploy` with the `dlthub profile add` command that declares it. On `dlthub local run` the declared profile only produces a warning: the run uses the active profile and reports the mismatch.
 
 ## Run an agent job
 
@@ -357,7 +364,7 @@ Select the loop on the job with `loop="claude-agent-sdk"`, or for a single local
 - SQL through the MCP server is limited to a single `SELECT` statement per call.
 - `execute` runs in the job's own process. A shell runs in the same process tree and virtual environment as the job, with the job's credentials on the runner. It also reaches around the file tools' credential rules. Declare it only in agent definitions that need it. If an agent definition declares `execute` and `data`, give it a rule that forbids writing data.
 - `data` is an access axis that you declare deliberately: it opens the workspace data to a model-driven process. The agent definitions that the dltHub AI Harness ships declare `local: read` and `context: read` and no `data`. They build a diagnosis from run records, logs, job definitions, telemetry, and workspace source.
-- On the platform, an agent job declaring no profile runs on the read-only `access` profile, so the production credentials stay out of its environment. Pin `require={"profile": "access"}` to state it in the code. See [Profile of an agent job](#profile-of-an-agent-job).
+- On the platform, an agent job that declares no profile gets the profile of its data access: `no-access` without `data`, `access` with `data: read`. The production credentials reach its process only when it declares `data: write`, or `data: read` while `access` has no settings files. Declare the profile with `require={"profile": ...}` to state it in the code. See [Profile of an agent job](#profile-of-an-agent-job).
 
 ## Test agent jobs
 

@@ -1,22 +1,33 @@
 import hashlib
 import os
+import re
 import threading
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Set, Tuple
+from typing import Any, Dict, List, Mapping, Optional, Set, Tuple
 
 import tomlkit
 import yaml
 
 from dlt.common.json import json
+from dlt.common.pendulum import pendulum
 from dlt.common.utils import uniq_id, update_dict_nested
 from dlt.common.configuration.const import TYPE_EXAMPLES
 from dlt.common.configuration.providers.toml import SecretsTomlProvider, SettingsTomlProvider
 from dlt.common.pipeline import get_dlt_repos_dir
+from dlt.common.runtime.run_context import active as active_run_context
 from dlt.version import __version__ as dlt_ver
 
+from dlt._workspace._workspace_context import WorkspaceRunContext
+from dlt._workspace.cli import _urls
+from dlt._workspace.cli._repo_source import (
+    TRepoSource,
+    get_recorded_repo_source,
+    resolve_repo_source,
+)
 from dlt._workspace.cli._urls import DEFAULT_AI_WORKBENCH_BRANCH  # noqa: F401
 from dlt._workspace.cli._urls import DEFAULT_AI_WORKBENCH_REPO  # noqa: F401
 from dlt._workspace.cli.dlthub.ai.typing import (
+    TAgentVisibility,
     TAiStatusInfo,
     TAiStatusWarning,
     TToolkitIndexEntry,
@@ -24,19 +35,18 @@ from dlt._workspace.cli.dlthub.ai.typing import (
     TWorkbenchComponentInfo,
     TWorkbenchToolkitInfo,
 )
-from dlt._workspace.cli.formatters import (
-    extract_first_heading,
-    parse_frontmatter,
-    read_md_name_desc,
-    render_frontmatter,
-)
+from dlt._workspace.cli.markdown import MarkdownDocument
 from dlt._workspace.cli.utils import get_provider_locations, make_dlt_settings_path
+from dlt._workspace.settings_files import load_yaml_file, save_yaml_file
 from dlt._workspace.typing import TLocationInfo
 
 AI_WORKBENCH_BASE_DIR = "workbench"
 TOOLKITS_INDEX_FILE = ".toolkits"
 DLTHUB_AGENTS_DIR = "dlthub/agents"
 """Folder of dlt agents in a toolkit and in a host folder, apart from the host's own `agents`."""
+
+MCP_FEATURE_TOKEN_RE = re.compile(r"[+-]?[A-Za-z0-9_][A-Za-z0-9_.-]*")
+"""A feature group a toolkit adds (`name`, `+name`) or removes (`-name`), without commas."""
 
 _workbench_lock = threading.Lock()  # lock git clone operation
 
@@ -87,12 +97,27 @@ def merge_json_mcp_servers(
     return json.dumps(data, pretty=True) + "\n"
 
 
+def merge_json_hooks(
+    existing_content: str, event: str, matcher_group: Dict[str, Any]
+) -> Optional[str]:
+    """Add a matcher group to `event` in a JSON hooks config. Returns `None` when every hook of
+    the group already runs for the event.
+    """
+    data: Dict[str, Any] = json.loads(existing_content) if existing_content.strip() else {}
+    groups: List[Dict[str, Any]] = data.setdefault("hooks", {}).setdefault(event, [])
+    commands = {hook.get("command") for group in groups for hook in group.get("hooks", [])}
+    if all(hook["command"] in commands for hook in matcher_group["hooks"]):
+        return None
+    groups.append(matcher_group)
+    return json.dumps(data, pretty=True) + "\n"
+
+
 def parse_toml_mcp(content: str, top_key: str) -> Tuple[tomlkit.TOMLDocument, Dict[str, Any]]:
     """Parse a TOML MCP config file into (document, servers_dict)."""
     if not content.strip():
         return tomlkit.document(), {}
     doc = tomlkit.parse(content)
-    servers: Dict[str, Any] = dict(doc.get(top_key, {}))
+    servers: Dict[str, Any] = doc[top_key].unwrap() if top_key in doc else {}
     return doc, servers
 
 
@@ -100,47 +125,83 @@ def merge_toml_mcp_servers(
     existing_content: str,
     new_servers: Dict[str, Any],
     top_key: str,
+    defaults: Optional[Dict[str, Any]] = None,
 ) -> str:
-    """Merge new MCP server entries into a TOML config file (always strips type)."""
+    """Merge new MCP server entries into a TOML config file (always strips type). `defaults` are
+    top-level settings written only when the file does not have them."""
     doc, _ = parse_toml_mcp(existing_content, top_key)
+    for key, value in (defaults or {}).items():
+        if key not in doc:
+            doc[key] = value
     if top_key not in doc:
         doc.add(top_key, tomlkit.table())
     mcp: Any = doc[top_key]
     for name, config in _strip_mcp_type(new_servers).items():
-        mcp[name] = config
+        server = mcp.get(name)
+        if not isinstance(server, dict):
+            mcp[name] = config
+            continue
+        # update the existing table in place so the user's comments and dotted keys stay valid
+        for key in [key for key in server if key not in config]:
+            del server[key]
+        for key, value in config.items():
+            if key not in server or server[key] != value:
+                server[key] = value
     return tomlkit.dumps(doc)
+
+
+def read_rule_body(rule_file: Path) -> str:
+    """Rule text without its frontmatter. A rule a user broke is still read, never raises."""
+    text = rule_file.read_text(encoding="utf-8", errors="replace")
+    return MarkdownDocument(text).body_text.strip("\n")
 
 
 def strip_rule_frontmatter(content: str) -> str:
     """Strip frontmatter keys that Claude Code rules don't use (e.g. alwaysApply)."""
-    fm, body = parse_frontmatter(content)
+    fm, body = MarkdownDocument(content).split_frontmatter()
     if not fm:
         return content
     kept = {k: v for k, v in fm.items() if k in ("name", "description")}
-    return render_frontmatter(kept, body) if kept else body
+    return str(MarkdownDocument.from_frontmatter(kept, body)) if kept else body
 
 
 def ensure_cursor_rule_frontmatter(content: str) -> str:
     """Ensure Cursor rule has alwaysApply and description in frontmatter."""
-    fm, body = parse_frontmatter(content)
+    doc = MarkdownDocument(content)
+    fm, body = doc.split_frontmatter()
     fm["alwaysApply"] = True
-    if "description" not in fm:
-        heading = extract_first_heading(body)
-        if heading:
-            fm["description"] = heading
-    return render_frontmatter(fm, body)
+    if "description" not in fm and (heading := doc.find_first_heading()):
+        fm["description"] = heading.text
+    return str(MarkdownDocument.from_frontmatter(fm, body))
+
+
+ALWAYS_APPLY_SKILL_PREFIX = "ALWAYS read and follow this skill before acting. "
+"""Starts the description of the skill a rule is installed as, for agents without rules."""
 
 
 def wrap_as_skill(content: str, skill_name: str, always_apply: bool = False) -> str:
     """Wrap content as a Codex SKILL.md with name/description frontmatter."""
-    fm, body = parse_frontmatter(content)
+    doc = MarkdownDocument(content)
+    fm, body = doc.split_frontmatter()
+    heading = doc.find_first_heading()
     skill_fm: Dict[str, Any] = {}
     skill_fm["name"] = fm.get("name", skill_name)
-    desc = fm.get("description") or extract_first_heading(body) or skill_name
+    desc = fm.get("description") or (heading.text if heading else None) or skill_name
     if always_apply:
-        desc = "ALWAYS read and follow this skill before acting. " + desc
+        desc = ALWAYS_APPLY_SKILL_PREFIX + desc
     skill_fm["description"] = desc
-    return render_frontmatter(skill_fm, body)
+    return str(MarkdownDocument.from_frontmatter(skill_fm, body))
+
+
+def is_always_apply_skill(skill_md: Path) -> bool:
+    """Tell whether a SKILL.md is a rule installed as an always-apply skill."""
+    try:
+        doc = MarkdownDocument(skill_md.read_text(encoding="utf-8"))
+        description = doc.split_frontmatter()[0].get("description")
+    except (yaml.YAMLError, UnicodeDecodeError):
+        # a skill the user broke is not one of ours
+        return False
+    return isinstance(description, str) and description.startswith(ALWAYS_APPLY_SKILL_PREFIX)
 
 
 def cap_skill_description(content: str, max_len: int) -> Optional[str]:
@@ -150,13 +211,13 @@ def cap_skill_description(content: str, max_len: int) -> Optional[str]:
     hard limit. Returns the rewritten content when truncation was applied, or
     None when the description already fits (or there is none).
     """
-    fm, body = parse_frontmatter(content)
+    fm, body = MarkdownDocument(content).split_frontmatter()
     desc = fm.get("description")
     if not isinstance(desc, str) or len(desc) <= max_len:
         return None
     ellipsis = "…"
     fm["description"] = desc[: max_len - len(ellipsis)].rstrip() + ellipsis
-    return render_frontmatter(fm, body)
+    return str(MarkdownDocument.from_frontmatter(fm, body))
 
 
 def safe_write_bytes(dest: Path, data: bytes) -> None:
@@ -280,6 +341,10 @@ def fetch_secrets_update_fragment(fragment: str, path: str) -> str:
     if not os.path.isfile(path):
         with open(path, "w", encoding="utf-8") as f:
             f.write("")
+        # a new secrets file of a profile changes its `configured` flag
+        ctx = active_run_context()
+        if isinstance(ctx, WorkspaceRunContext):
+            ctx.reload_workspace_definition()
     provider = SettingsTomlProvider(file_name, True, file_name, [settings_dir])
     # allow literal \n (two chars) as newline — agents on Windows/PowerShell
     # can't easily pass real newlines, so we accept the escaped form
@@ -336,18 +401,21 @@ def read_workbench_toolkit_mcp_servers(toolkit_dir: Path) -> Dict[str, Any]:
 
 
 def build_toolkits_dependency_map(
-    toolkits: Dict[str, TToolkitInfo],
+    toolkits: Mapping[str, TToolkitInfo],
 ) -> Dict[str, List[str]]:
     """Build a map of toolkit name -> list of dependency toolkit names."""
     return {name: list(info.get("dependencies", [])) for name, info in toolkits.items()}
 
 
-def resolve_toolkit_dependencies(name: str, dep_map: Dict[str, List[str]]) -> List[str]:
+def resolve_toolkit_dependencies(
+    name: str, dep_map: Dict[str, List[str]], skip: Optional[Set[str]] = None
+) -> List[str]:
     """Return install-order list of dependencies for a toolkit.
 
     Args:
         name: Toolkit to resolve dependencies for.
         dep_map: Mapping of toolkit name to its direct dependencies.
+        skip: Toolkits left out together with their own dependencies.
 
     Returns:
         Topologically sorted dependency names, excluding the toolkit itself.
@@ -358,11 +426,12 @@ def resolve_toolkit_dependencies(name: str, dep_map: Dict[str, List[str]]) -> Li
     order: List[str] = []
     visited: Set[str] = set()
     path: Set[str] = set()
+    skip = skip or set()
 
     def _visit(n: str) -> None:
         if n in path:
             raise ValueError("Circular dependency: %s" % " -> ".join([*path, n]))
-        if n in visited:
+        if n in visited or (n in skip and n != name):
             return
         path.add(n)
         for dep in dep_map.get(n, []):
@@ -400,8 +469,30 @@ def fetch_workbench_base(location: str, branch: Optional[str]) -> Path:
     return Path(src_storage.make_full_path(AI_WORKBENCH_BASE_DIR))
 
 
+def is_visible(visibility: Optional[TAgentVisibility], agent_name: Optional[str]) -> bool:
+    """Tell whether `agent_name` sees an item with `visibility`. Without an agent all is visible."""
+    if not visibility or agent_name is None:
+        return True
+    if "include" in visibility:
+        return agent_name in visibility["include"]
+    return agent_name not in visibility.get("exclude", [])
+
+
+def is_toolkit_visible(info: TToolkitInfo, agent_name: Optional[str]) -> bool:
+    """Tell whether `agent_name` sees the toolkit."""
+    return is_visible(info.get("agent_visibility"), agent_name)
+
+
+def is_component_visible(info: TToolkitInfo, component_key: str, agent_name: Optional[str]) -> bool:
+    """Tell whether `agent_name` sees a component, keyed by source folder and name (`skills/x`)."""
+    return is_visible(info.get("component_visibility", {}).get(component_key), agent_name)
+
+
 def fetch_workbench_toolkits(
-    base: Path, listed_only: bool = False, strict: bool = False
+    base: Path,
+    listed_only: bool = False,
+    strict: bool = False,
+    agent_name: Optional[str] = None,
 ) -> Tuple[Dict[str, TToolkitInfo], List[str]]:
     """Scan dltHub AI Harness `workbench` directory and return mapping of toolkit name -> TToolkitInfo.
 
@@ -409,6 +500,7 @@ def fetch_workbench_toolkits(
         base: Root directory of the harness repo.
         listed_only: When True, skip toolkits with `listed: false` in metadata.
         strict: When True, raise on invalid toolkit metadata instead of warning.
+        agent_name: Skip toolkits this agent does not see. `None` keeps all of them.
 
     Returns:
         Tuple of (toolkits mapping, warnings). Warnings contain messages for
@@ -434,8 +526,25 @@ def fetch_workbench_toolkits(
                 raise
             warnings.append(str(ex))
             continue
+        if not is_toolkit_visible(info, agent_name):
+            continue
         result[info["name"]] = info
     return result, warnings
+
+
+def _parse_visibility(value: Any, where: str) -> TAgentVisibility:
+    """Validate an `{"include": [...]}` or `{"exclude": [...]}` visibility entry."""
+    if (
+        not isinstance(value, dict)
+        or len(value) != 1
+        or not set(value) <= {"include", "exclude"}
+        or not isinstance(next(iter(value.values())), list)
+    ):
+        raise ValueError(
+            "%s: agent visibility must be either `include` or `exclude` with a list of agent names"
+            % where
+        )
+    return value  # type: ignore[return-value]
 
 
 def extract_toolkit_info(meta: Dict[str, Any], fallback_name: str) -> TToolkitInfo:
@@ -466,11 +575,43 @@ def extract_toolkit_info(meta: Dict[str, Any], fallback_name: str) -> TToolkitIn
         tk_meta["dependencies"] = list(deps)
     if wes := meta.get("workflow_entry_skill"):
         tk_meta["workflow_entry_skill"] = wes
+    if "agents" in meta:
+        tk_meta["agent_visibility"] = _parse_visibility(
+            meta["agents"], "toolkit.json for %s" % fallback_name
+        )
+    if components := meta.get("components"):
+        if not isinstance(components, dict):
+            raise ValueError(
+                "toolkit.json for %s: `components` must map component keys to their settings"
+                % fallback_name
+            )
+        tk_meta["component_visibility"] = {
+            key: _parse_visibility(
+                entry.get("agents") if isinstance(entry, dict) else None,
+                "toolkit.json for %s, component %s" % (fallback_name, key),
+            )
+            for key, entry in components.items()
+        }
+    if mcp_features := meta.get("mcp_features"):
+        if not isinstance(mcp_features, dict) or not all(
+            isinstance(features, list)
+            and features
+            and all(isinstance(f, str) and MCP_FEATURE_TOKEN_RE.fullmatch(f) for f in features)
+            for features in mcp_features.values()
+        ):
+            raise ValueError(
+                "toolkit.json for %s: `mcp_features` must map MCP server names to lists of"
+                " feature groups, like `dlthub.jobs`, `+dlthub.jobs` or `-secrets`" % fallback_name
+            )
+        tk_meta["mcp_features"] = {name: list(features) for name, features in mcp_features.items()}
     return tk_meta
 
 
 def fetch_workbench_toolkit_info(
-    name: str, location: str, branch: Optional[str] = None
+    name: str,
+    location: str,
+    branch: Optional[str] = None,
+    agent_name: Optional[str] = None,
 ) -> Optional[TWorkbenchToolkitInfo]:
     """Return detailed toolkit info from the dltHub AI Harness repo.
 
@@ -478,6 +619,7 @@ def fetch_workbench_toolkit_info(
         name: Toolkit name to look up.
         location: Harness git repo URL or local path.
         branch: Git branch to fetch. Uses default harness branch when None.
+        agent_name: Leave out the components this agent does not see. `None` keeps all of them.
 
     Returns:
         Toolkit info with skills, commands, rules, and agents, or None if not found.
@@ -490,14 +632,19 @@ def fetch_workbench_toolkit_info(
 
     tk_meta = extract_toolkit_info(meta, name)
 
+    def _visible(folder: str, component_name: str) -> bool:
+        return is_component_visible(tk_meta, folder + "/" + component_name, agent_name)
+
     def _components(
-        md_files: List[Path], folder_named: bool = False
+        md_files: List[Path], folder: str, folder_named: bool = False
     ) -> List[TWorkbenchComponentInfo]:
         # a skill or an agent is its folder, so a missing `name` falls back to the folder name
         return [
             TWorkbenchComponentInfo(name=n, description=d)
             for n, d in (
-                read_md_name_desc(f, f.parent.name if folder_named else None) for f in md_files
+                MarkdownDocument.read_name_desc(f, f.parent.name if folder_named else None)
+                for f in md_files
+                if _visible(folder, f.parent.name if folder_named else f.stem)
             )
         ]
 
@@ -510,18 +657,19 @@ def fetch_workbench_toolkit_info(
                 for p in sorted(skills_dir.iterdir())
                 if p.is_dir() and (p / "SKILL.md").exists()
             ],
+            "skills",
             folder_named=True,
         )
 
     commands: List[TWorkbenchComponentInfo] = []
     cmd_dir = toolkit_dir / "commands"
     if cmd_dir.is_dir():
-        commands = _components(sorted(cmd_dir.glob("*.md")))
+        commands = _components(sorted(cmd_dir.glob("*.md")), "commands")
 
     rules: List[TWorkbenchComponentInfo] = []
     rules_dir = toolkit_dir / "rules"
     if rules_dir.is_dir():
-        rules = _components(sorted(rules_dir.glob("*.md")))
+        rules = _components(sorted(rules_dir.glob("*.md")), "rules")
 
     agents: List[TWorkbenchComponentInfo] = []
     agents_dir = toolkit_dir / DLTHUB_AGENTS_DIR
@@ -532,10 +680,15 @@ def fetch_workbench_toolkit_info(
                 for p in sorted(agents_dir.iterdir())
                 if p.is_dir() and (p / "AGENT.md").exists()
             ],
+            DLTHUB_AGENTS_DIR,
             folder_named=True,
         )
 
-    servers = read_workbench_toolkit_mcp_servers(toolkit_dir)
+    servers = {
+        server: config
+        for server, config in read_workbench_toolkit_mcp_servers(toolkit_dir).items()
+        if _visible("mcp", server)
+    }
 
     info = TWorkbenchToolkitInfo(
         **tk_meta,
@@ -547,29 +700,44 @@ def fetch_workbench_toolkit_info(
     )
     if servers:
         info["mcp_servers"] = servers
+    features = {
+        server: names
+        for server, names in tk_meta.get("mcp_features", {}).items()
+        if _visible("mcp", server)
+    }
+    if features:
+        info["mcp_features"] = features
+    else:
+        info.pop("mcp_features", None)
     return info
+
+
+_INIT_TOOLKIT = "init"
 
 
 def _toolkits_index_path() -> str:
     return make_dlt_settings_path(TOOLKITS_INDEX_FILE)
 
 
-def load_toolkits_index() -> Dict[str, TToolkitIndexEntry]:
-    """Load the installed toolkits index from the workspace settings directory."""
-    path = _toolkits_index_path()
-    if not os.path.isfile(path):
-        return {}
+def load_toolkits_index(hide_init: bool = False) -> Dict[str, TToolkitIndexEntry]:
+    """Load the installed toolkits index from the workspace settings directory. `hide_init`
+    leaves out `init` and the toolkits it depends on, which set up the agent."""
     try:
-        with open(path, "r", encoding="utf-8") as f:
-            data: Dict[str, TToolkitIndexEntry] = yaml.safe_load(f)
-        if not data:
-            return {}
-        # restore name from the YAML key (stripped on write)
-        for key, entry in data.items():
-            entry["name"] = key
-        return data
-    except (yaml.YAMLError, OSError):
+        data: Dict[str, TToolkitIndexEntry] = load_yaml_file(_toolkits_index_path())
+    except (ValueError, OSError):
         return {}
+    # restore name from the YAML key (stripped on write)
+    for key, entry in data.items():
+        entry["name"] = key
+    if hide_init:
+        try:
+            init_deps = resolve_toolkit_dependencies(
+                _INIT_TOOLKIT, build_toolkits_dependency_map(data)
+            )
+        except ValueError:
+            init_deps = []
+        data = {k: v for k, v in data.items() if k not in {_INIT_TOOLKIT, *init_deps}}
+    return data
 
 
 def is_toolkit_installed(name: str) -> bool:
@@ -577,38 +745,81 @@ def is_toolkit_installed(name: str) -> bool:
     return name in load_toolkits_index()
 
 
-def save_toolkits_index(index: Dict[str, TToolkitIndexEntry]) -> None:
-    """Save supplied records without reloading. Names are represented by YAML keys."""
-    data = {name: {k: v for k, v in entry.items() if k != "name"} for name, entry in index.items()}
-    path = _toolkits_index_path()
-    os.makedirs(os.path.dirname(path), exist_ok=True)
-    with open(path, "w", encoding="utf-8") as f:
-        yaml.dump(data, f, allow_unicode=True, default_flow_style=False, sort_keys=False)
+def save_toolkit_entry(
+    toolkit_meta: TToolkitInfo,
+    agent: Optional[str] = None,
+    files: Optional[Dict[str, Any]] = None,
+    mcp_servers: Optional[List[str]] = None,
+    see_all: bool = False,
+    source: Optional[TRepoSource] = None,
+) -> None:
+    """Record that a toolkit was installed or updated in the toolkits index.
 
-
-_INIT_TOOLKIT = "init"
-
-
-def read_agents_md_template(workbench_base: Optional[Path]) -> str:
-    """Read AGENTS.md template from init toolkit in the dltHub AI Harness.
-
-    Raises `FileNotFoundError` when `workbench_base` is `None`
-    or the template file is missing.
+    Args:
+        toolkit_meta: Core toolkit metadata to persist.
+        agent: Name of the AI agent that triggered the install.
+        files: Mapping of installed file paths to their content hashes.
+        mcp_servers: Names of MCP servers provided by the toolkit.
+        see_all: Whether the toolkit was installed with `--see-all`.
+        source: Harness location and branch to record, see `get_recorded_repo_source`.
     """
-    if workbench_base is None:
-        raise FileNotFoundError("workbench_base is required for AGENTS.md template")
-    tpl_path = workbench_base / _INIT_TOOLKIT / "AGENTS.md"
-    return tpl_path.read_text(encoding="utf-8")
+
+    index = load_toolkits_index()
+    entry: Dict[str, Any] = dict(toolkit_meta)
+    name = entry.pop("name")
+    # visibility and MCP features describe the harness, not what got installed
+    entry.pop("agent_visibility", None)
+    entry.pop("component_visibility", None)
+    entry.pop("mcp_features", None)
+    entry["installed_at"] = pendulum.now("UTC").isoformat()
+    if agent:
+        entry["agent"] = agent
+    if files:
+        entry["files"] = files
+    if mcp_servers:
+        entry["mcp_servers"] = mcp_servers
+    if see_all:
+        entry["see_all"] = True
+    if source:
+        entry.update(source)
+    index[name] = entry  # type: ignore[assignment]
+    # the name is the YAML key: `load_toolkits_index` restores it on read
+    stored = {key: {k: v for k, v in e.items() if k != "name"} for key, e in index.items()}
+    save_yaml_file(_toolkits_index_path(), stored)
 
 
-def fetch_ai_status(
-    project_root: Path, installed_toolkits: Optional[Dict[str, TToolkitIndexEntry]] = None
-) -> TAiStatusInfo:
+def resolve_harness_source(
+    location: Optional[str] = None, branch: Optional[str] = None
+) -> Tuple[str, Optional[str]]:
+    """Harness location and branch to fetch from: given, else recorded by the installed `init`
+    toolkit, which every install brings, else the defaults. An empty value resets."""
+    recorded: TRepoSource = {}
+    if init_entry := load_toolkits_index().get(_INIT_TOOLKIT):
+        if "location" in init_entry:
+            recorded["location"] = init_entry["location"]
+        if "branch" in init_entry:
+            recorded["branch"] = init_entry["branch"]
+    return resolve_repo_source(
+        location,
+        branch,
+        recorded,
+        _urls.DEFAULT_AI_WORKBENCH_REPO,
+        _urls.DEFAULT_AI_WORKBENCH_BRANCH,
+    )
+
+
+def get_recorded_harness_source(location: str, branch: Optional[str]) -> TRepoSource:
+    """The part of the harness `location` and `branch` that the toolkits index records."""
+    return get_recorded_repo_source(
+        location, branch, _urls.DEFAULT_AI_WORKBENCH_REPO, _urls.DEFAULT_AI_WORKBENCH_BRANCH
+    )
+
+
+def fetch_ai_status(project_root: Path) -> TAiStatusInfo:
     """Collect AI setup status for the current workspace.
 
     Args:
         project_root: Path to the project root for agent detection.
-        installed_toolkits: Current installed toolkits, or None to read the index.
 
     Returns:
         Status info including dlt version, detected agent, installed toolkits,
@@ -616,7 +827,7 @@ def fetch_ai_status(
     """
     from dlt._workspace.cli.dlthub.ai.agents import _AIAgent  # circular
 
-    index = load_toolkits_index() if installed_toolkits is None else installed_toolkits
+    index = load_toolkits_index()
     warnings: List[TAiStatusWarning] = []
 
     # detect agent
@@ -639,8 +850,7 @@ def fetch_ai_status(
     if not has_init:
         warnings.append("no_init_toolkit")
 
-    # non-init toolkits
-    toolkits = {k: v for k, v in index.items() if k != _INIT_TOOLKIT}
+    toolkits = load_toolkits_index(hide_init=True)
     if not toolkits:
         warnings.append("no_toolkits")
 

@@ -1,5 +1,5 @@
 import datetime  # noqa: I251
-from typing import List, Literal, NamedTuple, Optional
+from typing import Dict, List, Literal, NamedTuple, Optional, Union
 
 from dlt.common.configuration.providers.provider import ConfigProvider
 from dlt.common.storages.configuration import TSchemaFileFormat
@@ -13,14 +13,84 @@ TWorkspaceContextVerb = Literal["read", "write", "execute", "deploy", "all"]
 
 
 class TWorkspaceAccess(TypedDict, total=False):
-    """What may be touched in a workspace. Declared by an agent, required by a tool."""
+    """What a job declares it needs to run. A tool requires it, a profile gives its `data` axis."""
 
     local: List[TWorkspaceLocalVerb]
     """What may be done on the machine the workspace lives on."""
     data: List[TWorkspaceDataVerb]
-    """Access to workspace data, governed by the dlt profile in use."""
+    """Access to workspace data. The profile of the job gives the credentials for it."""
     context: List[TWorkspaceContextVerb]
     """Access to the context graph: telemetry, runs and job definitions. Read-only."""
+
+
+TProfileLocation = Literal["local", "remote"]
+"""Where a profile is used: `local` profiles never leave the machine, `remote` ones deploy."""
+TProfileDataAccess = Union[Literal["none"], TWorkspaceDataVerb]
+"""Data access of a profile: `none` or a data verb of job access. `write` and `all` include
+`read`."""
+
+
+DEFAULT_DEPLOYMENT_MODULE = "__deployment__"
+"""The deployment module of an environment that names no other one."""
+
+
+class TProfileStoredDefinition(TypedDict):
+    """A profile as `.dlt/.workspace` declares it: its data access."""
+
+    data_access: TProfileDataAccess
+    default: NotRequired[bool]
+    """The default local profile, or the default profile of its data access in an environment."""
+
+
+class TProfileDefinition(TProfileStoredDefinition):
+    """A declared profile with what follows from where it is declared. Never stored."""
+
+    location: TProfileLocation
+    env: NotRequired[str]
+    """Environment of a remote profile, the one it is declared in."""
+    configured: NotRequired[bool]
+    """True when the profile has settings files, or has no data access and needs none. A profile
+    without the flag counts as configured."""
+
+
+class TEnvironmentStoredDefinition(TypedDict):
+    """An environment as `.dlt/.workspace` declares it: what a deployment is made to, with the
+    profiles deployed to it."""
+
+    profiles: Dict[str, TProfileStoredDefinition]
+    """The remote profiles of the environment, deployed together. One profile per data access is
+    its default. A deployment is made with the default profile with write data access."""
+    default: NotRequired[bool]
+    """The environment commands that deploy or work with a deployment assume when none is named."""
+    strict_access: NotRequired[bool]
+    """A strict environment: the profile of a job gives exactly the access that the job declares."""
+
+
+# NOTE: the runtime definitions narrow the stored fields, which mypy reports as overwriting
+class TEnvironmentDefinition(TEnvironmentStoredDefinition):
+    """A declared environment with its name and settings. Self-contained, so a manifest is
+    generated from it alone. Never stored."""
+
+    name: str
+    profiles: Dict[str, TProfileDefinition]  # type: ignore[misc]
+    deployment_module: NotRequired[str]
+    """The deployment module of the environment, from its configuration."""
+
+
+class TWorkspaceStoredDefinition(TypedDict):
+    """The environments and the local profiles as `.dlt/.workspace` declares them."""
+
+    engine_version: int
+    environments: Dict[str, TEnvironmentStoredDefinition]
+    local_profiles: Dict[str, TProfileStoredDefinition]
+
+
+class TWorkspaceDefinition(TWorkspaceStoredDefinition):
+    """The environments and the local profiles a workspace declares, with what follows from
+    where each is declared."""
+
+    environments: Dict[str, TEnvironmentDefinition]  # type: ignore[misc]
+    local_profiles: Dict[str, TProfileDefinition]  # type: ignore[misc]
 
 
 TLocationScope = Literal["project", "global"]

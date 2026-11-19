@@ -87,7 +87,7 @@ This boots the dashboard under the workspace's active local profile (default `de
 
 ## Configure the `access` profile
 
-`dlthub serve` runs interactive jobs under the `access` profile by default. The minimal scaffold doesn't ship an `access` profile, so create one before deploying. Add the destination type in `.dlt/access.config.toml`:
+Interactive jobs declare read data access and get the `access` profile in the `prod` environment. A new workspace declares `access` without settings files. Until you create them, these jobs get `prod` and `dlthub deploy` warns. Add the destination type in `.dlt/access.config.toml`:
 
 ```toml
 [destination.warehouse]

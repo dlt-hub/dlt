@@ -319,9 +319,54 @@ def mcp_stdio_args(
         resolved = resolve_features(features, set())
         return args + ["--features", *sorted(resolved)] if resolved else args
     resolved = resolve_features(features)
-    if resolved != DEFAULT_MCP_FEATURES:
-        args.extend(["--features"] + sorted(resolved))
-    return args
+    if resolved == DEFAULT_MCP_FEATURES:
+        return args
+    # the server adds the defaults to `--features`, so a removed default needs the flag
+    if not DEFAULT_MCP_FEATURES <= resolved:
+        args.append("--no-default-features")
+    return args + ["--features", *sorted(resolved)]
+
+
+def split_mcp_features(args: Sequence[str]) -> Tuple[List[str], List[str]]:
+    """Splits MCP server `args` into the other args and the tokens given to `--features`."""
+    other: List[str] = []
+    tokens: List[str] = []
+    in_features = False
+    for arg in args:
+        # like argparse, the last `--features` wins
+        if arg == "--features":
+            in_features = True
+            tokens = []
+        elif arg.startswith("--features="):
+            in_features = False
+            tokens = [token for token in arg.split("=", 1)[1].split(",") if token]
+        # like argparse, `--features` takes values up to the next flag
+        elif in_features and not arg.startswith("-"):
+            tokens.extend(token for token in arg.split(",") if token)
+        else:
+            in_features = False
+            other.append(arg)
+    return other, tokens
+
+
+def add_mcp_features(args: Sequence[str], features: Sequence[str]) -> List[str]:
+    """MCP server `args` with `features` tokens (`name`, `+name`, `-name`) added to `--features`,
+    unchanged if all are there.
+
+    A feature the args already name in any form is left as it is, so what the user or another
+    toolkit selected wins.
+    """
+    other, tokens = split_mcp_features(args)
+    named = {token.lstrip("+-") for token in tokens}
+    added: List[str] = []
+    for feature in features:
+        if feature.lstrip("+-") not in named:
+            named.add(feature.lstrip("+-"))
+            added.append(feature)
+    if not added:
+        return list(args)
+    # the comma form also carries `-name` tokens that argparse would read as flags
+    return other + ["--features=" + ",".join(tokens + added)]
 
 
 def cli_host_command() -> str:

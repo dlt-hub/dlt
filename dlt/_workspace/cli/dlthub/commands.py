@@ -3,13 +3,16 @@
 import argparse
 import os
 import sys
-from typing import List, Optional
+from pathlib import Path
+from typing import TYPE_CHECKING, List, Optional, get_args
 
 from dlt.common.configuration.plugins import TCliCommandCompose
 
 from dlt._workspace.cli import echo as fmt
 from dlt._workspace.cli import SupportsCliCommand
+from dlt._workspace.cli.dlthub.ai.typing import TAIAgentName
 from dlt._workspace.cli.exceptions import CliCommandException
+from dlt._workspace.access import DATA_ACCESS_LEVELS
 from dlt._workspace.cli.utils import (
     display_run_context_info,
     make_mcp_run_flags,
@@ -22,31 +25,30 @@ from dlt._workspace.cli.commands import (
     TelemetryCommand,
 )
 
+if TYPE_CHECKING:
+    from dlt._workspace.cli.dlthub.ai.agents import _AIAgent
+
+AI_AGENT_CHOICES: List[str] = list(get_args(TAIAgentName))
+
 
 class AiCommand(SupportsCliCommand):
     command = "ai"
+    compose: TCliCommandCompose = "additive"
     help_string = "Use AI-powered development tools and utilities"
-    docs_url: Optional[str] = None
+    # docs_url =
     description = "Configure your LLM-enabled IDE and MCP server."
 
     def configure_parser(self, ai_cmd: argparse.ArgumentParser) -> None:
         self.parser = ai_cmd
 
+        # additive parent declares the subparsers action so plugin sub-subcommands can find it
         ai_subparsers = ai_cmd.add_subparsers(
             title="Available subcommands", dest="operation", required=False
         )
 
-        # status command
-        ai_subparsers.add_parser(
-            "status",
-            help="Show AI setup status: dlt version, agent, toolkits, readiness checks",
-        )
-
         # init command
-        from dlt._workspace.cli._urls import (
-            DEFAULT_AI_WORKBENCH_BRANCH,
-            DEFAULT_AI_WORKBENCH_REPO,
-        )
+        from dlt._workspace.cli._repo_source import add_repo_source_arguments
+        from dlt._workspace.cli._urls import DEFAULT_AI_WORKBENCH_REPO
 
         init_cmd = ai_subparsers.add_parser(
             "init",
@@ -54,28 +56,36 @@ class AiCommand(SupportsCliCommand):
         )
         init_cmd.add_argument(
             "--agent",
-            choices=["claude", "cursor", "codex"],
+            choices=AI_AGENT_CHOICES,
             default=None,
             help="AI coding agent to install for. Auto-detected if omitted.",
         )
-        init_cmd.add_argument(
-            "--location",
-            default=DEFAULT_AI_WORKBENCH_REPO,
-            help="Advanced. Git URL or local path to dltHub AI Harness repository.",
-        )
-        init_cmd.add_argument(
-            "--branch",
-            default=DEFAULT_AI_WORKBENCH_BRANCH,
-            help="Advanced. Git branch to fetch from.",
+        add_repo_source_arguments(
+            init_cmd, "dltHub AI Harness repository", DEFAULT_AI_WORKBENCH_REPO
         )
         init_cmd.add_argument(
             "--overwrite",
             default=False,
             action="store_true",
             help=(
-                "Replace installed files with the toolkit's version and remove unmodified"
-                " files it no longer ships. Files from other toolkits are not touched."
+                "Overwrite existing files instead of skipping them and remove files the"
+                " installed version shipped but the new one does not."
             ),
+        )
+
+        rules_cmd = ai_subparsers.add_parser(
+            "rules",
+            help="Print the rules your AI coding agent gets when a session starts",
+            description=(
+                "Prints links to the installed rule skills for agents without rule files. Codex"
+                " runs it from the session start hook that toolkit install adds."
+            ),
+        )
+        rules_cmd.add_argument(
+            "--agent",
+            choices=AI_AGENT_CHOICES,
+            default=None,
+            help="AI coding agent to print the rules for. The one set up by `ai init` if omitted.",
         )
 
         # secrets command group
@@ -123,24 +133,23 @@ class AiCommand(SupportsCliCommand):
         # toolkit command group — verb-first form: `ai toolkit <verb> <name>`
         toolkit_cmd = ai_subparsers.add_parser(
             "toolkit",
-            help="Manage AI toolkit plugins (list, info, install, update)",
+            help="Manage AI toolkit plugins (list, info, install)",
         )
         toolkit_sub = toolkit_cmd.add_subparsers(dest="toolkit_operation", required=False)
 
         # shared parent with --location and --branch
         toolkit_common = argparse.ArgumentParser(add_help=False)
-        toolkit_common.add_argument(
-            "--location",
-            default=DEFAULT_AI_WORKBENCH_REPO,
-            help="Advanced. Git URL or local path to toolkit repository.",
+        add_repo_source_arguments(
+            toolkit_common, "dltHub AI Harness repository", DEFAULT_AI_WORKBENCH_REPO
         )
         toolkit_common.add_argument(
-            "--branch",
-            default=DEFAULT_AI_WORKBENCH_BRANCH,
-            help="Advanced. Git branch to fetch toolkit from.",
+            "--see-all",
+            default=False,
+            action="store_true",
+            help="Include toolkits and components that are hidden from the AI coding agent.",
         )
 
-        toolkit_sub.add_parser(
+        list_cmd = toolkit_sub.add_parser(
             "list",
             help="List available toolkits",
             parents=[toolkit_common],
@@ -151,6 +160,13 @@ class AiCommand(SupportsCliCommand):
             parents=[toolkit_common],
         )
         info_cmd.add_argument("name", help="Toolkit name")
+        for agent_scoped_cmd in (list_cmd, info_cmd):
+            agent_scoped_cmd.add_argument(
+                "--agent",
+                choices=AI_AGENT_CHOICES,
+                default=None,
+                help="AI coding agent whose toolkits to show. Auto-detected if omitted.",
+            )
         install_cmd = toolkit_sub.add_parser(
             "install",
             help="Install toolkit components into project",
@@ -159,7 +175,7 @@ class AiCommand(SupportsCliCommand):
         install_cmd.add_argument("name", help="Toolkit name")
         install_cmd.add_argument(
             "--agent",
-            choices=["claude", "cursor", "codex"],
+            choices=AI_AGENT_CHOICES,
             default=None,
             help="AI coding agent to install for. Auto-detected if omitted.",
         )
@@ -168,8 +184,8 @@ class AiCommand(SupportsCliCommand):
             default=False,
             action="store_true",
             help=(
-                "Replace installed files with the toolkit's version and remove unmodified"
-                " files it no longer ships. Files from other toolkits are not touched."
+                "Overwrite existing files instead of skipping them and remove files the"
+                " installed version shipped but the new one does not."
             ),
         )
         install_cmd.add_argument(
@@ -177,23 +193,6 @@ class AiCommand(SupportsCliCommand):
             default=False,
             action="store_true",
             help="Fail on validation warnings (invalid frontmatter, etc.).",
-        )
-
-        update_cmd = toolkit_sub.add_parser(
-            "update",
-            help="Update installed toolkits, preserving local edits",
-            parents=[toolkit_common],
-        )
-        update_cmd.add_argument("name", nargs="?", help="Installed toolkit name (default: all)")
-        update_cmd.add_argument(
-            "--overwrite",
-            action="store_true",
-            help="Restore the toolkit's version of files you edited or deleted.",
-        )
-        update_cmd.add_argument(
-            "--strict",
-            action="store_true",
-            help="Fail when a toolkit is skipped or has missing dependencies.",
         )
 
         # shared run flags — used by both `dlt ai mcp [flags]` and `dlt ai mcp run [flags]`
@@ -214,7 +213,7 @@ class AiCommand(SupportsCliCommand):
         )
         mcp_install_cmd.add_argument(
             "--agent",
-            choices=["claude", "cursor", "codex"],
+            choices=AI_AGENT_CHOICES,
             default=None,
             help="AI coding agent to install for. Auto-detected if omitted.",
         )
@@ -237,33 +236,29 @@ class AiCommand(SupportsCliCommand):
         )
 
     def execute(self, args: argparse.Namespace) -> None:
-        from dlt._workspace.cli._urls import (
-            DEFAULT_AI_WORKBENCH_BRANCH,
-            DEFAULT_AI_WORKBENCH_REPO,
-        )
         from dlt._workspace.cli.dlthub.ai import (
-            ai_status_command,
             ai_init_command,
             ai_mcp_run_command,
             ai_mcp_install_command,
+            ai_rules_command,
             ai_secrets_list_command,
             ai_secrets_view_redacted_command,
             ai_secrets_update_fragment_command,
             ai_toolkit_install_command,
-            ai_toolkit_update_command,
             ai_toolkit_list_command,
             ai_toolkit_info_command,
         )
 
-        if args.operation == "status":
-            ai_status_command()
-        elif args.operation == "init":
+        # the composer dispatches `status` and the other plugin sub-subcommands via `args.execute`
+        if args.operation == "init":
             ai_init_command(
                 agent=args.agent,
                 location=args.location,
                 branch=args.branch,
                 overwrite=args.overwrite,
             )
+        elif args.operation == "rules":
+            ai_rules_command(agent=args.agent)
         elif args.operation == "secrets":
             op = getattr(args, "secrets_operation", None)
             if op == "view-redacted":
@@ -279,6 +274,8 @@ class AiCommand(SupportsCliCommand):
                 ai_toolkit_list_command(
                     location=args.location,
                     branch=args.branch,
+                    agent=args.agent,
+                    see_all=args.see_all,
                 )
             elif tk_op == "info":
                 if not args.name:
@@ -288,6 +285,8 @@ class AiCommand(SupportsCliCommand):
                     name=args.name,
                     location=args.location,
                     branch=args.branch,
+                    agent=args.agent,
+                    see_all=args.see_all,
                 )
             elif tk_op == "install":
                 if not args.name:
@@ -300,21 +299,11 @@ class AiCommand(SupportsCliCommand):
                     branch=args.branch,
                     overwrite=args.overwrite,
                     strict=args.strict,
-                )
-            elif tk_op == "update":
-                ai_toolkit_update_command(
-                    name=args.name,
-                    location=args.location,
-                    branch=args.branch,
-                    overwrite=args.overwrite,
-                    strict=args.strict,
+                    see_all=args.see_all,
                 )
             else:
                 # default: list toolkits
-                ai_toolkit_list_command(
-                    location=getattr(args, "location", DEFAULT_AI_WORKBENCH_REPO),
-                    branch=getattr(args, "branch", DEFAULT_AI_WORKBENCH_BRANCH),
-                )
+                ai_toolkit_list_command()
         elif args.operation == "mcp":
             mcp_op = getattr(args, "mcp_operation", None)
             if mcp_op == "install":
@@ -338,6 +327,25 @@ class AiCommand(SupportsCliCommand):
             self.parser.print_usage()
 
 
+class AiStatusCommand(SupportsCliCommand):
+    """`dlthub ai status` — plugins add their own checks with `compose="extend"`."""
+
+    command = "status"
+    parent = "ai"
+    compose: TCliCommandCompose = "extend"
+    help_string = "Show AI setup status: dlt version, agent, toolkits, readiness checks"
+    description: Optional[str] = None
+    docs_url: Optional[str] = None
+
+    def configure_parser(self, parser: argparse.ArgumentParser) -> None:
+        self.parser = parser
+
+    def execute(self, args: argparse.Namespace) -> None:
+        from dlt._workspace.cli.dlthub.ai import ai_status_command
+
+        ai_status_command()
+
+
 def _add_common_run_args(
     parser: argparse.ArgumentParser, *, include_interval_and_refresh: bool
 ) -> None:
@@ -352,19 +360,16 @@ def _add_common_run_args(
         "--deployment",
         default=None,
         metavar="FILE",
-        help="Path to a .py deployment module. Defaults to __deployment__.py.",
+        help=(
+            "Path to a .py deployment module. Defaults to __deployment__.py or the one configured"
+            " in the deployment environment."
+        ),
     )
     parser.add_argument(
         "--job-ref",
         default=None,
         metavar="REF",
         help="Pick this job when the selector matches multiple jobs.",
-    )
-    parser.add_argument(
-        "--profile",
-        default=None,
-        metavar="NAME",
-        help="Override require.profile and the workspace pinned profile.",
     )
     parser.add_argument(
         "--dry-run",
@@ -459,8 +464,8 @@ class LocalWorkspaceCommand(SupportsCliCommand):
         clean_p = sub.add_parser(
             "clean",
             help=(
-                "Clean local data for the current profile. Locally loaded data and pipelines"
-                " working dirs are deleted by default. Remote destinations are not affected."
+                "Remove the state and data folders of the active profile: locally loaded data and"
+                " pipeline working directories. Remote destinations are not affected."
             ),
         )
         clean_p.add_argument(
@@ -481,11 +486,11 @@ class LocalWorkspaceCommand(SupportsCliCommand):
         use_p = profile_sub.add_parser(
             "use",
             help=(
-                "Pin a profile in the local workspace so subsequent local commands use it by"
-                " default"
+                "Make a profile the active profile: local commands run with it until another one"
+                " is made active."
             ),
         )
-        use_p.add_argument("profile_name", help="Profile name to pin")
+        use_p.add_argument("profile_name", help="Profile name")
 
         # delegate parser definition; `execute` re-instantiates fresh — these classes
         # don't reach for `self.parser` after configure_parser
@@ -540,12 +545,6 @@ class LocalWorkspaceCommand(SupportsCliCommand):
             default=None,
             metavar="REF",
             help="Narrow to this job when multiple jobs deliver to the same pipeline",
-        )
-        pipeline_run_p.add_argument(
-            "--profile",
-            default=None,
-            metavar="NAME",
-            help="Override require.profile and the workspace pinned profile.",
         )
         pipeline_run_p.add_argument(
             "--refresh",
@@ -629,8 +628,12 @@ class ProfileCommand(SupportsCliCommand):
 
     command = "profile"
     compose: TCliCommandCompose = "additive"
-    help_string = "Manage Workspace built-in profiles"
-    description = "Show and list workspace profiles."
+    help_string = "Manage Workspace profiles"
+    description = (
+        "Show, list and declare workspace profiles and environments. A local profile runs only on"
+        " this machine. A remote profile belongs to an environment and deploys with it. Each"
+        " profile declares its data access."
+    )
     docs_url: Optional[str] = None
 
     def configure_parser(self, parser: argparse.ArgumentParser) -> None:
@@ -640,9 +643,78 @@ class ProfileCommand(SupportsCliCommand):
 
         sub.add_parser(
             "info",
-            help="Display the active profile (paths, providers, pinned status)",
+            help="Display the active profile (location, data access, paths, providers)",
         )
-        sub.add_parser("list", help="List all available profiles")
+        sub.add_parser(
+            "list",
+            help="List the declared profiles, with the remote workspace of each environment",
+        )
+        add_p = sub.add_parser(
+            "add",
+            help="Declare a profile",
+            description=(
+                "Declares a profile in .dlt/.workspace and creates its settings files,"
+                " NAME.config.toml and NAME.secrets.toml in .dlt. A remote profile, the default,"
+                " belongs to the default environment or to the environment named with --env. It"
+                " gets the data access of --access, write when --access is not given. The first"
+                " profile of a data access in an environment becomes its default. `profile"
+                " add-environment` declares the default write profile, which deployments are made"
+                " with. A local profile has write data access, belongs to no environment and"
+                " never deploys. A profile without data access gets no settings files. For a"
+                " declared profile, dlt creates only the settings files that are missing and"
+                " fails when none is missing. dlt shows what it will change and asks for"
+                " confirmation."
+            ),
+        )
+        add_p.add_argument("profile_name", help="Profile name: letters, digits, `_` and `-`")
+        location = add_p.add_mutually_exclusive_group()
+        location.add_argument(
+            "--remote",
+            action="store_const",
+            const="remote",
+            dest="location",
+            default=None,
+            help="Declare a remote profile (default)",
+        )
+        location.add_argument(
+            "--local",
+            action="store_const",
+            const="local",
+            dest="location",
+            help="Declare a local profile",
+        )
+        add_p.add_argument(
+            "--access",
+            choices=DATA_ACCESS_LEVELS,
+            default=None,
+            dest="data_access",
+            help="Data access of a remote profile: none, read or write (default)",
+        )
+        add_p.add_argument(
+            "--env",
+            help=(
+                "Environment of a remote profile. The default environment when --env is not given."
+            ),
+        )
+        env_p = sub.add_parser(
+            "add-environment",
+            help="Declare an environment",
+            description=(
+                "An environment is what a deployment is made to. Declares environment NAME in"
+                " .dlt/.workspace, strict about access, with one profile. NAME-write is its"
+                " default profile with write data access, which deployments are made with."
+                " Creates NAME-write.config.toml and NAME-write.secrets.toml in .dlt. `profile"
+                " add` declares the other profiles that jobs need, for example NAME-read with"
+                " --access read for interactive jobs. For a declared environment, dlt creates"
+                " only the settings files that its profiles miss and fails when none is missing."
+                " dlt shows what it will change and asks for confirmation."
+            ),
+        )
+        env_p.add_argument(
+            "environment_name",
+            metavar="name",
+            help="Environment name: letters, digits, `_` and `-`",
+        )
 
     def execute(self, args: argparse.Namespace) -> None:
         # plugin sub-subcommands are dispatched by the composer via `args.execute`;
@@ -650,8 +722,24 @@ class ProfileCommand(SupportsCliCommand):
         op = getattr(args, "operation", None)
         if op == "list":
             self._list(args)
+        elif op == "add":
+            self._add(args)
+        elif op == "add-environment":
+            self._add_environment(args)
         else:
             self._info(args)
+
+    def _add(self, args: argparse.Namespace) -> None:
+        from dlt._workspace._workspace_context import active
+        from dlt._workspace.cli.dlthub._profile_command import add_profile
+
+        add_profile(active(), args.profile_name, args.location, args.data_access, args.env)
+
+    def _add_environment(self, args: argparse.Namespace) -> None:
+        from dlt._workspace._workspace_context import active
+        from dlt._workspace.cli.dlthub._profile_command import add_environment
+
+        add_environment(active(), args.environment_name)
 
     def _info(self, args: argparse.Namespace) -> None:
         from dlt._workspace.cli.dlthub._profile_command import print_profile_info
@@ -707,7 +795,9 @@ class InitWorkspaceCommand(SupportsCliCommand):
     help_string = "Initialize a new dlthub workspace"
     description = (
         "Creates local workspace files: config, secrets, gitignore and Python"
-        " pyproject/requirements."
+        " pyproject/requirements. In an existing project or workspace, adds the missing"
+        " .gitignore entries and the missing or outdated dependencies. Shows these changes and"
+        " asks for confirmation first; `-y` accepts without asking."
     )
     docs_url: Optional[str] = None
 
@@ -718,10 +808,26 @@ class InitWorkspaceCommand(SupportsCliCommand):
             default=None,
             help="Workspace name (defaults to current directory basename).",
         )
-        parser.add_argument(
-            "--force",
+        existing = parser.add_mutually_exclusive_group()
+        existing.add_argument(
+            "--overwrite",
             action="store_true",
-            help="Overwrite existing pyproject.toml/requirements.txt/.gitignore/config.toml.",
+            help=(
+                "Overwrite existing pyproject.toml/requirements.txt, .gitignore and"
+                " .dlt/.workspace instead of merging into them. Shows what it overwrites and asks"
+                " for confirmation first. The settings files are never overwritten."
+            ),
+        )
+        # the name of --overwrite before 1.33
+        existing.add_argument(
+            "--force", dest="overwrite", action="store_true", help=argparse.SUPPRESS
+        )
+        existing.add_argument(
+            "--skip",
+            action="store_true",
+            help=(
+                "Keep existing files as they are and create only the missing ones, without asking."
+            ),
         )
         parser.add_argument(
             "--dependencies",
@@ -736,16 +842,30 @@ class InitWorkspaceCommand(SupportsCliCommand):
         parser.add_argument(
             "--dry-run",
             action="store_true",
-            help="Print the file plan without writing anything.",
+            help="Print the full file plan without writing anything.",
+        )
+        parser.add_argument(
+            "--agent",
+            nargs="?",
+            const="auto",
+            default=None,
+            choices=["auto", *AI_AGENT_CHOICES],
+            help=(
+                "Set up an AI coding agent after the workspace is created: install its rules"
+                " and skills and pick the workspace dependencies it needs. Without a name, the"
+                " agent is detected. Without the flag, no agent is set up."
+            ),
         )
 
     def execute(self, args: argparse.Namespace) -> None:
         _execute_init(
             name=args.name,
-            force=args.force,
+            overwrite=args.overwrite,
+            skip=args.skip,
             dry_run=args.dry_run,
             dependencies=args.dependencies,
             verbosity=getattr(args, "verbosity", 0),
+            agent=args.agent,
         )
 
 
@@ -753,42 +873,81 @@ class InitWorkspaceCommand(SupportsCliCommand):
 def _execute_init(
     *,
     name: Optional[str],
-    force: bool,
     dry_run: bool,
+    overwrite: bool = False,
+    skip: bool = False,
     dependencies: str = "auto",
     verbosity: int = 0,
+    agent: Optional[str] = None,
 ) -> None:
     from dlt._workspace.cli.dlthub.utils import fetch_init_plan
     from dlt._workspace.cli.dlthub._init_command import (
+        _print_init_changes,
+        _print_init_merge_error,
         _print_init_plan,
         _print_init_welcome,
+        _print_newer_dependencies,
         init_dlthub_workspace,
     )
+
+    # the agent decides the dependencies, so it is resolved before anything is written
+    ai_agent: Optional["_AIAgent"] = None
+    if agent is not None:
+        from dlt._workspace.cli.dlthub.ai.commands import _resolve_agent
+
+        ai_agent = _resolve_agent(None if agent == "auto" else agent, Path(os.getcwd()))
 
     plan = fetch_init_plan(
         os.getcwd(),
         name=name,
-        force=force,
+        overwrite=overwrite,
+        skip=skip,
         dependencies=dependencies,  # type: ignore[arg-type]
+        agent=ai_agent,
     )
 
-    # bail on existing workspace before showing anything noisy; verbose still prints the plan
-    # for diagnostics
-    if plan["workspace_exists"] and not force:
-        if verbosity > 0:
-            _print_init_plan(plan)
-        fmt.error(
-            "Workspace already exists at %s. Re-run with %s to overwrite."
-            % (fmt.bold(plan["run_dir"]), fmt.bold("--force"))
-        )
+    plan_shown = dry_run or verbosity > 0
+    if plan_shown:
+        _print_init_plan(plan, agent_name=ai_agent.name if ai_agent else None)
+    if "merge_error" in plan:
+        _print_init_merge_error(plan)
         raise CliCommandException()
-
-    # plan only shown when --dry-run or -v
-    if dry_run or verbosity > 0:
-        _print_init_plan(plan)
-
     if dry_run:
         return
 
-    init_dlthub_workspace(plan, force=force)
-    _print_init_welcome(plan)
+    statuses = {f["status"] for f in plan["files"]}
+    if statuses & {"merge", "overwrite"}:
+        if not plan_shown:
+            _print_init_changes(plan)
+        if not fmt.confirm("Proceed?", default=False):
+            fmt.echo("dlt changed nothing.")
+            raise CliCommandException()
+    elif not plan_shown:
+        _print_newer_dependencies(plan)
+
+    changed = bool(statuses & {"create", "merge", "overwrite"})
+    if changed:
+        init_dlthub_workspace(plan, overwrite=overwrite)
+    agent_configured = False
+    if ai_agent is not None:
+        from dlt._workspace._workspace_context import switch_context
+        from dlt._workspace.cli.dlthub.ai.commands import ai_init_command
+        from dlt._workspace.cli.dlthub.ai.utils import (
+            _INIT_TOOLKIT,
+            is_toolkit_installed,
+            load_toolkits_index,
+        )
+
+        # the agent setup writes into the workspace that was just created, from the harness
+        # location its installed toolkits recorded
+        switch_context(plan["run_dir"], required="WorkspaceRunContext")
+        installed_toolkits = load_toolkits_index()
+        ai_init_command(agent=ai_agent.name)
+        # every file the agent setup writes is recorded in the toolkits index
+        changed = changed or load_toolkits_index() != installed_toolkits
+        # the harness may be unreachable, then the user still has to configure the agent
+        agent_configured = is_toolkit_installed(_INIT_TOOLKIT)
+    if changed:
+        _print_init_welcome(plan, agent_configured=agent_configured)
+    else:
+        fmt.echo("Workspace exists. Nothing to do.")

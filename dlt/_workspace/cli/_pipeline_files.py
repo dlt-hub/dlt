@@ -1,21 +1,22 @@
 import fnmatch
 import hashlib
 import os
-import yaml
 import posixpath
 from importlib.resources import files
 from pathlib import Path
-from typing import Dict, NamedTuple, Sequence, Tuple, List, Literal
+from typing import Dict, NamedTuple, Optional, Sequence, Tuple, List, Literal, cast
 from dlt._workspace.cli.exceptions import VerifiedSourceRepoError
 
 from dlt.common.libs import git
 from dlt.common.storages import FileStorage
-from dlt.common.typing import TypedDict
+from dlt.common.typing import NotRequired, TypedDict
 
 from dlt.common.reflection.utils import get_module_docstring
 
-from dlt._workspace.cli import utils
+from dlt._workspace.cli import DEFAULT_VERIFIED_SOURCES_REPO, utils
+from dlt._workspace.cli._repo_source import TRepoSource, resolve_repo_source
 from dlt._workspace.cli.requirements import SourceRequirements
+from dlt._workspace.settings_files import load_yaml_file, save_yaml_file
 
 TSourceType = Literal["core", "verified", "template"]
 
@@ -71,22 +72,22 @@ class TVerifiedSourceFileIndex(TypedDict):
 class TVerifiedSourcesFileIndex(TypedDict):
     engine_version: int
     sources: Dict[str, TVerifiedSourceFileIndex]
+    location: NotRequired[str]
+    """Verified sources repository the last install used, when not the default."""
+    branch: NotRequired[str]
+    """Branch the last install used, when not the default."""
 
 
 def _save_dot_sources(index: TVerifiedSourcesFileIndex) -> None:
-    with open(utils.make_dlt_settings_path(SOURCES_INIT_INFO_FILE), "w", encoding="utf-8") as f:
-        yaml.dump(index, f, allow_unicode=True, default_flow_style=False, sort_keys=False)
+    save_yaml_file(utils.make_dlt_settings_path(SOURCES_INIT_INFO_FILE), index)
 
 
 def _load_dot_sources() -> TVerifiedSourcesFileIndex:
-    try:
-        with open(utils.make_dlt_settings_path(SOURCES_INIT_INFO_FILE), "r", encoding="utf-8") as f:
-            index: TVerifiedSourcesFileIndex = yaml.safe_load(f)
-            if not index:
-                raise FileNotFoundError(SOURCES_INIT_INFO_FILE)
-            return index
-    except FileNotFoundError:
-        return {"engine_version": SOURCES_INIT_INFO_ENGINE_VERSION, "sources": {}}
+    index = cast(
+        TVerifiedSourcesFileIndex,
+        load_yaml_file(utils.make_dlt_settings_path(SOURCES_INIT_INFO_FILE)),
+    )
+    return index or {"engine_version": SOURCES_INIT_INFO_ENGINE_VERSION, "sources": {}}
 
 
 def _merge_remote_index(
@@ -127,11 +128,31 @@ def save_verified_source_local_index(
     remote_index: TVerifiedSourceFileIndex,
     remote_modified: Dict[str, TVerifiedSourceFileEntry],
     remote_deleted: Dict[str, TVerifiedSourceFileEntry],
+    source: Optional[TRepoSource] = None,
 ) -> None:
+    """Saves the files of `source_name` and, when given, the repository `source` it came from."""
     all_sources = _load_dot_sources()
     local_index = all_sources["sources"].setdefault(source_name, remote_index)
     _merge_remote_index(local_index, remote_index, remote_modified, remote_deleted)
+    if source is not None:
+        all_sources.pop("location", None)
+        all_sources.pop("branch", None)
+        all_sources.update(source)
     _save_dot_sources(all_sources)
+
+
+def resolve_verified_sources_repo(
+    location: Optional[str] = None, branch: Optional[str] = None
+) -> Tuple[str, Optional[str]]:
+    """Verified sources repository and branch to fetch from: given, else recorded in `.sources`
+    by the last install, else the defaults. An empty value resets."""
+    index = _load_dot_sources()
+    recorded: TRepoSource = {}
+    if "location" in index:
+        recorded["location"] = index["location"]
+    if "branch" in index:
+        recorded["branch"] = index["branch"]
+    return resolve_repo_source(location, branch, recorded, DEFAULT_VERIFIED_SOURCES_REPO)
 
 
 def get_remote_source_index(

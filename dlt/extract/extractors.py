@@ -1,3 +1,4 @@
+from contextlib import suppress
 from copy import copy
 from functools import lru_cache, partial
 from typing import Set, Dict, Any, Optional, List, Tuple, Union, TYPE_CHECKING
@@ -34,6 +35,14 @@ from dlt.normalize.configuration import ItemsNormalizerConfiguration
 
 if TYPE_CHECKING:
     from dlt.common.libs.pyarrow import pyarrow as pa, TAnyArrowItem
+
+
+def _set_exception_context(ex: BaseException, **context: Optional[str]) -> None:
+    """Sets `context` attributes on `ex` when it declares them but has no value for them."""
+    for name, value in context.items():
+        if value and hasattr(ex, name) and not getattr(ex, name):
+            with suppress(Exception):
+                setattr(ex, name, value)
 
 
 def _to_arrow_table(item: Any) -> Any:
@@ -154,13 +163,18 @@ class Extractor:
                 meta = TableNameMeta(meta.hints["table_name"])  # type: ignore[arg-type]
             self._reset_contracts_cache()
 
-        if resource.has_dynamic_table_name:
-            # table has name or other hints depending on data items
-            self._write_to_dynamic_table(resource, items, meta)
-        else:
-            # write item belonging to table with static name
-            table_name = self._get_static_table_name(resource, meta)
-            self._write_to_static_table(resource, table_name, items, meta)
+        table_name: Optional[str] = None
+        try:
+            if resource.has_dynamic_table_name:
+                # table has name or other hints depending on data items
+                self._write_to_dynamic_table(resource, items, meta)
+            else:
+                # write item belonging to table with static name
+                table_name = self._get_static_table_name(resource, meta)
+                self._write_to_static_table(resource, table_name, items, meta)
+        except Exception as ex:
+            _set_exception_context(ex, resource_name=resource.name, table_name=table_name)
+            raise
 
     def write_empty_items_file(self, table_name: str) -> None:
         table_name = self._normalize_table_identifier(table_name)

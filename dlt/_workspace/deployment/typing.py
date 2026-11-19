@@ -5,6 +5,7 @@ from dlt.common.pipeline import TRefreshMode
 from dlt.common.typing import Annotated, NotRequired, TypedDict
 from dlt.common.warnings import Deprecated
 
+from dlt._workspace.typing import DEFAULT_DEPLOYMENT_MODULE  # noqa: F401
 from dlt._workspace.typing import TWorkspaceAccess
 
 
@@ -18,9 +19,6 @@ JOB_RESULT_PAYLOAD_TYPE = "job_result"
 """Beacon payload type for job results, at most 16 characters."""
 MAIN_GROUP = "main"
 """Conventional group name for top-level workspace dependencies."""
-DEFAULT_DEPLOYMENT_MODULE = "__deployment__"
-"""Default deployment module name for manifest generation."""
-
 TJobRef = NewType("TJobRef", str)
 """Resolved job reference in `jobs.<section>.<name>` or `jobs.<name>` form."""
 
@@ -168,6 +166,21 @@ class TInstallSpec(TypedDict):
     git_url: NotRequired[str]
     git_rev: NotRequired[str]
     archive_url: NotRequired[str]
+
+
+TDependencyChangeOp = Literal["add", "upgrade", "newer"]
+
+
+class TDependencyChange(TypedDict):
+    """A change that brings a declared dependency up to what a workspace needs."""
+
+    name: str
+    op: TDependencyChangeOp
+    """`add` a missing spec, `upgrade` a declared one, or keep a declared `newer` one."""
+    spec: str
+    """The spec to write. For `newer`, the spec the workspace needs."""
+    declared: NotRequired[str]
+    """The declared spec that `upgrade` replaces or `newer` keeps."""
 
 
 class TEntryPoint(TypedDict):
@@ -343,7 +356,7 @@ class TJobDefinition(TypedDict):
     require: NotRequired[TRequireSpec]
     """Runtime resource requirements."""
     access: NotRequired[TWorkspaceAccess]
-    """Workspace access the job requires. Declared by agent jobs."""
+    """What the job needs to run. Manifest generation sets it on a job that declares none."""
     default_trigger: NotRequired[TTrigger]
     """Primary trigger, computed during manifest generation. Prefers schedule/every triggers."""
     refresh_propagation: NotRequired[TRefreshPolicy]
@@ -458,11 +471,14 @@ class TJobsDeploymentManifest(TypedDict):
     created_at: str
     """ISO 8601 timestamp of manifest creation."""
     deployment_module: str
-    """Module name, default `"__deployment__"`."""
+    """Name of the deployment module that the manifest was generated from."""
     description: NotRequired[str]
     """First line of the deployment module's `__doc__`."""
     tags: NotRequired[List[str]]
     """From `__tags__` of the deployment module."""
+    environment: NotRequired[str]
+    """The environment that the manifest was generated for: every job has one of its profiles in
+    `require.profile`. Absent for a local run."""
     jobs: List[TJobDefinition]
 
 

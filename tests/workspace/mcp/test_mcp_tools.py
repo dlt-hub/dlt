@@ -1,7 +1,8 @@
 import json
+import os
 import re
 from pathlib import Path
-from typing import Generator, List
+from typing import Generator, List, Optional, Set
 from unittest.mock import patch
 
 import pytest
@@ -10,13 +11,17 @@ from fastmcp.exceptions import ToolError
 import dlt
 from dlt.common.configuration.specs.pluggable_run_context import RunContextBase
 
+from dlt._workspace._known_env import WORKSPACE__PROFILE
+from dlt._workspace.cli.dlthub.ai.utils import save_toolkit_entry
 from dlt._workspace.cli.exceptions import AiContextApiError
 from dlt._workspace.cli.utils import list_local_pipelines
+from dlt._workspace.mcp.context import TEnvironmentArgument, with_mcp_tool_telemetry
 from dlt._workspace.mcp.tools.data_tools import TMcpSchemaFormat, TResultFormat
 from dlt._workspace.mcp.tools.context_tools import search_dlthub_sources
 from dlt._workspace.mcp.tools.toolkit_tools import list_toolkits, toolkit_info
 from dlt._workspace.mcp.tools.data_tools import (
     _ensure_read_only,
+    get_workspace_info,
     list_pipelines,
     list_profiles,
     list_tables,
@@ -29,24 +34,74 @@ from dlt._workspace.mcp.tools.data_tools import (
     get_local_pipeline_state,
 )
 
+from tests.workspace.cli.dlthub.ai.utils import make_mock_toolkit_info
 from tests.workspace.utils import (
+    declare_environment,
     isolated_workspace,
     pokemon_pipeline_context as pokemon_pipeline_context,
 )
 
 
-def test_list_profiles(pokemon_pipeline_context: RunContextBase) -> None:
-    profiles = list_profiles()
-    by_name = {p["name"]: p for p in profiles}
-    # workspace context has profiles
-    assert "dev" in by_name or "tests" in by_name
-    # exactly one is current
-    current = [p for p in profiles if p["is_current"]]
-    assert len(current) == 1
-    # all have required keys
-    for p in profiles:
-        for key in ("name", "description", "is_current", "is_pinned", "is_configured"):
-            assert key in p
+def test_list_profiles() -> None:
+    with isolated_workspace("default") as ctx:
+        profiles = list_profiles()
+        assert [p["name"] for p in profiles] == ctx.available_profiles()
+        assert [p["name"] for p in profiles if p["is_current"]] == ["dev"]
+        # the call runs with the profile named in the argument
+        assert [p["name"] for p in list_profiles(profile="prod") if p["is_current"]] == ["prod"]
+
+
+def test_tool_profile_argument() -> None:
+    """A tool runs with the profile named in the call. The next call names none and runs with
+    the active profile of the process again."""
+    with isolated_workspace("default"):
+        info = get_workspace_info(profile="prod")
+        assert info["profile"]["name"] == "prod"
+        assert info["profile"]["data_dir"].endswith("prod")
+        assert dlt.current.workspace().profile == "prod"
+        assert get_workspace_info()["profile"]["name"] == "dev"
+        with pytest.raises(ToolError, match="not a profile name"):
+            get_workspace_info(profile="no/such")
+        # a tool works only with declared profiles, an environment is not one
+        with pytest.raises(ToolError, match="`staging` is not a profile declared"):
+            get_workspace_info(profile="staging")
+        declare_environment(dlt.current.workspace(), "ci")
+        with pytest.raises(ToolError, match="`ci` is an environment"):
+            get_workspace_info(profile="ci")
+        assert get_workspace_info(profile="ci-write")["profile"]["name"] == "ci-write"
+
+
+def test_tool_environment_argument(monkeypatch: pytest.MonkeyPatch) -> None:
+    @with_mcp_tool_telemetry()
+    def deployment_tool(environment: TEnvironmentArgument = None) -> str:
+        ctx = dlt.current.workspace()
+        return f"{ctx.environment}/{ctx.profile}/{os.environ[WORKSPACE__PROFILE]}"
+
+    monkeypatch.delenv(WORKSPACE__PROFILE, raising=False)
+    with isolated_workspace("default"):
+        # dev is active: the default environment is used with its default write profile, which
+        # `WORKSPACE__PROFILE` names to the processes that the tool starts
+        assert deployment_tool() == "prod/prod/prod"
+        assert deployment_tool(environment="prod") == "prod/prod/prod"
+        declare_environment(dlt.current.workspace(), "ci")
+        assert deployment_tool(environment="ci") == "ci/ci-write/ci-write"
+        # the variable is set for the call only
+        assert WORKSPACE__PROFILE not in os.environ
+        # a profile is not an environment: a profile of one, its default write profile or a
+        # local one
+        for profile in ("access", "ci-write", "dev"):
+            with pytest.raises(ToolError, match=f"`{profile}` is not an environment declared"):
+                deployment_tool(environment=profile)
+        with pytest.raises(ToolError, match="not an environment name"):
+            deployment_tool(environment="ci/prod")
+
+
+def test_tool_profile_argument_outside_workspace() -> None:
+    with isolated_workspace("legacy", required=None):
+        with pytest.raises(ToolError, match="needs a dltHub workspace"):
+            get_workspace_info(profile="prod")
+        # without the argument the tool works in the OSS context
+        assert get_workspace_info()["profile"] is None
 
 
 def test_list_pipelines(pokemon_pipeline_context: RunContextBase) -> None:
@@ -324,17 +379,60 @@ def test_export_schema_unified(
 
 
 def test_list_toolkits_returns_dict() -> None:
+    """The toolkits come from the harness location and branch that the installed `init` recorded."""
     mock_toolkits = {"init": {"name": "init", "version": "1.0"}}
     with (
+        isolated_workspace("default"),
         patch("dlt._workspace.mcp.tools.toolkit_tools.fetch_workbench_base") as mock_base,
         patch(
             "dlt._workspace.mcp.tools.toolkit_tools.fetch_workbench_toolkits",
             return_value=(mock_toolkits, []),
         ),
     ):
+        save_toolkit_entry(
+            make_mock_toolkit_info("init"),
+            source={"location": "https://example.com/fork.git", "branch": "dev"},
+        )
         mock_base.return_value = Path("/fake")
         result = list_toolkits()
     assert result == mock_toolkits
+    mock_base.assert_called_once_with("https://example.com/fork.git", "dev")
+
+
+@pytest.mark.parametrize(
+    ("agent_name", "visible"),
+    [("cortex", {"everyone"}), (None, {"everyone", "not-cortex"})],
+    ids=["cortex", "no-agent"],
+)
+def test_toolkits_show_what_the_agent_sees(
+    tmp_path: Path, agent_name: Optional[str], visible: Set[str]
+) -> None:
+    """The MCP server runs inside the agent, so toolkits are filtered for that agent."""
+    for name, toolkit_json in (
+        ("everyone", {}),
+        ("not-cortex", {"agents": {"exclude": ["cortex"]}}),
+    ):
+        meta_dir = tmp_path / name / ".claude-plugin"
+        meta_dir.mkdir(parents=True)
+        (meta_dir / "plugin.json").write_text(
+            json.dumps({"name": name, "version": "1.0.0", "description": name}), encoding="utf-8"
+        )
+        (meta_dir / "toolkit.json").write_text(json.dumps(toolkit_json), encoding="utf-8")
+    with (
+        patch("dlt._workspace.mcp.tools.toolkit_tools.fetch_workbench_base", return_value=tmp_path),
+        patch("dlt._workspace.cli.dlthub.ai.utils.fetch_workbench_base", return_value=tmp_path),
+        patch(
+            "dlt._workspace.cli.dlthub.ai.agents._AIAgent.detect_agent_name",
+            return_value=agent_name,
+        ),
+    ):
+        assert set(list_toolkits()) == visible
+        assert toolkit_info("everyone")["name"] == "everyone"
+        if "not-cortex" in visible:
+            assert toolkit_info("not-cortex")["name"] == "not-cortex"
+        else:
+            with pytest.raises(ToolError, match="not available for cortex"):
+                toolkit_info("not-cortex")
 
 
 def test_list_toolkits_raises_tool_error_on_missing_repo() -> None:

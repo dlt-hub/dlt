@@ -5,6 +5,7 @@ from typing import Any, Dict, List, Optional, Sequence, Set, Tuple
 from dlt.common.typing import AnyFun, annotation_metadata, get_args
 
 from dlt._workspace.typing import (
+    TProfileDataAccess,
     TWorkspaceAccess,
     TWorkspaceContextVerb,
     TWorkspaceDataVerb,
@@ -31,6 +32,9 @@ FULL_ACCESS: TWorkspaceAccess = typing.cast(
     TWorkspaceAccess, {axis: list(verbs) for axis, verbs in ACCESS_AXIS_VERBS.items()}
 )
 """Everything there is to grant."""
+
+DATA_ACCESS_LEVELS: Tuple[str, ...] = ("none",) + ACCESS_AXIS_VERBS["data"]
+"""Data access levels, the lowest first: `none`, then the data verbs of job access."""
 
 
 @dataclasses.dataclass(frozen=True)
@@ -71,6 +75,26 @@ def granted_verbs(access: Optional[TWorkspaceAccess], axis: str) -> Set[str]:
     declared: Dict[str, Any] = dict(access or {})
     verbs = set(declared.get(axis) or [])
     return set(ACCESS_AXIS_VERBS[axis]) if "all" in verbs else verbs
+
+
+def get_data_access_level(access: Optional[TWorkspaceAccess]) -> TProfileDataAccess:
+    """Data access that `access` declares: `write` when it grants `write`, else `read`, else
+    `none`."""
+    verbs = granted_verbs(access, "data")
+    if "write" in verbs:
+        return "write"
+    return "read" if "read" in verbs else "none"
+
+
+def get_data_access_verbs(data_access: str) -> List[TWorkspaceDataVerb]:
+    """Data verbs of a data access level. `write` and `all` include `read`."""
+    if data_access in ("write", "all"):
+        return ["read", "write"]
+    return ["read"] if data_access == "read" else []
+
+
+def format_data_access(data_access: str) -> str:
+    return "no data access" if data_access == "none" else f"{data_access} data access"
 
 
 def format_access(access: TWorkspaceAccess) -> str:
@@ -124,7 +148,11 @@ __all__ = [
     "parse_access",
     "ACCESS_AXIS_VERBS",
     "ACCESS_AXIS_VOCABULARY",
+    "DATA_ACCESS_LEVELS",
     "RequiresAccess",
+    "get_data_access_level",
+    "get_data_access_verbs",
+    "format_data_access",
     "granted_verbs",
     "missing_access",
     "required_access",
