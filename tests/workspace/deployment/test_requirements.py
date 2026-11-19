@@ -1176,7 +1176,10 @@ def test_plan_dependency_changes(
     declared: List[str], desired: List[str], expected: List[Tuple[str, str]]
 ) -> None:
     changes = plan_dependency_changes(declared, desired)
-    assert [(change["op"], change["spec"]) for change in changes] == expected
+    # packaging versions render a direct reference with or without a space before `@`
+    assert [(change["op"], str(Requirement(change["spec"]))) for change in changes] == [
+        (op, str(Requirement(spec))) for op, spec in expected
+    ]
     for change in changes:
         if change["op"] == "add":
             assert "declared" not in change
