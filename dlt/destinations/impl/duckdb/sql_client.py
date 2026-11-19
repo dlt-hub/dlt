@@ -255,10 +255,11 @@ class DuckDbSqlClient(SqlClientBase[duckdb.DuckDBPyConnection], DBTransaction, W
             else:
                 return curr.fetchall()
 
-    def _query_and_args(
+    def _prepare_query(
         self, query: AnyStr, args: Tuple[Any, ...], kwargs: Dict[str, Any]
     ) -> Tuple[str, Any]:
         assert isinstance(query, str)
+        self._refresh_expiring_secret()
         db_args = args if args else kwargs if kwargs else None
         if db_args:
             # TODO: must provide much better refactoring of params
@@ -276,7 +277,7 @@ class DuckDbSqlClient(SqlClientBase[duckdb.DuckDBPyConnection], DBTransaction, W
         if Version(duckdb.__version__) < Version("2.0.0"):
             yield from super().iter_arrow_query(query, chunk_size, columns_schema)
             return
-        sql, _ = self._query_and_args(query, (), {})
+        sql, _ = self._prepare_query(query, (), {})
         # `.sql` streams on duckbd > 2
         relation = self._conn.sql(sql)
         if not chunk_size:
@@ -296,9 +297,8 @@ class DuckDbSqlClient(SqlClientBase[duckdb.DuckDBPyConnection], DBTransaction, W
     @contextmanager
     @raise_database_error
     def execute_query(self, query: AnyStr, *args: Any, **kwargs: Any) -> Iterator[DBApiCursor]:
-        sql, db_args = self._query_and_args(query, args, kwargs)
+        sql, db_args = self._prepare_query(query, args, kwargs)
 
-        self._refresh_expiring_secret()
         # we can't duplicate connection because local settings (ie. search path) are lost
         cur = self._conn
         try:
@@ -930,12 +930,11 @@ class WithTableScanners(DuckDbSqlClient, WithSchemas):
             )
         return statements
 
-    def _query_and_args(
+    def _prepare_query(
         self, query: AnyStr, args: Tuple[Any, ...], kwargs: Dict[str, Any]
     ) -> Tuple[str, Any]:
-        # views below read the data, so they need a valid token too
-        self._refresh_expiring_secret()
-        sql, db_args = super()._query_and_args(query, args, kwargs)
+        # DuckDB may read remote file metadata while binding CREATE VIEW.
+        sql, db_args = super()._prepare_query(query, args, kwargs)
         # find all tables to preload
         expression = sqlglot.parse_one(sql, read="duckdb")
         load_tables: Dict[str, str] = {}

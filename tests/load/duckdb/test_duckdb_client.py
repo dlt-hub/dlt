@@ -1191,7 +1191,10 @@ def test_duckdb_secret_gcs_bearer_token() -> None:
     [("gs://bucket", _gcp_default), ("az://container", _azure_external_session)],
     ids=["gcs", "azure-external-session"],
 )
-def test_duckdb_secret_recreated_before_token_expires(scope: str, credentials_factory: Any) -> None:
+@pytest.mark.parametrize("use_arrow", [False, True], ids=["rows", "arrow"])
+def test_duckdb_secret_recreated_before_token_expires(
+    scope: str, credentials_factory: Any, use_arrow: bool
+) -> None:
     """The client creates a secret with a frozen token again before a statement when the token
     is about to expire."""
     suffix = uniq_id()
@@ -1209,9 +1212,12 @@ def test_duckdb_secret_recreated_before_token_expires(scope: str, credentials_fa
         client = cast(DuckDbSqlClient, client)
         client.create_secret(scope, creds)
         assert minting.minted == 1
-        assert client.create_secret_name(scope) in client.list_secrets()
-        client.execute_sql("SELECT 1")
+        if use_arrow:
+            assert next(client.iter_arrow_query("SELECT 1")).num_rows == 1
+        else:
+            assert client.execute_sql("SELECT 1") == [(1,)]
         assert minting.minted == 2
+        assert client.create_secret_name(scope) in client.list_secrets()
         # the new token lives long enough
         client.execute_sql("SELECT 1")
         assert minting.minted == 2
