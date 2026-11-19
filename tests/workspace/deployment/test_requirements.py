@@ -1,5 +1,6 @@
 import io
 import json
+import os
 import re
 import subprocess
 import sys
@@ -885,6 +886,11 @@ def test_default_manifest_includes_python_version() -> None:
     assert manifest["python_version"] == python_version()
 
 
+# absolute on every platform, with a space that a file URL percent-encodes
+LOCAL_INSTALL_PATH = os.path.abspath("/abs/my path")
+LOCAL_INSTALL_URL = Path(LOCAL_INSTALL_PATH).as_uri()
+
+
 def _make_dist(direct_url_payload):
     """Return a fake `importlib.metadata.Distribution`-like object."""
     from unittest.mock import MagicMock
@@ -922,11 +928,11 @@ def test_get_pkg_install_spec_editable(monkeypatch: pytest.MonkeyPatch) -> None:
 
     _patch_distribution(
         monkeypatch,
-        {"url": "file:///abs/path", "dir_info": {"editable": True}},
+        {"url": LOCAL_INSTALL_URL, "dir_info": {"editable": True}},
     )
     spec = get_pkg_install_spec("dlthub-client")
     assert spec["mode"] == "editable"
-    assert spec["path"] == "/abs/path"
+    assert spec["path"] == LOCAL_INSTALL_PATH
 
 
 def test_get_pkg_install_spec_path_non_editable(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -934,11 +940,11 @@ def test_get_pkg_install_spec_path_non_editable(monkeypatch: pytest.MonkeyPatch)
 
     _patch_distribution(
         monkeypatch,
-        {"url": "file:///abs/path", "dir_info": {"editable": False}},
+        {"url": LOCAL_INSTALL_URL, "dir_info": {"editable": False}},
     )
     spec = get_pkg_install_spec("dlthub")
     assert spec["mode"] == "path"
-    assert spec["path"] == "/abs/path"
+    assert spec["path"] == LOCAL_INSTALL_PATH
 
 
 def test_get_pkg_install_spec_git(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -995,7 +1001,11 @@ def _make_install_spec(name, mode, **extra):
         (_make_install_spec("dlt", "pypi", extras=["hub"]), True, "dlt[hub]==9.9.9"),
         (_make_install_spec("dlt", "editable", path="/abs"), True, "dlt==9.9.9"),
         (_make_install_spec("dlt", "editable", path="/abs"), False, "dlt==9.9.9"),
-        (_make_install_spec("dlt", "path", path="/abs"), True, "dlt @ file:///abs"),
+        (
+            _make_install_spec("dlt", "path", path=LOCAL_INSTALL_PATH),
+            True,
+            f"dlt @ {LOCAL_INSTALL_URL}",
+        ),
         (_make_install_spec("dlt", "path", path="/abs"), False, "dlt==9.9.9"),
         (
             _make_install_spec("dlt", "git", git_url="https://example.com/dlt.git", git_rev="abc"),
@@ -1077,7 +1087,10 @@ def test_render_uv_source(spec, expected) -> None:
         (_make_install_spec("dlt", "pypi"), ["dlt==9.9.9"]),
         (_make_install_spec("dlt", "pypi", extras=["hub"]), ["dlt[hub]==9.9.9"]),
         (_make_install_spec("dlt", "editable", path="/abs"), ["-e /abs"]),
-        (_make_install_spec("dlt", "path", path="/abs"), ["dlt @ file:///abs"]),
+        (
+            _make_install_spec("dlt", "path", path=LOCAL_INSTALL_PATH),
+            [f"dlt @ {LOCAL_INSTALL_URL}"],
+        ),
         (
             _make_install_spec("dlt", "git", git_url="https://x/dlt.git", git_rev="abc"),
             ["dlt @ git+https://x/dlt.git@abc"],

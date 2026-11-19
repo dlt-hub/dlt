@@ -11,6 +11,8 @@ import subprocess
 import sys
 from pathlib import Path
 from typing import Any, BinaryIO, Dict, Final, List, Optional, Sequence, Set, Tuple
+from urllib.parse import urlparse
+from urllib.request import url2pathname
 
 import tomlkit
 from packaging.requirements import InvalidRequirement, Requirement
@@ -148,7 +150,7 @@ def get_pkg_install_spec(pkg_name: str, *, extras: Optional[List[str]] = None) -
     # both editable and plain local installs use file:// URIs
     if url.startswith("file://"):
         spec["mode"] = "editable" if dir_info.get("editable") else "path"
-        spec["path"] = url[len("file://") :]
+        spec["path"] = url2pathname(urlparse(url).path)
         return spec
 
     # http(s) archive — `pip install https://.../pkg.zip` (incl. github archive URLs)
@@ -187,7 +189,7 @@ def render_pep508(spec: TInstallSpec, *, for_deployment: bool) -> str:
         return f"{name_extras}=={version}" if version else name_extras
     if mode == "path":
         if for_deployment:
-            return f"{name_extras} @ file://{spec['path']}"
+            return f"{name_extras} @ {Path(spec['path']).as_uri()}"
         return f"{name_extras}=={version}" if version else name_extras
     if mode == "archive":
         # PEP 508 direct ref; portable to pip + uv with no source-override needed
@@ -229,7 +231,7 @@ def render_requirements_lines(spec: TInstallSpec) -> List[str]:
     if mode == "editable":
         return [f"-e {spec['path']}"]
     if mode == "path":
-        return [f"{name_extras} @ file://{spec['path']}"]
+        return [f"{name_extras} @ {Path(spec['path']).as_uri()}"]
     if mode == "archive":
         return [f"{name_extras} @ {spec['archive_url']}"]
     # git
