@@ -1,4 +1,5 @@
 import base64
+from pathlib import Path
 import struct
 import time
 from datetime import timezone, datetime, date, timedelta  # noqa: I251
@@ -7,6 +8,8 @@ from typing import List, Any
 
 import pytest
 import pyarrow as pa
+import pyarrow.ipc as pa_ipc
+import pyarrow.parquet as pq
 
 from dlt.common import pendulum
 from dlt.common.destination.capabilities import adjust_schema_to_capabilities
@@ -15,6 +18,8 @@ from dlt.common.libs.pyarrow import (
     deserialize_type,
     fill_empty_source_column_values_with_placeholder,
     get_column_type_from_py_arrow,
+    get_local_dataset_reader,
+    open_local_arrow_dataset,
     py_arrow_to_table_schema_columns,
     from_arrow_scalar,
     get_py_arrow_timestamp,
@@ -596,3 +601,125 @@ def test_cast_non_ns_columns_are_noop_and_return_same_object() -> None:
     )
     out = cast_connectorx_temporal_columns(tbl)
     assert out is tbl
+
+
+def test_open_local_arrow_dataset_merges_later_file_columns(tmp_path: Path) -> None:
+    p0 = str(tmp_path / "f0.parquet")
+    p1 = str(tmp_path / "f1.parquet")
+
+    schema0 = pa.schema(
+        [
+            pa.field("id", pa.int64(), nullable=False),
+            pa.field("a", pa.string(), nullable=False),
+        ],
+        metadata={b"origin": b"first"},
+    )
+    schema1 = pa.schema(
+        [
+            pa.field("id", pa.int64(), nullable=False),
+            pa.field("b", pa.int64(), nullable=False),
+        ]
+    )
+    pq.write_table(pa.table({"id": [1], "a": ["x"]}, schema=schema0), p0)
+    pq.write_table(pa.table({"id": [2], "b": [5]}, schema=schema1), p1)
+
+    ds = open_local_arrow_dataset([p0, p1])
+    assert ds.schema.names == ["id", "a", "b"]
+    assert ds.schema.field("id").nullable is False
+    assert ds.schema.field("a").nullable is True
+    assert ds.schema.field("b").nullable is True
+    assert ds.schema.metadata == {b"origin": b"first"}
+
+    expected_rows = [
+        {"id": 1, "a": "x", "b": None},
+        {"id": 2, "a": None, "b": 5},
+    ]
+    assert ds.to_table().to_pylist() == expected_rows
+
+    with get_local_dataset_reader([p0, p1]) as reader:
+        assert reader.schema.names == ["id", "a", "b"]
+        assert reader.read_all().to_pylist() == expected_rows
+
+
+def test_open_local_arrow_dataset_single_file(tmp_path: Path) -> None:
+    p0 = str(tmp_path / "single.parquet")
+    schema0 = pa.schema([pa.field("id", pa.int64(), nullable=False), pa.field("a", pa.string())])
+    pq.write_table(pa.table({"id": [1], "a": ["x"]}, schema=schema0), p0)
+
+    ds = open_local_arrow_dataset([p0])
+    assert ds.schema.equals(schema0)
+    assert ds.to_table().to_pylist() == [{"id": 1, "a": "x"}]
+
+
+def test_open_local_arrow_dataset_preserves_first_file_type_cast(tmp_path: Path) -> None:
+    p0 = str(tmp_path / "f0.parquet")
+    p1 = str(tmp_path / "f1.parquet")
+
+    pq.write_table(pa.table({"x": pa.array(["1"], type=pa.string())}), p0)
+    pq.write_table(
+        pa.table({"x": pa.array([2], type=pa.int64()), "y": pa.array([10], type=pa.int64())}),
+        p1,
+    )
+
+    ds = open_local_arrow_dataset([p0, p1])
+    assert ds.schema.field("x").type == pa.string()
+    assert ds.schema.field("y").type == pa.int64()
+    assert ds.schema.field("y").nullable is True
+    assert ds.to_table().to_pylist() == [
+        {"x": "1", "y": None},
+        {"x": "2", "y": 10},
+    ]
+
+
+def test_open_local_arrow_dataset_null_column_and_nested_struct(tmp_path: Path) -> None:
+    p0 = str(tmp_path / "f0.parquet")
+    p1 = str(tmp_path / "f1.parquet")
+
+    pq.write_table(
+        pa.table(
+            {
+                "n": pa.array([None], type=pa.null()),
+                "s": pa.array([{"a": 1}], type=pa.struct([("a", pa.int64())])),
+            }
+        ),
+        p0,
+    )
+    pq.write_table(
+        pa.table(
+            {
+                "n": pa.array([42], type=pa.int64()),
+                "s": pa.array(
+                    [{"a": 2, "b": "hi"}],
+                    type=pa.struct([("a", pa.int64()), ("b", pa.string())]),
+                ),
+            }
+        ),
+        p1,
+    )
+
+    ds = open_local_arrow_dataset([p0, p1])
+    assert ds.schema.field("n").type == pa.int64()
+    assert ds.schema.field("n").nullable is True
+    assert ds.to_table().to_pylist() == [
+        {"n": None, "s": {"a": 1, "b": None}},
+        {"n": 42, "s": {"a": 2, "b": "hi"}},
+    ]
+
+
+def test_open_local_arrow_dataset_ipc_format(tmp_path: Path) -> None:
+    p0 = str(tmp_path / "f0.arrow")
+    p1 = str(tmp_path / "f1.arrow")
+
+    for path, tbl in (
+        (p0, pa.table({"id": [1], "a": ["x"]})),
+        (p1, pa.table({"id": [2], "b": [5]})),
+    ):
+        with pa_ipc.new_file(path, tbl.schema) as writer:
+            writer.write_table(tbl)
+
+    ds = open_local_arrow_dataset([p0, p1], file_format="ipc")
+    assert ds.schema.names == ["id", "a", "b"]
+    assert ds.to_table().to_pylist() == [
+        {"id": 1, "a": "x", "b": None},
+        {"id": 2, "a": None, "b": 5},
+    ]

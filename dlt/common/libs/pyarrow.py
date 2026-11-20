@@ -849,13 +849,87 @@ def columns_to_arrow(
     )
 
 
-def get_local_dataset_reader(file_paths: Sequence[str]) -> pyarrow.RecordBatchReader:
-    """Streams local data files with bounded readahead to limit memory use over throughput."""
-    # NOTE: import inline, pyarrow.dataset pulls heavy dependencies
-    import pyarrow.dataset
+def _merge_arrow_fields(
+    left: Sequence[pyarrow.Field], right: Sequence[pyarrow.Field]
+) -> List[pyarrow.Field]:
+    """Merges two field sequences, keeping `left` types and appending new fields from `right`.
 
+    Fields absent from either side or nullable on either side become nullable.
+    Null-typed fields on `left` adopt the concrete type from `right`.
+    Struct fields are merged recursively.
+    """
+    right_by_name = {field.name: field for field in right}
+    merged: List[pyarrow.Field] = []
+    seen = set()
+
+    for field in left:
+        seen.add(field.name)
+        other = right_by_name.get(field.name)
+        if other is None:
+            merged.append(field.with_nullable(True))
+        elif pyarrow.types.is_null(field.type) and not pyarrow.types.is_null(other.type):
+            merged.append(other.with_nullable(True))
+        elif pyarrow.types.is_struct(field.type) and pyarrow.types.is_struct(other.type):
+            merged_children = _merge_arrow_fields(list(field.type), list(other.type))
+            merged.append(
+                field.with_type(pyarrow.struct(merged_children)).with_nullable(
+                    field.nullable or other.nullable
+                )
+            )
+        elif not field.nullable and other.nullable:
+            merged.append(field.with_nullable(True))
+        else:
+            merged.append(field)
+
+    for field in right:
+        if field.name not in seen:
+            merged.append(field.with_nullable(True))
+
+    return merged
+
+
+def _read_local_file_schema(file_path: str, file_format: Optional[Any] = None) -> pyarrow.Schema:
+    if file_format is None or file_format == "parquet":
+        return pyarrow.parquet.read_schema(file_path)
+    from pyarrow import dataset as pa_dataset
+
+    return pa_dataset.dataset(file_path, format=file_format).schema
+
+
+def open_local_arrow_dataset(
+    file_paths: Sequence[str],
+    file_format: Optional[Any] = None,
+) -> Any:
+    """Opens a local PyArrow dataset across `file_paths`, including columns from all files.
+
+    `pyarrow.dataset.dataset(file_paths)` infers the schema from the first file only, which
+    drops columns introduced in later files. For multi-file inputs, this reads each file's
+    schema, keeps the first file's column types (preserving cast behavior), and appends fields
+    present only in later files as nullable.
+    """
+    # NOTE: import inline, pyarrow.dataset pulls heavy dependencies
+    from pyarrow import dataset as pa_dataset
+
+    if len(file_paths) <= 1:
+        return pa_dataset.dataset(file_paths, format=file_format)
+
+    first_schema = _read_local_file_schema(file_paths[0], file_format=file_format)
+    fields = list(first_schema)
+    for path in file_paths[1:]:
+        file_schema = _read_local_file_schema(path, file_format=file_format)
+        fields = _merge_arrow_fields(fields, list(file_schema))
+
+    schema = pyarrow.schema(fields, metadata=first_schema.metadata)
+    return pa_dataset.dataset(file_paths, schema=schema, format=file_format)
+
+
+def get_local_dataset_reader(
+    file_paths: Sequence[str],
+    file_format: Optional[Any] = None,
+) -> pyarrow.RecordBatchReader:
+    """Streams local data files with bounded readahead to limit memory use over throughput."""
     return (
-        pyarrow.dataset.dataset(file_paths)
+        open_local_arrow_dataset(file_paths, file_format=file_format)
         .scanner(batch_size=65536, batch_readahead=2, fragment_readahead=1)
         .to_reader()
     )
