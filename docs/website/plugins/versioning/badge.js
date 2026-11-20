@@ -112,17 +112,21 @@ function getBadge(meta, released, { windowMinors = WINDOW_MINORS, requires = {} 
 
   const implied = {};
   for (const [pkg, version] of entries) {
-    Object.entries(requires[requiresKey(pkg, version)] || {}).forEach((bound) => mergeMax(implied, bound));
+    for (const bound of Object.entries(requires[requiresKey(pkg, version)] || {})) mergeMax(implied, bound);
   }
   // implied bounds that the explicit constraints already cover are not worth showing
   const extra = Object.fromEntries(
-    Object.entries(implied).filter(([pkg, v]) => explicit[pkg] === undefined || compareVersions(v, explicit[pkg]) > 0)
+    Object.entries(implied).filter(([pkg, v]) => explicit[pkg] === undefined || compareVersions(v, explicit[pkg]) > 0),
   );
   const unreleased = Object.entries({ ...explicit, ...extra }).filter(([pkg, version]) => {
     if (released[pkg] === undefined) throw new Error(`no released version for package "${pkg}"`);
     return compareVersions(version, released[pkg]) > 0;
   });
-  const requirement = Object.keys(extra).length ? `, requires ${Object.entries(extra).map(([pkg, v]) => `${pkg} >= ${v}`).join(", ")}` : "";
+  const requirement = Object.keys(extra).length
+    ? `, requires ${Object.entries(extra)
+        .map(([pkg, v]) => `${pkg} >= ${v}`)
+        .join(", ")}`
+    : "";
   if (unreleased.length) {
     return { kind: "preview", label: "Preview", title: `preview, needs ${needed}${requirement}` };
   }
@@ -138,7 +142,8 @@ function validateMeta(meta, where) {
     throw new Error(`${where}: ${msg}`);
   };
   const checkPackage = (pkg) => {
-    if (SHIPPED_IN[pkg]) fail(`"${pkg}" ships inside "${SHIPPED_IN[pkg]}" and shares its version, use "${SHIPPED_IN[pkg]}"`);
+    if (SHIPPED_IN[pkg])
+      fail(`"${pkg}" ships inside "${SHIPPED_IN[pkg]}" and shares its version, use "${SHIPPED_IN[pkg]}"`);
     if (!PACKAGES.includes(pkg)) fail(`unknown package "${pkg}", expected one of ${PACKAGES.join(", ")}`);
   };
   const checkVersion = (since) => {
@@ -156,7 +161,8 @@ function validateMeta(meta, where) {
   const { since } = meta;
   if (since === undefined) return;
   if (since !== null && typeof since === "object" && !Array.isArray(since)) {
-    if (meta.package !== undefined) fail(`"package" cannot be combined with a "since" dictionary, use the package as key`);
+    if (meta.package !== undefined)
+      fail(`"package" cannot be combined with a "since" dictionary, use the package as key`);
     if (!Object.keys(since).length) fail(`"since" dictionary is empty`);
     for (const [pkg, version] of Object.entries(since)) {
       checkPackage(pkg);

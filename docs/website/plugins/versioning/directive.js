@@ -12,7 +12,10 @@ const { DEFAULT_PACKAGE, formatConstraints } = require("./badge");
 
 const COMMENT = String.raw`<!--[ \t]*since:[^\n]*?-->`;
 /** groups: heading, explicit id, block of stacked `since` comments */
-const SINCE_DIRECTIVE = new RegExp(String.raw`^(#{1,6} .*?)[ \t]*(\{#[\w-]+\})?[ \t]*\n(?:[ \t]*\n)?((?:${COMMENT}[ \t]*\n)*${COMMENT})`, "gm");
+const SINCE_DIRECTIVE = new RegExp(
+  String.raw`^(#{1,6} .*?)[ \t]*(\{#[\w-]+\})?[ \t]*\n(?:[ \t]*\n)?((?:${COMMENT}[ \t]*\n)*${COMMENT})`,
+  "gm",
+);
 const SINCE_LINE = /^<!--\s*since:\s*(?:([a-z][\w-]*)\s+)?(\d[^\s>]*?)\s*-->$/;
 
 /**

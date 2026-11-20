@@ -3,11 +3,11 @@
  * `{released, requires, windowMinors, badges: {docId: badge}}`, read via `usePluginData("versioning")`.
  *
  * Options: `docDirs` - absolute dirs with markdown to scan for `since`/`status`/`package` frontmatter.
- * Released versions come from `versioning/released.js` (PyPI, or the DLT_DOCS_RELEASED_VERSIONS override).
+ * Released versions come from `released.js` (PyPI, or the DLT_DOCS_RELEASED_VERSIONS override).
  */
-const { WINDOW_MINORS, getBadge } = require("../versioning/badge");
-const { resolveContext } = require("../versioning/released");
-const { scanDocs } = require("../versioning/scan");
+const { WINDOW_MINORS, getBadge } = require("./badge");
+const { resolveContext } = require("./released");
+const { scanDocs } = require("./scan");
 
 /** @returns {import('@docusaurus/types').Plugin} */
 module.exports = function versioningPlugin(_context, { docDirs }) {

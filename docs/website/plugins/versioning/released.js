@@ -45,7 +45,9 @@ async function resolveReleased(packages, env = process.env) {
       try {
         released[pkg] = await fromPyPI(pkg);
       } catch (e) {
-        throw new Error(`cannot resolve released version of "${pkg}" from PyPI (${e.message}); set ${ENV_VAR} to work offline`);
+        throw new Error(
+          `cannot resolve released version of "${pkg}" from PyPI (${e.message}); set ${ENV_VAR} to work offline`,
+        );
       }
     }
   }
@@ -59,7 +61,7 @@ function fromRequiresOverride(value) {
   for (const entry of value.split(";").filter((e) => e.trim())) {
     const m = /^\s*([\w-]+@[^=\s]+)\s*=\s*([\w-]+)\s*>=\s*(\S+)\s*$/.exec(entry);
     if (!m) throw new Error(`${REQUIRES_ENV_VAR}: cannot parse "${entry}", expected pkg@1.0.0=other>=1.0.0`);
-    (requires[m[1]] ||= {})[m[2]] = m[3];
+    requires[m[1]] = { ...requires[m[1]], [m[2]]: m[3] };
   }
   return requires;
 }
@@ -95,7 +97,9 @@ async function fromPyPIRequires(pkg, version) {
  */
 async function resolveContext(constraints, env = process.env) {
   const pairs = new Map();
-  constraints.forEach((c) => Object.entries(c).forEach(([pkg, v]) => pairs.set(requiresKey(pkg, v), [pkg, v])));
+  for (const c of constraints) {
+    for (const [pkg, v] of Object.entries(c)) pairs.set(requiresKey(pkg, v), [pkg, v]);
+  }
   const released = await resolveReleased([...new Set([...pairs.values()].map(([pkg]) => pkg))], env);
   const published = [...pairs].filter(([, [pkg, v]]) => compareVersions(v, released[pkg]) <= 0);
 
@@ -108,7 +112,9 @@ async function resolveContext(constraints, env = process.env) {
         const bounds = await fromPyPIRequires(pkg, v);
         if (Object.keys(bounds).length) requires[key] = bounds;
       } catch (e) {
-        throw new Error(`cannot resolve requirements of "${pkg}" ${v} from PyPI (${e.message}); set ${REQUIRES_ENV_VAR} to work offline`);
+        throw new Error(
+          `cannot resolve requirements of "${pkg}" ${v} from PyPI (${e.message}); set ${REQUIRES_ENV_VAR} to work offline`,
+        );
       }
     }
   }

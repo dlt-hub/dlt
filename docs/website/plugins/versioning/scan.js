@@ -64,9 +64,18 @@ function scanDocs(dir) {
     if (!/\.mdx?$/.test(rel)) continue;
     const scan = scanFile(path.join(dir, rel));
     constraints.push(...scan.constraints);
-    const docId = rel.split(path.sep).join("/").replace(/\.mdx?$/, "");
+    const docId = rel
+      .split(path.sep)
+      .join("/")
+      .replace(/\.mdx?$/, "");
     if (Object.keys(scan.headings).length) headings[docId] = scan.headings;
-    if (scan.page) pages[rel.split(path.sep).join("/").replace(/\.mdx?$/, "")] = scan.page;
+    if (scan.page)
+      pages[
+        rel
+          .split(path.sep)
+          .join("/")
+          .replace(/\.mdx?$/, "")
+      ] = scan.page;
   }
   return { pages, headings, constraints };
 }

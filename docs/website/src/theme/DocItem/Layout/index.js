@@ -18,7 +18,7 @@ import DocItemTOCMobile from '@theme/DocItem/TOC/Mobile';
 import DocItemTOCDesktop from '@theme/DocItem/TOC/Desktop';
 import DocItemContent from '@theme/DocItem/Content';
 import DocBreadcrumbs from '@theme/DocBreadcrumbs';
-import {PageBadge} from '../../../components/VersionBadge';
+import {PageBadge} from '@theme/VersionBadge';
 import ContentVisibility from '@theme/ContentVisibility';
 
 import styles from './styles.module.css';

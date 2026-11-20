@@ -1,8 +1,8 @@
 import React from "react";
 import clsx from "clsx";
 import { usePluginData } from "@docusaurus/useGlobalData";
-import { getBadge, parseConstraints } from "../../versioning/badge";
-import styles from "./VersionBadge.module.css";
+import { getBadge, parseConstraints } from "../../../plugins/versioning/badge";
+import styles from "./styles.module.css";
 
 export function Badge({ badge }) {
   if (!badge) return null;
@@ -13,14 +13,14 @@ export function Badge({ badge }) {
   );
 }
 
-/** Badge of a whole page, resolved at build time by plugins/versioning.js. */
+/** Badge of a whole page, resolved at build time by plugins/versioning/index.js. */
 export function PageBadge({ docId }) {
   const { badges } = usePluginData("versioning");
   return <Badge badge={badges[docId]} />;
 }
 
 /**
- * Section badge. Not written by hand: versioning/directive.js turns the markdown directives
+ * Section badge. Not written by hand: plugins/versioning/directive.js turns the markdown directives
  * `<!-- since: [package ]1.32.0 -->` below a heading into this, `since` being `package=version,...`.
  * Renders nothing once the feature is older than the "new" window.
  */

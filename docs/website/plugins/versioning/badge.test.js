@@ -1,4 +1,4 @@
-// run: node --test versioning/
+// run: node --test plugins/versioning/
 const test = require("node:test");
 const assert = require("node:assert");
 const { compareVersions, getBadge, validateMeta } = require("./badge");
@@ -74,7 +74,10 @@ test("stacked constraints: dictionary since, all must be released", () => {
   // new while any constraint is inside the window
   assert.equal(at({ "dlthub-client": "0.4.0", dlt: "1.1.0" }), "new");
   assert.equal(at({ "dlthub-client": "0.1.0", dlt: "1.1.0" }, { dlt: "1.32.1", "dlthub-client": "0.9.0" }), null);
-  assert.equal(getBadge({ since: { "dlthub-client": "0.4.0", dlt: "1.32.0" } }, rel).label, "New in dlthub-client 0.4.0, 1.32.0");
+  assert.equal(
+    getBadge({ since: { "dlthub-client": "0.4.0", dlt: "1.32.0" } }, rel).label,
+    "New in dlthub-client 0.4.0, 1.32.0",
+  );
 });
 
 test("implied lower bounds of a released version only matter while unreleased", () => {
@@ -87,7 +90,11 @@ test("implied lower bounds of a released version only matter while unreleased", 
   assert.equal(ok.kind, "new");
   assert.match(ok.title, /requires dlt >= 1\.33\.0/);
   // an explicit constraint that already covers the bound is not repeated
-  const covered = getBadge({ since: { "dlthub-client": "0.4.0", dlt: "1.33.0" } }, { dlt: "1.33.0", "dlthub-client": "0.4.0" }, { requires });
+  const covered = getBadge(
+    { since: { "dlthub-client": "0.4.0", dlt: "1.33.0" } },
+    { dlt: "1.33.0", "dlthub-client": "0.4.0" },
+    { requires },
+  );
   assert.doesNotMatch(covered.title, /requires/);
   // the window only counts explicit constraints
   assert.equal(getBadge(meta, { dlt: "1.40.0", "dlthub-client": "0.9.0" }, { requires }), null);
@@ -106,7 +113,7 @@ test("stacked section comments become one <Since>", () => {
   const out = (fileContent) => preprocess({ fileContent });
   assert.equal(
     out("## A\n<!-- since: dlthub-client 0.4.0 -->\n<!-- since: 1.32.0 -->\n\ntext"),
-    '## A<Since since="dlthub-client=0.4.0,dlt=1.32.0" />\n\ntext'
+    '## A<Since since="dlthub-client=0.4.0,dlt=1.32.0" />\n\ntext',
   );
   assert.throws(() => out("## A\n<!-- since: dlt 1.0.0 -->\n<!-- since: 1.1.0 -->"), /given twice/);
   assert.throws(() => out("## A\n<!-- since: banana -->"), /cannot parse/);
@@ -119,18 +126,25 @@ test("requirements override and PyPI-free context", async () => {
     "dlthub-client@0.5.0": { dlt: "1.31.0" },
   });
   assert.throws(() => fromRequiresOverride("dlthub-client@0.4.0=dlt<2"), /cannot parse/);
-  const env = { DLT_DOCS_RELEASED_VERSIONS: "dlthub-client=0.4.0,dlt=1.32.0", DLT_DOCS_REQUIRES: "dlthub-client@0.4.0=dlt>=1.30.0" };
+  const env = {
+    DLT_DOCS_RELEASED_VERSIONS: "dlthub-client=0.4.0,dlt=1.32.0",
+    DLT_DOCS_REQUIRES: "dlthub-client@0.4.0=dlt>=1.30.0",
+  };
   const ctx = await resolveContext([{ "dlthub-client": "0.4.0" }], env);
   assert.deepEqual(ctx.requires, { "dlthub-client@0.4.0": { dlt: "1.30.0" } });
   assert.equal(ctx.released.dlt, "1.32.0");
   // offline without DLT_DOCS_REQUIRES: nothing implied, no network
-  assert.deepEqual((await resolveContext([{ "dlthub-client": "0.4.0" }], { DLT_DOCS_RELEASED_VERSIONS: "dlthub-client=0.4.0" })).requires, {});
+  assert.deepEqual(
+    (await resolveContext([{ "dlthub-client": "0.4.0" }], { DLT_DOCS_RELEASED_VERSIONS: "dlthub-client=0.4.0" }))
+      .requires,
+    {},
+  );
 });
 
 test("a blank line between heading and section directive is allowed", () => {
   const { preprocess } = require("./directive");
   assert.equal(
     preprocess({ fileContent: "## Title\n\n<!-- since: 1.32.0 -->\n\nText" }),
-    '## Title<Since since="dlt=1.32.0" />\n\nText'
+    '## Title<Since since="dlt=1.32.0" />\n\nText',
   );
 });

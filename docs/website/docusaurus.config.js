@@ -80,7 +80,7 @@ const config = {
 
   markdown: {
     // turns `<!-- since: 1.32.0 -->` section directives into version badges
-    preprocessor: require("./versioning/directive").preprocess,
+    preprocessor: require("./plugins/versioning/directive").preprocess,
     mermaid: true,
     hooks: {
       onBrokenMarkdownLinks: "throw",
@@ -125,7 +125,7 @@ const config = {
   ],
 
   plugins: [
-    // resolves version badges against released versions, see versioning/ and README.md
+    // resolves version badges against released versions, see plugins/versioning/ and README.md
     [require.resolve("./plugins/versioning"), { docDirs: versionedDocDirs }],
     // re-runs the python docs preprocessor when `website/docs` sources change
     require.resolve("./plugins/preprocess-docs"),

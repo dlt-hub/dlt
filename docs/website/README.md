@@ -257,7 +257,7 @@ no MDX needed:
 <!-- or, for another package: since: dlthub 0.5.0 -->
 ```
 
-Use a release that is not out yet. `node versioning/check.js <changed files>` fails if a page or
+Use a release that is not out yet. `node plugins/versioning/check.js <changed files>` fails if a page or
 section claims a `since` that is already released (with stacked constraints: all of them are released).
 
 ### Released versions: PyPI by default, mockable locally

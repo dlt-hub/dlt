@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
  * CI guard: new `since` metadata must point at an unreleased version.
- * Usage: node versioning/check.js <changed markdown files...>
+ * Usage: node plugins/versioning/check.js <changed markdown files...>
  * Fails if a page or section declares `since` constraints that are all released already, i.e. a "new in X"
  * claim for a feature that already shipped (use the release that actually introduced it
  * and run the guard only on files a PR adds or changes).

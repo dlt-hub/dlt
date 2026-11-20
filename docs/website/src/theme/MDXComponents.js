@@ -3,7 +3,7 @@ import React from "react";
 import MDXComponents from "@theme-original/MDXComponents";
 import Tabs from "@theme/Tabs";
 import TabItem from "@theme/TabItem";
-import { Since } from "../components/VersionBadge";
+import { Since } from "@theme/VersionBadge";
 
 export default {
   // Re-use the default mapping
