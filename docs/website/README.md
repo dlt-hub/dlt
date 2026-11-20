@@ -267,25 +267,4 @@ or as a path to a JSON file (`{"dlt": "1.32.0"}`). Only packages used by pages n
 Requirements that a released package version puts on other packages are read from PyPI, unless
 `DLT_DOCS_RELEASED_VERSIONS` is set: then none are assumed, mock them with `DLT_DOCS_REQUIRES`
 (inline `dlthub-client@0.4.0=dlt>=1.30.0; ...` or a JSON file `{"dlthub-client@0.4.0": {"dlt": "1.30.0"}}`).
-`DLT_DOCS_DEMO=1` additionally serves demo pages from `versioning/demo/` at
-`/docs/versioning-demo` (they are never part of the regular docs build).
-
-```sh
-# from docs/website; swap in any mocked version and look at /docs/versioning-demo
-DLT_DOCS_DEMO=1 DLT_DOCS_RELEASED_VERSIONS="dlt=1.31.0,dlthub=0.5.0,dlthub-client=0.4.0" npm start
-```
-
-Expected demo badges (`dlthub-page` follows `dlthub`; `preview-explicit` is always Preview):
-
-| mocked `dlt` | `upcoming` (1.32.0) | `recent` (1.30.0) | `older` (1.28.0) | `expired` (1.20.0) |
-| --- | --- | --- | --- | --- |
-| `1.29.0` | Preview | Preview | New | none |
-| `1.31.0` | Preview | New | none | none |
-| `1.32.0` | New | New | none | none |
-| `1.34.0` | New | none | none | none |
-| `1.35.0` | none | none | none | none |
-
-The same states apply to the matching sections on the `sections` demo page. The `stacked` page
-needs `dlthub-client` 0.4.0 and `dlt` 1.32.0: Preview until both are released, and with
-`DLT_DOCS_REQUIRES="dlthub-client@0.4.0=dlt>=1.34.0"` it also waits for `dlt` 1.34.0. Unit tests for the
-comparison logic: `npm run test:versioning`.
+Unit tests for the comparison logic: `npm run test:versioning`.
