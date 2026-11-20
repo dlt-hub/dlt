@@ -9,12 +9,15 @@ export const MAX_REDIRECT_HOPS = 10;
 // "/plus" as a whole path segment, so "/hub/ecosystem/snowflake_plus" is left alone
 const PLUS_SEGMENT = /\/plus(?=\/|$)/;
 
-// the version segment in a docs URL: "devel" or a release like "1.17.0"
-const VERSION_SEGMENT = /^(devel|\d+(\.\d+)*)$/;
+// legacy "/docs/devel" mount: the docs now live at "/docs", so these URLs are forwarded
+const DEVEL_PREFIX = /^\/docs\/devel(?=\/|$)/;
+
+// the version segment in a docs URL, e.g. a release like "1.17.0"
+const VERSION_SEGMENT = /^(\d+(\.\d+)*)$/;
 
 /**
  * Match a top-level docs route across every version: "404" matches /docs/404,
- * /docs/devel/404 and /docs/1.17.0/404, but not /docs/general-usage/404.
+ * /docs/1.17.0/404, but not /docs/general-usage/404.
  *
  * @param {string} pathname
  * @param {string} route path segment, without slashes
@@ -32,7 +35,7 @@ export function isTopLevelDocsRoute(pathname, route) {
 /**
  * Build the path resolver from a redirect list.
  *
- * The resolver follows redirect rules, trailing slashes and plus -> hub
+ * The resolver also forwards /docs/devel/* to /docs/*, then follows redirect rules, trailing slashes and plus -> hub
  * forwarding to the final path, so a moved page answers with one permanent
  * redirect instead of a chain. It returns null when the path does not
  * redirect, and also when the rules do not settle within MAX_REDIRECT_HOPS:
@@ -55,6 +58,10 @@ export function createRedirectResolver(redirects) {
     let hash;
     let settled = false;
     for (let hop = 0; hop < MAX_REDIRECT_HOPS; hop++) {
+      if (DEVEL_PREFIX.test(current)) {
+        current = current.replace(DEVEL_PREFIX, "/docs");
+        continue;
+      }
       const target = targets.get(current);
       if (target !== undefined) {
         // split off the fragment - URL.pathname would percent-encode a "#"

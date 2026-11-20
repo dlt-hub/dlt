@@ -1929,7 +1929,7 @@ def _(mo):
     ### **What to implement**
 
     1. **Extract** from the API using `dlt`
-       - Use `dlt.resource` and [`RESTClient`](https://dlthub.com/docs/devel/general-usage/http/rest-client) with proper pagination
+       - Use `dlt.resource` and [`RESTClient`](https://dlthub.com/docs/general-usage/http/rest-client) with proper pagination
 
     2. **Apply all performance techniques**
        - Group resources into sources

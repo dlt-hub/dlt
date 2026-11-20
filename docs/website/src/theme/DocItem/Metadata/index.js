@@ -8,7 +8,7 @@ const HUB_TITLE_SUFFIX = "dltHub Docs";
 
 export default function DocItemMetadata() {
   const { metadata, frontMatter, assets } = useDoc();
-  // the doc id is relative to the version, so this also covers /docs/devel/hub/...
+  // the doc id is relative to the version, so this also covers /docs/hub/...
   const isHubPage = metadata.id.startsWith("hub/");
   const hubTitle = `${metadata.title} | ${HUB_TITLE_SUFFIX}`;
 

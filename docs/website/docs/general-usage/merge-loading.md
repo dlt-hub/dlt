@@ -763,6 +763,8 @@ You can [delete records](#delete-records) with the `hard_delete` hint.
 
 ### Skip unchanged records
 
+<!-- since: 1.31.0 -->
+
 By default, `upsert` updates every record whose key exists in the target table, even when its values did not change. Set `skip_unchanged_rows` to update only the records that changed. Change consumers then see only the records that changed. For example, a Snowflake stream contains only the inserted and updated records:
 
 ```py
@@ -892,6 +894,8 @@ def events_source():
 :::
 
 ## `cdc` strategy
+
+<!-- since: 1.31.0 -->
 
 :::note
 These destinations support the `cdc` merge strategy:
@@ -1169,6 +1173,8 @@ The outer `day` and `id` refer to the destination table. The `id` in the subquer
 The `delta` table format does not support `delete-insert`. With `cdc`, write the partition condition as `"{table}.day = {day}"`. dlt expands it to `target.day = '2026-08-01'`.
 
 ### Fill placeholders with values from the load
+
+<!-- since: 1.32.0 -->
 
 dlt stores the merge conditions in the schema. A literal that changes with every load, such as the date of a partition, creates a new schema version with every load. Write a value placeholder instead. dlt expands each value placeholder to an escaped SQL literal, so do not put quotes around it. A `datetime` value expands to a timestamp literal of the destination, with the timestamp precision of the destination, by the same rules as the [validity columns](#timezones-of-the-validity-columns), so it compares to the loaded timestamps.
 

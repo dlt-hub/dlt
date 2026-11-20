@@ -2,7 +2,7 @@
 /**
  * Post-build verification for redirect targets.
  *
- * Loads the compiled, version-prefixed redirect list (./redirects.compiled.js)
+ * Loads the compiled redirect list (./redirects.compiled.js)
  * and checks that every `to` target resolves to an existing HTML page in the
  * build output. Run after `docusaurus build`:
  *
@@ -71,8 +71,7 @@ try {
 
 if (JSON.stringify(loadedRedirects) !== JSON.stringify(recomputed)) {
   error(
-    `redirects.compiled.js is stale — per-version sources (redirects.js / ` +
-      `versioned_redirects/*.js) changed since it was generated. ` +
+    `redirects.compiled.js is stale — source (redirects.js) changed since it was generated. ` +
       `Re-run 'npm run compile-redirects'.`,
   );
   console.log(`\n=== Redirects: ${errors} errors, ${warnings} warnings ===`);

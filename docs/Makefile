@@ -21,7 +21,6 @@ search-index: ## Build the docs and the search index used by the dev server
 	cd website && npm run search-index
 
 build: ## Full production build of the docs website into `website/build/docs`
-	cd website && uv run npm run update-versions
 	cd website && npm run compile-redirects
 	$(MAKE) check-orphan-docs
 	$(MAKE) preprocess-docs
@@ -30,10 +29,6 @@ build: ## Full production build of the docs website into `website/build/docs`
 	cd website && npm run verify-redirects
 	cd website && node scripts/verify-llms-txt.js
 
-# NOTE the command `preprocess-docs` must exist and produce the
-# documentation and API reference for `update_versions.js` to work
-# TODO make this mechanism less brittle
-#
 preprocess-docs: ## Dynamically generate pages under `website/docs_processed`
 	# Order matters: preprocess-markers wipes and recreates docs_processed, so
 	# generators that write into it must run afterwards.
@@ -73,7 +68,7 @@ cli-generate-hub: ## Generates the dlthub CLI reference into `website/docs_proce
 # TODO consolidate the flake8, black, mypy tooling to be the same as root `pyproject.toml`
 lint-core: ## Lints the docs tooling, non-embedded snippets, examples and notebooks
 	uv run ruff check
-	uv run mypy --config-file ../pyproject.toml tools website --exclude tools/generate_api_reference.py --exclude website/docs_processed --exclude website/versioned_docs/ --exclude 'examples/[^/]+/test_.*\.py'
+	uv run mypy --config-file ../pyproject.toml tools website --exclude tools/generate_api_reference.py --exclude website/docs_processed --exclude 'examples/[^/]+/test_.*\.py'
 	uv run flake8 --max-line-length=200 tools website/docs
 	uv run black tools website --check --diff --color
 

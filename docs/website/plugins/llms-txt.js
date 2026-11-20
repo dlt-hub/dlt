@@ -142,7 +142,7 @@ function expandDocCardList(line, ctx) {
     const childInfo = readChildFrontmatter(childDocId, ctx.sourceDir);
     if (!childInfo) continue;
 
-    const url = `${ctx.baseUrl}${ctx.routePrefix}${childUrlDocId}.md`;
+    const url = `${ctx.baseUrl}${childUrlDocId}.md`;
     const desc = childInfo.description ? `: ${childInfo.description}` : "";
     items.push(`- [${childInfo.title}](${url})${desc}`);
   }
@@ -274,62 +274,12 @@ function buildSidebarMap(sidebarItems, groupDepth = 2) {
 
 // --- Plugin ----------------------------------------------------------------
 
-/**
- * Build a version routing table from the Docusaurus docs plugin config.
- *
- * Each entry maps a URL path prefix to:
- *   - sourceDir: where the .md source files live
- *   - isMaster: whether this is the master (latest) version
- *   - prefix: the URL path prefix ('' for root-mounted master)
- *
- * Versions:
- *   - "current" (devel): path 'devel', source in docs_processed/
- *   - "master": path '/', source in versioned_docs/version-master/
- *   - other versions (e.g. "1.5.0"): path = version name,
- *     source in versioned_docs/version-{name}/
- */
-function buildVersionRoutes(siteDir, docsVersions) {
-  const routes = [];
-
-  // "current" version (devel) — always uses docs_processed/
-  const currentCfg = docsVersions.current || {};
-  const currentPrefix = (currentCfg.path || "devel").replace(/^\/+/, "");
-  routes.push({
-    prefix: currentPrefix ? `${currentPrefix}/` : "",
-    sourceDir: path.join(siteDir, "docs_processed"),
-    isMaster: false,
-  });
-
-  // Read versions.json for named versions
-  const versionsJsonPath = path.join(siteDir, "versions.json");
-  let knownVersions = [];
-  if (fs.existsSync(versionsJsonPath)) {
-    knownVersions = JSON.parse(fs.readFileSync(versionsJsonPath, "utf8"));
-  }
-
-  for (const version of knownVersions) {
-    const vCfg = docsVersions[version] || {};
-    const vPath = (vCfg.path || version).replace(/^\/+/, "");
-    const vSourceDir = path.join(siteDir, "versioned_docs", `version-${version}`);
-
-    routes.push({
-      prefix: vPath ? `${vPath}/` : "", // master has path='/' → prefix=''
-      sourceDir: vSourceDir,
-      isMaster: version === "master",
-    });
-  }
-
-  // Sort: longer prefixes first so "devel/" matches before "" (root)
-  routes.sort((a, b) => b.prefix.length - a.prefix.length);
-  return routes;
-}
-
 module.exports = function llmsTxtPlugin(_context, options) {
   const {
     siteTitle = "dlt - data load tool",
     siteDescription = "",
     excludeFromMd = ["api_reference/"],
-    excludeFromIndex = ["devel/"],
+    excludeFromIndex = [],
     separateIndexes = [],
     groupDepth = 2,
   } = options;
@@ -341,23 +291,13 @@ module.exports = function llmsTxtPlugin(_context, options) {
       const baseUrl = siteConfig.baseUrl || "/";
       const siteDir = _context.siteDir;
 
-      // Extract docs version config from preset
-      const presetConfig = siteConfig.presets?.[0]?.[1] || {};
-      const docsVersions = presetConfig.docs?.versions || {};
-
-      // Build version routing table
-      const versionRoutes = buildVersionRoutes(siteDir, docsVersions);
-      console.log(
-        `[llms-txt] Version routes: ${versionRoutes.map((r) => `"${r.prefix || "/"}" → ${path.basename(r.sourceDir)}`).join(", ")}`,
-      );
-
-      // Pre-build slug maps for each source dir
-      const slugMaps = {};
-      for (const route of versionRoutes) {
-        if (fs.existsSync(route.sourceDir)) {
-          slugMaps[route.sourceDir] = buildSlugMap(route.sourceDir);
-        }
+      // Docs are mounted at the site root; sources are the preprocessed docs
+      const sourceDir = path.join(siteDir, "docs_processed");
+      if (!fs.existsSync(sourceDir)) {
+        console.warn(`[llms-txt] Source dir not found: ${sourceDir}`);
+        return;
       }
+      const slugMap = buildSlugMap(sourceDir);
 
       // Step 1: Discover pages from HTML build output
       const htmlFiles = walkFiles(outDir, (name) => name.endsWith(".html"));
@@ -382,17 +322,8 @@ module.exports = function llmsTxtPlugin(_context, options) {
           continue;
         }
 
-        // Match to a version route (longest prefix wins)
-        const route = versionRoutes.find((r) => (r.prefix === "" ? true : relPosix.startsWith(r.prefix)));
-        if (!route || !fs.existsSync(route.sourceDir)) {
-          continue;
-        }
-
-        // Strip version prefix to get the inner doc path
-        const innerRel = route.prefix ? relPosix.slice(route.prefix.length) : relPosix;
-
         // Step 2: Map HTML path to source .md file
-        const basename = path.basename(innerRel);
+        const basename = path.basename(relPosix);
 
         // Skip underscore-prefixed partials (MDX fragments imported by other pages)
         if (basename.startsWith("_")) {
@@ -402,24 +333,23 @@ module.exports = function llmsTxtPlugin(_context, options) {
         let sourceFile = null;
 
         if (basename === "index.html") {
-          const dirPart = path.dirname(innerRel);
-          const candidate = path.join(route.sourceDir, dirPart, "index.md");
+          const dirPart = path.dirname(relPosix);
+          const candidate = path.join(sourceDir, dirPart, "index.md");
           if (fs.existsSync(candidate)) {
             sourceFile = candidate;
           }
         } else {
-          const stem = innerRel.replace(/\.html$/, "");
+          const stem = relPosix.replace(/\.html$/, "");
           const lastSegment = path.basename(stem);
           // Try .md, then .mdx, then index.md/mdx (category pages),
           // then dir-collapsed stem/stem.md (Docusaurus collapses foo/foo.md → foo.html),
           // then slug map
-          const candidateMd = path.join(route.sourceDir, `${stem}.md`);
-          const candidateMdx = path.join(route.sourceDir, `${stem}.mdx`);
-          const candidateIndexMd = path.join(route.sourceDir, stem, "index.md");
-          const candidateIndexMdx = path.join(route.sourceDir, stem, "index.mdx");
-          const candidateSameMd = path.join(route.sourceDir, stem, `${lastSegment}.md`);
-          const candidateSameMdx = path.join(route.sourceDir, stem, `${lastSegment}.mdx`);
-          const slugMap = slugMaps[route.sourceDir] || {};
+          const candidateMd = path.join(sourceDir, `${stem}.md`);
+          const candidateMdx = path.join(sourceDir, `${stem}.mdx`);
+          const candidateIndexMd = path.join(sourceDir, stem, "index.md");
+          const candidateIndexMdx = path.join(sourceDir, stem, "index.mdx");
+          const candidateSameMd = path.join(sourceDir, stem, `${lastSegment}.md`);
+          const candidateSameMdx = path.join(sourceDir, stem, `${lastSegment}.mdx`);
 
           if (fs.existsSync(candidateMd)) {
             sourceFile = candidateMd;
@@ -446,9 +376,6 @@ module.exports = function llmsTxtPlugin(_context, options) {
           htmlRel: relPosix,
           mdRel: relPosix.replace(/\.html$/, ".md"),
           sourceFile,
-          sourceDir: route.sourceDir,
-          isMaster: route.isMaster,
-          routePrefix: route.prefix,
         });
       }
 
@@ -482,24 +409,22 @@ module.exports = function llmsTxtPlugin(_context, options) {
           fs.mkdirSync(destDir, { recursive: true });
         }
         const content = fs.readFileSync(page.sourceFile, "utf8");
-        // Derive docId from page.mdRel: strip the route prefix and the .md
-        // extension. Also strip a trailing /index because the URL collapses it.
-        const innerMdRel = page.routePrefix ? page.mdRel.slice(page.routePrefix.length) : page.mdRel;
-        const docId = innerMdRel.replace(/\.md$/, "").replace(/\/index$/, "");
+        // Derive docId from page.mdRel: strip the .md extension and a trailing
+        // /index because the URL collapses it.
+        const docId = page.mdRel.replace(/\.md$/, "").replace(/\/index$/, "");
         const cleaned = cleanMarkdown(content, {
           docId,
           childrenMap,
-          sourceDir: page.sourceDir,
+          sourceDir,
           baseUrl,
-          routePrefix: page.routePrefix,
         });
         fs.writeFileSync(destFile, cleaned);
         copiedCount++;
       }
       console.log(`[llms-txt] Copied ${copiedCount} .md files to build output`);
 
-      // Step 4: Generate llms.txt (master version only)
-      const masterPages = pages.filter((p) => p.isMaster && !excludeFromIndex.some((pat) => p.mdRel.includes(pat)));
+      // Step 4: Generate llms.txt
+      const indexPages = pages.filter((p) => !excludeFromIndex.some((pat) => p.mdRel.includes(pat)));
 
       // Build sidebar map for main docs (docsSidebar)
       let mainSidebarMap = null;
@@ -542,7 +467,7 @@ module.exports = function llmsTxtPlugin(_context, options) {
           // overrides where the URL differs from the source filename)
           const docBasename = path.basename(docId);
           const sourceDocId = path
-            .relative(page.sourceDir, page.sourceFile)
+            .relative(sourceDir, page.sourceFile)
             .split(path.sep)
             .join("/")
             .replace(/\.(md|mdx)$/, "");
@@ -632,7 +557,7 @@ module.exports = function llmsTxtPlugin(_context, options) {
       }
 
       // Generate separate llms.txt files for configured prefixes
-      let remainingPages = masterPages;
+      let remainingPages = indexPages;
       for (const sep of separateIndexes) {
         const prefix = sep.prefix;
         const matching = remainingPages.filter((p) => p.mdRel.startsWith(prefix));

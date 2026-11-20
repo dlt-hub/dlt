@@ -47,6 +47,8 @@ See [Users and roles](users-and-roles.md) for the full permission model.
 
 ### Workspace API keys
 
+<!-- since: dlthub-client 0.28.5 -->
+
 :::warning
 This feature is in public preview
 :::

@@ -7,6 +7,7 @@
 # dlt repo
 - we use `uv` and `uv run`. look in @Makefile
 - we branch from `devel` for feature branches
+- docs are built from `devel` only (no `master` docs, no `docs version`); tag new features/behavior changes in docs with `since`/`status: preview`, not snippet edits or refactors: @docs/README.md
 
 # Commit messages (all agents)
 - [Conventional Commits](https://www.conventionalcommits.org/): `type:` or `type(scope):`, lowercase imperative subject, no trailing period.
