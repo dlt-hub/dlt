@@ -3313,6 +3313,63 @@ def test_delete_insert_no_keys_hard_delete_nested(
     destinations_configs(default_sql_configs=True, supports_merge=True, subset=LOCAL_DESTINATIONS),
     ids=lambda x: x.name,
 )
+def test_delete_insert_no_keys_source_filter_nested(
+    destination_config: DestinationTestConfiguration,
+) -> None:
+    """Loads records with nested tables using keyless `delete-insert` and `source_filter`.
+    Checks that the append fallback resolves the root row key and filters both root and nested
+    rows across runs."""
+    p = destination_config.setup_pipeline("di_no_keys_source_filter_nested", dev_mode=True)
+    disposition: Any = {
+        "disposition": "merge",
+        "strategy": "delete-insert",
+        "source_filter": "name != 'skip'",
+    }
+
+    first_batch = [
+        {"id": 1, "name": "keep", "tags": [{"t": "a", "meta": [{"m": "x"}]}]},
+        {"id": 2, "name": "skip", "tags": [{"t": "b", "meta": [{"m": "y"}]}]},
+    ]
+    assert_load_info(
+        p.run(
+            dlt.resource(first_batch, name="items", write_disposition=disposition),
+            **destination_config.run_kwargs,
+        )
+    )
+    tables = load_tables_to_dicts(
+        p, "items", "items__tags", "items__tags__meta", exclude_system_cols=True
+    )
+    assert sorted((r["id"], r["name"]) for r in tables["items"]) == [(1, "keep")]
+    assert sorted(r["t"] for r in tables["items__tags"]) == ["a"]
+    assert sorted(r["m"] for r in tables["items__tags__meta"]) == ["x"]
+    assert_nested_rows_have_parents(p, "items", "items__tags")
+    assert_nested_rows_have_parents(p, "items", "items__tags__meta")
+
+    second_batch = [
+        {"id": 3, "name": "keep2", "tags": [{"t": "c", "meta": [{"m": "z"}]}]},
+        {"id": 4, "name": "skip", "tags": [{"t": "d", "meta": [{"m": "w"}]}]},
+    ]
+    assert_load_info(
+        p.run(
+            dlt.resource(second_batch, name="items", write_disposition=disposition),
+            **destination_config.run_kwargs,
+        )
+    )
+    tables = load_tables_to_dicts(
+        p, "items", "items__tags", "items__tags__meta", exclude_system_cols=True
+    )
+    assert sorted((r["id"], r["name"]) for r in tables["items"]) == [(1, "keep"), (3, "keep2")]
+    assert sorted(r["t"] for r in tables["items__tags"]) == ["a", "c"]
+    assert sorted(r["m"] for r in tables["items__tags__meta"]) == ["x", "z"]
+    assert_nested_rows_have_parents(p, "items", "items__tags")
+    assert_nested_rows_have_parents(p, "items", "items__tags__meta")
+
+
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(default_sql_configs=True, supports_merge=True, subset=LOCAL_DESTINATIONS),
+    ids=lambda x: x.name,
+)
 @pytest.mark.parametrize("merge_strategy", ["delete-insert", "cdc", "upsert"])
 def test_source_filter_with_bool_hard_delete(
     destination_config: DestinationTestConfiguration,
