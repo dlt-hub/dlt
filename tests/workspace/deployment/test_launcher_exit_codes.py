@@ -70,6 +70,24 @@ def _raise_requests_timeout() -> None:
     raise requests.Timeout("read timed out")
 
 
+@_expect_exit(EXIT_TRANSIENT_ERROR, expect_stderr="ChunkedEncodingError")
+def _raise_chunked_encoding_error() -> None:
+    raise requests.exceptions.ChunkedEncodingError("incomplete read")
+
+
+@_expect_exit(EXIT_TERMINAL_ERROR, expect_stderr="SSLError")
+def _raise_ssl_error() -> None:
+    raise requests.exceptions.SSLError("certificate verify failed")
+
+
+@_expect_exit(EXIT_TERMINAL_ERROR, expect_stderr="SSLError")
+def _raise_ssl_error_cause() -> None:
+    try:
+        raise requests.exceptions.SSLError("certificate verify failed")
+    except requests.exceptions.SSLError as exc:
+        raise RuntimeError("during request") from exc
+
+
 @_expect_exit(EXIT_TRANSIENT_ERROR, expect_stderr="TimeoutError")
 def _raise_wrapped_timeout() -> None:
     try:

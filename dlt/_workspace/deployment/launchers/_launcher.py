@@ -4,8 +4,9 @@ import importlib.util
 import os
 import subprocess
 import sys
-from functools import lru_cache
 from typing import Any, Dict, Iterator, List, Optional, Set, Tuple, Type
+
+from requests.exceptions import SSLError
 
 from dlt.common import json
 from dlt.common.configuration import resolve_configuration
@@ -15,6 +16,7 @@ from dlt.common.configuration.utils import add_config_dict_to_env
 from dlt.common.exceptions import TerminalException
 from dlt.common.runtime.run_context import active
 from dlt.common.time import set_context_timezone
+from dlt.sources.helpers.requests.retry import DEFAULT_RETRY_EXCEPTIONS
 
 from dlt._workspace import known_sections as ws_known_sections
 from dlt.common import known_env
@@ -30,6 +32,12 @@ EXIT_TERMINAL_ERROR = 1
 # matches EX_TEMPFAIL from sysexits.h; os.EX_TEMPFAIL is absent on Windows
 EXIT_TRANSIENT_ERROR = 75
 """Failed run whose chain contains a connection or timeout error and no terminal failure."""
+
+_RETRYABLE_EXCEPTION_TYPES: Tuple[Type[BaseException], ...] = (
+    TimeoutError,
+    ConnectionError,
+    *DEFAULT_RETRY_EXCEPTIONS,
+)
 
 
 def _exception_chain(exc: BaseException) -> Iterator[BaseException]:
@@ -54,26 +62,13 @@ def _exception_chain(exc: BaseException) -> Iterator[BaseException]:
         current = None
 
 
-@lru_cache(maxsize=1)
-def _retryable_exception_types() -> Tuple[Type[BaseException], ...]:
-    """Connection and timeout types for which repeating the whole run can succeed."""
-    found: List[Type[BaseException]] = [TimeoutError, ConnectionError]
-    try:
-        from requests import exceptions as requests_exceptions
-    except ImportError:
-        return tuple(found)
-    found.append(requests_exceptions.ConnectionError)
-    found.append(requests_exceptions.Timeout)
-    return tuple(found)
-
-
 def failure_exit_code(exc: BaseException) -> int:
     """Launcher status for a failed run.
 
-    A `TerminalException` on the reported chain selects `EXIT_TERMINAL_ERROR`.
-    `EXIT_TRANSIENT_ERROR` is returned only when that chain contains a concrete
-    connection or timeout failure and no terminal one. Every other failure
-    returns `EXIT_TERMINAL_ERROR`.
+    A `TerminalException` or an SSL/certificate error on the reported chain selects
+    `EXIT_TERMINAL_ERROR`. `EXIT_TRANSIENT_ERROR` is returned only when that chain
+    contains a concrete connection or timeout failure and no terminal one. Every
+    other failure returns `EXIT_TERMINAL_ERROR`.
 
     Args:
         exc (BaseException): Failure raised by the run.
@@ -81,13 +76,12 @@ def failure_exit_code(exc: BaseException) -> int:
     Returns:
         int: `EXIT_TERMINAL_ERROR` or `EXIT_TRANSIENT_ERROR`.
     """
-    # ignore TransientException: it also wraps coding errors and bad SQL
+    # SSLError subclasses ConnectionError; TransientException also wraps coding errors
     saw_retryable = False
-    retryable = _retryable_exception_types()
     for item in _exception_chain(exc):
-        if isinstance(item, TerminalException):
+        if isinstance(item, (TerminalException, SSLError)):
             return EXIT_TERMINAL_ERROR
-        if isinstance(item, retryable):
+        if isinstance(item, _RETRYABLE_EXCEPTION_TYPES):
             saw_retryable = True
     if saw_retryable:
         return EXIT_TRANSIENT_ERROR

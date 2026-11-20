@@ -3,7 +3,7 @@
 from datetime import timezone
 import asyncio
 import inspect
-import traceback
+import sys
 from contextlib import nullcontext
 from functools import partial
 from typing import Any, Callable, ContextManager, Dict, List, Mapping, Optional, Tuple, Type, cast
@@ -338,7 +338,7 @@ def run_and_print_result(run_launcher: Callable[[], Any]) -> None:
         raise
     except Exception as ex:
         # leave BaseException control flow (SystemExit, KeyboardInterrupt, GeneratorExit) alone
-        traceback.print_exception(ex)
+        sys.excepthook(type(ex), ex, ex.__traceback__)
         raise SystemExit(failure_exit_code(ex))
     if is_job_result(result):
         print_job_result(cast(TJobResult, result))
