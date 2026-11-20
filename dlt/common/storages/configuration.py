@@ -323,8 +323,20 @@ class FilesystemConfiguration(BaseConfiguration):
             raise ConfigurationValueError("File `path` and `netloc` are missing.")
         local_path = unquote(url.path)
         if url.netloc:
-            # or UNC file://localhost/path
-            local_path = "//" + unquote(url.netloc) + local_path
+            netloc = unquote(url.netloc)
+            # on Windows, file://C:/... or file://C:\... places the drive in netloc
+            if (
+                os.name == "nt"
+                and len(netloc) >= 2
+                and netloc[0].isascii()
+                and netloc[0].isalpha()
+                and netloc[1] == ":"
+                and (len(netloc) == 2 or netloc[2] == "\\")
+            ):
+                local_path = netloc + local_path
+            else:
+                # or UNC file://localhost/path
+                local_path = "//" + netloc + local_path
         else:
             # if we are on windows, strip the POSIX root from path which is always absolute
             if os.path.sep != local_path[0]:
