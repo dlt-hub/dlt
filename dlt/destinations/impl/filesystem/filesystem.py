@@ -217,9 +217,9 @@ class ReferenceFollowupJob(FilesystemLoadJob):
 class TableFormatLoadFilesystemJob(ReferenceFollowupJob):
     @property
     def arrow_dataset(self) -> Any:
-        import pyarrow.dataset
+        from dlt.common.libs.pyarrow import open_local_arrow_dataset
 
-        return pyarrow.dataset.dataset(self.file_paths)
+        return open_local_arrow_dataset(self.file_paths)
 
     @property
     def _partition_columns(self) -> List[str]:
