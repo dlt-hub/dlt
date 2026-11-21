@@ -1,5 +1,6 @@
 import os
-from typing import Callable, Dict, Any, List, Optional, Sequence, Tuple, Union
+import threading
+from typing import Callable, Dict, Any, List, Optional, Sequence, Set, Tuple, Union, cast
 from pathlib import Path
 import warnings
 import time
@@ -232,6 +233,30 @@ class IcebergConfig(BaseConfiguration):
     """
 
 
+_PYICEBERG_CONFIG_LOCK = threading.Lock()
+
+
+def _load_pyiceberg_yaml(path: Path) -> Optional[Dict[str, Any]]:
+    from pyiceberg.utils.config import _lowercase_dictionary_keys, strictyaml
+
+    with open(path, "r", encoding="utf-8") as f:
+        file_config = strictyaml.load(f.read()).data
+    if not isinstance(file_config, dict):
+        return None
+    return cast(Dict[str, Any], _lowercase_dictionary_keys(file_config))
+
+
+def _build_pyiceberg_config(file_config: Optional[Dict[str, Any]]) -> Any:
+    from pyiceberg.utils.config import Config
+
+    class _DltPyicebergConfig(Config):
+        @staticmethod
+        def _from_configuration_files() -> Optional[Dict[str, Any]]:
+            return file_config
+
+    return _DltPyicebergConfig()
+
+
 def _load_catalog_from_pyiceberg(
     catalog_name: str,
 ) -> IcebergCatalog:
@@ -249,7 +274,9 @@ def _load_catalog_from_pyiceberg(
     Search paths (in order):
         1. PYICEBERG_HOME environment variable (pyiceberg standard)
         2. DLT run directory
-        3. DLT settings directory
+        3. DLT settings directory (e.g. .dlt/)
+        4. User home directory (~/.pyiceberg.yaml, pyiceberg standard)
+        5. Current working directory (if different from DLT run directory)
 
     Example .pyiceberg.yaml:
         catalog:
@@ -259,49 +286,69 @@ def _load_catalog_from_pyiceberg(
             warehouse: my_warehouse
             credential: token
     """
-    from pyiceberg.catalog import load_catalog
+    import pyiceberg.catalog as pyiceberg_catalog
     import dlt
 
     active_run_context = dlt.current.run_context()
 
     # Search through potential paths for Iceberg Config
-    search_paths = []
+    candidate_paths: List[Path] = []
 
     pyiceberg_home = os.environ.get("PYICEBERG_HOME")
     if pyiceberg_home:
-        search_paths.append(Path(pyiceberg_home) / ".pyiceberg.yaml")
+        candidate_paths.append(Path(pyiceberg_home) / ".pyiceberg.yaml")
 
-    # Add dlt-specific paths
-    search_paths.extend(
+    # Add dlt-specific paths, then pyiceberg standard home and cwd locations
+    candidate_paths.extend(
         [
             Path(active_run_context.run_dir) / ".pyiceberg.yaml",
             Path(active_run_context.get_setting(".pyiceberg.yaml")),
+            Path(os.path.expanduser("~")) / ".pyiceberg.yaml",
+            Path.cwd() / ".pyiceberg.yaml",
         ]
     )
 
-    # Search for the first existing config file and confirm 'catalog:' is present
-    no_config_file_found = True
+    search_paths: List[Path] = []
+    seen_paths: Set[Path] = set()
+    for path in candidate_paths:
+        resolved = path.resolve()
+        if resolved not in seen_paths:
+            seen_paths.add(resolved)
+            search_paths.append(path)
+
+    # Search for the first existing config file with a 'catalog' mapping
+    matched_config: Optional[Dict[str, Any]] = None
     for path in search_paths:
-        if path.exists():
+        if path.is_file():
             logger.debug(f"Searching for catalog configuration in: {path}")
-            with open(path, "r", encoding="utf-8") as f:
-                contents = f.read()
-                if "catalog:" in contents:
-                    no_config_file_found = False
-                    break
+            file_config = _load_pyiceberg_yaml(path)
+            if file_config and isinstance(file_config.get("catalog"), dict):
+                matched_config = file_config
+                break
 
     # Check if any PYICEBERG_CATALOG_* environment variable is set
-    pyiceberg_env_var = any(key.startswith("PYICEBERG_CATALOG_") for key in os.environ)
+    pyiceberg_env_var = any(key.upper().startswith("PYICEBERG_CATALOG_") for key in os.environ)
 
     # If no config file was found, raise error
-    if no_config_file_found and not pyiceberg_env_var:
+    if matched_config is None and not pyiceberg_env_var:
         raise CatalogNotFoundError(
             "No .pyiceberg.yaml file found. Searched in:"
             f" {', '.join(str(p) for p in search_paths)}. No PYICEBERG_CATALOG_* environment"
             " variables found."
         )
 
-    return load_catalog(catalog_name)
+    # Build a fresh pyiceberg Config from the matched file + current env vars so that:
+    # - .dlt/.pyiceberg.yaml (not in pyiceberg's native search paths) is actually loaded
+    # - stale import-time pyiceberg.catalog._ENV_CONFIG cannot override or leak properties
+    # - PYICEBERG_CATALOG__* env vars still override YAML values per pyiceberg precedence
+    pyiceberg_config = _build_pyiceberg_config(matched_config)
+    with _PYICEBERG_CONFIG_LOCK:
+        prev_config = pyiceberg_catalog._ENV_CONFIG
+        pyiceberg_catalog._ENV_CONFIG = pyiceberg_config
+        try:
+            return pyiceberg_catalog.load_catalog(catalog_name)
+        finally:
+            pyiceberg_catalog._ENV_CONFIG = prev_config
 
 
 def _load_catalog_from_config(
