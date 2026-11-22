@@ -119,14 +119,15 @@ class ProfileDataAccessNotAvailable(DeploymentValidationError):
         self.profiles = dict(profiles)
         if default:
             problem = (
-                f"and `{default}`, its default profile for it, has no settings files. Create them"
-                f" with `dlthub profile add {default}`."
+                f"and `{default}`, its default profile for this data access, has no settings"
+                f" files. Create the settings files with `dlthub profile add {default}`."
             )
         else:
             deployed = ", ".join(f"{n} ({format_data_access(a)})" for n, a in profiles.items())
             problem = (
-                f"and has no profile for it: {deployed}. Declare one with `dlthub profile add"
-                f" {env}-{data_access} --access {data_access} --environment {env}`."
+                f"and has no profile with this data access. Its profiles are {deployed}. Add one"
+                f" with `dlthub profile add {env}-{data_access} --access {data_access}"
+                f" --environment {env}`."
             )
         super().__init__(
             f"Job `{job_ref}` declares {format_data_access(data_access)}."
@@ -139,8 +140,8 @@ class ProfileDataAccessNotAvailable(DeploymentValidationError):
 
 
 class JobProfileAccessMismatch(DeploymentValidationError):
-    """A job declares a profile that does not give exactly the data access that the job declares,
-    or has no settings files, in an environment that is strict about access."""
+    """A job declares a profile that has no settings files or does not give exactly the data
+    access that the job declares. The environment is strict about access."""
 
     job_ref: str = None
     profile: str = None
@@ -169,12 +170,12 @@ class JobProfileAccessMismatch(DeploymentValidationError):
                 f" {format_data_access(data_access)}."
             )
             remedy = (
-                " Declare the access that the job needs with `access=` on the job, or declare a"
-                f" profile with {format_data_access(data_access)} on it."
+                " Declare the access that the job needs with `access=` on the job. Or declare a"
+                f" profile with {format_data_access(data_access)} on the job."
             )
         else:
             problem = f"Job `{job_ref}` declares profile `{profile}`, which has no settings files."
-            remedy = f" Create them with `dlthub profile add {profile}`."
+            remedy = f" Create the settings files with `dlthub profile add {profile}`."
         if not configured and profile_data_access != data_access:
             remedy += f" `{profile}` also has no settings files."
         super().__init__(
@@ -186,8 +187,8 @@ class JobProfileAccessMismatch(DeploymentValidationError):
 
 
 class JobProfileNotInEnvironment(DeploymentValidationError):
-    """A job declares a profile that is not one of the environment deployed to: undeclared, local
-    or of another environment."""
+    """A job declares a profile that the environment of the deployment does not have. The
+    profile is undeclared, local or of another environment."""
 
     job_ref: str = None
     profile: str = None
@@ -205,11 +206,12 @@ class JobProfileNotInEnvironment(DeploymentValidationError):
             f"Job `{job_ref}` declares profile `{profile}`, which is not a profile of environment"
             f" `{env}` ({', '.join(profiles)})."
             " A deployment uses only the profiles of its environment, never a local profile."
-            f" If `{profile}` is not declared, declare it with `dlthub profile add {profile}"
-            f" --access {data_access} --environment {env}`: the job needs"
+            f" If `{profile}` does not exist, add it with `dlthub profile add {profile}"
+            f" --access {data_access} --environment {env}`. The job needs"
             f" {format_data_access(data_access)}."
-            " If it belongs to another environment, deploy there with `--environment`, or edit"
-            f" `.dlt/.workspace` and move its declaration to environment `{env}`."
+            " If the profile belongs to another environment, deploy to that environment with"
+            " `--environment`."
+            f" Or move its declaration to environment `{env}` in `.dlt/.workspace`."
             f" Or declare a profile of `{env}` on the job with `require={{'profile': ...}}`.",
             subject=job_ref,
         )
@@ -310,12 +312,12 @@ class ManifestImportError(DeploymentException):
             msg = f"Failed to import {file_path!r}: {type(inner).__name__}: {inner}"
         elif kind == "default_missing":
             msg = (
-                f"No deployment module {file_path} in the workspace. Create it and import your job"
-                " declarations and notebook modules into it"
+                f"dlt found no deployment module {file_path} in the workspace. Create it and"
+                " import your job declarations and notebook modules into it"
             )
             if environment:
                 msg += (
-                    ", or name another module with `deployment_module` under"
+                    ". Or name another module with `deployment_module` under"
                     f" `[workspace.environment.{environment}]`"
                 )
             msg += "."

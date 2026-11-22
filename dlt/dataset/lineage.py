@@ -43,8 +43,8 @@ class TLineageDiagnosis(TypedDict, total=False):
     datasets: List[str]
 
 
-def _qualify_dialect(dialect: TSqlGlotDialect) -> Optional[str]:
-    """Dialect string for `qualify` that keeps the case of dlt normalized identifiers."""
+def _get_qualify_dialect(dialect: TSqlGlotDialect) -> Optional[str]:
+    """Dialect string for `qualify` that keeps the case of dlt-normalized identifiers."""
     return f"{dialect}, normalization_strategy=case_sensitive" if dialect else None
 
 
@@ -99,7 +99,7 @@ def create_sqlglot_schema(
         nested_schema[dataset_name] = sqlglot_tables
 
     # keep case-sensitive so star-expansion doesn't re-fold already-normalized identifiers
-    return ensure_schema(nested_schema, dialect=_qualify_dialect(dialect), normalize=False)
+    return ensure_schema(nested_schema, dialect=_get_qualify_dialect(dialect), normalize=False)
 
 
 def _lenient_qualify(
@@ -113,7 +113,7 @@ def _lenient_qualify(
         qualify(
             work,
             schema=sqlglot_schema,
-            dialect=_qualify_dialect(dialect),
+            dialect=_get_qualify_dialect(dialect),
             quote_identifiers=False,
             expand_stars=True,
             validate_qualify_columns=False,
@@ -129,7 +129,7 @@ USER_ALIAS_KINDS: Tuple[Tuple[Any, str], ...] = (
     (sge.Values, "VALUES"),
     (sge.Lateral, "LATERAL"),
 )
-"""Query nodes that the query text can alias, and the kind that labels a derived one"""
+"""Query nodes that the query text can alias, and the kind that labels each derived source"""
 
 
 def _collect_user_aliases(expression: sge.Query) -> Dict[str, str]:
@@ -256,7 +256,7 @@ def describe_lineage_failure(
     dialect: TSqlGlotDialect,
     error: Optional[Exception] = None,
 ) -> TLineageDiagnosis:
-    """Names the column, table or `*` that blocks `expression`, `other` when no cause is found."""
+    """Names the column, table or `*` that stops the lineage of `expression`, or reason `other`."""
     try:
         return _diagnose_lineage_failure(expression, sqlglot_schema, dialect, error)
     except Exception:
@@ -374,7 +374,7 @@ def compute_columns_schema(
     """
     if not isinstance(expression, sge.Query):
         raise LineageFailedException(
-            "Parsed SQL query is not a SELECT statement. Received SQL expression of type"
+            "The SQL query is not a SELECT statement. dlt received an SQL expression of type"
             f" {type(expression).__name__}.",
             reason="not_select",
             query=expression.sql(dialect=dialect),
@@ -392,7 +392,7 @@ def compute_columns_schema(
             qualify(
                 select_expression,
                 schema=sqlglot_schema,
-                dialect=_qualify_dialect(dialect),
+                dialect=_get_qualify_dialect(dialect),
                 quote_identifiers=False,
                 expand_stars=True,
                 # keeps columns that cannot be tied to a table instead of raising
@@ -417,7 +417,8 @@ def compute_columns_schema(
             if allow_partial:
                 continue
             raise LineageFailedException(
-                f"dlt cannot resolve the `*` selection of the SELECT statement. Column:\n\t{col}",
+                "dlt cannot expand the `*` selection of the SELECT statement. Select the columns"
+                f" explicitly or limit `*` to known tables. Column:\n\t{col}",
                 query=expression.sql(dialect=dialect),
                 dialect=dialect,
                 **describe_lineage_failure(expression, sqlglot_schema, dialect),

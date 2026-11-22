@@ -1,6 +1,6 @@
-"""Manifests generated for an environment. Every job gets the profile of the environment with the
-data access it declares. `__deployment__.py` is imported with the default write profile. The
-isolated worker gets the environment from the caller and reports its failures."""
+"""Manifests generated for an environment. Every job gets the default profile of the environment
+for the data access that it declares. `__deployment__.py` is imported with the default write
+profile. The isolated worker gets the environment from the caller and reports its failures."""
 
 from contextlib import contextmanager
 import importlib
@@ -51,7 +51,7 @@ JOBS: Dict[str, TJobProfiles] = {
         "jobs.jobs.api": ("access", READ),
         "jobs.jobs.freshness": ("access", READ),
         "jobs.jobs.editor": ("prod", READ_WRITE),
-        # `prod` declares no profile without data access
+        # the `prod` environment of this workspace has no profile without data access
         "jobs.jobs.triage": ("access", {}),
         "jobs.jobs.writer": ("prod", {"data": ["write"]}),
         "jobs.jobs.declared": ("prod", READ_WRITE),
@@ -75,7 +75,7 @@ JOBS: Dict[str, TJobProfiles] = {
 """What `__deployment__.py` of the case workspace deploys to each of its environments."""
 
 
-def _profiles_and_access(manifest: TJobsDeploymentManifest) -> TJobProfiles:
+def _get_profiles_and_access(manifest: TJobsDeploymentManifest) -> TJobProfiles:
     profiles = job_profiles(manifest)
     return {j["job_ref"]: (profiles[j["job_ref"]], j["access"]) for j in manifest["jobs"]}
 
@@ -89,7 +89,7 @@ def _profiles_and_access(manifest: TJobsDeploymentManifest) -> TJobProfiles:
             [
                 "environment `prod` has no profile with no data access: 1 job"
                 " (`jobs.jobs.triage`) that declares no data access runs with `access` (read data"
-                " access). Declare one with `dlthub profile add prod-none --access none"
+                " access). Add one with `dlthub profile add prod-none --access none"
                 " --environment prod`."
             ],
         ),
@@ -98,20 +98,21 @@ def _profiles_and_access(manifest: TJobsDeploymentManifest) -> TJobProfiles:
     ids=["not-strict-environment", "strict-environment"],
 )
 def test_manifest_for_environment(env: str, expected_warnings: List[str], isolated: bool) -> None:
-    """`prod` is not strict: a job without data access gets `access`, with a warning. `ci` has a
-    profile for every data access and deploys `ci_only` too. The caller activates the
-    environment, so `__deployment__.py` is imported with the default write profile."""
+    """`prod` is not strict: a job that declares no data access gets `access`, with a warning.
+    `ci` has a profile for every data access and deploys `ci_only` too. The caller activates
+    the environment, so `__deployment__.py` is imported with the default write profile."""
     with importable_workspace(WORKSPACE, *MODULES):
         environment = activate_environment(env)
         manifest, warnings = manifest_from_module("__deployment__", environment, isolated=isolated)
     assert manifest["environment"] == env
-    assert _profiles_and_access(manifest) == JOBS[env]
+    assert _get_profiles_and_access(manifest) == JOBS[env]
     assert warnings == expected_warnings
 
 
 def test_manifest_without_environment() -> None:
-    """A local run generates without an environment: the jobs keep the profiles they declare and
-    the access of their type, and the manifest records no environment."""
+    """For a local run, dlt generates the manifest without an environment. The jobs keep the
+    profiles that they declare and the access of their job type. The manifest records no
+    environment."""
     with importable_workspace(WORKSPACE, *MODULES, profile="prod"):
         manifest, warnings = manifest_from_module("__deployment__", None)
     assert "environment" not in manifest
@@ -124,7 +125,7 @@ def test_manifest_without_environment() -> None:
     }
     # without the environment, the data access of a declared profile is not known
     type_access: Dict[str, TWorkspaceAccess] = {"jobs.jobs.admin": READ, "jobs.jobs.reader": {}}
-    assert _profiles_and_access(manifest) == {
+    assert _get_profiles_and_access(manifest) == {
         job_ref: (declared.get(job_ref), type_access.get(job_ref, access))
         for job_ref, (_, access) in JOBS["prod"].items()
     }
@@ -151,7 +152,7 @@ def test_new_environment_deploys_batch_jobs() -> None:
     environment and gets no workspace dashboard, so a deployment of batch jobs needs no other
     profile."""
     with importable_workspace("deployment_mixed", "__deployment__", "plain") as ctx:
-        # `add-environment` creates the settings files of `ci-write`, `access` gets its own
+        # `add-environment` creates the files of `ci-write`, and `access` gets settings files too
         create_profile_settings(ctx, ["ci-write", "access"])
         add_environments(ctx, {"ci": create_environment_definition("ci")})
         manifest, warnings = manifest_from_module("__deployment__", activate_environment("ci"))
@@ -199,7 +200,7 @@ REPORT_REF = "jobs.__deployment__.report"
 
 
 @contextmanager
-def _workspace_before_profiles(
+def _create_workspace_before_profiles(
     job_profile: str, configured: List[str]
 ) -> Iterator[WorkspaceRunContext]:
     """A workspace created before profiles were declared: `.dlt/.workspace` is empty, the
@@ -210,7 +211,8 @@ def _workspace_before_profiles(
         with open(os.path.join(ctx.run_dir, "__deployment__.py"), "w", encoding="utf-8") as f:
             f.write(DEPLOYMENT_BEFORE_PROFILES % job_profile)
         importlib.invalidate_caches()
-        # the copy migrated when it loaded: emptied, it migrates again with the files above
+        # the copy migrated `.workspace` when it loaded. After `empty_workspace_file`, it
+        # migrates again with the settings files above
         empty_workspace_file(ctx)
         yield ctx
 
@@ -218,7 +220,7 @@ def _workspace_before_profiles(
 @pytest.mark.parametrize("isolated", [False, True], ids=["inprocess", "isolated"])
 def test_job_profile_access_mismatch(isolated: bool) -> None:
     """A strict environment refuses a batch job that declares a profile with read data access."""
-    with _workspace_before_profiles("access", ["prod", "access"]) as ctx:
+    with _create_workspace_before_profiles("access", ["prod", "access"]) as ctx:
         doc = load_workspace_definition(ctx)
         doc["environments"]["prod"]["strict_access"] = True
         save_definition(ctx, doc)
@@ -231,7 +233,7 @@ def test_job_profile_access_mismatch(isolated: bool) -> None:
 
 
 def _add_to_prod(ctx: WorkspaceRunContext, profile: str) -> str:
-    """Declares `profile` like `dlthub profile add <profile> --access write --environment prod`, with
+    """Adds `profile` like `dlthub profile add <profile> --access write --environment prod`, with
     its settings files."""
     create_profile_settings(ctx, [profile])
     add_profiles(ctx, {profile: {"data_access": "write"}}, "prod")
@@ -251,7 +253,7 @@ def _move_to_prod(ctx: WorkspaceRunContext, profile: str) -> str:
     return "prod"
 
 
-def _own_environment(ctx: WorkspaceRunContext, profile: str) -> str:
+def _get_own_environment(ctx: WorkspaceRunContext, profile: str) -> str:
     """Changes nothing: the deployment goes to the environment of `profile`."""
     return ctx.get_profile_definition(profile)["env"]
 
@@ -261,7 +263,7 @@ def _own_environment(ctx: WorkspaceRunContext, profile: str) -> str:
     [
         ("reports", [], [_add_to_prod]),
         # the first fix changes nothing, so the second one starts from the same workspace
-        ("analytics", ["analytics"], [_own_environment, _move_to_prod]),
+        ("analytics", ["analytics"], [_get_own_environment, _move_to_prod]),
     ],
     ids=["undeclared-profile", "migrated-profile"],
 )
@@ -273,7 +275,7 @@ def test_job_profile_after_migration(
     """A workspace created before profiles were declared has a job that declares a profile. The
     migration makes no such profile a profile of `prod`: the deployment to `prod` fails. Each
     fix that the message names deploys the job with its profile."""
-    with _workspace_before_profiles(job_profile, configured) as ctx:
+    with _create_workspace_before_profiles(job_profile, configured) as ctx:
         # the migration declares only a profile with settings files, as an environment of its own
         assert ctx.profile == "dev"
         assert list(ctx.environment_definitions) == ["prod", *configured]
@@ -294,8 +296,9 @@ def test_job_profile_after_migration(
             assert warnings == (
                 [
                     f"profile `access` has no settings files: 1 job (`{DASHBOARD_JOB_REF}`) that"
-                    " declares read data access runs with `prod` (write data access). Create them"
-                    " with `dlthub profile add access` to give them read data access."
+                    " declares read data access runs with `prod` (write data access). Create the"
+                    " settings files with `dlthub profile add access` to give them read data"
+                    " access."
                 ]
                 if in_prod
                 else []

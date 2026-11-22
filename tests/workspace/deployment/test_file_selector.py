@@ -155,7 +155,7 @@ PROD_SETTINGS = [
     "prod.config.toml",
     "prod.secrets.toml",
 ]
-# `staging-read` has secrets only and `staging-none` no settings file at all
+# `staging-read` has only a secrets file, and `staging-none` has no settings files
 STAGING_SETTINGS = [
     "staging-read.secrets.toml",
     "staging-write.config.toml",

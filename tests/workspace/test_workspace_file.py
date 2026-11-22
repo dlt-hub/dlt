@@ -289,7 +289,7 @@ def test_invalid_workspace_file(content: str, errors: List[str]) -> None:
 
 
 def test_migrate_workspace_definition() -> None:
-    # engine 0 gets the built-in declarations and each profile in use as an environment of its
+    # engine 0 gets the built-in declarations and each profile in use in an environment of its
     # own: once, and not for a built-in or an invalid name
     in_use = ["staging", "ci", "staging", "dev", "access", "bad.name", "my profile"]
     migrated = migrate_workspace_definition({}, 0, 1, implicit_profiles=in_use)
@@ -396,7 +396,7 @@ MIGRATION_CASES: Dict[str, MigrationCase] = {
 @pytest.mark.parametrize("case", MIGRATION_CASES.values(), ids=list(MIGRATION_CASES))
 def test_workspace_file_migration(case: MigrationCase, mocker: MockerFixture) -> None:
     """The migration of an empty `.dlt/.workspace` declares the profiles with settings files and
-    the recorded one, each as an environment of its own."""
+    the recorded one, each in an environment of its own."""
     with isolated_workspace(case.workspace) as ctx:
         path = ctx.get_setting(WORKSPACE_FILE_NAME)
         run_dir, name = ctx.run_dir, ctx.name

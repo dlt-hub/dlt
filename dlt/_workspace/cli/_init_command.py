@@ -96,7 +96,7 @@ def init_command(
     dry_run: bool = False,
     add_example_pipeline_script: bool = True,
 ) -> Tuple[Dict[str, str], files_ops.TSourceType]:
-    # `repo_location` and `branch` default to the ones the last verified source came from
+    # `repo_location` and `branch` default to the ones that a command got last
     repo_location, branch = files_ops.resolve_verified_sources_repo(repo_location, branch)
     # detect and warn on deprecated dlthub: pattern
     display_source_name: Optional[str] = None

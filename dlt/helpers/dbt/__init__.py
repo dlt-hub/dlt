@@ -26,7 +26,7 @@ SNOWFLAKE_AUTHENTICATOR_PROFILES: Dict[str, str] = {
     "oauth": "_oauth",
     "programmatic_access_token": "_pat",
 }
-"""Suffixes of the snowflake dbt profiles per `authenticator` of the credentials without a key pair"""
+"""dbt profile suffixes per Snowflake `authenticator`, for credentials without a key pair"""
 
 
 def _default_profile_name(credentials: DestinationClientDwhConfiguration) -> str:
@@ -42,8 +42,9 @@ def _default_profile_name(credentials: DestinationClientDwhConfiguration) -> str
             profile_name += SNOWFLAKE_AUTHENTICATOR_PROFILES[authenticator]
         else:
             raise ConfigurationValueError(
-                f"dbt cannot use Snowflake authenticator `{authenticator}`. dlt shares a password,"
-                " a key pair, an OAuth token or a programmatic access token with dbt."
+                f"dlt cannot pass Snowflake authenticator `{authenticator}` to dbt. dlt shares"
+                " only a password, a key pair, an OAuth token or a programmatic access token"
+                " with dbt."
             )
     elif has_default:
         # in case of credentials with default add default to the profile name

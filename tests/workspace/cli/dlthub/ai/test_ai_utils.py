@@ -358,7 +358,7 @@ def test_extract_toolkit_info_visibility() -> None:
 
 
 def test_extract_toolkit_info_mcp_features() -> None:
-    """`mcp_features` from toolkit.json maps server names to the features the toolkit adds."""
+    """`mcp_features` from toolkit.json maps server names to the feature groups a toolkit adds."""
     meta: Dict[str, Any] = {"name": "tk", "description": "A toolkit", "version": "1.0.0"}
     features = {"dlt-workspace-mcp": ["dlthub.jobs", "dlthub.logs"]}
     assert (
@@ -475,8 +475,8 @@ def _write_toolkits_index(project_root: Path, data: Dict[str, Any]) -> None:
     ids=["dlt-1.32", "dlt-1.33a2"],
 )
 def test_toolkits_index_written_by_older_dlt(case_file: str, source: Dict[str, str]) -> None:
-    """The flat index of an older dlt is migrated and saved on load: its toolkits stay as they
-    are, and the harness source that 1.33.0a2 recorded on `init` becomes the global one."""
+    """dlt migrates and saves the flat index of an older dlt on load. Its toolkits stay as they
+    are. The harness source that 1.33.0a2 recorded on `init` becomes the global one."""
     project_root = Path("project")
     index_path = project_root / ".dlt" / ".toolkits"
     index_path.parent.mkdir(parents=True)

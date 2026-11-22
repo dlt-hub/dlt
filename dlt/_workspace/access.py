@@ -77,7 +77,7 @@ def normalize_access(declared: Any, name: str = "access") -> TWorkspaceAccess:
 
     Args:
         declared (Any): The declaration, a mapping of axes to verbs.
-        name (str): How messages name the declaration, e.g. `access` or `__access__`.
+        name (str): How messages name the declaration, for example `access` or `__access__`.
 
     Raises:
         ValueError: The declaration is not a mapping, names an unknown axis, or a verb that its
@@ -110,7 +110,7 @@ def granted_verbs(access: Optional[TWorkspaceAccess], axis: str) -> Set[str]:
 
 
 def get_data_access_level(access: Optional[TWorkspaceAccess]) -> TProfileDataAccess:
-    """Data access that `access` declares: `write` when it grants `write`, else `read`, else
+    """Data access that `access` declares: `write` when it declares `write`, else `read`, else
     `none`."""
     verbs = granted_verbs(access, "data")
     if "write" in verbs:
@@ -119,7 +119,7 @@ def get_data_access_level(access: Optional[TWorkspaceAccess]) -> TProfileDataAcc
 
 
 def get_data_access_verbs(data_access: str) -> List[TWorkspaceDataVerb]:
-    """Data verbs of a data access level. `write` and `all` include `read`."""
+    """Data verbs that `data_access` includes. `write` and `all` include `read`."""
     if data_access in ("write", "all"):
         return ["read", "write"]
     return ["read"] if data_access == "read" else []

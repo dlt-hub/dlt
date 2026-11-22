@@ -73,8 +73,9 @@ class WorkspaceRunContext(ProfilesRunContext):
 
     @property
     def name(self) -> str:
-        """Workspace name: the parent folder name until the configuration is resolved, then
-        `[workspace.settings] name` or the name of the remote workspace of the active environment.
+        """Workspace name: the name of the workspace folder until the config is resolved. Then
+        `[workspace.settings] name`, or the name of the remote workspace in the environment of the
+        active profile.
         """
         return self._resolved_name or self._name
 
@@ -156,9 +157,9 @@ class WorkspaceRunContext(ProfilesRunContext):
         return self._config
 
     def get_environment_config(self, environment: str) -> WorkspaceConfiguration:
-        """Workspace configuration as the default write profile of `environment` resolves it: the
-        effective name, the connected remote workspace and the deployment module, without changing
-        the active profile."""
+        """Workspace config as the default write profile of `environment` resolves it, without
+        changing the active profile. It holds the effective name, the connected remote workspace
+        and the deployment module."""
         profile = get_default_profile_for_env(self.get_environment_definition(environment), "write")
         if profile == self.profile:
             return self.config
@@ -227,7 +228,7 @@ class WorkspaceRunContext(ProfilesRunContext):
         version.
 
         Raises:
-            ProfileNotDeclared: The profile of this context is not declared.
+            ProfileNotDeclared: The workspace does not declare the active profile.
         """
         if self._workspace_definition is None:
             doc = load_workspace_definition(self)

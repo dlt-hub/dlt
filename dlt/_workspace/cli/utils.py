@@ -321,7 +321,7 @@ def mcp_stdio_args(
     resolved = resolve_features(features)
     if resolved == DEFAULT_MCP_FEATURES:
         return args
-    # the server adds the defaults to `--features`, so a removed default needs the flag
+    # the server adds the default feature groups, so removing one needs `--no-default-features`
     if not DEFAULT_MCP_FEATURES <= resolved:
         args.append("--no-default-features")
     return args + ["--features", *sorted(resolved)]
@@ -350,11 +350,11 @@ def split_mcp_features(args: Sequence[str]) -> Tuple[List[str], List[str]]:
 
 
 def add_mcp_features(args: Sequence[str], features: Sequence[str]) -> List[str]:
-    """MCP server `args` with `features` tokens (`name`, `+name`, `-name`) added to `--features`,
-    unchanged if all are there.
+    """Adds the `features` tokens (`name`, `+name`, `-name`) to the `--features` of MCP server
+    `args`. Returns `args` unchanged when every feature group is already named.
 
-    A feature the args already name in any form is left as it is, so what the user or another
-    toolkit selected wins.
+    A feature group that `args` already names in any form stays as it is, so the choice of the
+    user or of another toolkit wins.
     """
     other, tokens = split_mcp_features(args)
     named = {token.lstrip("+-") for token in tokens}
@@ -365,7 +365,7 @@ def add_mcp_features(args: Sequence[str], features: Sequence[str]) -> List[str]:
             added.append(feature)
     if not added:
         return list(args)
-    # the comma form also carries `-name` tokens that argparse would read as flags
+    # the comma form also carries `-name` tokens that argparse reads as flags
     return other + ["--features=" + ",".join(tokens + added)]
 
 

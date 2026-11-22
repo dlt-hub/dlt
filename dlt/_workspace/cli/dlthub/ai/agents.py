@@ -44,7 +44,8 @@ from dlt._workspace.cli.dlthub.ai.utils import (
 from dlt._workspace.cli.markdown import MarkdownDocument
 
 if TYPE_CHECKING:
-    # the deployment package imports this module (agent manifests), so it is imported lazily
+    # the deployment package imports this module to read agent files, so the deployment
+    # types are imported only for type checking
     from dlt._workspace.deployment.typing import TInstallSpec
 
 TComponentType = Literal["skill", "command", "rule", "agent", "ignore", "mcp", "hook"]
@@ -73,10 +74,10 @@ class InstallAction(NamedTuple):
     source_kind: Optional[TComponentType] = None
     skip_index: bool = False
     component_dir: Optional[Path] = None
-    """For `remove`: directory of the component; empty folders are pruned only below it."""
+    """For `remove`: directory of the component. dlt prunes empty folders only below it."""
     render: Optional[Callable[[], Optional[str]]] = None
-    """For `render`: new content of `dest_path`, or `None` when it stays as is. Runs after all
-    other actions, so it sees the files they wrote."""
+    """For `render`: returns the new content of `dest_path`, or `None` to keep the file. It runs
+    after all other actions and sees the files that they wrote."""
     mcp_servers: Tuple[str, ...] = ()
     """For `mcp`: servers the toolkit provides, recorded in the toolkit index."""
 
@@ -199,7 +200,7 @@ class _AIAgent(ABC):
     def _copy_folder_actions(
         kind: TComponentType, source_name: str, src_dir: Path, dest_dir: Path, conflict: bool
     ) -> List[InstallAction]:
-        """One `copy` action per file of `src_dir`, all sharing the folder-level conflict."""
+        """One `copy` action per file of `src_dir`. All actions share the conflict of the folder."""
         actions: List[InstallAction] = []
         for src_file in sorted(src_dir.rglob("*")):
             # an agent may ship Python code; what a toolkit checkout compiled is not part of it
@@ -294,34 +295,34 @@ class _AIAgent(ABC):
         """Post-process the full action list. Default is identity."""
         return actions
 
-    def post_finalize_actions(
+    def get_post_finalize_actions(
         self, actions: List["InstallAction"], project_root: Path
     ) -> List["InstallAction"]:
-        """Actions that run after all other actions, e.g. to render a file from installed ones."""
+        """Actions that run after all other actions."""
         return []
 
-    def installed_rule_files(self, project_root: Path) -> List[Path]:
+    def get_installed_rule_files(self, project_root: Path) -> List[Path]:
         """Rule files installed in the project, sorted so the same rules give the same output."""
         if "rule" not in self._DIRS:
             return []
         return sorted(self.component_dir("rule", project_root).glob("*" + self._RULE_EXT))
 
-    def session_context(self, project_root: Path) -> Optional[str]:
+    def get_session_context(self, project_root: Path) -> Optional[str]:
         """Text the agent gets when a session starts, `None` when it needs none."""
         return None
 
-    def install_notes(self) -> List[str]:
-        """Steps the user has to take after an install, e.g. to enable MCP servers."""
+    def get_install_notes(self) -> List[str]:
+        """Steps that the user must take after an install."""
         return []
 
-    def workspace_python_dependencies(
+    def filter_workspace_python_dependencies(
         self, specs: List["TInstallSpec"], deps: List[str]
     ) -> Tuple[List["TInstallSpec"], List[str]]:
         """Packages `dlthub init` writes for this agent: dlt package specs and other deps."""
         return specs, deps
 
     @abstractmethod
-    def mcp_config_paths(self, project_root: Path) -> List[Path]:
+    def get_mcp_config_paths(self, project_root: Path) -> List[Path]:
         """MCP config files the agent reads, all in the same format."""
 
     @abstractmethod
@@ -338,8 +339,8 @@ class _AIAgent(ABC):
         """Return True when the agent's runtime env var is set."""
 
     @classmethod
-    def _global_marker_path(cls) -> Optional[Path]:
-        """Path that proves the tool is installed for the user."""
+    def _get_global_marker_path(cls) -> Optional[Path]:
+        """Path that proves the AI coding agent is installed for the user."""
         home = home_dir()
         return home / cls._GLOBAL_MARKER if home is not None else None
 
@@ -352,7 +353,7 @@ class _AIAgent(ABC):
         """
         if cls._is_env():
             return AgentDetectLevel.ENV
-        marker = cls._global_marker_path()
+        marker = cls._get_global_marker_path()
         installed = marker is not None and marker.exists()
         if installed and any((project_root / p).exists() for p in cls._LOCAL_PROBES):
             return AgentDetectLevel.LOCAL
@@ -372,13 +373,13 @@ class _AIAgent(ABC):
         return [(variant_cls(), level) for level, variant_cls in detected]
 
     @classmethod
-    def best_detected_agents(cls, project_root: Path) -> List["_AIAgent"]:
+    def detect_best_agents(cls, project_root: Path) -> List["_AIAgent"]:
         """Agents detected at the strongest level, empty when none is detected."""
         detected = cls.detect_all(project_root)
         return [agent for agent, level in detected if level == detected[0][1]] if detected else []
 
     @staticmethod
-    def recorded_agent_name() -> Optional[TAIAgentName]:
+    def get_recorded_agent_name() -> Optional[TAIAgentName]:
         """The agent the init toolkit was installed for, from the `.toolkits` index."""
         init_entry = load_toolkits_index().get(_INIT_TOOLKIT)
         recorded = init_entry.get("agent") if isinstance(init_entry, dict) else None
@@ -389,9 +390,9 @@ class _AIAgent(ABC):
         """An explicit agent, the recorded one, or the single best detected one. Never raises."""
         if agent is not None:
             return agent
-        if recorded := cls.recorded_agent_name():
+        if recorded := cls.get_recorded_agent_name():
             return recorded
-        best = cls.best_detected_agents(project_root)
+        best = cls.detect_best_agents(project_root)
         return best[0].name if len(best) == 1 else None
 
     @staticmethod
@@ -437,7 +438,7 @@ class _ClaudeAgent(_AIAgent):
     def _transform_rule(self, content: str) -> str:
         return strip_rule_frontmatter(content)
 
-    def mcp_config_paths(self, project_root: Path) -> List[Path]:
+    def get_mcp_config_paths(self, project_root: Path) -> List[Path]:
         return [project_root / ".mcp.json"]
 
     def parse_mcp_servers(self, content: str) -> Dict[str, Any]:
@@ -470,13 +471,13 @@ class _CursorAgent(_AIAgent):
     def _transform_rule(self, content: str) -> str:
         return ensure_cursor_rule_frontmatter(content)
 
-    def install_notes(self) -> List[str]:
+    def get_install_notes(self) -> List[str]:
         return [
             "Cursor requires you to manually enable MCP servers per-project."
             " Open Cursor Settings > MCP and enable the servers installed by dlt."
         ]
 
-    def mcp_config_paths(self, project_root: Path) -> List[Path]:
+    def get_mcp_config_paths(self, project_root: Path) -> List[Path]:
         return [project_root / ".cursor" / "mcp.json"]
 
     def parse_mcp_servers(self, content: str) -> Dict[str, Any]:
@@ -513,13 +514,14 @@ class _CodexAgent(_AIAgent):
     must not change."""
 
     RULES_INTRO: ClassVar[str] = (
-        "ALWAYS read and follow these dltHub skills before acting, they hold the rules of this"
+        "ALWAYS read and follow these dltHub skills before you act. They hold the rules of this"
         " workspace:"
     )
 
     MCP_DEFAULTS: ClassVar[Dict[str, Any]] = {"mcp_optional_startup_grace_ms": 5000}
-    """Top-level Codex settings written with the MCP servers when missing. Codex waits 1000 ms by
-    default for MCP servers before the first turn, too short for the dlt server to start."""
+    """Top-level Codex settings that dlt writes with the MCP servers when they are missing. By
+    default, Codex waits 1000 ms for MCP servers before the first turn. The dlt server needs more
+    time to start."""
 
     @property
     def name(self) -> TAIAgentName:
@@ -529,7 +531,7 @@ class _CodexAgent(_AIAgent):
     def _is_env(cls) -> bool:
         return is_codex()
 
-    def hooks_config_path(self, project_root: Path) -> Path:
+    def get_hooks_config_path(self, project_root: Path) -> Path:
         return project_root / ".codex" / "hooks.json"
 
     def component_path(
@@ -611,7 +613,7 @@ class _CodexAgent(_AIAgent):
             )
         ]
 
-    def installed_rule_files(self, project_root: Path) -> List[Path]:
+    def get_installed_rule_files(self, project_root: Path) -> List[Path]:
         # rule skills share the folder with ordinary skills
         return [
             skill_md
@@ -621,9 +623,9 @@ class _CodexAgent(_AIAgent):
             if is_always_apply_skill(skill_md)
         ]
 
-    def session_context(self, project_root: Path) -> Optional[str]:
+    def get_session_context(self, project_root: Path) -> Optional[str]:
         """Links to the installed rule skills, `None` when there are none."""
-        rule_skills = self.installed_rule_files(project_root)
+        rule_skills = self.get_installed_rule_files(project_root)
         if not rule_skills:
             return None
         links = [
@@ -638,7 +640,7 @@ class _CodexAgent(_AIAgent):
         """Adds the session start hook that lists the rule skills when the toolkit has rules."""
         if not any(a.source_kind == "rule" for a in actions):
             return actions
-        hooks_path = self.hooks_config_path(project_root)
+        hooks_path = self.get_hooks_config_path(project_root)
         existing = hooks_path.read_text(encoding="utf-8") if hooks_path.is_file() else ""
         merged = merge_json_hooks(existing, "SessionStart", self.RULES_HOOK)
         if merged is not None:
@@ -655,13 +657,13 @@ class _CodexAgent(_AIAgent):
             )
         return actions
 
-    def install_notes(self) -> List[str]:
+    def get_install_notes(self) -> List[str]:
         return [
-            "Codex runs the hook that loads dltHub rules only in a trusted project, after you"
-            " approve it with /hooks (Settings > Hooks in the Codex app)."
+            "Codex runs the hook that loads dltHub rules only in a trusted project. Approve the"
+            " hook once with /hooks (Settings > Hooks in the Codex app)."
         ]
 
-    def mcp_config_paths(self, project_root: Path) -> List[Path]:
+    def get_mcp_config_paths(self, project_root: Path) -> List[Path]:
         return [project_root / ".codex" / "config.toml"]
 
     def parse_mcp_servers(self, content: str) -> Dict[str, Any]:
@@ -685,14 +687,14 @@ class _CortexAgent(_AIAgent):
     _GLOBAL_MARKER: ClassVar[str] = "cortex"
     _LOCAL_PROBES: ClassVar[Tuple[str, ...]] = (".cortex", "CORTEX.md", ".snowflake/cortex")
     _UNWANTED_DEPS: ClassVar[Tuple[str, ...]] = ("marimo", "mowidgets")
-    """Workspace deps a Cortex workspace does not install."""
+    """Workspace dependencies that `dlthub init` leaves out for Cortex Code."""
 
     RULES_HEADING: ClassVar[str] = "# dltHub rules"
     """Heading of the `CORTEX.md` section that dlt owns."""
 
     RULES_NOTICE: ClassVar[str] = (
-        "Generated by dlthub from .cortex/rules/ on every toolkit install. Do not edit this"
-        " section; edit the rule files."
+        "dlthub generates this section from .cortex/rules/ on every toolkit install. Do not"
+        " edit this section. Edit the rule files instead."
     )
 
     @property
@@ -712,11 +714,11 @@ class _CortexAgent(_AIAgent):
         return home / ".snowflake" if home is not None else None
 
     @classmethod
-    def _global_marker_path(cls) -> Optional[Path]:
+    def _get_global_marker_path(cls) -> Optional[Path]:
         sf_home = cls.get_snowflake_home()
         return sf_home / cls._GLOBAL_MARKER if sf_home is not None else None
 
-    def cortex_md_path(self, project_root: Path) -> Path:
+    def get_cortex_md_path(self, project_root: Path) -> Path:
         """Path to the CORTEX.md file that holds the rules."""
         return project_root / "CORTEX.md"
 
@@ -727,7 +729,7 @@ class _CortexAgent(_AIAgent):
     def _render_section_rule_body(rule_file: Path) -> str:
         """Rule body as it goes into the `CORTEX.md` section, under the section heading."""
         body = MarkdownDocument(read_rule_body(rule_file))
-        # a body that ends inside a code fence would swallow the rest of CORTEX.md
+        # a body that ends inside a code fence swallows the rest of CORTEX.md
         body.close_open_blocks()
         body.demote_headings()
         return str(body)
@@ -737,9 +739,9 @@ class _CortexAgent(_AIAgent):
         `None` if unchanged.
         """
         bodies = [
-            self._render_section_rule_body(f) for f in self.installed_rule_files(project_root)
+            self._render_section_rule_body(f) for f in self.get_installed_rule_files(project_root)
         ]
-        cortex_md = self.cortex_md_path(project_root)
+        cortex_md = self.get_cortex_md_path(project_root)
         existing = cortex_md.read_text(encoding="utf-8") if cortex_md.is_file() else ""
         doc = MarkdownDocument(existing)
         if not bodies and doc.find_top_heading(self.RULES_HEADING) is None:
@@ -751,15 +753,15 @@ class _CortexAgent(_AIAgent):
         merged = str(doc)
         return merged if merged != existing else None
 
-    def post_finalize_actions(
+    def get_post_finalize_actions(
         self, actions: List["InstallAction"], project_root: Path
     ) -> List["InstallAction"]:
-        """Renders the `CORTEX.md` section from the rule files once the install wrote them."""
+        """A `render` action that builds the `CORTEX.md` section from the installed rule files."""
         return [
             InstallAction(
                 kind="rule",
                 source_name="CORTEX.md",
-                dest_path=self.cortex_md_path(project_root),
+                dest_path=self.get_cortex_md_path(project_root),
                 op="render",
                 content_or_path="",
                 conflict=False,
@@ -768,19 +770,22 @@ class _CortexAgent(_AIAgent):
             )
         ]
 
-    def install_notes(self) -> List[str]:
+    def get_install_notes(self) -> List[str]:
         return [
-            "Cortex Code reads skills and CORTEX.md when a session starts: start a new session.",
+            (
+                "Cortex Code reads skills and CORTEX.md only when a session starts. Start a new"
+                " session."
+            ),
             (
                 "Cortex Code Desktop loads project skills and MCP servers only from a trusted"
-                " workspace."
+                " Cortex Code workspace."
             ),
         ]
 
-    def workspace_python_dependencies(
+    def filter_workspace_python_dependencies(
         self, specs: List["TInstallSpec"], deps: List[str]
     ) -> Tuple[List["TInstallSpec"], List[str]]:
-        """No `dlthub-client` (pulled in by the `hub` extra) and no marimo notebooks."""
+        """Leaves out `dlthub-client` (from the `hub` extra) and marimo, and keeps `dlthub`."""
         from dlt._workspace.deployment.requirements import (
             DLT_PKG_NAME,
             DLTHUB_CLIENT_PKG_NAME,
@@ -802,8 +807,8 @@ class _CortexAgent(_AIAgent):
             kept_deps.insert(0, dlt_extra_specs("hub")[DLTHUB_PKG_NAME])
         return kept_specs, kept_deps
 
-    def mcp_config_paths(self, project_root: Path) -> List[Path]:
-        # Desktop reads the project config, the CLI only the user one
+    def get_mcp_config_paths(self, project_root: Path) -> List[Path]:
+        # Desktop reads the project config, and the CLI reads only the user config
         paths = [project_root / ".cortex" / "mcp.json"]
         if (sf_home := self.get_snowflake_home()) is not None:
             paths.append(sf_home / "cortex" / "mcp.json")
@@ -813,7 +818,7 @@ class _CortexAgent(_AIAgent):
         return parse_json_mcp(content, "mcpServers")[1]
 
     def merge_mcp_servers(self, existing_content: str, new_servers: Dict[str, Any]) -> str:
-        # the Cortex Code CLI requires `type`; a server started by a command speaks stdio
+        # the Cortex Code CLI requires `type`. A server started by a command speaks stdio
         typed = {
             name: {"type": "stdio", **config} if "command" in config else config
             for name, config in new_servers.items()

@@ -307,7 +307,8 @@ def _build_current_profile_info(ctx: WorkspaceRunContext) -> TCurrentProfileInfo
         **_build_profile_info(ctx, ctx.profile), data_dir=ctx.data_dir, local_dir=ctx.local_dir
     )
     if ctx.environment:
-        # as the default write profile resolves it, the same that `fetch_environments_list` shows
+        # the environment config as the default write profile resolves it, as in
+        # `fetch_environments_list`
         config = ctx.get_environment_config(ctx.environment)
         info["workspace_name"] = config.settings.name
         info["deployment_module"] = get_deployment_module_file(
@@ -422,7 +423,7 @@ def fetch_profile_info() -> Optional[TCurrentProfileFullInfo]:
 def fetch_deployment_info() -> TDeploymentManifestInfo:
     """Summarize the workspace deployment manifest."""
 
-    # summarizes a deployment to the environment of a remote profile, a local run otherwise
+    # summarizes a deployment to the environment of a remote profile, or a local run of a local one
     ctx = Container()[PluggableRunContext].context
     environment = None
     if isinstance(ctx, WorkspaceRunContext) and ctx.environment:
@@ -512,8 +513,9 @@ def _has_project_table(pyproject_path: str) -> bool:
 
 
 def _get_requirements_merge_error(requirements_path: str) -> Optional[TInitMergeError]:
-    """Why lines cannot be merged into the `requirements.txt` at `requirements_path`: it pins
-    hashes, which the merged lines lack, or it includes files, which may pin them already."""
+    """Returns why dlt cannot merge lines into the `requirements.txt` at `requirements_path`. The
+    file pins hashes, which the merged lines lack, or it includes files that can pin them
+    already."""
     with open(requirements_path, encoding="utf-8") as f:
         lines = [line.strip() for line in f.read().splitlines()]
     if any("--hash" in line for line in lines if not line.startswith("#")):
@@ -535,8 +537,8 @@ def fetch_init_plan(
     """Build a plan describing what `dlthub init` would write.
 
     `agent`, when given, decides which packages the workspace depends on. Without `overwrite` or
-    `skip`, an existing `.gitignore` gets the missing required entries and an existing dependency
-    file the missing or outdated dependencies.
+    `skip`, an existing `.gitignore` gets the missing required entries. An existing dependency
+    file gets the missing or outdated dependencies.
     """
     # `dependencies` overrides uv detection: "pyproject" forces pyproject.toml,
     # "requirements" forces requirements.txt, "auto" uses uv-on-PATH as the signal
@@ -560,8 +562,8 @@ def fetch_init_plan(
     dependency_path = os.path.join(abs_run_dir, dependency_system)
     gitignore_path = os.path.join(abs_run_dir, GITIGNORE_FILE)
 
-    # settings files are always kept, the dlthub scaffold is replaced only with `overwrite`. init
-    # refuses an existing workspace, so `.workspace` is only ever created
+    # config.toml and secrets.toml are always kept. Only `overwrite` replaces the dlthub scaffold.
+    # init refuses an existing workspace, so it only ever creates `.workspace`
     files: List[TInitFileEntry] = [
         _make_init_entry(dependency_path, keep=not overwrite),
         _make_init_entry(gitignore_path, keep=not overwrite),
@@ -575,7 +577,7 @@ def fetch_init_plan(
     workspace_specs = get_workspace_install_specs()
     deps = workspace_deps()
     if agent is not None:
-        workspace_specs, deps = agent.workspace_python_dependencies(workspace_specs, deps)
+        workspace_specs, deps = agent.filter_workspace_python_dependencies(workspace_specs, deps)
     dependency_specs: List[str] = [
         render_pep508(s, for_deployment=False) for s in workspace_specs
     ] + deps
@@ -601,7 +603,7 @@ def fetch_init_plan(
         if gitignore_additions:
             files[1]["status"] = "merge"
     if merge and os.path.isfile(dependency_path):
-        # `uv add` needs a `[project]` table, a pyproject with tool settings only has none
+        # `uv add` needs a `[project]` table. A pyproject with only tool settings has none
         if dependency_system == PYPROJECT_TOML and not _has_project_table(dependency_path):
             merge_error = "no_project_table"
         else:

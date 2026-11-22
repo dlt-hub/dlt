@@ -705,15 +705,15 @@ def test_load_manifest_missing_default_module_raises_typed(
     # without an environment there is no setting to point at
     assert (
         str(exc.value)
-        == "No deployment module __deployment__.py in the workspace. Create it and import your job"
-        " declarations and notebook modules into it."
+        == "dlt found no deployment module __deployment__.py in the workspace. Create it and"
+        " import your job declarations and notebook modules into it."
     )
     # the module that the configuration of the environment names
     environment = {**create_environment_definition("ci"), "deployment_module": "jobs/ci.py"}
     with pytest.raises(ManifestImportError) as exc:
         load_manifest_with_warnings(None, environment)  # type: ignore[arg-type]
     assert (exc.value.kind, exc.value.environment) == ("default_missing", "ci")
-    assert "No deployment module jobs/ci.py in the workspace" in str(exc.value)
+    assert "dlt found no deployment module jobs/ci.py in the workspace" in str(exc.value)
     assert "`[workspace.environment.ci]`" in str(exc.value)
     # a module the caller names is not the default one
     with pytest.raises(ManifestImportError) as exc:

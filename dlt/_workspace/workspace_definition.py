@@ -1,5 +1,5 @@
 """The environments and local profiles a workspace declares: the built-in definition, lookups and
-the facts about each entry. No files and no run context."""
+the facts about each entry. This module reads no files and no run context."""
 
 import re
 from typing import Collection, Dict, Optional, Tuple
@@ -102,7 +102,7 @@ def get_environment_definition(doc: TWorkspaceDefinition, env: str) -> TEnvironm
 
 
 def get_profile_data_access(profile: TProfileStoredDefinition) -> TProfileDataAccess:
-    """Data access level of `profile`: `none`, `read` or `write`."""
+    """Data access of `profile`: `none`, `read` or `write`."""
     return "write" if profile["data_access"] == "all" else profile["data_access"]
 
 
@@ -120,7 +120,7 @@ def set_configured_profiles(
 
 
 def is_profile_usable(profile: TProfileDefinition) -> bool:
-    """True when `profile` is configured or holds no credentials and needs no settings files."""
+    """True when `profile` has settings files, or holds no credentials and needs none."""
     return profile.get("configured", True) or not needs_settings_files(profile)
 
 
@@ -139,8 +139,9 @@ def find_default_profile_for_access(
     environment: TEnvironmentDefinition, data_access: TProfileDataAccess
 ) -> Optional[Tuple[str, TProfileDataAccess]]:
     """The default profile of `environment` that serves `data_access`, with the data access it
-    gives. A profile without settings files does not count. In an environment that is not strict,
-    the closest default profile with more data access takes over. `None` when no profile fits."""
+    gives. A profile without settings files does not count, except the default write profile of
+    an environment that is not strict. There, the closest default profile with more data access
+    takes over. `None` when no profile fits."""
     strict = bool(environment.get("strict_access"))
     levels = DATA_ACCESS_LEVELS[DATA_ACCESS_LEVELS.index(data_access) :]
     for level in levels[:1] if strict else levels:

@@ -1,4 +1,4 @@
-"""Profiles of the active workspace: declare, check and activate them."""
+"""Declares, checks and activates the profiles of the active workspace."""
 
 import os
 from contextlib import contextmanager
@@ -72,9 +72,9 @@ def declare_profiles(
     env: Optional[str],
     path: str,
 ) -> None:
-    """Declares `profiles` in `doc`, local ones or profiles of environment `env`, which gives them
-    their location and environment. The first local profile and the first profile of each data
-    access in `env` become defaults.
+    """Declares `profiles` in `doc`: as local profiles, or as profiles of the environment `env`.
+    A new profile becomes a default when `doc` has no default local profile, or no default
+    profile of its data access in `env`.
 
     Raises:
         InvalidProfileName: A name is not a profile name.
@@ -87,7 +87,7 @@ def declare_profiles(
         has_default = any(p.get("default") for p in declared.values())
         for name, profile in profiles.items():
             local: TProfileDefinition = {**profile, "location": "local"}
-            # where a profile is declared decides, also over an `env` that an untyped caller passes
+            # a local profile has no environment, even when an untyped caller passes `env`
             local.pop("env", None)
             if not has_default:
                 local["default"] = has_default = True
@@ -164,7 +164,7 @@ def activate_profile(profile: str) -> None:
         # refused before the variable is set, so a typo never reaches the processes started here
         check_profile_declared(profile)
     os.environ[WORKSPACE__PROFILE] = profile
-    # a run context created before the env var was set keeps its profile until switched
+    # a run context created before the variable was set keeps its profile until switched
     if isinstance(ctx, ProfilesRunContext) and ctx.profile != profile:
         ctx.switch_profile(profile)
 

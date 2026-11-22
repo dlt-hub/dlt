@@ -281,7 +281,7 @@ def test_compute_columns_schema(
                 "reason": "unknown_table",
                 "column": "col_unknown",
                 "unknown_sources": ["table_unknown"],
-                "fragments": ["columns of table `table_unknown` are not known to dlt"],
+                "fragments": ["dlt does not know the columns of table `table_unknown`"],
             },
         ),
         (
@@ -289,7 +289,7 @@ def test_compute_columns_schema(
             {
                 "reason": "unresolved_star",
                 "unknown_sources": ["table_unknown"],
-                "fragments": ["dlt cannot expand `*`: the columns of"],
+                "fragments": ["dlt cannot expand `*` because it does not know the columns of"],
             },
         ),
         (
@@ -297,7 +297,7 @@ def test_compute_columns_schema(
             {
                 "reason": "unresolved_star",
                 "unknown_sources": ["table_unknown"],
-                "fragments": ["columns of table `table_unknown` are not known"],
+                "fragments": ["does not know the columns of table `table_unknown`"],
             },
         ),
         (QUERY_DROP, {"reason": "not_select", "fragments": ["is not a SELECT statement."]}),
@@ -321,7 +321,9 @@ def test_compute_columns_schema(
             "SELECT nope FROM read_parquet('x.parquet')",
             {
                 "reason": "unknown_table",
-                "fragments": ["the columns of table function `READ_PARQUET('x.parquet')` are not"],
+                "fragments": [
+                    "dlt does not know the columns of table function `READ_PARQUET('x.parquet')`"
+                ],
             },
         ),
         (
@@ -329,7 +331,7 @@ def test_compute_columns_schema(
             {
                 "reason": "unknown_table",
                 "sources": {"l": ("LATERAL `l`", None)},
-                "fragments": ["the columns of LATERAL `l` are not known"],
+                "fragments": ["dlt does not know the columns of LATERAL `l`"],
             },
         ),
     ],

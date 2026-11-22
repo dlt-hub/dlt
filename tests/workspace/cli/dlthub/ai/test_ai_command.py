@@ -139,7 +139,7 @@ def test_toolkit_visibility(
     # the list shows what the agent can install
     ai_toolkit_list_command(location=location, agent="cortex")
     out = capsys.readouterr().out
-    assert "Showing what cortex can install" in out
+    assert "Showing what dlt can install for cortex" in out
     assert "sql-database" not in out
     assert "rest-api-pipeline" in out
     ai_toolkit_list_command(location=location, agent="cortex", see_all=True)
@@ -160,7 +160,7 @@ def test_toolkit_visibility(
     # a hidden dependency is skipped, a hidden component is not installed
     ai_toolkit_install_command(name="rest-api-pipeline", agent="cortex", location=location)
     out = capsys.readouterr().out
-    assert "Skipping dependency sql-database: not available for cortex" in out
+    assert "Skipping dependency sql-database: it is not available for cortex" in out
     index = load_toolkits_index()
     assert "sql-database" not in index
     assert set(index) == {"init", "rest-api-pipeline"}
@@ -184,12 +184,12 @@ def test_toolkit_visibility(
 def test_toolkit_list_with_several_agents_detected(
     capsys: pytest.CaptureFixture[str], environment: Any
 ) -> None:
-    """Several detected agents show every toolkit and ask for --agent."""
+    """With several detected agents, the list shows every toolkit and asks for --agent."""
     environment.update({"CLAUDECODE": "1", "CURSOR_AGENT": "1"})
     make_mock_workbench()
     ai_toolkit_list_command(location=MOCK_WORKBENCH_LOCATION)
     out = capsys.readouterr().out
-    assert "Several AI coding agents detected (claude, cursor)" in out
+    assert "dlt detected several AI coding agents (claude, cursor)" in out
     assert "sql-database" in out
 
 
@@ -216,7 +216,7 @@ def test_ai_init_installs_init_dependencies(capsys: pytest.CaptureFixture[str]) 
     ai_init_command(agent="claude", location=MOCK_WORKBENCH_LOCATION)
     out = capsys.readouterr().out
     assert set(load_toolkits_index()) == {"init", "local-workspace"}
-    assert "Skipping dependency not-for-claude: not available for claude" in out
+    assert "Skipping dependency not-for-claude: it is not available for claude" in out
     # the dependencies of init do not count as a first toolkit
     assert "install your first toolkit" in out
 
@@ -274,12 +274,14 @@ def test_toolkit_visibility_nested_dependencies(capsys: pytest.CaptureFixture[st
     out = capsys.readouterr().out
     # `shared` is needed by `hidden` but also by `mid`, so it stays
     assert set(load_toolkits_index()) == {"app", "mid", "other-leaf", "shared"}
-    assert "Skipping dependency hidden: not available for cortex" in out
+    assert "Skipping dependency hidden: it is not available for cortex" in out
     # visible, but only the hidden toolkit needs it
-    assert "Skipping dependency leaf: only toolkits not available for cortex need it" in out
+    assert (
+        "Skipping dependency leaf: only toolkits that are not available for cortex need it" in out
+    )
     assert "Skipping dependency shared" not in out
 
-    # --see-all brings in the hidden branch
+    # --see-all also installs the hidden dependencies
     ai_toolkit_install_command(
         name="app", agent="cortex", location=MOCK_WORKBENCH_LOCATION, see_all=True
     )
@@ -359,7 +361,7 @@ def test_cortex_install(
     make_mock_workbench()
     ai_init_command(agent="cortex", location=location)
     out = capsys.readouterr().out
-    assert "start a new session" in out
+    assert "Start a new session" in out
     ai_toolkit_install_command(name="rest-api-pipeline", agent="cortex", location=location)
     out = capsys.readouterr().out
     # each MCP config gets its own line, relative to the workspace when it is in the workspace
@@ -443,7 +445,7 @@ def test_codex_install(
     assert out.startswith(_CodexAgent.RULES_INTRO)
     assert "- `init-base`: .agents/skills/init-base/SKILL.md" in out
     assert "- `rest-api-pipeline-coding`: " in out
-    # agents with rule files get nothing
+    # agents that read rule files get no session context
     ai_rules_command(agent="claude")
     assert capsys.readouterr().out == ""
 

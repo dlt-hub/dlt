@@ -13,7 +13,7 @@ TWorkspaceContextVerb = Literal["read", "write", "execute", "deploy", "all"]
 
 
 class TWorkspaceAccess(TypedDict, total=False):
-    """What a job declares it needs to run. A tool requires it, a profile gives its `data` axis."""
+    """What a job declares it needs to run. A tool requires it. A profile gives its `data` axis."""
 
     local: List[TWorkspaceLocalVerb]
     """What may be done on the machine the workspace lives on."""
@@ -24,7 +24,8 @@ class TWorkspaceAccess(TypedDict, total=False):
 
 
 TProfileLocation = Literal["local", "remote"]
-"""Where a profile is used: `local` profiles never leave the machine, `remote` ones deploy."""
+"""Where a profile is used: `local` profiles never leave the machine, `remote` ones deploy with
+their environment."""
 TProfileDataAccess = Union[Literal["none"], TWorkspaceDataVerb]
 """Data access of a profile: `none` or a data verb of job access. `write` and `all` include
 `read`."""
@@ -46,7 +47,8 @@ class TProfileStoredDefinition(TypedDict):
 
 
 class TProfileDefinition(TProfileStoredDefinition):
-    """A declared profile with what follows from where it is declared. Never stored."""
+    """A declared profile with its location and, for a remote profile, its environment. dlt
+    never stores it."""
 
     location: TProfileLocation
     env: NotRequired[str]
@@ -62,24 +64,25 @@ class TEnvironmentStoredDefinition(TypedDict):
 
     profiles: Dict[str, TProfileStoredDefinition]
     """The remote profiles of the environment, deployed together. One profile per data access is
-    its default. A deployment is made with the default profile with write data access."""
+    its default. A deployment is made with its default write profile."""
     default: NotRequired[bool]
-    """The environment commands that deploy or work with a deployment assume when none is named."""
+    """The default environment: commands that deploy or work with a deployment assume it when
+    nothing names one."""
     strict_access: NotRequired[bool]
     """A strict environment: the profile of a job gives exactly the access that the job declares."""
 
 
 # NOTE: the runtime definitions narrow the stored fields, which mypy reports as overwriting
 class TEnvironmentDefinition(TEnvironmentStoredDefinition):
-    """A declared environment with its name and settings. Self-contained, so a manifest is
-    generated from it alone. Never stored."""
+    """A declared environment with its name and settings. It is self-contained, so dlt generates
+    a deployment manifest from it alone. dlt never stores it."""
 
     name: str
     profiles: Dict[str, TProfileDefinition]  # type: ignore[misc]
     deployment_module: NotRequired[str]
-    """The deployment module of the environment, from its configuration."""
+    """The deployment module of the environment, from its config."""
     deploy_dashboard: NotRequired[bool]
-    """Whether the environment deploys the workspace dashboard, from its configuration."""
+    """Whether the environment deploys the workspace dashboard, from its config."""
 
 
 class TWorkspaceStoredDefinition(TypedDict):
@@ -91,8 +94,8 @@ class TWorkspaceStoredDefinition(TypedDict):
 
 
 class TWorkspaceDefinition(TWorkspaceStoredDefinition):
-    """The environments and the local profiles a workspace declares, with what follows from
-    where each is declared."""
+    """The environments and the local profiles that a workspace declares, with the name of each
+    environment and the location and environment of each profile."""
 
     environments: Dict[str, TEnvironmentDefinition]  # type: ignore[misc]
     local_profiles: Dict[str, TProfileDefinition]  # type: ignore[misc]

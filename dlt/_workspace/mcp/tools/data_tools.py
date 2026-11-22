@@ -103,8 +103,8 @@ def list_pipelines(
 def get_workspace_info(
     profile: TProfileArgument = None,
 ) -> Annotated[Dict[str, Any], RequiresAccess(local=["read"])]:
-    """Get workspace info: name, directories, the active profile and config providers. `profile`
-    overrides the active profile for this call."""
+    """Get workspace info: name, directories, the active profile and config providers. With
+    `profile`, the call runs with that profile as the active profile."""
 
     info = fetch_workspace_info()
     # prune bulky file-tracking data from toolkit entries
@@ -116,8 +116,9 @@ def get_workspace_info(
 @with_mcp_tool_telemetry()
 def list_profiles() -> Annotated[List[Dict[str, Any]], RequiresAccess(local=["read"])]:
     """List all workspace profiles with location (local or remote), data access, environment
-    (`env`), the other profiles of the environment (`also_in_env`) and status flags (`is_current`,
-    `is_pinned`, `default`, `configured`: has settings files)."""
+    (`env`), the other profiles of the environment (`also_in_env`) and status flags (`is_current`:
+    active, `is_pinned`: recorded in `.dlt/profile-name`, `default`, `configured`: has settings
+    files)."""
     return fetch_profiles_list()
 
 

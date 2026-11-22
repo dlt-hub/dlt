@@ -1,5 +1,5 @@
 """Files that dlt keeps in the settings dir: the yaml files `.workspace`, `.sources` and
-`.toolkits`, the settings files of profiles and `profile-name`, the record of the active profile."""
+`.toolkits`, and the settings files of profiles. `profile-name` records the active profile."""
 
 import os
 import re
@@ -13,7 +13,8 @@ from dlt.common.typing import DictStrAny
 PIN_FILE_NAME = "profile-name"
 
 PROFILE_FILE_RE = re.compile(r"^(?P<profile>[A-Za-z0-9_-]+)\.(?:config|secrets)\.toml$")
-"""A profile's settings file in `.dlt/`: `<profile>.config.toml` or `<profile>.secrets.toml`."""
+"""The settings file of a profile in `.dlt/`: `<profile>.config.toml` or
+`<profile>.secrets.toml`."""
 
 
 def dump_yaml(doc: Mapping[str, Any]) -> str:

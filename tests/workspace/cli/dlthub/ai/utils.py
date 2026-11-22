@@ -72,7 +72,7 @@ def assert_toolkit_install(
     mcp_servers: Optional[List[str]] = entry.get("mcp_servers")
     if mcp_servers:
         agent = AI_AGENTS[agent_name]()
-        for mcp_path in agent.mcp_config_paths(project_root):
+        for mcp_path in agent.get_mcp_config_paths(project_root):
             assert mcp_path.is_file(), "MCP config missing at %s" % mcp_path
             content = mcp_path.read_text(encoding="utf-8")
             parsed_servers = agent.parse_mcp_servers(content)

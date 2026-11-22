@@ -551,8 +551,9 @@ def job(
             (static outbound IPs for third-party allowlists).
 
         access: What the job needs to run, see `TWorkspaceAccess`. Without it, the job
-            type gives the data access: read for interactive jobs, write for batch and
-            stream jobs.
+            declares the data access of its job type: read for interactive jobs, write for
+            batch and stream jobs. A job that declares a profile in `require` needs the data
+            access of that profile.
 
         deliver: A `@dlt.source`, standalone `@dlt.resource`, or called source
             instance for delivery association.
@@ -669,8 +670,7 @@ def interactive(
         require: Runtime resource requirements. Accepts `TRequireSpec` with:
             `dependency_groups`, `profile`, `instance`, `region`, `static_egress_ips`.
         access: What the job needs to run, see `TWorkspaceAccess`. Without it, the job
-            type gives the data access: read for interactive jobs, write for batch and
-            stream jobs.
+            declares read data access, or the data access of the profile in `require`.
         spec: Optional configuration spec class.
 
     Returns:
@@ -746,8 +746,7 @@ def pipeline_run(
             `profile`, `instance`, `region`, `static_egress_ips`.
 
         access: What the job needs to run, see `TWorkspaceAccess`. Without it, the job
-            type gives the data access: read for interactive jobs, write for batch and
-            stream jobs.
+            declares write data access, or the data access of the profile in `require`.
 
         interval: Overall time range for interval-based scheduling.
 
@@ -1155,9 +1154,9 @@ def agent(
         agent (Union[str, TAgentSpec]): Agent the decorated function starts from. The decorator
             arguments and the function override its fields.
         instructions (str): First user message of every run.
-        access (Optional[TWorkspaceAccess]): What the agent needs to run: `local` (`read`, `write`,
-            `execute`, `network`, `all`), `data` (`read`, `write`) and `context` (`read`).
-            Decorated function only.
+        access (Optional[TWorkspaceAccess]): What the agent job needs to run: `local`
+            (`read`, `write`, `execute`, `network`, `all`), `data` (`read`, `write`) and
+            `context` (`read`). Decorated function only.
         tools (Optional[List[str]]): Feature groups of the dlthub MCP server started for the run,
             e.g. `workspace`, `pipeline`, `jobs`, `logs`. Without `tools` no server is started.
             Decorated function only.

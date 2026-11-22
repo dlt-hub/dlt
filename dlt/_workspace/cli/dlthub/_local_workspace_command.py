@@ -48,8 +48,8 @@ def format_remote_workspace(workspace_name: str, workspace_id: Optional[str]) ->
 def print_profile_section(
     profile: TCurrentProfileInfo, configured_profiles: Optional[List[str]] = None
 ) -> None:
-    """Renders the active-profile block: name, location, data access, paths, active and default
-    markers, profiles with settings files."""
+    """Renders the section of the active profile: name, location, data access, environment, paths,
+    the recorded and default markers, and the profiles with settings files."""
     fmt.echo("Settings for profile %s:" % fmt.bold(profile["name"]))
     fmt.echo(
         "  %s profile with %s"
@@ -150,7 +150,7 @@ def _print_deployment_info(info: TDeploymentManifestInfo, verbosity: int) -> Non
         fmt.echo("Deployment: no deployment module found (create %s)" % fmt.bold(module or "one"))
         return
     if status == "generation_failed":
-        fmt.warning("Deployment: manifest generation%s failed" % from_module)
+        fmt.warning("Deployment: dlt failed to generate the manifest%s" % from_module)
         if verbosity > 0 and info.get("error"):
             fmt.echo(info["error"])
         return

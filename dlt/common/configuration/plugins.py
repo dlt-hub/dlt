@@ -142,8 +142,8 @@ class SupportsCliCommand(Protocol):
     - `additive`: additional subparsers may be added to top level command
     """
     profile_options: Optional[Mapping[str, Any]] = None
-    """Profile options of the command for the `dlthub` host. `None`: the command takes
-    `--profile`."""
+    """Profile options that the `dlthub` CLI host reads from the command. With `None`, the command
+    takes `--profile`."""
 
     def configure_parser(self, parser: argparse.ArgumentParser) -> None:
         """Configures the parser for the given argument."""
@@ -264,7 +264,8 @@ def plug_config_providers() -> Optional[Sequence["ConfigProvider"]]:
     """Spec for plugin hook that contributes config providers to the run context.
 
     A run context calls it when it adds its extra providers, in every process that uses dlt.
-    Providers that need settings must resolve them from the initial providers (env, toml).
+    Providers that need settings must resolve them from the initial providers: environment
+    variables and toml files.
 
     Returns:
         Optional[Sequence[ConfigProvider]]: Providers to add, or `None` to add none.

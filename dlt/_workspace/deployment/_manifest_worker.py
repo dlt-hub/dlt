@@ -1,9 +1,9 @@
 """Subprocess worker for isolated manifest generation.
 
-Run via `python -m dlt._workspace.deployment._manifest_worker <module> [--no-use-all]
-[--environment JSON]`. Prints JSON to stdout: `{"manifest": ..., "warnings": [...]}` on
-success, `{"error": "...", "error_type": "..."}` on failure, with the `name` of the module for
-an import error.
+`manifest_from_module` starts it as `python -m dlt._workspace.deployment._manifest_worker
+<module> [--no-use-all] [--environment JSON]`. It prints JSON to stdout:
+`{"manifest": ..., "warnings": [...]}` on success, `{"error": "...", "error_type": "..."}` on
+failure, with the `name` of the module for an import error.
 """
 
 import os
@@ -22,7 +22,7 @@ def main() -> int:
     parser.add_argument(
         "--environment",
         default=None,
-        help="the environment the deployment goes to, as JSON (TEnvironmentDefinition)",
+        help="the environment that the deployment is made to, as JSON (TEnvironmentDefinition)",
     )
     args = parser.parse_args()
 

@@ -1,5 +1,5 @@
 # `.dlt/.toolkits` written by dlt 1.32: entries have no `see_all`, and entries saved before the
-# last install got a `name` key. `init` comes from a real workspace; `rest-api-pipeline` has the
+# last install got a `name` key. `init` comes from a real workspace. `rest-api-pipeline` has the
 # layout dlt 1.32 writes for codex
 init:
   name: init

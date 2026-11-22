@@ -173,7 +173,7 @@ _FENCED = "```md\n# not a heading\n```"
             "```\n# dltHub rules\n```\n",
             "```\n# dltHub rules\n```\n\n" + _SECTION + "\n",
         ),
-        # a setext heading of the same level ends the section
+        # a setext heading of the same depth ends the section
         (
             "# dltHub rules\nold\n\nAfter\n=====\nkeep\n",
             _SECTION + "\n\nAfter\n=====\nkeep\n",
@@ -227,7 +227,7 @@ def test_demote_headings() -> None:
         _demoted(text)
         == "## Title\ntext\n### Sub\n```\n# code\n```\n~~~\n## tilde code\n~~~\n###### deepest"
     )
-    # setext headings become ATX headings one level down, multi-line text is joined
+    # setext headings become ATX headings one step deeper, and multi-line text is joined
     assert _demoted("Title\n=====\n\nTwo\nlines\n---\ntext") == "## Title\n\n### Two lines\ntext"
     # headings in quotes, lists and indented code stay as they are
     nested = "> # quoted\n\n- # listed\n\n    # code"
@@ -287,9 +287,9 @@ def test_markdown_document_structure() -> None:
         (12, 2, "Quoted", 1, 13),
         (14, 2, "Last", 0, 15),
     ]
-    # a section runs to the next top-level heading of the same or a higher level
-    assert doc.section_end(headings[0]) == 15
-    assert doc.section_end(headings[1]) == 14
+    # a section runs to the next top-level heading of the same or a smaller depth
+    assert doc.find_section_end(headings[0]) == 15
+    assert doc.find_section_end(headings[1]) == 14
     assert doc.find_top_heading("## Last ##") == headings[3]
     assert doc.find_top_heading("> ## Quoted") is None
 

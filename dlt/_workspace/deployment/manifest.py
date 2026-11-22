@@ -107,7 +107,7 @@ _JOB_EVENT_TRIGGERS = ("job.success", "job.fail")
 _HASH_EXCLUDE_KEYS = ("version", "version_hash", "previous_hashes", "created_at")
 _MAX_PREVIOUS_HASHES = 10
 MAX_LISTED_JOB_REFS = 5
-"""Job refs that a grouped profile fallback warning lists before it cuts the list short."""
+"""The number of job refs that a warning lists before it ends the list with `...`."""
 
 
 def generate_manifest_hash(manifest: TJobsDeploymentManifest) -> str:
@@ -344,7 +344,8 @@ class TJobProfile(NamedTuple):
 
     profile: str
     data_access: TProfileDataAccess
-    """`none`, `read` or `write`. The profile may give more in an environment that is not strict."""
+    """`none`, `read` or `write`. The profile can give more in an environment that is not
+    strict."""
     warning: Optional[str]
     """Set when the profile gives another data access than the job declares, or has no settings
     files."""
@@ -373,14 +374,14 @@ def resolve_job_profile(
 ) -> TJobProfile:
     """The profile of `environment` that a job runs with, and the data access the job declares.
 
-    A job without a profile gets the default profile of the environment for the data access that
-    it declares. A profile without settings files does not count. In an environment that is not
-    strict, the closest default profile with more data access takes over. A strict environment
-    takes only a profile that gives exactly the declared data access. A job that declares a
-    profile and no `data` access needs the data access of that profile.
+    A job that declares no profile gets the default profile of the environment for the data
+    access that it declares. A profile without settings files does not count. In an environment
+    that is not strict, the job then gets the closest default profile with more data access. A
+    strict environment takes only a profile that gives exactly the declared data access. A job
+    that declares a profile and no `data` access needs the data access of that profile.
 
     Raises:
-        JobProfileNotInEnvironment: The job declares a profile that is not one of the environment.
+        JobProfileNotInEnvironment: The job declares a profile outside the environment.
         JobProfileAccessMismatch: The environment is strict, and the profile that the job
             declares gives another data access or has no settings files.
         ProfileDataAccessNotAvailable: The environment has no profile for the job.
@@ -423,7 +424,7 @@ def resolve_job_profile(
         reason = (
             f"profile `{default}` has no settings files"
             if default
-            else f"environment `{env}` has no profile for it"
+            else f"environment `{env}` has no such profile"
         )
         return TJobProfile(
             name,
@@ -453,13 +454,13 @@ def get_legacy_job_profile(
     Args:
         job_def (TJobDefinition): The job definition.
         configured_profiles (Optional[Sequence[str]]): The profiles with settings files. `None`
-            counts every profile as configured.
+            counts every profile as one with settings files.
 
     Returns:
         TJobProfile: The profile, the data access and a warning, see `resolve_job_profile`.
     """
     environment = create_built_in_workspace_definition()["environments"]["prod"]
-    # an older dlt had no profile without data access: its jobs keep `access`, else `prod`
+    # an older dlt had no profile without data access, so its jobs run with `access` or `prod`
     for name, profile in list(environment["profiles"].items()):
         if get_profile_data_access(profile) == "none":
             del environment["profiles"][name]
@@ -487,14 +488,14 @@ def attach_job_access(jobs: List[TJobDefinition]) -> None:
 def attach_job_profiles(
     jobs: List[TJobDefinition], environment: TEnvironmentDefinition
 ) -> List[str]:
-    """Gives every job its profile of `environment`, see `resolve_job_profile`, and a job that
-    declares a profile and no `data` access the data access of that profile. Changes `jobs` in
-    place.
+    """Gives every job its profile of `environment`, see `resolve_job_profile`. A job that
+    declares a profile and no `data` access gets the data access of that profile. Changes `jobs`
+    in place.
 
     Returns:
         List[str]: A warning for each job whose declared profile gives another data access or
-            has no settings files, and one for each profile that jobs without a declared profile
-            fall back to.
+            has no settings files. One more warning for each profile that jobs without a
+            declared profile get in place of their default profile.
     """
     warnings: List[str] = []
     fallbacks: Dict[Tuple[TProfileDataAccess, str], List[str]] = {}
@@ -539,11 +540,11 @@ def _format_profile_fallback_warning(
         )
     if default := get_default_profile_for_env(environment, data_access):
         return (
-            f"profile `{default}` has no settings files: {falls_back}. Create them with `dlthub"
-            f" profile add {default}` to give them {needed}."
+            f"profile `{default}` has no settings files: {falls_back}. Create the settings files"
+            f" with `dlthub profile add {default}` to give them {needed}."
         )
     return (
-        f"environment `{env}` has no profile with {needed}: {falls_back}. Declare one with"
+        f"environment `{env}` has no profile with {needed}: {falls_back}. Add one with"
         f" `dlthub profile add {env}-{data_access} --access {data_access} --environment {env}`."
     )
 
@@ -865,8 +866,8 @@ def should_deploy_dashboard(
     module_name: str, environment: Optional[TEnvironmentDefinition]
 ) -> bool:
     """True when the manifest of module `module_name` for `environment` gets the workspace
-    dashboard: the module is the deployment module of the default environment, which does not set
-    `deploy_dashboard` to false. A local run always gets it."""
+    dashboard. The deployment module of the default environment gets it, unless the environment
+    sets `deploy_dashboard` to false. A local run always gets it."""
     if environment is None:
         return True
     deployment_module = environment.get("deployment_module", DEFAULT_DEPLOYMENT_MODULE)
@@ -899,17 +900,17 @@ def generate_manifest(
     and framework modules (marimo, FastMCP, streamlit).
 
     With `environment`, the manifest is for a deployment to that environment. Every job that
-    declares no `require.profile` gets the profile of the environment with the data access that
-    it needs (`attach_job_profiles`). The manifest records the environment. The caller imports
-    `deployment_module` with the default write profile of the environment active, see
+    declares no `require.profile` gets the default profile of the environment for the data access
+    that it declares (`attach_job_profiles`). The manifest records the environment. The caller
+    imports `deployment_module` with the default write profile of the environment active, see
     `activate_environment`. Without an environment, the jobs keep their declared profiles: a
-    local run uses the active profile for every job. The workspace dashboard joins the jobs as
-    `should_deploy_dashboard` decides.
+    local run uses the active profile for every job. `should_deploy_dashboard` decides if the
+    manifest gets the workspace dashboard.
 
     Args:
         deployment_module (ModuleType): The imported deployment module.
-        environment (Optional[TEnvironmentDefinition]): The environment the deployment goes to,
-            with its profiles. `None` generates for a local run.
+        environment (Optional[TEnvironmentDefinition]): The environment that the deployment is
+            made to, with its profiles. `None` is a local run.
         use_all (bool): If `True`, only names in `__all__` are discovered.
             If `False`, scans `__dir__()` directly (for ad-hoc deployments).
 
@@ -917,7 +918,7 @@ def generate_manifest(
         Tuple of (manifest, warnings). Warnings include non-discoverable names.
 
     Raises:
-        JobProfileNotInEnvironment: A job declares a profile that is not one of the environment.
+        JobProfileNotInEnvironment: A job declares a profile outside the environment.
         JobProfileAccessMismatch: The environment is strict about access, and the profile that
             a job declares gives another data access or has no settings files.
         ProfileDataAccessNotAvailable: The environment has no profile for a job.
@@ -978,7 +979,7 @@ def generate_manifest(
             if self_local is not None:
                 jobs.append(self_local)
 
-    # an ad-hoc deployment runs the jobs it names only
+    # an ad-hoc deployment runs only the jobs that it names
     if (
         use_all
         and should_deploy_dashboard(deployment_module.__name__, environment)
@@ -1055,18 +1056,18 @@ def manifest_from_module(
     use_all: bool = True,
     isolated: bool = False,
 ) -> Tuple[TJobsDeploymentManifest, List[str]]:
-    """Import a module, generate a manifest for `environment` (see `generate_manifest`), and
-    validate it.
+    """Imports a module, generates a manifest for `environment` (see `generate_manifest`) and
+    validates it.
 
-    dlt imports the deployment module with the active profile, and the module can declare jobs
-    per profile or environment. The caller activates the default write profile of `environment`
-    first, see `activate_environment`. An imported module stays in `sys.modules`, so generating
-    for several environments in one process needs `isolated`.
+    dlt imports the deployment module with the active profile. The module can declare jobs per
+    profile or per environment. The caller activates the default write profile of `environment`
+    first, see `activate_environment`. An imported module stays in `sys.modules`, so manifests
+    for several environments in one process need `isolated`.
 
     Args:
         name_or_path: Python module name or file path. `None` is the deployment module of
             `environment`, see `get_deployment_module_for_env`.
-        environment: The environment the deployment goes to, `None` for a local run.
+        environment: The environment that the deployment is made to, `None` for a local run.
         use_all: Use `__all__` for job discovery.
         isolated: Run in a subprocess to avoid polluting the current interpreter. The subprocess
             imports with the default write profile of `environment`. Without an environment, it
@@ -1077,7 +1078,7 @@ def manifest_from_module(
 
     Raises:
         InvalidManifest: If the generated manifest fails validation.
-        JobProfileNotInEnvironment: A job declares a profile that is not one of the environment.
+        JobProfileNotInEnvironment: A job declares a profile outside the environment.
         JobProfileAccessMismatch: The environment is strict about access, and the profile that
             a job declares gives another data access or has no settings files.
         ProfileDataAccessNotAvailable: The environment has no profile for a job.

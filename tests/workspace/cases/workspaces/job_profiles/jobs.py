@@ -1,5 +1,5 @@
-"""Jobs that need every data access, deployed with the profiles of an environment. Only manifests
-are generated from them: the agent definitions are inline and never run."""
+"""Jobs that declare each data access, deployed with the profiles of an environment. Only
+manifests are generated from them: the agent definitions are inline and never run."""
 
 from typing import Any, Dict
 
@@ -11,13 +11,13 @@ WRITER: TAgentSpec = {"name": "writer", "system_prompt": "Fix the data."}  # typ
 
 @job(trigger="schedule:0 2 * * *")
 def nightly() -> Dict[str, Any]:
-    """A batch job: needs a profile with write data access."""
+    """A batch job: declares write data access."""
     return {"rows": 10}
 
 
 @interactive(interface="rest_api")
 def api() -> None:
-    """An interactive job: needs a profile with read data access."""
+    """An interactive job: declares read data access."""
 
 
 @job(access={"data": ["read"]})
@@ -33,7 +33,7 @@ def editor() -> None:
 
 @agent(agent=TRIAGE)
 def triage(run_context: TJobRunContext = None) -> TAgentOutput:
-    """An agent job without data access."""
+    """An agent job that declares no data access."""
     return {"status": "succeeded", "summary": "nothing to triage"}
 
 
@@ -51,13 +51,14 @@ def declared() -> str:
 
 @job(require={"profile": "analytics"})
 def reporting() -> str:
-    """Declares a profile with write data access of `prod`, other than its default one."""
+    """Declares `analytics`, a profile of the `prod` environment with write data access that
+    is not the default one."""
     return "report"
 
 
 @interactive(interface="rest_api", require={"profile": "prod"})
 def admin() -> None:
-    """An interactive job that declares the write profile: needs write data access."""
+    """An interactive job that declares the default write profile: needs write data access."""
 
 
 @agent(agent=TRIAGE, require={"profile": "access"})

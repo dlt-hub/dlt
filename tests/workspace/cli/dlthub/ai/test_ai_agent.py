@@ -236,7 +236,7 @@ def test_codex_install_actions_rule() -> None:
     # derives name from toolkit+source_name, description from heading
     content = "# Coding Style\nFollow these rules."
     actions = variant.install_actions("rule", content, "coding", "my-toolkit", project)
-    # install_actions returns just the skill; the session start hook lists it
+    # install_actions returns only the skill. The session start hook lists it
     assert len(actions) == 1
     skill_action = actions[0]
     assert skill_action.kind == "skill"
@@ -268,8 +268,8 @@ def _install_rules(variant: _AIAgent, project: Path, toolkit: str, rules: List[s
 
 
 def _render(variant: _AIAgent, project: Path) -> Optional[str]:
-    """Runs the agent's one render action like an install does; returns what it wrote."""
-    actions = variant.post_finalize_actions([], project)
+    """Runs the single render action of the agent as an install does and returns what it wrote."""
+    actions = variant.get_post_finalize_actions([], project)
     assert [(a.op, a.kind, a.skip_index) for a in actions] == [("render", "rule", True)]
     assert actions[0].render is not None
     content = actions[0].render()
@@ -283,7 +283,7 @@ def test_codex_session_context() -> None:
     project = Path("project")
     project.mkdir(exist_ok=True)
     variant = _CodexAgent()
-    assert variant.session_context(project) is None
+    assert variant.get_session_context(project) is None
 
     _install_rules(variant, project, "tk", ["styling", "coding"])
     # an ordinary skill is not a rule, and a skill the user broke is skipped
@@ -296,14 +296,14 @@ def test_codex_session_context() -> None:
 
     # rules are found through the rule dir, which codex shares with skills
     assert variant.component_dir("rule", project) == project / ".agents/skills"
-    assert variant.session_context(project) == (
+    assert variant.get_session_context(project) == (
         _CodexAgent.RULES_INTRO
         + "\n- `tk-coding`: .agents/skills/tk-coding/SKILL.md"
         + "\n- `tk-styling`: .agents/skills/tk-styling/SKILL.md"
     )
 
     shutil.rmtree(project / ".agents/skills/tk-styling")
-    assert "tk-styling" not in variant.session_context(project)
+    assert "tk-styling" not in variant.get_session_context(project)
 
 
 def test_codex_finalize_actions_adds_rules_hook() -> None:
@@ -348,7 +348,7 @@ def test_cortex_render_cortex_md() -> None:
     variant = _CortexAgent()
     cortex_md = project / "CORTEX.md"
     cortex_md.write_text("# My notes\nkeep me\n", encoding="utf-8")
-    # rules keep their files, background agents resolve rule refs to them
+    # rules keep their files, because background agents resolve rule references to them
     _install_rules(variant, project, "tk", ["coding", "styling"])
     _install_rules(variant, project, "other", ["x"])
     assert (project / ".cortex/rules/tk-coding.md").is_file()
@@ -417,11 +417,11 @@ def test_agents_without_rendered_files() -> None:
     project.mkdir(exist_ok=True)
     for variant in (_ClaudeAgent(), _CursorAgent(), _CodexAgent()):
         _install_rules(variant, project, "tk", ["coding"])
-        assert variant.post_finalize_actions([], project) == []
+        assert variant.get_post_finalize_actions([], project) == []
     for variant in (_ClaudeAgent(), _CursorAgent()):
         actions = _rule_install_actions(variant, project)
         assert variant.finalize_actions(list(actions), project) == actions
-        assert variant.session_context(project) is None
+        assert variant.get_session_context(project) is None
 
 
 def test_cortex_merge_mcp_servers_adds_type() -> None:
@@ -439,11 +439,11 @@ def test_cortex_merge_mcp_servers_adds_type() -> None:
 
 
 def test_cortex_workspace_python_dependencies() -> None:
-    """A cortex workspace gets no dlthub-client and no marimo; dlthub comes in directly."""
+    """A cortex workspace gets no dlthub-client and no marimo. It gets dlthub directly."""
     from dlt._workspace.cli.dlthub.utils import workspace_deps
     from dlt._workspace.deployment.requirements import get_workspace_install_specs
 
-    specs, deps = _CortexAgent().workspace_python_dependencies(
+    specs, deps = _CortexAgent().filter_workspace_python_dependencies(
         get_workspace_install_specs(), workspace_deps()
     )
     assert "dlthub-client" not in {s["name"] for s in specs}
@@ -454,7 +454,7 @@ def test_cortex_workspace_python_dependencies() -> None:
     assert "mowidgets" not in names
     assert "dlthub" in names or "dlthub" in {s["name"] for s in specs}
     # other agents keep the dlthub defaults
-    assert _ClaudeAgent().workspace_python_dependencies(specs, deps) == (specs, deps)
+    assert _ClaudeAgent().filter_workspace_python_dependencies(specs, deps) == (specs, deps)
 
 
 @pytest.mark.parametrize(
@@ -464,7 +464,8 @@ def test_cortex_workspace_python_dependencies() -> None:
         ({"CODEX_CI": "1"}, {"codex"}),
         ({"CURSOR_AGENT": "1"}, {"cursor"}),
         ({"CORTEX_CODE_CLIENT_SURFACE": "coco_cli"}, {"cortex"}),
-        # an agent started from another agent's shell inherits its env: both are detected
+        # an agent started from the shell of another agent inherits its environment variables,
+        # so both are detected
         ({"CORTEX_CODE_CLIENT_SURFACE": "coco_cli", "CLAUDECODE": "1"}, {"cortex", "claude"}),
     ],
     ids=["claude-env", "codex-env", "cursor-env", "cortex-env", "cortex-in-claude-env"],
@@ -585,8 +586,8 @@ def test_detect_all_local_before_global(environment: Any, monkeypatch: pytest.Mo
     assert [a.name for a, _ in agents] == ["cursor", "claude"]
 
 
-def test_best_detected_agents(environment: Any, monkeypatch: pytest.MonkeyPatch) -> None:
-    """Only agents at the strongest level count; several of them leave the agent unknown."""
+def test_detect_best_agents(environment: Any, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Only agents at the strongest level count. Several of them leave the agent unknown."""
     fake_home = Path("home")
     fake_home.mkdir()
     (fake_home / ".claude").mkdir()
@@ -595,17 +596,17 @@ def test_best_detected_agents(environment: Any, monkeypatch: pytest.MonkeyPatch)
     project = Path("project")
     project.mkdir()
 
-    assert {a.name for a in _AIAgent.best_detected_agents(project)} == {"claude", "cursor"}
+    assert {a.name for a in _AIAgent.detect_best_agents(project)} == {"claude", "cursor"}
     assert _AIAgent.detect_agent_name(None, project) is None
     # an explicit agent always wins
     assert _AIAgent.detect_agent_name("codex", project) == "codex"
 
     (project / ".cursor").mkdir()
-    assert [a.name for a in _AIAgent.best_detected_agents(project)] == ["cursor"]
+    assert [a.name for a in _AIAgent.detect_best_agents(project)] == ["cursor"]
     assert _AIAgent.detect_agent_name(None, project) == "cursor"
 
     environment["CLAUDECODE"] = "1"
-    assert [a.name for a in _AIAgent.best_detected_agents(project)] == ["claude"]
+    assert [a.name for a in _AIAgent.detect_best_agents(project)] == ["claude"]
 
 
 def test_detect_all_returns_empty(environment: Any, no_home_dir: None) -> None:
@@ -636,7 +637,7 @@ def test_detect_all_no_home(environment: Any, no_home_dir: None) -> None:
     ],
     ids=["claude", "cursor", "codex", "cortex"],
 )
-def test_variant_mcp_config_paths(
+def test_variant_get_mcp_config_paths(
     variant_name: str, expected_paths: List[str], _snowflake_home: Path
 ) -> None:
     project = Path("project")
@@ -646,4 +647,4 @@ def test_variant_mcp_config_paths(
         (_snowflake_home / p.split("/", 1)[1] if p.startswith("<snowflake_home>") else project / p)
         for p in expected_paths
     ]
-    assert variant.mcp_config_paths(project) == expected
+    assert variant.get_mcp_config_paths(project) == expected

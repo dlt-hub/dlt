@@ -209,8 +209,8 @@ def test_snowflake_dbt_profile_refuses_authenticator(snowflake_home: Any) -> Non
 def test_snowflake_dbt_profile_in_snowpark_container(
     preserve_environ: Any, snowflake_home: Any, credentials_from: str
 ) -> None:
-    """In a Snowpark container dbt gets the session token and the host of the container, from the
-    connection that the container mounts or from `authenticator = "oauth"` alone."""
+    """In a Snowpark container, dbt gets the session token and the host of the container.
+    They come from the mounted connection or from `authenticator = "oauth"` alone."""
     pytest.importorskip("snowflake.connector")
     from dlt.common.configuration.utils import add_config_to_env
     from dlt.destinations.impl.snowflake import utils as snowflake_utils

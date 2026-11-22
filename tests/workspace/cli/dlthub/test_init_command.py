@@ -77,7 +77,7 @@ def _run_init(
     answer: bool = False,
     uv: bool = True,
 ) -> None:
-    """Run `_execute_init` from `tmp_path` with `answer` given to its confirmation."""
+    """Runs `_execute_init` from `tmp_path` with `answer` given to its confirmation."""
     from dlt._workspace.cli.dlthub.commands import _execute_init
 
     monkeypatch.chdir(str(tmp_path))
@@ -114,7 +114,7 @@ def _assert_init_refused(
 
 
 def _mock_harness(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
-    """Copies the mock AI harness and makes it the default one; returns the workspace dir."""
+    """Copies the mock AI harness and makes it the default harness. Returns the workspace dir."""
     harness = tmp_path / "harness"
     shutil.copytree(os.path.join(AI_CASES_DIR, "mock_workbench"), harness / "workbench")
     monkeypatch.setattr("dlt._workspace.cli._urls.DEFAULT_AI_WORKBENCH_REPO", str(harness))
@@ -451,7 +451,8 @@ def test_fetch_init_plan_dependencies_override(
 def test_dlthub_init_new_workspace_asks_nothing(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    """A new workspace is written without showing the plan or asking, a re-run is refused."""
+    """dlthub init writes a new workspace without showing the plan or asking. A second run is
+    refused."""
     # `_run_init` declines when asked
     _run_init(monkeypatch, tmp_path)
     out = capsys.readouterr().out
@@ -608,7 +609,7 @@ def test_dlthub_init_skip(
 def test_dlthub_init_overwrite_existing_project(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    """--overwrite shows the files it overwrites and asks, secrets are preserved."""
+    """--overwrite shows the files it overwrites and asks. Secrets are preserved."""
     settings = tmp_path / ".dlt"
     settings.mkdir()
     (tmp_path / "pyproject.toml").write_text("# old\n", encoding="utf-8")
@@ -653,7 +654,7 @@ def test_dlthub_init_merge_into_requirements_project(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
     """A merge adds the missing .gitignore entries and the missing or outdated dependencies and
-    keeps everything else. It shows the changes and asks first, a second run is refused."""
+    keeps everything else. It shows the changes and asks first. A second run is refused."""
     (tmp_path / ".gitignore").write_text(".venv\nsecrets.toml\n", encoding="utf-8")
     (tmp_path / "requirements.txt").write_text(
         "# my deps\nrequests>=2\ndlt==1.20.0  # old\n", encoding="utf-8"
@@ -770,7 +771,7 @@ def test_dlthub_init_merge_into_pyproject(
         (
             '[project]\nname = "mine"\nversion = "0.1.0"\ndependencies = []\n',
             False,
-            "uv is needed",
+            "dlthub init needs uv",
         ),
         ("[tool.ruff]\nline-length = 100\n", True, "has no [project] table"),
     ],
@@ -804,7 +805,7 @@ def test_dlthub_init_merge_existing_project(
     flags: List[str],
     merged: bool,
 ) -> None:
-    """`dlthub init -y` adds what an existing project lacks and keeps its settings, `--force` is
+    """`dlthub init -y` adds what an existing project lacks and keeps its settings. `--force` is
     the old name of `--overwrite`. Then the project is a workspace, and init refuses it."""
     monkeypatch.chdir(str(tmp_path))
     _set_uv(monkeypatch, False)

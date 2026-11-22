@@ -125,8 +125,8 @@ def build_stored_workspace_definition(
 
 
 def expand_workspace_definition(stored: TWorkspaceStoredDefinition) -> TWorkspaceDefinition:
-    """The definition with what follows from where an entry is declared: the environment
-    `name`, the profile `location` and the `env` of a remote profile."""
+    """Adds the fields that follow from where an entry is declared: the environment `name`, the
+    profile `location` and the `env` of a remote profile."""
 
     def _expand_profile(
         profile: TProfileStoredDefinition, location: TProfileLocation, env: Optional[str] = None
@@ -196,7 +196,8 @@ def validate_workspace_definition(doc: StrAny, path: str) -> None:
         _check_profile_name(name, "as a local profile")
         if get_profile_data_access(profile) != "write":
             errors.append(
-                f"profile `{name}`: a local profile has write data access, set `data_access: write`"
+                f"profile `{name}`: a local profile has write data access. Set"
+                " `data_access: write`."
             )
     for env, environment in environments.items():
         if not PROFILE_NAME_RE.match(env):
@@ -208,8 +209,8 @@ def validate_workspace_definition(doc: StrAny, path: str) -> None:
             by_level.setdefault(get_profile_data_access(profile), []).append(name)
         if "write" not in by_level:
             errors.append(
-                f"environment `{env}`: no profile with write data access. Declare one, a"
-                " deployment is made with it."
+                f"environment `{env}`: no profile with write data access. A deployment is made"
+                " with this profile, so declare one."
             )
         for level, names in by_level.items():
             defaults = [n for n in names if environment["profiles"][n].get("default")]

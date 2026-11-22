@@ -54,7 +54,7 @@ def test_fetch_profile_info(auto_isolated_workspace: WorkspaceRunContext) -> Non
             assert (
                 scope == "global" or profile_name == "dev"
             ), f"unexpected location {loc} on filtered provider {prov['name']}"
-    # `is_pinned` follows `.dlt/profile-name`
+    # `is_pinned` marks the profile recorded in `.dlt/profile-name`
     assert info["is_pinned"] is False
     save_profile_pin(auto_isolated_workspace, "dev")
     assert fetch_profile_info()["is_pinned"] is True
@@ -154,7 +154,7 @@ def test_fetch_profiles_list_flags(
     assert profiles["prod"]["is_pinned"] is True and profiles["prod"]["is_current"] is True
     assert profiles["dev"]["is_pinned"] is False and profiles["dev"]["is_current"] is False
 
-    # a profile with settings files is configured
+    # a profile with settings files has `configured` set
     assert not any(p["configured"] for p in profiles.values())
     touch_settings(ctx, "tests.config.toml")
     assert [p["name"] for p in fetch_profiles_list() if p["configured"]] == ["tests"]
@@ -168,19 +168,19 @@ def test_list_profiles_groups_local_then_environments(
     list_profiles(auto_isolated_workspace)
     lines = capsys.readouterr().out.splitlines()
 
-    def index(prefix: str) -> int:
+    def find_line(prefix: str) -> int:
         return next(i for i, line in enumerate(lines) if line.startswith(prefix))
 
     # local profiles first, then each environment with its profiles indented below it
-    assert index("Local profiles:") < index("  * dev ") < index("Remote profiles:")
-    assert index("Remote profiles:") < index("  environment prod (default):")
-    assert index("  environment prod (default):") < index("    * prod (default")
-    assert index("    * access ") < index("  environment ci (strict about access):")
-    assert index("  environment ci") < index("    * ci-write (default")
-    assert lines[index("  * dev ")] == "  * dev (active) (default) - write data access"
+    assert find_line("Local profiles:") < find_line("  * dev ") < find_line("Remote profiles:")
+    assert find_line("Remote profiles:") < find_line("  environment prod (default):")
+    assert find_line("  environment prod (default):") < find_line("    * prod (default")
+    assert find_line("    * access ") < find_line("  environment ci (strict about access):")
+    assert find_line("  environment ci") < find_line("    * ci-write (default")
+    assert lines[find_line("  * dev ")] == "  * dev (active) (default) - write data access"
     # a remote profile is the default of its data access
-    assert lines[index("    * ci-write ")] == "    * ci-write (default for write data access)"
-    assert lines[index("    * ci-none ")] == "    * ci-none (default for no data access)"
+    assert lines[find_line("    * ci-write ")] == "    * ci-write (default for write data access)"
+    assert lines[find_line("    * ci-none ")] == "    * ci-none (default for no data access)"
     # an override leaves the recorded profile marked, next to the active one
     save_profile_pin(auto_isolated_workspace, "prod")
     list_profiles(auto_isolated_workspace.switch_profile("tests"))
@@ -188,18 +188,23 @@ def test_list_profiles_groups_local_then_environments(
     assert "  * tests (active) - write data access" in out
     assert "    * prod (recorded) (default for write data access)" in out
     assert "  * dev (default) - write data access" in out
-    # each environment shows its remote workspace: the auto-name until it is connected
+    # each environment shows its remote workspace: a generated name until the local workspace is
+    # connected
     name = auto_isolated_workspace.name
-    assert lines[index("  environment prod") + 1] == f"    remote workspace {name}, not connected"
-    assert lines[index("  environment ci") + 1] == f"    remote workspace {name}-ci, not connected"
-    # and its deployment module, from its configuration
-    assert lines[index("  environment prod") + 2] == "    deployment module __deployment__.py"
+    assert (
+        lines[find_line("  environment prod") + 1] == f"    remote workspace {name}, not connected"
+    )
+    assert (
+        lines[find_line("  environment ci") + 1] == f"    remote workspace {name}-ci, not connected"
+    )
+    # and its deployment module, from its config
+    assert lines[find_line("  environment prod") + 2] == "    deployment module __deployment__.py"
     connect_remote_workspace(auto_isolated_workspace, "ci", workspace_id="ci-id")
     with custom_environ({"WORKSPACE__ENVIRONMENT__CI__DEPLOYMENT_MODULE": "jobs.ci"}):
         list_profiles(auto_isolated_workspace)
     lines = capsys.readouterr().out.splitlines()
-    assert lines[index("  environment ci") + 1] == f"    remote workspace {name}-ci, id ci-id"
-    assert lines[index("  environment ci") + 2] == "    deployment module jobs/ci.py"
+    assert lines[find_line("  environment ci") + 1] == f"    remote workspace {name}-ci, id ci-id"
+    assert lines[find_line("  environment ci") + 2] == "    deployment module jobs/ci.py"
 
 
 def test_dlthub_profile_without_operation_shows_info(
@@ -212,32 +217,33 @@ def test_dlthub_profile_without_operation_shows_info(
 def test_dlthub_profile_add(
     auto_isolated_workspace: WorkspaceRunContext, run_dlthub: TRunDlthub
 ) -> None:
-    """`profile add-environment` declares an environment, `profile add` one profile in it or a
-    local one. Each shows what it adds and creates, asks, and creates the settings files of the
-    profiles that have data access."""
+    """`profile add-environment` declares an environment. `profile add` declares one profile in it,
+    or a local profile. Each command shows what it adds and creates, asks, then creates the
+    settings files of the profiles with data access."""
     ctx = auto_isolated_workspace
 
-    def settings(name: str) -> List[bool]:
+    def has_settings_files(name: str) -> List[bool]:
         return [os.path.isfile(f) for f in get_profile_settings_files(ctx, name)]
 
     # declined: nothing is declared or created
     out = run_dlthub("profile", "add-environment", "ci", answer=False)
     assert "dlt changed nothing" in out
-    assert "ci" not in ctx.environment_definitions and settings("ci-write") == [False, False]
+    assert "ci" not in ctx.environment_definitions
+    assert has_settings_files("ci-write") == [False, False]
 
     out = run_dlthub("profile", "add-environment", "ci")
     # the confirmation names the declaration and every file, then how to add the profile with
     # read data access
     assert f"dlt will add to {os.path.join('.dlt', '.workspace')}:" in out
-    assert "environment ci: deployed with ci-write, strict about access" in out
+    assert "environment ci: deployments to it use ci-write, strict about access" in out
     assert "profile ci-write: environment ci, write data access, default" in out
     after = out.split("dlt will create:\n")[1].splitlines()
     created = [line[len("  * ") :] for line in after if line.startswith("  * ")]
     assert created == [
         os.path.join(".dlt", f"ci-write.{kind}.toml") for kind in ("config", "secrets")
     ]
-    assert settings("ci-write") == [True, True]
-    assert "Environment ci is strict about access and deploys with ci-write." in out
+    assert has_settings_files("ci-write") == [True, True]
+    assert "Environment ci is strict about access, and deployments to it use ci-write." in out
     assert "dlthub profile add ci-read --access read --environment ci" in out
     profiles = {p["name"]: p for p in fetch_profiles_list()}
     assert "ci" not in profiles
@@ -248,7 +254,7 @@ def test_dlthub_profile_add(
     # the default of its data access
     out = run_dlthub("profile", "add", "ci-read", "--access", "read", "--environment", "ci")
     assert "  * profile ci-read: environment ci, read data access, default" in out.splitlines()
-    assert settings("ci-read") == [True, True]
+    assert has_settings_files("ci-read") == [True, True]
     profiles = {p["name"]: p for p in fetch_profiles_list()}
     assert profiles["ci-read"]["env"] == "ci" and profiles["ci-read"]["data_access"] == "read"
 
@@ -274,8 +280,10 @@ def test_dlthub_profile_add(
         profiles["sensitive-access"]["env"] == "prod"
         and profiles["sensitive-access"]["data_access"] == "read"
     )
-    assert settings("analytics") == [True, True] and settings("sensitive-access") == [True, True]
-    assert settings("ci-audit") == [False, False] and settings("lab") == [True, True]
+    assert has_settings_files("analytics") == [True, True]
+    assert has_settings_files("sensitive-access") == [True, True]
+    assert has_settings_files("ci-audit") == [False, False]
+    assert has_settings_files("lab") == [True, True]
     assert profiles["lab"]["location"] == "local" and "env" not in profiles["lab"]
 
 
@@ -372,7 +380,7 @@ def test_dlthub_profile_add_existing(
     with pytest.raises(ProfileAlreadyExists, match="--local, --environment ci"):
         run_dlthub("profile", "add", "access", "--local", "--environment", "ci")
 
-    # an environment gets back the settings files its profiles miss
+    # for an environment, dlt creates the settings files that its profiles miss
     os.remove(get_profile_settings_files(ctx, "ci-write")[1])
     out = run_dlthub("profile", "add-environment", "ci")
     assert "ci-write.secrets.toml" in out and "ci-write.config.toml" not in out

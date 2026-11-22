@@ -460,10 +460,10 @@ def test_default_dashboard_job_shape() -> None:
 
 
 def test_dashboard_goes_with_the_deployment_module_of_the_default_environment() -> None:
-    """The dashboard goes to a local run without environment and to the deployment module of the
-    default environment, unless the environment sets `deploy_dashboard` to false. Never to
-    another module, another environment or an ad-hoc deployment. The environments are not declared
-    in the workspace: the manifest comes from the arguments alone."""
+    """A local run without an environment gets the dashboard. So does the deployment module of
+    the default environment, unless the environment sets `deploy_dashboard` to false. Another
+    module, another environment and an ad-hoc deployment never get it. The workspace does not
+    declare the environments: the manifest comes from the arguments alone."""
     mod = import_module(f"{WORKSPACE}.deployment_batch_only")
     qa: TEnvironmentDefinition = {**full_environment("qa"), "deployment_module": mod.__name__}
     default_qa: TEnvironmentDefinition = {**qa, "default": True}
@@ -487,8 +487,8 @@ def test_dashboard_goes_with_the_deployment_module_of_the_default_environment() 
 
 
 def test_default_dashboard_manifest() -> None:
-    """The dashboard-only manifest is for an environment: the dashboard gets the profile of the
-    environment for read data access, and an environment that deploys no dashboard gets none."""
+    """The dashboard-only manifest is for an environment: the dashboard gets the default profile
+    with read data access, and an environment that deploys no dashboard gets none."""
     qa = full_environment("qa")
     with isolated_workspace("default"):
         manifest = default_dashboard_manifest({**qa, "default": True})
@@ -520,9 +520,6 @@ def test_dashboard_validation_rejects_invalid(mutation: object, error_frag: str)
     mutation(job)  # type: ignore[operator]
     result = validate_job_definition(job)
     assert any(error_frag in e for e in result.errors), f"expected {error_frag!r} in {result}"
-
-
-# -- manifest_from_module (isolated and inprocess) --
 
 
 @pytest.mark.parametrize("isolated", [False, True], ids=["inprocess", "isolated"])

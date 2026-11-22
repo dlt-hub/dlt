@@ -91,8 +91,8 @@ def load_manifest_with_warnings(
     use_all: bool = True,
 ) -> Tuple[TJobsDeploymentManifest, str, List[str]]:
     """Loads a manifest for `environment` and returns `(manifest, manifest_hash, warnings)`.
-    `None` is a local run, and a `name_or_path` of `None` is the deployment module of
-    `environment`, see `manifest_from_module`."""
+    An `environment` of `None` is a local run. A `name_or_path` of `None` is the deployment
+    module of `environment`, see `manifest_from_module`."""
     explicit = name_or_path is not None
     module_environment = None
     if name_or_path is None:
@@ -440,7 +440,7 @@ def fetch_run_info(
 
     use_all = explicit_deployment is None
 
-    # a local run uses the active profile for every job, no job gets a profile of an environment
+    # a local run uses the active profile for every job
     manifest, _, manifest_warnings = load_manifest_with_warnings(
         explicit_deployment or None, None, use_all=use_all
     )

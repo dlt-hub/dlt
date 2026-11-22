@@ -221,8 +221,9 @@ def test_dlthub_help_shows_the_profile_options_of_a_command(
     shown: List[str],
     hidden: List[str],
 ) -> None:
-    """A command shows the profile options that it takes, a group the ones that it declares and
-    the ones that all of its commands take, with the default help unless the command replaces it."""
+    """A command shows the profile options that it takes. A group shows the ones that it declares
+    and the ones that all of its commands take. The default help applies unless the command
+    replaces it."""
     parser, _, _ = _create_parser("dlthub")
     _add_test_commands(parser)
     # rich wraps long help lines
@@ -262,10 +263,10 @@ def test_dlthub_environment_command(
 
 
 def test_profile_options_declarations() -> None:
-    """A declaration applies to the command and the commands under it, `subcommands` replace it
-    for the subcommands that they name, and a command attached by another plugin overrides the
-    declaration of its parent for itself. A declaration of `subcommands` only keeps the options
-    of the command."""
+    """A declaration applies to the command and to the commands under it. `subcommands` replace it
+    for the subcommands that they name. A command that another plugin attaches overrides the
+    declaration of its parent for itself. A declaration with only `subcommands` leaves the options
+    of the command unchanged."""
     parser = argparse.ArgumentParser(prog="dlthub")
     jobs = parser.add_subparsers(dest="command").add_parser("job")
     job_ops = jobs.add_subparsers(dest="op")
@@ -371,8 +372,8 @@ def test_dlthub_environment_command_group(
     for argv, refusal in (
         (["remote", "list", "--profile", "prod"], "--environment"),
         (["remote", "--profile", "prod", "list"], "--environment"),
-        (["scoped", "set", "--workspace", "--profile", "access"], "--workspace names no"),
-        (["scoped", "set"], "this command needs --profile NAME"),
+        (["scoped", "set", "--workspace", "--profile", "access"], "cannot combine --workspace"),
+        (["scoped", "set"], "this command needs a profile or an environment"),
     ):
         code, err = run(*argv)
         assert code == 2, argv

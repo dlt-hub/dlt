@@ -525,7 +525,7 @@ TSnowflakeHome = Callable[..., Path]
 
 @contextmanager
 def snowpark_container(token_path: str) -> Iterator[None]:
-    """Provides the session token and the env variables of a Snowpark container."""
+    """Provides the session token and the environment variables of a Snowpark container."""
     Path(token_path).parent.mkdir(parents=True, exist_ok=True)
     Path(token_path).write_text("SNOW_TOK", encoding="utf-8")
     spcs_env = {"SNOWFLAKE_ACCOUNT": "host1", "SNOWFLAKE_HOST": "host1.snowflakecomputing.com"}
@@ -627,7 +627,7 @@ def test_snowflake_connection_overrides(
     c = resolve_configuration(SnowflakeCredentials(), explicit_value=explicit_value)
     assert c.to_connector_params() == expected
 
-    # connector 3.x and 4.x blank connection values with `None` or empty params
+    # connector 3.x and 4.x clear a connection value when dlt sends `None` or an empty param
     c.application = ""
     c.session_timezone = None
     assert all(v not in (None, "") for v in c.to_connector_params().values())
@@ -859,7 +859,7 @@ def test_snowflake_container_connection(
     spcs_env = {"SNOWFLAKE_ACCOUNT": "host1", "SNOWFLAKE_HOST": "host1.snowflakecomputing.com"}
     with patch.object(snowflake_utils, "SNOWFLAKE_SESSION_TOKEN_PATH", token_path):
         with custom_environ(spcs_env):
-            # the session token alone is not a default
+            # the session token alone does not make a default connection
             with pytest.raises(ConfigFieldMissingException):
                 resolve_configuration(SnowflakeCredentials())
 
@@ -884,7 +884,7 @@ def test_snowflake_container_connection(
     "name,identity,display",
     [
         pytest.param("dev", "acc1", "snowflake://user1:***@acc1/db1", id="account"),
-        # a host is not an account, so it does not display
+        # a host is not an account, so the native representation leaves it out
         pytest.param("host_only", "acc9.snowflakecomputing.com", "snowflake://", id="host_only"),
         pytest.param("no_account", None, "snowflake://user1:***@", id="no_account"),
     ],

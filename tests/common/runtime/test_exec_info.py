@@ -115,7 +115,7 @@ def test_is_cortex(environment: DictStrStr) -> None:
     environment["CORTEX_CODE_CLIENT_SURFACE"] = ""
     assert is_cortex() is False
 
-    # every surface counts as cortex, the CLI and Desktop are told apart
+    # every surface counts as cortex, and the CLI and Desktop have their own names
     environment["CORTEX_CODE_CLIENT_SURFACE"] = "coco_cli"
     assert (is_cortex(), is_cortex_cli(), is_cortex_desktop()) == (True, True, False)
     environment["CORTEX_CODE_CLIENT_SURFACE"] = "coco_desktop"

@@ -139,7 +139,7 @@ def ai_mcp_install_command(
     server_config: Dict[str, Any] = {"command": args[0], "args": args[1:], "type": "stdio"}
     new_servers = {name: server_config}
 
-    for config_path in variant.mcp_config_paths(project_root):
+    for config_path in variant.get_mcp_config_paths(project_root):
         display_path = _format_component_path(config_path, project_root)
         existing_content = ""
         if config_path.is_file():
@@ -195,8 +195,8 @@ def _plan_toolkit_install(
     toolkit_info: Optional[TToolkitInfo] = None,
     see_all: bool = False,
 ) -> Tuple[List["InstallAction"], List[str]]:
-    """Scan toolkit directory and build install actions. Reads source files but does not
-    write to project_root. Returns (actions, validation_warnings).
+    """Scans the toolkit directory and builds install actions. Reads source files but does not
+    write to `project_root`. Returns `(actions, validation_warnings)`.
 
     Files in `previous_files` (index paths of an earlier install) that the toolkit no longer
     ships get a `remove` action. Components that `toolkit_info` hides from the agent are
@@ -205,18 +205,17 @@ def _plan_toolkit_install(
     actions: List[InstallAction] = []
     warnings: List[str] = []
 
-    def _visible(folder: str, name: str) -> bool:
+    def _is_visible(folder: str, name: str) -> bool:
         if see_all or toolkit_info is None:
             return True
         return is_component_visible(toolkit_info, folder + "/" + name, agent.name)
 
-    # skills (directory-based, each with SKILL.md + optional files)
     skills_dir = toolkit_dir / "skills"
     if skills_dir.is_dir():
         for skill_path in sorted(skills_dir.iterdir()):
             if not skill_path.is_dir() or not (skill_path / COMPONENT_MARKERS["skill"]).exists():
                 continue
-            if not _visible("skills", skill_path.name):
+            if not _is_visible("skills", skill_path.name):
                 continue
             errors = _validate_skill_dir(skill_path)
             if errors:
@@ -229,18 +228,18 @@ def _plan_toolkit_install(
                 )
             )
 
-    # agents (directory-based, each with AGENT.md + optional files), copied verbatim
+    # agent definitions are copied verbatim, with the files next to their AGENT.md
     agents_dir = toolkit_dir / DLTHUB_AGENTS_DIR
     if agents_dir.is_dir():
         for agent_path in sorted(agents_dir.iterdir()):
             if not agent_path.is_dir() or not (agent_path / COMPONENT_MARKERS["agent"]).exists():
                 continue
-            if not _visible(DLTHUB_AGENTS_DIR, agent_path.name):
+            if not _is_visible(DLTHUB_AGENTS_DIR, agent_path.name):
                 continue
             errors = _validate_skill_dir(agent_path)
             if errors:
                 for err in errors:
-                    warnings.append("Skipping agent %s: %s" % (agent_path.name, err))
+                    warnings.append("Skipping agent definition %s: %s" % (agent_path.name, err))
                 continue
             actions.extend(
                 agent.install_actions(
@@ -265,7 +264,7 @@ def _plan_toolkit_install(
         if not src_dir.is_dir():
             continue
         for md_file in sorted(src_dir.glob("*.md")):
-            if not _visible(dir_name, md_file.stem):
+            if not _is_visible(dir_name, md_file.stem):
                 continue
             err = _validate_md_frontmatter(md_file)
             if err:
@@ -279,18 +278,20 @@ def _plan_toolkit_install(
                 )
             )
 
-    # mcp servers, and features added to servers that other toolkits installed
+    # feature groups can target MCP servers that other toolkits installed
     mcp_servers = {
         name: config
         for name, config in read_workbench_toolkit_mcp_servers(toolkit_dir).items()
-        if _visible("mcp", name)
+        if _is_visible("mcp", name)
     }
     mcp_features = {
         name: features
         for name, features in (toolkit_info.get("mcp_features", {}) if toolkit_info else {}).items()
-        if _visible("mcp", name)
+        if _is_visible("mcp", name)
     }
-    for config_path in agent.mcp_config_paths(project_root) if mcp_servers or mcp_features else []:
+    for config_path in (
+        agent.get_mcp_config_paths(project_root) if mcp_servers or mcp_features else []
+    ):
         mcp_action = _plan_mcp_config(
             agent, config_path, mcp_servers, mcp_features, toolkit_name, overwrite, warnings
         )
@@ -300,14 +301,14 @@ def _plan_toolkit_install(
     actions = agent.finalize_actions(actions, project_root)
     if previous_files:
         actions.extend(_get_stale_file_actions(agent, project_root, previous_files, actions))
-    actions.extend(agent.post_finalize_actions(actions, project_root))
+    actions.extend(agent.get_post_finalize_actions(actions, project_root))
     return actions, warnings
 
 
 def _add_mcp_features_to_config(
     config: Dict[str, Any], features: Sequence[str], no_default_features: bool = False
 ) -> Dict[str, Any]:
-    """`config` with `features` added to its args, and without the default features if asked."""
+    """`config` with `features` in its args, without the default feature groups if requested."""
     args = [str(arg) for arg in config.get("args", [])]
     if no_default_features and "--no-default-features" not in args:
         args.append("--no-default-features")
@@ -315,7 +316,7 @@ def _add_mcp_features_to_config(
 
 
 def _get_mcp_feature_selection(server: Dict[str, Any]) -> Tuple[List[str], bool]:
-    """The `--features` tokens of `server` and whether it drops the default features."""
+    """The `--features` tokens of `server` and whether it drops the default feature groups."""
     other, tokens = split_mcp_features([str(arg) for arg in server.get("args", [])])
     return tokens, "--no-default-features" in other
 
@@ -346,7 +347,7 @@ def _plan_mcp_config(
     for name, config in mcp_servers.items():
         if name in existing and not overwrite:
             continue
-        # a reinstalled server keeps the features other toolkits and the user selected
+        # a reinstalled server keeps the feature groups that other toolkits and the user selected
         written[name] = (
             _add_mcp_features_to_config(config, *_get_mcp_feature_selection(existing[name]))
             if name in existing
@@ -360,7 +361,7 @@ def _plan_mcp_config(
         if target is None:
             warnings.append(
                 "Toolkit %s adds feature groups to MCP server %s, but %s is not in %s. Install"
-                " the toolkit that provides %s, then run %s."
+                " the toolkit that provides %s. Then run %s."
                 % (
                     toolkit_name,
                     name,
@@ -404,7 +405,7 @@ def _get_stale_file_actions(
     previous_files: Dict[str, Any],
     actions: List["InstallAction"],
 ) -> List["InstallAction"]:
-    """Remove actions for files a previous install recorded that no planned action writes."""
+    """`remove` actions for the recorded files that no planned action writes."""
     planned = {a.dest_path for a in actions if a.kind != "mcp"}
     component_dirs = sorted(
         ((kind, agent.component_dir(kind, project_root)) for kind in agent._DIRS),
@@ -456,8 +457,8 @@ def _execute_install(
     project_root: Optional[Path] = None,
     see_all: bool = False,
 ) -> Tuple[int, List["InstallAction"]]:
-    """Commits non-conflicting actions and the toolkit index. Returns count of items installed
-    and the render actions that changed their file.
+    """Commits non-conflicting actions and the toolkit index. Returns the number of installed
+    items and the render actions that changed their file.
 
     All content is read before anything is written, so a missing source changes nothing on disk.
     Render actions run last and see the files the other actions wrote.
@@ -483,7 +484,6 @@ def _execute_install(
             safe_write_bytes(action.dest_path, content.encode("utf-8"))
             rendered.append(action)
 
-    # write toolkit index
     installed = len({(a.kind, a.source_name, a.source_kind) for a, _ in writes})
     if (installed > 0 or removals) and toolkit_info is not None:
         tracked_files: Optional[Dict[str, Any]] = None
@@ -493,7 +493,7 @@ def _execute_install(
                     "sha3_256": compute_content_hash(data)
                 }
                 for action, data in writes
-                # shared merge targets (e.g. hooks.json) are not tracked per toolkit
+                # shared files such as hooks.json are not tracked per toolkit
                 if action.kind != "mcp" and not action.skip_index
             }
         # each of the agent's MCP configs names the same servers
@@ -516,10 +516,10 @@ def _resolve_agent(agent: Optional[str], project_root: Path) -> "_AIAgent":
             raise CliCommandException()
         return AI_AGENTS[agent]()
 
-    if recorded := _AIAgent.recorded_agent_name():
+    if recorded := _AIAgent.get_recorded_agent_name():
         return AI_AGENTS[recorded]()
 
-    best = _AIAgent.best_detected_agents(project_root)
+    best = _AIAgent.detect_best_agents(project_root)
     if not best:
         available = ", ".join(sorted(AI_AGENTS))
         fmt.error("Could not detect AI coding agent. Use --agent to specify one of: %s" % available)
@@ -547,20 +547,20 @@ def _report_and_execute(
     project_root: Optional[Path] = None,
     see_all: bool = False,
 ) -> int:
-    """Print planned actions, skip conflicts, execute, return count installed.
+    """Prints the planned actions, skips conflicts, runs the rest and returns the installed count.
 
-    In strict mode, validation warnings are treated as errors and raise CliCommandException.
+    In strict mode, validation warnings count as errors and raise `CliCommandException`.
     """
     for w in validation_warnings:
         fmt.warning(w)
     if strict and validation_warnings:
         fmt.error(
-            "%d validation error(s). Fix the issues above or install without --strict."
+            "dlt found %d validation error(s). Fix the errors above, or install without --strict."
             % len(validation_warnings)
         )
         raise CliCommandException()
-    # a skill or agent folder is one component made of many file actions; a component saved
-    # to several files (e.g. MCP configs) gets a line per file
+    # a skill or agent definition folder is one component made of many file actions. A
+    # component saved to several files, for example MCP configs, gets a line per file
     components: Dict[Tuple[str, str, Optional[str], Optional[Path]], List[InstallAction]] = {}
     for a in actions:
         if a.op == "remove":
@@ -608,11 +608,11 @@ def _report_and_execute(
             if not (see_all or is_component_visible(toolkit_meta, "mcp/" + server, agent_name)):
                 continue
             fmt.warning(
-                "MCP server %s changed: reconnect it in %s or restart the session to load its"
-                " changed tools" % (fmt.bold(server), agent_name or "your AI coding agent")
+                "MCP server %s changed. To load its changed tools, reconnect it in %s or restart"
+                " the session." % (fmt.bold(server), agent_name or "your AI coding agent")
             )
     fmt.echo(
-        "%s item(s) installed. Please restart your %s session for changes to take effect"
+        "%s item(s) installed. Restart your %s session to load the changes."
         % (fmt.bold(str(installed)), fmt.bold(str(agent_name)))
     )
     workflow_entry_skill = toolkit_meta.get("workflow_entry_skill") if toolkit_meta else None
@@ -631,17 +631,17 @@ def _install_toolkit(
     see_all: bool = False,
     take_over_from: Optional[str] = None,
 ) -> int:
-    """Core install logic: read plugin.json, version-check, plan, execute. Returns count of items
-    installed.
+    """Installs toolkit `name`: reads plugin.json, compares versions, plans and runs the actions.
+    Returns the number of installed items.
 
-    With `take_over_from`, the files that toolkit installed and this one ships now are written and
-    recorded for this one, not skipped as conflicts: an upgrade of `take_over_from` moved them
-    here."""
+    With `take_over_from`, an upgrade of that toolkit moved some of its files to `name`. These
+    files are written and recorded for `name`, not skipped as conflicts."""
     toolkit_dir = base / name
     meta = read_workbench_toolkit_combined_info(toolkit_dir)
     if meta is None:
         fmt.warning(
-            "Toolkit %s not found (missing %s)" % (fmt.bold(name), ".claude-plugin/plugin.json")
+            "Toolkit %s was not found: %s is missing."
+            % (fmt.bold(name), ".claude-plugin/plugin.json")
         )
         return 0
 
@@ -657,14 +657,14 @@ def _install_toolkit(
             fmt.echo("Toolkit %s %s is already installed." % (toolkit_name, local_version))
         else:
             fmt.echo(
-                "Toolkit %s %s is installed, version %s available. Use --overwrite to update."
+                "Toolkit %s %s is installed and version %s is available. Use --overwrite to update."
                 % (toolkit_name, local_version, toolkit_version)
             )
         if workflow_entry_skill := toolkit_meta.get("workflow_entry_skill"):
             fmt.echo("Use %s skill to start!" % fmt.bold(workflow_entry_skill))
         return 0
 
-    # a file another toolkit also installed (e.g. the ignore file) is not ours to remove
+    # a file that another toolkit also installed, such as the ignore file, stays
     files_of_others = {
         path
         for other_name, entry in installed_index.items()
@@ -721,10 +721,10 @@ def _install_dependencies(
     see_all: bool = False,
     take_over: bool = False,
 ) -> None:
-    """Install upstream dependencies for `name` that are not yet installed.
+    """Installs the upstream dependencies of `name` that are not installed yet.
 
     Dependencies hidden from the agent are skipped with their own dependencies, unless `see_all`.
-    With `take_over`, set when `name` is upgraded, a new dependency takes over the files of `name`
+    `take_over` is set when `name` is upgraded. A new dependency then gets the files of `name`
     that it ships now, so the upgrade of `name` does not remove them as stale.
     """
     dep_map = build_toolkits_dependency_map(toolkits)
@@ -742,9 +742,9 @@ def _install_dependencies(
     for dep in skipped:
         # a visible toolkit is skipped when only hidden toolkits depend on it
         reason = (
-            "not available for %s"
+            "it is not available for %s"
             if dep in hidden
-            else "only toolkits not available for %s need it"
+            else "only toolkits that are not available for %s need it"
         )
         fmt.echo(
             "Skipping dependency %s: %s. Use --see-all to install it."
@@ -772,12 +772,12 @@ def _install_toolkit_with_dependencies(
     strict: bool = False,
     see_all: bool = False,
 ) -> int:
-    """Install toolkit `name` after its dependencies. Returns count of items installed for
-    `name`."""
+    """Installs toolkit `name` after its dependencies. Returns the number of items installed
+    for `name`."""
     toolkits, warnings = fetch_workbench_toolkits(base, strict=strict)
     for w in warnings:
         fmt.warning(w)
-    # what an earlier --see-all install brought in stays on update
+    # an update keeps what an earlier --see-all install added
     installed = load_toolkits_index().get(name)
     see_all = see_all or bool(installed and installed.get("see_all"))
     if name in toolkits and not see_all and not is_toolkit_visible(toolkits[name], agent.name):
@@ -850,12 +850,13 @@ def ai_status_command() -> None:
 
 @utils.track_command("ai", False, operation="rules")
 def ai_rules_command(agent: Optional[str] = None) -> None:
-    """Print the rules an AI coding agent gets when a session starts, nothing when there are none."""
-    # runs from an agent's session start hook: no detection, nothing printed but the rules
-    agent_name = agent or _AIAgent.recorded_agent_name()
+    """Prints the rules an AI coding agent gets when a session starts, if there are any."""
+    # the session start hook of an agent runs this command, so it detects nothing and prints
+    # only the rules
+    agent_name = agent or _AIAgent.get_recorded_agent_name()
     if agent_name not in AI_AGENTS:
         return
-    context = AI_AGENTS[agent_name]().session_context(Path(run_context.active().run_dir))
+    context = AI_AGENTS[agent_name]().get_session_context(Path(run_context.active().run_dir))
     if context:
         fmt.echo(context)
 
@@ -901,7 +902,7 @@ def ai_init_command(
     status = fetch_ai_status(project_root)
     if check_mcp_server and "mcp_unavailable" in status["warnings"]:
         fmt.warning(f"MCP server cannot be started. Run `{fmt.cli_cmd('ai status')}` for details.")
-    for note in var.install_notes():
+    for note in var.get_install_notes():
         fmt.warning(note)
 
     if "no_toolkits" in status["warnings"]:
@@ -961,23 +962,24 @@ def _save_given_harness_source(
 
 
 def _get_agent_scope(agent: Optional[str], see_all: bool) -> Optional[str]:
-    """Agent whose toolkits are shown, `None` for all of them. Tells the user which."""
+    """Agent whose toolkits are shown, `None` for all agents. Prints which agent the list is for."""
     if see_all:
         return None
     project_root = Path(run_context.active().run_dir)
     agent_name = _AIAgent.detect_agent_name(agent, project_root)
     if agent_name is not None:
         fmt.echo(
-            "Showing what %s can install. Use --see-all to see everything." % fmt.bold(agent_name)
+            "Showing what dlt can install for %s. Use --see-all to see everything."
+            % fmt.bold(agent_name)
         )
-    elif best := _AIAgent.best_detected_agents(project_root):
+    elif best := _AIAgent.detect_best_agents(project_root):
         fmt.echo(
-            "Several AI coding agents detected (%s), showing what every agent can install. Use"
-            " --agent to pick one."
+            "dlt detected several AI coding agents (%s) and shows what it can install for every"
+            " agent. Use --agent to pick one."
             % ", ".join(a.name for a in best)
         )
     else:
-        fmt.echo("No AI coding agent detected, showing what every agent can install.")
+        fmt.echo("dlt detected no AI coding agent and shows what it can install for every agent.")
     return agent_name
 
 
@@ -1054,7 +1056,8 @@ def ai_toolkit_info_command(
     info = fetch_workbench_toolkit_info(name, location, branch, agent_name=agent_name)
     if info is None:
         fmt.warning(
-            "Toolkit %s not found (missing %s)" % (fmt.bold(name), ".claude-plugin/plugin.json")
+            "Toolkit %s was not found: %s is missing."
+            % (fmt.bold(name), ".claude-plugin/plugin.json")
         )
         return
     _save_given_harness_source(given, location, branch)

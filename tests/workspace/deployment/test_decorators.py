@@ -224,7 +224,7 @@ def test_decorator_access_in_job_definition(decorator_factory: Any) -> None:
 
     assert declares.to_job_definition()["access"] == access
 
-    # a job that declares none gets the access of its job type when the manifest is generated
+    # a job that declares none gets the data access of its job type when dlt generates the manifest
     @decorator_factory(None)
     def declares_none():
         pass

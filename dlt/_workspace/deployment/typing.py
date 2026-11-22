@@ -172,13 +172,13 @@ TDependencyChangeOp = Literal["add", "upgrade", "newer"]
 
 
 class TDependencyChange(TypedDict):
-    """A change that brings a declared dependency up to what a workspace needs."""
+    """A change that makes a declared dependency meet what a workspace needs."""
 
     name: str
     op: TDependencyChangeOp
     """`add` a missing spec, `upgrade` a declared one, or keep a declared `newer` one."""
     spec: str
-    """The spec to write. For `newer`, the spec the workspace needs."""
+    """The spec to write. For `newer`, the spec that the workspace needs."""
     declared: NotRequired[str]
     """The declared spec that `upgrade` replaces or `newer` keeps."""
 

@@ -362,17 +362,14 @@ TProfileResult = Tuple[Union[str, Type[Exception]], Optional[str]]
 """The profile with its warning, or the exception that the job fails with and a part of its
 message."""
 
-NO_PROFILE_FOR_NONE = (
-    "Declare one with `dlthub profile add stg-none --access none --environment stg`."
-)
+NO_PROFILE_FOR_NONE = "Add one with `dlthub profile add stg-none --access none --environment stg`."
 NOT_IN_ENVIRONMENT = (
     "Job `jobs.mod.job` declares profile `prod`, which is not a profile of environment `stg`"
     " (stg-write, stg-read, stg-none, stg-pii). A deployment uses only the profiles of its"
-    " environment, never a local profile. If `prod` is not declared, declare it with `dlthub"
-    " profile add prod --access write --environment stg`: the job needs write data access. If it"
-    " belongs"
-    " to another environment, deploy there with `--environment`, or edit `.dlt/.workspace` and"
-    " move its declaration to environment `stg`."
+    " environment, never a local profile. If `prod` does not exist, add it with `dlthub"
+    " profile add prod --access write --environment stg`. The job needs write data access. If"
+    " the profile belongs to another environment, deploy to that environment with"
+    " `--environment`. Or move its declaration to environment `stg` in `.dlt/.workspace`."
 )
 
 
@@ -436,8 +433,9 @@ NOT_IN_ENVIRONMENT = (
                 ProfileDataAccessNotAvailable,
                 (
                     "Job `jobs.mod.job` declares read data access. Environment `stg` is strict"
-                    " about access and `stg-read`, its default profile for it, has no settings"
-                    " files. Create them with `dlthub profile add stg-read`. Or declare the access"
+                    " about access and `stg-read`, its default profile for this data access, has no"
+                    " settings files. Create the settings files with `dlthub profile add"
+                    " stg-read`. Or declare the access"
                     " that the job needs with `access=` on the job. Or set `strict_access: false`"
                     " on environment `stg`. Then the job gets the closest default profile with more"
                     " data access."
@@ -462,16 +460,17 @@ NOT_IN_ENVIRONMENT = (
             (
                 ProfileDataAccessNotAvailable,
                 (
-                    "Environment `stg` is strict about access and has no profile for it: stg-write"
-                    " (write data access), stg-none (no data access). Declare one with `dlthub"
-                    " profile add stg-read --access read --environment stg`."
+                    "Environment `stg` is strict about access and has no profile with this data"
+                    " access. Its profiles are stg-write (write data access), stg-none (no data"
+                    " access). Add one with `dlthub profile add stg-read --access read"
+                    " --environment stg`."
                 ),
             ),
             (
                 "stg-write",
                 (
                     "job `jobs.mod.job` declares read data access and environment `stg` has no"
-                    " profile for it: the job gets `stg-write` (write data access)"
+                    " such profile: the job gets `stg-write` (write data access)"
                 ),
             ),
             id="default-not-declared",
@@ -500,7 +499,7 @@ NOT_IN_ENVIRONMENT = (
                 "stg-read",
                 (
                     "job `jobs.mod.job` declares no data access and environment `stg` has no"
-                    " profile for it: the job gets `stg-read` (read data access)"
+                    " such profile: the job gets `stg-read` (read data access)"
                 ),
             ),
             id="closest-higher",
@@ -517,12 +516,13 @@ NOT_IN_ENVIRONMENT = (
                 "stg-write",
                 (
                     "job `jobs.mod.job` declares no data access and environment `stg` has no"
-                    " profile for it: the job gets `stg-write` (write data access)"
+                    " such profile: the job gets `stg-write` (write data access)"
                 ),
             ),
             id="write-last",
         ),
-        # intended: nothing is above write, it is taken without settings files and no warning
+        # intended: no data access is more than write, so the job gets the default write
+        # profile without settings files and without a warning
         pytest.param(
             "batch",
             None,
@@ -532,7 +532,7 @@ NOT_IN_ENVIRONMENT = (
             "write",
             (
                 ProfileDataAccessNotAvailable,
-                "and `stg-write`, its default profile for it, has no settings files.",
+                "`stg-write`, its default profile for this data access, has no settings files.",
             ),
             ("stg-write", None),
             id="write-without-settings",
@@ -573,8 +573,8 @@ NOT_IN_ENVIRONMENT = (
                     "Job `jobs.mod.job` declares profile `stg-write` with write data access and"
                     " needs read data access. Environment `stg` is strict about access: the profile"
                     " of a job gives exactly the access that the job declares. Declare the access"
-                    " that the job needs with `access=` on the job, or declare a profile with read"
-                    " data access on it. Or set `strict_access: false` on environment `stg`."
+                    " that the job needs with `access=` on the job. Or declare a profile with read"
+                    " data access on the job. Or set `strict_access: false` on environment `stg`."
                 ),
             ),
             ("stg-write", None),
@@ -612,8 +612,8 @@ NOT_IN_ENVIRONMENT = (
                 (
                     "Job `jobs.mod.job` declares profile `stg-read`, which has no settings files."
                     " Environment `stg` is strict about access: the profile of a job gives exactly"
-                    " the access that the job declares. Create them with `dlthub profile add"
-                    " stg-read`."
+                    " the access that the job declares. Create the settings files with `dlthub"
+                    " profile add stg-read`."
                 ),
             ),
             (
@@ -635,8 +635,8 @@ NOT_IN_ENVIRONMENT = (
             (
                 JobProfileAccessMismatch,
                 (
-                    "or declare a profile with write data access on it. `stg-read` also has no"
-                    " settings files."
+                    "Or declare a profile with write data access on the job. `stg-read` also has"
+                    " no settings files."
                 ),
             ),
             (
@@ -673,8 +673,8 @@ def test_resolve_job_profile(
     when_not_strict: TProfileResult,
 ) -> None:
     """A job gets the default profile of the data access that it declares. A strict environment
-    takes only a profile that gives exactly that, one that is not strict falls to a profile
-    that gives more."""
+    takes only a profile that gives exactly that. An environment that is not strict takes a
+    profile that gives more."""
     environment = full_environment("stg")
     # a second profile with read data access, not the default
     environment["profiles"]["stg-pii"] = {"location": "remote", "data_access": "read", "env": "stg"}
@@ -705,9 +705,9 @@ def test_resolve_job_profile(
 
 
 def test_attach_job_profiles_warns_once_per_profile() -> None:
-    """Jobs that declare no profile and get another one than the default for their data access
-    share one warning per default profile without settings files or without a declaration. A
-    job that declares a profile keeps its own warning."""
+    """Jobs that declare no profile can get a profile other than their default one. They share
+    one warning per default profile that is missing or has no settings files. A job that
+    declares a profile keeps its own warning."""
     environment = full_environment("stg")
     environment["strict_access"] = False
     environment["profiles"]["stg-read"]["configured"] = False
@@ -727,12 +727,12 @@ def test_attach_job_profiles_warns_once_per_profile() -> None:
         (
             "profile `stg-read` has no settings files: 2 jobs (`jobs.mod.notebook`,"
             " `jobs.mod.dashboard`) that declare read data access run with `stg-write` (write data"
-            " access). Create them with `dlthub profile add stg-read` to give them read data"
-            " access."
+            " access). Create the settings files with `dlthub profile add stg-read` to give them"
+            " read data access."
         ),
         (
             "environment `stg` has no profile with no data access: 1 job (`jobs.mod.agent`) that"
-            " declares no data access runs with `stg-write` (write data access). Declare one with"
+            " declares no data access runs with `stg-write` (write data access). Add one with"
             " `dlthub profile add stg-none --access none --environment stg`."
         ),
     ]
@@ -743,8 +743,8 @@ def test_attach_job_profiles_warns_once_per_profile() -> None:
     listed = ", ".join(f"`jobs.mod.notebook_{i}`" for i in range(5))
     assert attach_job_profiles(notebooks, environment) == [
         f"profile `stg-read` has no settings files: 7 jobs ({listed}, ...) that declare read data"
-        " access run with `stg-write` (write data access). Create them with `dlthub profile add"
-        " stg-read` to give them read data access."
+        " access run with `stg-write` (write data access). Create the settings files with `dlthub"
+        " profile add stg-read` to give them read data access."
     ]
 
 
@@ -774,7 +774,7 @@ def test_attach_job_profiles_warns_once_per_profile() -> None:
             False,
             id="declared-custom-profile",
         ),
-        # a notebook that declares the write profile needs write data access
+        # a notebook that declares the default write profile needs write data access
         pytest.param(
             "interactive",
             {"require": {"profile": "prod"}},
@@ -1202,9 +1202,6 @@ def test_two_schedule_triggers_rejected() -> None:
     result = validate_manifest(manifest)
     assert not result.is_valid
     assert any("multiple interval" in e for e in result.errors)
-
-
-# generalized freshness validation
 
 
 def test_is_fresh_on_every_upstream_valid() -> None:

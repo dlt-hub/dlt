@@ -36,8 +36,8 @@ def init_dlthub_workspace(
 ) -> Dict[str, str]:
     """Scaffold a dlthub workspace from the plan."""
     run_dir = plan["run_dir"]
-    # default keeps user files; --overwrite replaces the dlthub-managed scaffold but
-    # NEVER touches secrets.toml or config.toml (user-owned: creds + workspace settings)
+    # by default user files stay. --overwrite replaces the scaffold that dlthub manages, but it
+    # NEVER touches the user-owned secrets.toml or config.toml (credentials, workspace settings)
     keep_existing = not overwrite
     state = WorkspaceWriteState(
         FileStorage(run_dir, makedirs=True),
@@ -100,7 +100,7 @@ def init_dlthub_workspace(
     dependency_path = os.path.join(run_dir, plan["dependency_system"])
     dependency_writes = get_dependency_writes(plan)
     if plan["dependency_system"] == "pyproject.toml":
-        # uv merges into an existing pyproject.toml after the commit
+        # uv merges into an existing pyproject.toml after `state.commit()`
         if not dependency_writes:
             state.add_new_file(
                 dependency_path,
@@ -135,7 +135,8 @@ def init_dlthub_workspace(
 
 
 def get_dependency_writes(plan: TInitPlan) -> List[TDependencyChange]:
-    """The dependency changes that a merge writes, without the declared newer versions it keeps."""
+    """Returns the dependency changes that a merge writes. It leaves out declared versions that
+    are newer, which the merge keeps."""
     return [change for change in plan["dependency_changes"] if change["op"] != "newer"]
 
 
@@ -167,13 +168,13 @@ def _print_newer_dependencies(plan: TInitPlan) -> None:
     for change in plan["dependency_changes"]:
         if change["op"] == "newer":
             fmt.warning(
-                "%s in %s is newer than %s, kept"
+                "%s in %s is newer than %s. dlthub init keeps the newer version."
                 % (change["declared"], plan["dependency_system"], change["spec"])
             )
 
 
 def _print_init_plan(plan: TInitPlan, agent_name: Optional[str] = None) -> None:
-    """Show the user what `dlthub init` will write."""
+    """Shows the user what `dlthub init` will write."""
     fmt.echo()
     fmt.echo("Creating dlthub workspace at %s" % fmt.bold(plan["run_dir"]))
     fmt.echo("  project name: %s" % fmt.bold(plan["project_name"]))
@@ -212,23 +213,24 @@ def _print_init_merge_error(plan: TInitPlan) -> None:
         )
     elif plan["merge_error"] == "hashed_requirements":
         fmt.error(
-            "%s pins hashes, so dlthub init cannot add the dependencies to it. Add these to the"
-            " file it is compiled from and compile it again: %s" % (file_name, writes)
+            "%s pins hashes, so dlthub init cannot add the dependencies to it. Add these"
+            " dependencies to the file that you compile it from, then compile again: %s"
+            % (file_name, writes)
         )
     elif plan["merge_error"] == "included_requirements":
         fmt.error(
-            "%s includes other files, so dlthub init cannot tell where the dependencies are"
+            "%s includes other files, so dlthub init cannot determine where the dependencies are"
             " pinned. Add these dependencies yourself: %s" % (file_name, writes)
         )
     else:
         fmt.error(
-            "uv is needed to add dependencies to %s but was not found on PATH. Install uv or add"
-            " these dependencies yourself: %s" % (file_name, writes)
+            "dlthub init needs uv to add dependencies to %s, but uv is not on PATH. Install uv or"
+            " add these dependencies yourself: %s" % (file_name, writes)
         )
 
 
 def _print_init_changes(plan: TInitPlan) -> None:
-    """Show the existing files that `dlthub init` will merge into or overwrite."""
+    """Shows the existing files that `dlthub init` will merge into or overwrite."""
     fmt.echo("dlthub init will change these existing files:")
     for f in plan["files"]:
         if f["status"] in ("merge", "overwrite"):
@@ -238,8 +240,8 @@ def _print_init_changes(plan: TInitPlan) -> None:
 
 def _print_init_workspace_exists(plan: TInitPlan) -> None:
     fmt.error(
-        "%s is already a dlthub workspace (%s): nothing to init. To set up an AI coding agent,"
-        " run %s."
+        "%s is already a dlthub workspace (%s), so dlthub init has nothing to do. To configure an"
+        " AI coding agent, run %s."
         % (
             fmt.bold(plan["run_dir"]),
             format_display_path(

@@ -103,9 +103,9 @@ def test_tool_environment_argument(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 def test_tool_environment_and_profile_arguments(monkeypatch: pytest.MonkeyPatch) -> None:
-    """A tool that takes both runs with the profile named in the call, which must belong to the
-    environment, else with the active profile when it belongs to the environment, else with the
-    default write profile of the environment."""
+    """A tool that takes both arguments runs with the profile named in the call, which must belong
+    to the environment. Without one, it runs with the active profile when that profile belongs to
+    the environment. Else it runs with the default write profile of the environment."""
 
     @with_tool_run_context
     def restore_tool(
@@ -142,7 +142,7 @@ def test_tool_profile_argument_outside_workspace() -> None:
     with isolated_workspace("legacy", required=None):
         with pytest.raises(ToolError, match="needs a dltHub workspace"):
             tool(profile="prod")
-        # without the argument the tool works in the OSS context
+        # without the argument the tool works in the run context outside a workspace
         assert tool()["profile"] is None
 
 
@@ -432,7 +432,7 @@ def test_export_schema_unified(
 
 
 def test_list_toolkits_returns_dict() -> None:
-    """The toolkits come from the harness location and branch given last to a command."""
+    """The toolkits come from the harness source given last to a command."""
     mock_toolkits = {"init": {"name": "init", "version": "1.0"}}
     with (
         isolated_workspace("default"),

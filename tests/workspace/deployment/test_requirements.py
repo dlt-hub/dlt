@@ -195,7 +195,7 @@ def test_pyproject_lock_out_of_sync_raises() -> None:
 
 def test_stale_lock_raises_with_uv_frozen() -> None:
     """A lock that misses a dependency added after locking fails the export, also with
-    `UV_FROZEN`, a setting of CI and Docker images that skips the lock check."""
+    `UV_FROZEN`. CI and Docker images set `UV_FROZEN` to skip the lock check."""
     with isolated_workspace("deps_pyproject") as ctx:
         root = Path(ctx.run_dir)
         _run_uv_lock(ctx.run_dir)

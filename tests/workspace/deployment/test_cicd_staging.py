@@ -1,9 +1,11 @@
-"""The CI/CD pattern of a workspace with no shared `config.toml`: `prod.config.toml` and
-`stg.config.toml` each hold the organization, the id and the name of one remote workspace. CI
-names the remote workspace with `RUNTIME__WORKSPACE_ID` and deploys to the default environment:
-`__deployment__.py` to the production workspace, or, with `stg.config.toml` renamed to
-`prod.config.toml`, `__staging__.py` to the staging one. `__staging__.py` proxies
-`__deployment__.py` with copies of its jobs. Locally both config files exist."""
+"""The CI/CD pattern of a workspace with no shared `config.toml`. `prod.config.toml` and
+`stg.config.toml` each hold the organization, the id and the name of one remote workspace.
+
+CI names the remote workspace with `RUNTIME__WORKSPACE_ID` and deploys to the default
+environment. It deploys `__deployment__.py` to the production workspace. With
+`stg.config.toml` renamed to `prod.config.toml`, it deploys `__staging__.py` to the staging
+workspace. `__staging__.py` proxies `__deployment__.py` with copies of its jobs. Locally both
+config files exist."""
 
 import os
 from contextlib import contextmanager
@@ -43,7 +45,7 @@ CONNECTED_IN_PROD = (
 
 
 @contextmanager
-def _ci_job(
+def _prepare_ci_job(
     workspace_id: Optional[str],
     staging: bool = False,
     migrated: bool = False,
@@ -66,18 +68,18 @@ def _ci_job(
 
 
 def _get_access_fallback_warning(job_refs: Sequence[str]) -> str:
-    """The one warning for the jobs with read data access that get `prod`, because `access` has
-    no settings files."""
+    """The one warning for the jobs that declare read data access and get `prod`, because
+    `access` has no settings files."""
     listed = ", ".join(f"`{job_ref}`" for job_ref in job_refs)
     return (
         f"profile `access` has no settings files: {len(job_refs)} jobs ({listed}) that declare"
-        " read data access run with `prod` (write data access). Create them with `dlthub profile"
-        " add access` to give them read data access."
+        " read data access run with `prod` (write data access). Create the settings files with"
+        " `dlthub profile add access` to give them read data access."
     )
 
 
 def test_ci_deploys_production() -> None:
-    with _ci_job("ci-prod-id"):
+    with _prepare_ci_job("ci-prod-id"):
         environment = activate_environment()
         ctx = dlt.current.workspace()
         assert environment["name"] == "prod" and ctx.profile == "prod"
@@ -97,7 +99,7 @@ def test_ci_deploys_production() -> None:
     "migrated,shared_config,ci_workspace_id,workspace_id",
     [
         (False, None, "ci-stg-id", "ci-stg-id"),
-        # a declared `stg` stays valid without its files
+        # a declared `stg` stays valid without its settings files
         (True, None, "ci-stg-id", "ci-stg-id"),
         # the id that CI sets wins over the section of `prod` too
         (False, CONNECTED_IN_PROD, "ci-stg-id", "ci-stg-id"),
@@ -112,7 +114,9 @@ def test_ci_deploys_staging_with_the_default_environment(
     ci_workspace_id: Optional[str],
     workspace_id: str,
 ) -> None:
-    with _ci_job(ci_workspace_id, staging=True, migrated=migrated, shared_config=shared_config):
+    with _prepare_ci_job(
+        ci_workspace_id, staging=True, migrated=migrated, shared_config=shared_config
+    ):
         environment = activate_environment()
         ctx = dlt.current.workspace()
         assert ctx.configured_profiles() == ["prod"]
@@ -149,7 +153,7 @@ def test_developer_deploys_to_the_stg_environment(recorded: bool) -> None:
             environment = activate_environment("stg")
         ctx = dlt.current.workspace()
         assert environment["name"] == "stg" and ctx.profile == "stg"
-        # `stg.config.toml` belongs to `stg` alone: its name gets no `-stg` suffix
+        # `stg.config.toml` belongs to `stg` alone, so the workspace name gets no `-stg` suffix
         assert ctx.name == "dlt-de-stage"
         assert ctx.runtime_config.workspace_id == "stg-ws-id"
         assert ctx.runtime_config.organization_id == "org-id"
@@ -163,7 +167,7 @@ def test_developer_deploys_to_the_stg_environment(recorded: bool) -> None:
     assert job_profiles(manifest) == dict.fromkeys([*BATCH_REFS, REVIEW_NOTEBOOK], "stg")
     assert warnings == [
         f"environment `stg` has no profile with read data access: 1 job (`{REVIEW_NOTEBOOK}`)"
-        " that declares read data access runs with `stg` (write data access). Declare one with"
+        " that declares read data access runs with `stg` (write data access). Add one with"
         " `dlthub profile add stg-read --access read --environment stg`."
     ]
 
@@ -194,7 +198,7 @@ def test_stg_environment_names_its_deployment_module() -> None:
             "dlt-de-prd",
             "run-ws-id",
         ),
-        # `access` has no settings file: the name is the folder name
+        # `access` has no settings files: the workspace name is the folder name
         (
             {"WORKSPACE__PROFILE": "access", "RUNTIME__WORKSPACE_ID": "run-ws-id"},
             "access",

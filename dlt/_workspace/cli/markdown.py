@@ -27,7 +27,7 @@ class MarkdownDocument:
     """
 
     def __init__(self, text: str) -> None:
-        # editors on Windows may save a byte order mark that hides the frontmatter and headings
+        # editors on Windows can save a byte order mark that hides the frontmatter and headings
         if text.startswith("﻿"):
             text = text[1:]
         self._lines: List[str] = text.split("\n")
@@ -71,7 +71,8 @@ class MarkdownDocument:
     def split_frontmatter(self) -> Tuple[Dict[str, Any], str]:
         """Parse `---` delimited YAML frontmatter and return it with the body text.
 
-        Without valid frontmatter returns an empty dict and the whole text.
+        Without a frontmatter block, or when its YAML is not a mapping, returns an empty dict and
+        the whole text.
 
         Raises:
             yaml.YAMLError: When the frontmatter is not valid YAML.
@@ -130,9 +131,9 @@ class MarkdownDocument:
             None,
         )
 
-    def section_end(self, heading: MarkdownHeading) -> int:
+    def find_section_end(self, heading: MarkdownHeading) -> int:
         """Line index where the section of `heading` ends: the next top-level heading of the
-        same or a higher level, or the end of the document.
+        same or a smaller depth, or the end of the document.
         """
         return next(
             (
@@ -149,7 +150,7 @@ class MarkdownDocument:
         self._tokens = None
 
     def demote_headings(self) -> None:
-        """Move every top-level heading one level down, to level 6 at most. A setext heading
+        """Moves every top-level heading one step deeper, to depth 6 at most. A setext heading
         becomes an ATX one. Headings in quotes and lists stay as they are.
         """
         for heading in reversed(self.find_headings()):
@@ -168,18 +169,18 @@ class MarkdownDocument:
         text appended after it. Leaves the document as is when no closing line helps.
         """
         text = str(self)
-        if self._blocks_closed(text):
+        if self._are_blocks_closed(text):
             return
         fences = [t for t in _PARSER.parse(text) if t.type == "fence" and t.level == 0]
         for closer in ([fences[-1].markup] if fences else []) + list(_HTML_BLOCK_CLOSERS):
-            if self._blocks_closed(text + "\n" + closer):
+            if self._are_blocks_closed(text + "\n" + closer):
                 self.replace_lines(len(self._lines), len(self._lines), [closer])
                 return
 
     def replace_section(self, heading: str, section: str) -> None:
         """Replace the section that starts with the top-level `heading` line, or append it.
 
-        The section runs to the next top-level heading of the same or a higher level, or to the
+        The section runs to the next top-level heading of the same or a smaller depth, or to the
         end of the document. Text outside it is kept. `section` is the full new section,
         starting with `heading`. The document then ends with a single newline.
         """
@@ -189,13 +190,13 @@ class MarkdownDocument:
             kept = str(self).rstrip("\n")
             text = (kept + "\n\n" if kept.strip() else "") + section
         else:
-            after = self._lines[self.section_end(owned) :]
+            after = self._lines[self.find_section_end(owned) :]
             lines = self._lines[: owned.line_index] + [section] + ([""] + after if after else [])
             text = "\n".join(lines).rstrip("\n")
         self.replace_lines(0, len(self._lines), (text + "\n").split("\n"))
 
     @staticmethod
-    def _blocks_closed(text: str) -> bool:
+    def _are_blocks_closed(text: str) -> bool:
         """Tell whether a heading placed after `text` starts a new top-level block."""
         tokens = _PARSER.parse(text + "\n\n" + _SENTINEL_HEADING)
         last = next((t for t in reversed(tokens) if t.type == "heading_open"), None)

@@ -149,7 +149,7 @@ def test_toolkit_install_all_variants(
         assert not (project_root / "AGENTS.md").exists()
         hooks = json.loads((project_root / ".codex/hooks.json").read_text(encoding="utf-8"))
         assert hooks["hooks"]["SessionStart"] == [_CodexAgent.RULES_HOOK]
-        context = variant.session_context(project_root)
+        context = variant.get_session_context(project_root)
         assert context is not None and "`test-toolkit-coding`" in context
 
 
@@ -396,10 +396,10 @@ def test_toolkit_install_mcp_features(
     capsys: pytest.CaptureFixture[str],
     auto_isolated_workspace: WorkspaceRunContext,
 ) -> None:
-    """Features go into the server another toolkit installed, in every MCP config of the agent."""
+    """Feature groups go into the server of another toolkit, in every MCP config of the agent."""
     project_root = Path(auto_isolated_workspace.run_dir)
     variant = variant_cls()
-    config_paths = variant.mcp_config_paths(project_root)
+    config_paths = variant.get_mcp_config_paths(project_root)
     for path in config_paths:
         path.parent.mkdir(parents=True, exist_ok=True)
         servers = {"dlt-workspace-mcp": OLD_INIT_SERVER, "other": {"command": "other"}}
@@ -441,7 +441,7 @@ def test_toolkit_install_mcp_features(
 def test_toolkit_install_mcp_features_hidden_from_agent(
     capsys: pytest.CaptureFixture[str], auto_isolated_workspace: WorkspaceRunContext
 ) -> None:
-    """Features of a server the agent does not see are not merged and need no reconnect."""
+    """Feature groups for a server the agent does not see are not merged and need no reconnect."""
     project_root = Path(auto_isolated_workspace.run_dir)
     config_path = project_root / ".mcp.json"
     config_path.write_text(
@@ -464,7 +464,7 @@ def test_toolkit_install_mcp_features_hidden_from_agent(
 def test_toolkit_install_mcp_features_without_server(
     auto_isolated_workspace: WorkspaceRunContext,
 ) -> None:
-    """Features for a server that is not configured, or not started by a command, are skipped
+    """Feature groups for a server that is not configured, or not started by a command, are skipped
     with a warning that `--strict` turns into an error."""
     project_root = Path(auto_isolated_workspace.run_dir)
     config_path = project_root / ".mcp.json"
@@ -477,8 +477,8 @@ def test_toolkit_install_mcp_features_without_server(
     assert not any(a.kind == "mcp" for a in actions)
     assert warnings == [
         "Toolkit test-toolkit adds feature groups to MCP server dlt-workspace-mcp, but"
-        " dlt-workspace-mcp is not in %s. Install the toolkit that provides dlt-workspace-mcp,"
-        " then run dlthub ai toolkit install test-toolkit --overwrite." % config_path
+        " dlt-workspace-mcp is not in %s. Install the toolkit that provides dlt-workspace-mcp."
+        " Then run dlthub ai toolkit install test-toolkit --overwrite." % config_path
     ]
     assert not config_path.exists()
     with pytest.raises(CliCommandException):
@@ -507,11 +507,11 @@ def test_toolkit_install_mcp_features_without_server(
 def test_toolkit_install_mcp_server_keeps_features(
     variant_cls: Type[_AIAgent], auto_isolated_workspace: WorkspaceRunContext
 ) -> None:
-    """A toolkit can add features to its own server, a reinstall keeps the features of others."""
+    """A toolkit can add feature groups to its own server. A reinstall keeps those of others."""
     toolkit_dir = make_mock_toolkit(with_mcp=True)
     project_root = Path(auto_isolated_workspace.run_dir)
     variant = variant_cls()
-    config_paths = variant.mcp_config_paths(project_root)
+    config_paths = variant.get_mcp_config_paths(project_root)
     info = make_mock_toolkit_info(mcp_features={"dlt-workspace-mcp": ["dlthub.jobs"]})
 
     def _servers() -> List[Dict[str, Any]]:
@@ -536,12 +536,12 @@ def test_toolkit_install_mcp_server_keeps_features(
             "--features=dlthub.jobs",
         ]
 
-    # the toolkit reinstalled without features writes the same server
+    # the toolkit reinstalled without feature groups writes the same server
     actions, _ = _plan_toolkit_install(toolkit_dir, variant, project_root, "test-toolkit", True)
     _execute_install(actions)
     assert _servers() == servers
 
-    # a reinstall over a server that changed keeps the features it has
+    # a reinstall over a server that changed keeps the feature groups it has
     for path in config_paths:
         changed = {"command": "dlt", "args": ["--no-default-features", "--features=dlthub.logs"]}
         path.write_text(
@@ -557,7 +557,7 @@ def test_toolkit_install_mcp_server_keeps_features(
 def test_toolkit_install_mcp_features_in_workspace_of_older_dlt(
     auto_isolated_workspace: WorkspaceRunContext,
 ) -> None:
-    """A toolkit adds features to the server of a workspace that dlt 1.32 set up."""
+    """A toolkit adds feature groups to the server of a workspace that dlt 1.32 set up."""
     project_root = Path(auto_isolated_workspace.run_dir)
     index_path = project_root / ".dlt" / ".toolkits"
     shutil.copy(os.path.join(AI_CASES_DIR, "toolkits_index_dlt_1_32.yaml"), index_path)
@@ -582,7 +582,7 @@ def test_toolkit_install_mcp_features_in_workspace_of_older_dlt(
     saved = yaml.safe_load(index_path.read_text(encoding="utf-8"))["toolkits"]
     assert saved["init"] == {k: v for k, v in original["init"].items() if k != "name"}
     assert saved["rest-api-pipeline"] == original["rest-api-pipeline"]
-    # features of another toolkit's server are not recorded
+    # feature groups for the server of another toolkit are not recorded
     assert "mcp_features" not in saved["platform"]
     assert "mcp_servers" not in saved["platform"]
 
@@ -1201,7 +1201,7 @@ def test_toolkit_info_lists_agents(capsys: pytest.CaptureFixture[str]) -> None:
 
 
 def test_toolkit_info_lists_mcp_features(capsys: pytest.CaptureFixture[str]) -> None:
-    """ai_toolkit_info_command shows the features a toolkit adds to the servers of others."""
+    """ai_toolkit_info_command shows the feature groups a toolkit adds to the servers of others."""
     toolkit_dir = make_mock_toolkit(mcp_features=PLATFORM_FEATURES)
     with patch(
         "dlt._workspace.cli.dlthub.ai.utils.fetch_workbench_base", return_value=toolkit_dir.parent

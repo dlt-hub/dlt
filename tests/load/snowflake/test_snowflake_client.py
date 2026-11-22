@@ -174,7 +174,7 @@ def test_load_with_connection_name(snowflake_home: Callable[[str, str], Path]) -
     elif creds.password:
         profile.append(f'password = "{creds.password}"')
     else:
-        pytest.skip("test credentials use an authentication the profile does not cover")
+        pytest.skip("test credentials use an authentication that the connection does not cover")
     snowflake_home("[ci]\n" + "\n".join(profile), "")
 
     # no sections: the `destination.snowflake` secrets stay out of these credentials
@@ -183,7 +183,7 @@ def test_load_with_connection_name(snowflake_home: Callable[[str, str], Path]) -
     )
     conn_params = conn_creds.to_connector_params()
     assert conn_params["connection_name"] == "ci"
-    # the connector loads the credentials, dlt sends only session settings
+    # the connector loads the credentials, so dlt sends only the session overrides
     assert not conn_params.keys() & {"user", "password", "account", "private_key", "token"}
 
     pipeline = dlt.pipeline(

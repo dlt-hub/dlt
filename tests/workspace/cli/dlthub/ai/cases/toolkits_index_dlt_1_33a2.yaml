@@ -1,5 +1,5 @@
 # `.dlt/.toolkits` written by dlt 1.33.0a2: a flat map of toolkits, with the harness location and
-# branch on each toolkit installed from other than the default
+# branch on each toolkit installed from a source other than the default
 init:
   version: 0.1.3
   description: Shared rules, secrets handling and the workspace MCP server.

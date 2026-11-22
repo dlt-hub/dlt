@@ -232,10 +232,10 @@ def test_select_environment(name: Optional[str], profile: str, expected: str) ->
 @pytest.mark.parametrize(
     "name,profile,remedy",
     [
-        ("ci-write", "ci-write", "`ci-write` is a profile of environment `ci`: name `ci`, or the"),
-        ("access", "dev", "`access` is a profile of environment `prod`: name `prod`, or the"),
+        ("ci-write", "ci-write", "`ci-write` is a profile of environment `ci`. Name `ci`, or"),
+        ("access", "dev", "`access` is a profile of environment `prod`. Name `prod`, or"),
         ("dev", "dev", "`dev` is a local profile, not an environment."),
-        ("nope", "dev", "Declare it with `dlthub profile add-environment nope`."),
+        ("nope", "dev", "Add it with `dlthub profile add-environment nope`."),
     ],
     ids=["default-write-profile-name", "profile-name", "local-profile-name", "undeclared-name"],
 )
@@ -265,7 +265,8 @@ def test_select_environment_without_default() -> None:
             select_environment()
         message = str(exc.value)
         assert "The active profile `dev` is a local profile" in message
-        assert "--environment`: prod" in message and "default: true" in message
+        assert "--environment`: prod" in message
+        assert "make one of them the default environment" in message
         # no environment is declared
         doc["environments"] = {}
         save_definition(ctx, doc)
@@ -275,7 +276,7 @@ def test_select_environment_without_default() -> None:
 
 @pytest.mark.parametrize("environment", ["b", None], ids=["remote-profile", "local-profile"])
 def test_profile_named_like_environment(environment: Optional[str]) -> None:
-    """A profile may take the name of an environment without being its default write profile."""
+    """A profile can take the name of an environment without being its default write profile."""
     doc = create_built_in_workspace_definition()
     # deployed with `b-write`
     doc["environments"]["b"] = create_environment_definition("b")
@@ -366,7 +367,7 @@ def test_select_environment_profile(
             None,
             "dev",
             (
-                "`dev` is a local profile and reaches no remote workspace. Name a profile of an"
+                "`dev` is a local profile and belongs to no environment. Name a profile of an"
                 " environment. `dlthub profile list` shows them."
             ),
         ),
@@ -374,7 +375,7 @@ def test_select_environment_profile(
             "prod",
             "dev",
             (
-                "`dev` is a local profile and reaches no remote workspace. Name a profile of"
+                "`dev` is a local profile and belongs to no environment. Name a profile of"
                 " `prod`: prod, access, no-access."
             ),
         ),
@@ -635,7 +636,7 @@ def test_runtime_workspace_id_conflicts_with_default_environment(
     files: Dict[str, str], environ: Dict[str, str], profile: str, location: str
 ) -> None:
     """`workspace_id` under `[runtime]` in a settings file is the remote workspace of the default
-    environment, set before environments existed: its section can't set another one, not even
+    environment, set before environments existed: its section cannot set another one, not even
     an equal one. The message names the file to fix. The variable that the platform and CI set
     always wins."""
     with isolated_workspace("default") as ctx:
@@ -801,7 +802,7 @@ def test_set_global_secret() -> None:
         assert ctx.runtime_config.auth_token == "token-2"
         assert _settings_bytes(ctx) == before
 
-        # without a reload the file changes and the resolved configuration stays until reloaded
+        # without a reload the file changes and the resolved config stays until reloaded
         set_global_secret(ctx, "auth_token", "token-3", "runtime", reload_context=False)
         with open(os.path.join(ctx.global_dir, SECRETS_TOML), "r", encoding="utf-8") as f:
             assert tomlkit.parse(f.read()).unwrap()["runtime"]["auth_token"] == "token-3"

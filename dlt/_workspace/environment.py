@@ -1,5 +1,5 @@
-"""Environments of the active workspace: what a deployment is made to. Declare, select and activate
-them, and connect each to its remote workspace."""
+"""Environments of the active workspace: what a deployment is made to. Declares and selects them,
+activates their default write profiles, and connects the local workspace to remote workspaces."""
 
 import os
 from contextlib import contextmanager, nullcontext
@@ -67,8 +67,8 @@ ENVIRONMENT_PROFILE_ARGUMENT_HELP = (
 argument of MCP tools that also take `environment`."""
 
 WORKSPACE_ARGUMENT_HELP = (
-    "The environment of the active profile, else the default environment: --environment without"
-    " a name. Takes no --profile."
+    "Selects the environment of the active profile, else the default environment, as"
+    " --environment without a name does. --profile is not allowed with it."
 )
 """Help of the `--workspace` option."""
 
@@ -139,7 +139,7 @@ def add_environments(
 
 
 def select_environment(name: Optional[str] = None) -> TEnvironmentDefinition:
-    """The environment that a command that deploys or works with a deployment uses.
+    """Selects the environment for a command that deploys or works with a deployment.
 
     `name` is the environment the user named with `--environment`. Without it, dlt takes the
     environment of the active profile, else the default environment.
@@ -187,9 +187,9 @@ def select_environment_profile(
 ) -> Tuple[TEnvironmentDefinition, str]:
     """The environment and the profile of a command that takes both.
 
-    `profile` must belong to `environment`. Without `environment`, the environment of `profile`
-    is used. Without `profile`, the active profile is used when it belongs to the environment that
-    `select_environment` selects, else the default write profile of that environment.
+    `profile` must belong to `environment`. Without `environment`, dlt uses the environment of
+    `profile`. Without `profile`, dlt uses the active profile when it belongs to the environment
+    that `select_environment` selects, else the default write profile of that environment.
 
     Returns:
         Tuple[TEnvironmentDefinition, str]: The environment and the profile to run with.
@@ -316,18 +316,15 @@ def connect_remote_workspace(
 ) -> None:
     """Connects the local workspace to a remote workspace in `environment`.
 
-    Writes `workspace_id`, and `workspace_name` as `name`, under
-    `[workspace.environment.<environment>]` in `config.toml`, and `organization_id`, the one
-    organization of the workspace, under `[runtime]`. A value that is `None`, or that
-    `environment` resolves already, is not written.
-    The `[runtime] workspace_id` of the default environment, set before environments existed,
-    moves to its section first.
+    Writes `workspace_id` and `workspace_name` to the section of `environment` in `config.toml`,
+    and `organization_id` to `[runtime]`. Skips a value that is `None` or already resolved.
 
     Raises:
         EnvironmentNotDeclared: `environment` is not declared.
         OrganizationMismatch: The workspace is connected to another organization.
     """
     definition = _get_declared_environment(ctx, environment)
+    # a `[runtime] workspace_id` from before environments moves to the section first
     if environment == ctx.default_environment:
         _migrate_runtime_workspace_id(ctx, definition)
     resolved = ctx.get_environment_config(environment)
@@ -361,12 +358,10 @@ def connect_remote_workspace(
 def disconnect_remote_workspace(ctx: WorkspaceRunContext, environment: str) -> None:
     """Disconnects the local workspace from the remote workspace of `environment`.
 
-    Removes `workspace_id` from the section of `environment` and the `[runtime] workspace_id` set
-    before environments existed: from the shared settings files and the settings files of the
-    profiles of `environment`, the `[runtime]` one in the shared files only when `environment` is
-    the default one. The other settings of the environment, such as its workspace name and
-    deployment module, and the organization stay. Environment variables and the global settings
-    dir are not touched.
+    Removes `workspace_id` from the section of `environment` in the shared settings files and in
+    the settings files of its profiles, and the `[runtime] workspace_id` from before environments.
+    The organization and the other settings of the environment stay. Environment variables and
+    the global settings files stay unchanged.
 
     Raises:
         EnvironmentNotDeclared: `environment` is not declared.
@@ -397,7 +392,7 @@ def _migrate_runtime_workspace_id(
     ctx: WorkspaceRunContext, definition: TEnvironmentDefinition
 ) -> None:
     """Moves the `[runtime] workspace_id` of the default environment `definition` to its section
-    in `config.toml`: the one in the files of its default write profile, else the one in the
+    in `config.toml`. The id in the files of its default write profile wins over the one in the
     shared files. Removes the others. A section that has an id keeps it."""
     runtime_id: Optional[str] = None
     for file_name in [*_get_profile_settings_files(definition), CONFIG_TOML, SECRETS_TOML]:
@@ -466,7 +461,7 @@ def set_global_secret(
     a secret of the user, not of the workspace, like an auth token. A dict `value` is merged into
     the existing one.
 
-    With `reload_context`, `ctx` drops its resolved configuration and its providers, so the value
+    With `reload_context`, `ctx` drops its resolved config and its providers, so the value
     takes effect right away. Without it, `ctx` sees the value only after its next reload.
     """
     os.makedirs(ctx.global_dir, exist_ok=True)

@@ -20,8 +20,8 @@ PROFILE_DEST = "profile"
 """`dest` of the `--profile` option."""
 
 ENVIRONMENT_DEST = "environment"
-"""`dest` of the `--environment` and `--workspace` options: `None` when neither is given, `""`
-for `--workspace`, the environment of the active profile, else the default one."""
+"""`dest` of the `--environment` and `--workspace` options. It is `None` when neither option is
+given. `--workspace` stores `""`: the environment of the active profile, else the default one."""
 
 PROFILE_OPTIONS_DEST = "_profile_options"
 """Hidden default that holds the `TProfileOptions` of a command and of the commands under it."""
@@ -42,7 +42,7 @@ TAKEN_OPTIONS: Dict[TProfileOptionsTakes, Tuple[str, ...]] = {
 
 MANAGES_PROFILES_REFUSAL = (
     "`dlthub profile` and `dlthub local profile` take no --profile. To show another profile with"
-    " `dlthub profile info`, make it active first with `dlthub local profile use NAME`."
+    " `dlthub profile info`, make it the active profile with `dlthub local profile use NAME`."
 )
 """Why the commands that manage profiles take no `--profile`."""
 
@@ -73,9 +73,9 @@ def add_profile_options(
 def use_command_profile(
     parser: argparse.ArgumentParser, args: argparse.Namespace
 ) -> ContextManager[Any]:
-    """Checks the profile options given to the command of `args` and returns the context that runs
-    the command with its profile, see `use_profile_options`. Exits through `parser.error` when the
-    command takes none of the given options, or not together."""
+    """Checks the profile options given to the command of `args`. Returns the context that runs
+    the command with the profile that `use_profile_options` selects. Exits through `parser.error`
+    when the command does not take a given option, or does not take the given options together."""
     profile: Optional[str] = getattr(args, PROFILE_DEST, None)
     _check_profile_options(parser, args, profile)
     takes = _get_profile_options(args).get("takes", "profile")
@@ -87,7 +87,7 @@ def use_command_profile(
 
 def _declare_profile_options(parser: argparse.ArgumentParser, options: Mapping[str, Any]) -> None:
     declared: TProfileOptions = {k: v for k, v in options.items() if k != "subcommands"}  # type: ignore[assignment]
-    # a declaration of subcommands only keeps the options of the command
+    # a declaration with only `subcommands` leaves the options of the command unchanged
     if declared:
         if declared.get("takes") == "none" and not declared.get("refusal"):
             declared["refusal"] = f"`{parser.prog}` does not use a profile and takes no --profile."
@@ -113,11 +113,11 @@ def _get_subparsers(parser: argparse.ArgumentParser) -> Dict[str, argparse.Argum
 def _add_command_profile_options(
     parser: argparse.ArgumentParser, parent_options: TProfileOptions
 ) -> Set[str]:
-    """Adds the profile options to the command of `parser` and to every command under it, and
-    returns the options its help shows: the ones the command takes, for a group the ones it
-    declares itself and the ones every command under it takes. `--profile` and `--environment`
-    are hidden where the command does not take them, so `use_command_profile` refuses them with
-    the remedy."""
+    """Adds the profile options to the command of `parser` and to every command under it. Returns
+    the options that the help of the command shows. A command shows the options that it takes. A
+    group shows the options that every command under it takes, plus the ones it declares itself.
+    The help hides `--profile` and `--environment` where the command does not take them, so
+    `use_command_profile` refuses them with the remedy."""
     options: TProfileOptions = parser._defaults.get(PROFILE_OPTIONS_DEST, parent_options)
     takes = options.get("takes", "profile")
     taken = TAKEN_OPTIONS[takes]
@@ -135,7 +135,7 @@ def _add_command_profile_options(
     for option in TAKEN_OPTIONS["both"]:
         if option == "--workspace" and option not in taken and option not in shown:
             continue
-        # a command may declare the option itself, as `dlthub profile add` does `--environment`
+        # a command can declare the option itself, as `dlthub profile add` does `--environment`
         if option in parser._option_string_actions:
             continue
         help_text = argparse.SUPPRESS
@@ -179,9 +179,9 @@ def _get_profile_options(args: argparse.Namespace) -> TProfileOptions:
 def _check_profile_options(
     parser: argparse.ArgumentParser, args: argparse.Namespace, profile: Optional[str]
 ) -> None:
-    """Refuses `--profile`, `--environment` and `--workspace` where the command of `args` takes
-    none of them, or not together. `profile` is the one given to dlt. Exits through
-    `parser.error`."""
+    """Refuses `--profile`, `--environment` and `--workspace` where the command of `args` does not
+    take them, or does not take them together. `profile` is the value of `--profile`. Exits
+    through `parser.error`."""
     options = _get_profile_options(args)
     takes = options.get("takes", "profile")
     environment = getattr(args, ENVIRONMENT_DEST, None)
@@ -201,13 +201,13 @@ def _check_profile_options(
         )
     if profile and environment == "":
         parser.error(
-            "--workspace names no environment and takes no --profile: give one of them. A"
-            " profile picks its own environment."
+            "dlt cannot combine --workspace with --profile, because a profile selects its own"
+            " environment. Give only one of them."
         )
     if options.get("required") and not profile and environment is None:
         parser.error(
-            "this command needs --profile NAME, or the environment with --environment NAME or"
-            " --workspace."
+            "this command needs a profile or an environment. Give --profile NAME, --environment"
+            " NAME or --workspace."
         )
 
 

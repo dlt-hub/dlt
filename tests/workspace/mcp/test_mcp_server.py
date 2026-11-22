@@ -151,7 +151,7 @@ def test_workspace_mcp_server(pokemon_pipeline_context: RunContextBase) -> None:
 
 
 def test_workspace_mcp_server_outside_workspace() -> None:
-    """Outside a workspace there is no profile to run with: the tools hide the argument."""
+    """Outside a workspace there is no profile to run with, so the server hides the argument."""
     with isolated_workspace("legacy", required=None):
         mcp = WorkspaceMCP("dlt")
         by_name = {tool.name: tool for tool in asyncio.run(mcp.list_tools())}
@@ -516,7 +516,8 @@ def test_no_default_features_serves_only_what_was_asked() -> None:
 def test_installed_server_serves_the_requested_features(
     tokens: Optional[List[str]], expected: Set[str]
 ) -> None:
-    """The arguments `ai mcp install` writes resolve to the requested features in the server."""
+    """The arguments that `ai mcp install` writes resolve to the requested feature groups in the
+    server."""
     parsed = make_mcp_run_flags().parse_args(mcp_stdio_args(tokens)[3:])
     defaults: Optional[Set[str]] = set() if parsed.no_default_features else None
     assert resolve_features(parsed.features, defaults) == expected
@@ -545,7 +546,7 @@ def test_installed_server_serves_the_requested_features(
             False,
         ),
         (["--stdio", "--features", "+jobs"], ["jobs"], DEFAULT_MCP_FEATURES | {"jobs"}, True),
-        # a feature the user removed stays removed
+        # a feature group that the user removed stays removed
         (["--stdio", "--features=-jobs"], ["jobs"], DEFAULT_MCP_FEATURES, True),
         (["--stdio"], ["+jobs", "-secrets"], DEFAULT_MCP_FEATURES - {"secrets"} | {"jobs"}, False),
         (["--stdio"], ["+jobs", "jobs"], DEFAULT_MCP_FEATURES | {"jobs"}, False),
@@ -583,7 +584,8 @@ def test_installed_server_serves_the_requested_features(
 def test_add_mcp_features(
     args: List[str], features: List[str], expected: Set[str], unchanged: bool
 ) -> None:
-    """Features added to the args of an installed server reach the server, other args stay."""
+    """Feature groups added to the args of an installed server reach the server. Other args
+    stay."""
     prefix = ["run", "dlthub", "ai", "mcp"]
     added = add_mcp_features(prefix + args, features)
     assert (added == prefix + args) is unchanged
@@ -594,5 +596,5 @@ def test_add_mcp_features(
     assert resolve_features(parsed.features, defaults) == expected
     if "--access" in args:
         assert parsed.access == "data:read"
-    # the features are there, nothing to add
+    # the feature groups are there, nothing to add
     assert add_mcp_features(added, features) == added

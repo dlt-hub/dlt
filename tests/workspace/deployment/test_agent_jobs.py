@@ -200,7 +200,7 @@ def test_manifest_with_agents_validates() -> None:
 
 
 def test_agent_job_declares_access() -> None:
-    """An agent job keeps the `access` that its agent declares."""
+    """An agent job keeps the `access` that its agent definition declares."""
     with agent_workspace():
         manifest, _ = manifest_from_module("__deployment__", None)
     jobs = {j["job_ref"]: j for j in manifest["jobs"]}

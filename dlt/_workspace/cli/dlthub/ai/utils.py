@@ -103,7 +103,7 @@ def merge_json_mcp_servers(
 def merge_json_hooks(
     existing_content: str, event: str, matcher_group: Dict[str, Any]
 ) -> Optional[str]:
-    """Add a matcher group to `event` in a JSON hooks config. Returns `None` when every hook of
+    """Adds a matcher group to `event` in a JSON hooks config. Returns `None` when every hook of
     the group already runs for the event.
     """
     data: Dict[str, Any] = json.loads(existing_content) if existing_content.strip() else {}
@@ -154,7 +154,7 @@ def merge_toml_mcp_servers(
 
 
 def read_rule_body(rule_file: Path) -> str:
-    """Rule text without its frontmatter. A rule a user broke is still read, never raises."""
+    """Rule text without its frontmatter. A broken rule file is still read without an error."""
     text = rule_file.read_text(encoding="utf-8", errors="replace")
     return MarkdownDocument(text).body_text.strip("\n")
 
@@ -202,7 +202,7 @@ def is_always_apply_skill(skill_md: Path) -> bool:
         doc = MarkdownDocument(skill_md.read_text(encoding="utf-8"))
         description = doc.split_frontmatter()[0].get("description")
     except (yaml.YAMLError, UnicodeDecodeError):
-        # a skill the user broke is not one of ours
+        # dlt did not write a SKILL.md that it cannot parse
         return False
     return isinstance(description, str) and description.startswith(ALWAYS_APPLY_SKILL_PREFIX)
 
@@ -473,7 +473,8 @@ def fetch_workbench_base(location: str, branch: Optional[str]) -> Path:
 
 
 def is_visible(visibility: Optional[TAgentVisibility], agent_name: Optional[str]) -> bool:
-    """Tell whether `agent_name` sees an item with `visibility`. Without an agent all is visible."""
+    """Tells whether `agent_name` sees an item with `visibility`. Without an agent, every item
+    is visible."""
     if not visibility or agent_name is None:
         return True
     if "include" in visibility:
@@ -635,7 +636,7 @@ def fetch_workbench_toolkit_info(
 
     tk_meta = extract_toolkit_info(meta, name)
 
-    def _visible(folder: str, component_name: str) -> bool:
+    def _is_visible(folder: str, component_name: str) -> bool:
         return is_component_visible(tk_meta, folder + "/" + component_name, agent_name)
 
     def _components(
@@ -647,7 +648,7 @@ def fetch_workbench_toolkit_info(
             for n, d in (
                 MarkdownDocument.read_name_desc(f, f.parent.name if folder_named else None)
                 for f in md_files
-                if _visible(folder, f.parent.name if folder_named else f.stem)
+                if _is_visible(folder, f.parent.name if folder_named else f.stem)
             )
         ]
 
@@ -690,7 +691,7 @@ def fetch_workbench_toolkit_info(
     servers = {
         server: config
         for server, config in read_workbench_toolkit_mcp_servers(toolkit_dir).items()
-        if _visible("mcp", server)
+        if _is_visible("mcp", server)
     }
 
     info = TWorkbenchToolkitInfo(
@@ -706,7 +707,7 @@ def fetch_workbench_toolkit_info(
     features = {
         server: names
         for server, names in tk_meta.get("mcp_features", {}).items()
-        if _visible("mcp", server)
+        if _is_visible("mcp", server)
     }
     if features:
         info["mcp_features"] = features
@@ -741,7 +742,7 @@ def _load_toolkits_file() -> TToolkitsIndex:
     if from_engine != 0:
         raise ToolkitsIndexEngineNoUpgradePath(path, from_engine, TOOLKITS_INDEX_ENGINE_VERSION)
     index = migrate_toolkits_index(doc)
-    # a read-only settings dir keeps the old file, the next load migrates again
+    # a read-only settings dir keeps the old file, so the next load migrates again
     try:
         save_yaml_file(path, index)
     except OSError:
@@ -750,7 +751,7 @@ def _load_toolkits_file() -> TToolkitsIndex:
 
 
 def migrate_toolkits_index(doc: Dict[str, Any]) -> TToolkitsIndex:
-    """Migrates the flat map of toolkits that dlt 1.33.0a2 and earlier wrote to engine 1."""
+    """Migrates to engine 1 the flat map of toolkits that dlt 1.33.0a2 and earlier wrote."""
     index: TToolkitsIndex = {"engine_version": TOOLKITS_INDEX_ENGINE_VERSION, "toolkits": doc}
     for name, entry in doc.items():
         if not isinstance(entry, dict):
@@ -773,7 +774,7 @@ def _save_toolkits_file(index: TToolkitsIndex) -> None:
 
 def load_toolkits_index(hide_init: bool = False) -> Dict[str, TToolkitIndexEntry]:
     """Load the installed toolkits index from the workspace settings directory. `hide_init`
-    leaves out `init` and the toolkits it depends on, which set up the agent."""
+    leaves out `init` and its dependencies, which configure the AI coding agent."""
     data = _load_toolkits_file()["toolkits"]
     # restore name from the YAML key (stripped on write)
     for key, entry in data.items():
@@ -805,7 +806,7 @@ def save_toolkit_entry(
 
     Args:
         toolkit_meta: Core toolkit metadata to persist.
-        agent: Name of the AI agent that triggered the install.
+        agent: Name of the AI coding agent that the toolkit was installed for.
         files: Mapping of installed file paths to their content hashes.
         mcp_servers: Names of MCP servers provided by the toolkit.
         see_all: Whether the toolkit was installed with `--see-all`.
@@ -814,7 +815,7 @@ def save_toolkit_entry(
     index = _load_toolkits_file()
     entry: Dict[str, Any] = dict(toolkit_meta)
     name = entry.pop("name")
-    # visibility and MCP features describe the harness, not what got installed
+    # visibility and MCP feature groups describe the harness, not the installed files
     entry.pop("agent_visibility", None)
     entry.pop("component_visibility", None)
     entry.pop("mcp_features", None)
@@ -832,8 +833,8 @@ def save_toolkit_entry(
 
 
 def save_harness_source(location: str, branch: Optional[str]) -> None:
-    """Records the harness `location` and `branch` that the next commands default to. Defaults are
-    not recorded, so a reset removes them."""
+    """Records the harness `location` and `branch` that the next commands default to. A default
+    value is not recorded, so passing the default removes the recorded value."""
     source = get_recorded_harness_source(location, branch)
     if not source and not os.path.isfile(_toolkits_index_path()):
         return
@@ -848,7 +849,7 @@ def resolve_harness_source(
     location: Optional[str] = None, branch: Optional[str] = None
 ) -> Tuple[str, Optional[str]]:
     """Harness location and branch to fetch from: given, else given last to a command, else the
-    defaults. An empty value resets."""
+    defaults. An empty value resets to the default."""
     index = _load_toolkits_file()
     recorded: TRepoSource = {}
     if "location" in index:

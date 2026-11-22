@@ -67,14 +67,13 @@ class WorkspaceEnvironmentConfiguration(BaseConfiguration):
 
     workspace_id: Optional[str] = None
     name: Optional[str] = None
-    """Name of the remote workspace, like `name` under `[workspace.settings]` names the local
-    one."""
+    """Name of the remote workspace, as `name` under `[workspace.settings]` names the local one."""
     deployment_module: str = DEFAULT_DEPLOYMENT_MODULE
     """The deployment module that dlt imports to generate the deployment manifest of the
     environment: a module name or a `.py` path relative to the workspace."""
     deploy_dashboard: bool = True
-    """Deploys the workspace dashboard with the deployment module. Only the default environment
-    deploys it."""
+    """Deploys the workspace dashboard with the deployment module. Only a deployment to the
+    default environment includes it."""
 
 
 def _get_environment_workspace_name(name: str, environment: str) -> str:
@@ -82,7 +81,7 @@ def _get_environment_workspace_name(name: str, environment: str) -> str:
 
 
 def resolve_environment_configuration(environment: str) -> WorkspaceEnvironmentConfiguration:
-    """Resolves the configuration of `environment` with the active providers: its remote
+    """Resolves the config of `environment` with the active providers: its remote
     workspace connection and its deployment module."""
     # embedded-config lookup: falls back to `[workspace.<env>]` and `[<env>]`, never to the root
     return _resolve_configuration(
@@ -98,10 +97,10 @@ TValueSource = Literal["environ", "profile", "shared"]
 
 
 def _get_value_origin(key: str, section: str) -> Optional[Tuple[TValueSource, str]]:
-    """Where the active providers resolve `key` of the workspace `section` from: the environment
-    variables, a settings file of the active profile, or a source that all profiles share, with
-    the location of the value: a settings file or the name of another provider. `None` when no
-    provider has the value."""
+    """Where the active providers resolve `key` of the workspace `section` from, and the
+    location of the value. The source is `environ`, `profile` for a settings file of the active
+    profile, or `shared` for a source that all profiles share. The location is a settings file
+    or the name of another provider. `None` when no provider has the value."""
     providers = Container()[PluggableRunContext].providers.providers
     for provider in providers:
         for sections in ((known_sections.WORKSPACE, section), (section,)):
@@ -155,14 +154,14 @@ class WorkspaceConfiguration(BaseConfiguration):
                 # apply
                 connection = WorkspaceEnvironmentConfiguration()
         elif is_default and id_origin and connection.workspace_id:
-            # `[runtime]` in a file, set before environments existed, connects the default
-            # environment: a second id in the section is refused, also an equal one
+            # `[runtime]` in a file, set before environments existed, connects the local workspace
+            # in the default environment. dlt refuses a second id there, even an equal one
             raise WorkspaceIdConflict(self.environment, id_origin[1])
         elif connection.workspace_id:
             self.runtime.workspace_id = connection.workspace_id
         elif not is_default and id_origin and id_origin[0] == "shared":
-            # a shared `[runtime]` belongs to the default environment, one in the file of the
-            # profile connects its environment
+            # a shared `[runtime]` belongs to the default environment. One in the file of the
+            # profile connects the local workspace in the environment of the profile
             self.runtime.workspace_id = None
         # a name that the profile resolves from its own file or from the environment variables is
         # its own. one from a shared file, or the folder name, belongs to the default environment

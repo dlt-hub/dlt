@@ -131,10 +131,10 @@ class DltMCP(FastMCP):
 
     def _add_tool(self, tool: Any, **bound: Any) -> None:
         """Adds the function `tool` without its `bound` parameters. Each call runs with the
-        profile that its `profile` and `environment` arguments select, see
-        `with_tool_run_context`, and the docstring of the tool may describe them instead of the
-        default help. Outside of a workspace there is no profile or environment to select, so the
-        server hides these parameters too. A `Tool` object is added as it is."""
+        profile that its `profile` and `environment` arguments select (`with_tool_run_context`).
+        The docstring of the tool can describe these arguments, else the default help does.
+        Outside of a workspace there is no profile or environment to select, so the server hides
+        these parameters too. A `Tool` object is added as it is."""
         if isinstance(tool, Tool):
             self.add_tool(tool)
             return

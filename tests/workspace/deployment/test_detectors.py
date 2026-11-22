@@ -217,7 +217,7 @@ def test_module_expose_overrides() -> None:
 
 
 def test_module_require_and_access() -> None:
-    """__require__ sets the job require spec and __access__ what the job needs to run."""
+    """__require__ sets the job require spec, and __access__ sets what the job needs to run."""
     mod = import_module(f"{CASES}.marimo_with_requires")
     with pytest.warns(DltDeprecationWarning, match="require.instance"):
         job_def = detect_module_job(mod)
@@ -243,7 +243,7 @@ def test_module_require_and_access() -> None:
     ids=["single-verb", "single-verb-of-another-axis", "empty"],
 )
 def test_module_access_takes_a_single_verb(access: Any, expected: Any) -> None:
-    """A verb of an axis may be written without the list, as in an agent spec."""
+    """A verb of an axis can be written without the list, as in an agent definition."""
     module = ModuleType("notebook")
     module.__access__ = access  # type: ignore[attr-defined]
     job_def: TJobDefinition = {"job_ref": "jobs.notebook"}  # type: ignore[typeddict-item]

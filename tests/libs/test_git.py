@@ -193,7 +193,7 @@ def test_fresh_repo_files_reclones_other_origin(test_storage: FileStorage) -> No
     repo_storage = get_fresh_repo_files(CONTEXT_REPO, test_storage.storage_path, path="workbench")
     repo_storage.save(REUSE_MARKER, "")
 
-    # another url with the same repo name, ie. a fork, is cloned again
+    # another url with the same repo name, for example a fork, is cloned again
     other_url = "https://github.com/dlt-hub/dlthub-ai-harness"
     repo_storage = get_fresh_repo_files(other_url, test_storage.storage_path, path="workbench")
     assert not repo_storage.has_file(REUSE_MARKER)

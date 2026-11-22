@@ -168,8 +168,9 @@ class WorkspaceFileSelector(GitignoreFileSelector):
     """Iterates files in workspace respecting ignore patterns and excluding workspace internals.
 
     Uses gitignore-style patterns from a configurable ignore file (default .gitignore). Additional
-    patterns can be provided as relative paths from workspace root. The settings directory is
-    always excluded: its files ship with the configuration, see `ConfigurationFileSelector`.
+    patterns can be provided as relative paths from workspace root. The selector always
+    excludes the settings directory: its files ship with the configuration, see
+    `ConfigurationFileSelector`.
     """
 
     def __init__(
@@ -193,10 +194,12 @@ class WorkspaceFileSelector(GitignoreFileSelector):
 
 
 class ConfigurationFileSelector(BaseFileSelector):
-    """Iterates the settings files that a deployment to `environment` ships: `.workspace`, the
-    toolkit index, the shared `config.toml` and `secrets.toml`, and the config and secrets files
-    of the profiles of `environment`. Files of other environments and of local profiles never
-    leave the machine."""
+    """Iterates the settings files that a deployment to `environment` ships.
+
+    These are `.workspace`, the toolkit index, the shared `config.toml` and `secrets.toml`, and
+    the config and secrets files of the profiles of `environment`. Files of other environments
+    and of local profiles never leave the machine.
+    """
 
     def __init__(self, context: WorkspaceRunContext, environment: TEnvironmentDefinition) -> None:
         self.settings_dir: Path = Path(context.settings_dir).resolve()

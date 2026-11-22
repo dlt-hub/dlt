@@ -1,6 +1,7 @@
 """Export, save, load, and migrate `TWorkspaceRequirementsManifest` — the wire format for workspace dependencies shipped to the runtime.
-Supports requirements.txt and requirements.in. If uv installed - supports pyproject with dependency groups and uv/PEP lock files,
-also the lock at the root of a uv workspace that the dlt workspace is a member of.
+Supports requirements.txt and requirements.in. If uv is installed, it also supports pyproject with
+dependency groups and uv/PEP lock files. This includes the lock at the root of a uv workspace that
+the dlt workspace is a member of.
 poetry/PDM support can be easily added.
 """
 
@@ -258,7 +259,7 @@ def render_pyproject(
     uv_sources: Dict[str, Dict[str, Any]],
     requires_python: Optional[str] = None,
 ) -> str:
-    """A `pyproject.toml` declaring `deps`, with `[tool.uv.sources]` when `uv_sources` is not
+    """A `pyproject.toml` that declares `deps`, with `[tool.uv.sources]` when `uv_sources` is not
     empty."""
     doc = tomlkit.document()
     project = tomlkit.table()
@@ -422,9 +423,10 @@ def export_workspace_requirements(
 ) -> TWorkspaceRequirementsManifest:
     """Export a workspace's dependencies as a `TWorkspaceRequirementsManifest`.
 
-    A `pyproject.toml` is exported from `uv.lock` next to it, else from the lock at the root of
-    the uv workspace that the workspace is a member of, else as declared. If no default group
-    names dlt, the installed dlt spec is injected into the launcher baseline so every job gets it.
+    dlt exports a `pyproject.toml` from `uv.lock` next to it. Without that lock, dlt uses the lock
+    at the root of the uv workspace that the dlt workspace belongs to. Without either lock, dlt
+    exports the declared dependencies. If no default group names dlt, the installed dlt spec is
+    injected into the launcher baseline so every job gets it.
 
     Args:
         workspace_root (Path): Workspace directory.
@@ -601,9 +603,9 @@ def _run_uv_on_lock(args: List[str], cwd: Path) -> str:
 def _get_uv_workspace_member(
     workspace_root: Path, pyproject_doc: Any
 ) -> Optional[Tuple[str, Path]]:
-    """The name of the project in `workspace_root` and the root of its uv workspace when it is a
-    member of a uv workspace whose root holds `uv.lock`, `None` otherwise or when uv cannot
-    tell."""
+    """The project name in `workspace_root` and the root of its uv workspace, when that root
+    holds `uv.lock`. `None` when the project is not a member of such a uv workspace, or when uv
+    cannot tell."""
     name = (pyproject_doc.get("project", {}) or {}).get("name")
     if not name or not is_uv_available():
         return None
@@ -626,7 +628,7 @@ def _check_no_workspace_member_dependencies(
     workspace_root: Path, member: str, uv_workspace_root: Path
 ) -> None:
     """Raises when `member` depends on other members of its uv workspace: the deployment ships
-    only the dlt workspace and could not install them."""
+    only the dlt workspace and cannot install them."""
     args = [*_UV_EXPORT_ARGS, "--package", member, "--all-groups"]
     with_members = _parse_uv_output(_run_uv_on_lock(args, workspace_root))
     without_members = set(
@@ -637,8 +639,8 @@ def _check_no_workspace_member_dependencies(
         raise WorkspaceRequirementsError(
             f"`{member}` depends on other members of the uv workspace in `{uv_workspace_root}`:"
             f" {', '.join(other_members)}. A deployment ships only the dlt workspace in"
-            f" `{workspace_root}` and cannot install them. Publish them as packages or move their"
-            " code into the dlt workspace."
+            f" `{workspace_root}` and cannot install them. Publish them as packages. Or move"
+            " their code into the dlt workspace."
         )
 
 
@@ -687,9 +689,9 @@ def read_requirements_file(file_path: Path) -> List[str]:
 
 
 def _parse_requirements_line(line: str) -> Optional[Requirement]:
-    """The requirement a `requirements.txt` line declares, `None` for comments, flag lines (`-e`,
-    `-r`, `--index-url`) and lines that are not PEP 508. Options of the requirement, such as
-    `--hash`, are dropped."""
+    """The requirement that a `requirements.txt` line declares, `None` for comments, flag lines
+    (`-e`, `-r`, `--index-url`) and lines that are not PEP 508. Options of the requirement, such
+    as `--hash`, are dropped."""
     line = line.split(" #", 1)[0].split(" --", 1)[0].strip()
     if not line or line.startswith(("#", "-")):
         return None
@@ -712,8 +714,8 @@ def append_lines(text: str, lines: Sequence[str], comment: str) -> str:
 def merge_requirements_txt(
     existing: str, changes: Sequence[TDependencyChange], comment: str
 ) -> str:
-    """Applies `changes` to the content of a `requirements.txt`. An upgrade replaces the line of its
-    package in place, an added package goes below the `comment` line at the end."""
+    """Applies `changes` to the content of a `requirements.txt`. An upgrade replaces the line of
+    its package in place. An added package goes below the `comment` line at the end."""
     lines = existing.splitlines()
     present = {line.strip() for line in lines}
     additions: List[str] = []
@@ -735,8 +737,8 @@ def merge_requirements_txt(
 def plan_dependency_file_changes(
     file_path: Path, desired: Sequence[str], workspace_specs: Sequence[TInstallSpec]
 ) -> List[TDependencyChange]:
-    """Plans the changes that bring the `pyproject.toml` or `requirements.txt` at `file_path` up to
-    the `desired` specs. In `requirements.txt` an editable install of `workspace_specs` is
+    """Plans the changes that make the `pyproject.toml` or `requirements.txt` at `file_path` meet
+    the `desired` specs. In `requirements.txt`, an editable install of `workspace_specs` is
     written as `-e <path>`."""
     if file_path.name == PYPROJECT_TOML:
         return plan_dependency_changes(read_pyproject_dependencies(file_path), desired)
@@ -760,7 +762,7 @@ def add_pyproject_dependencies(
     syncing. A package in `uv_sources` keeps its source in `[tool.uv.sources]`."""
     if not changes:
         return
-    # `--frozen` already skips the sync, uv refuses it together with these settings
+    # `--frozen` already skips the sync, and uv refuses `--frozen` together with these settings
     env = {k: v for k, v in os.environ.items() if k not in ("UV_NO_SYNC", "UV_LOCKED")}
     run_uv(["add", "--frozen", *(change["spec"] for change in changes)], project_dir, env)
     for change in changes:
@@ -933,11 +935,11 @@ def _get_lower_bound(requirement: Requirement) -> Optional[Version]:
 def plan_dependency_changes(
     declared: Sequence[str], desired: Sequence[str]
 ) -> List[TDependencyChange]:
-    """Plans the changes that bring the `declared` specs of a project up to the `desired` ones.
+    """Plans the changes that make the `declared` specs of a project meet the `desired` ones.
 
-    A missing spec is added. A declared spec that excludes the desired version or lacks a desired
-    extra is upgraded, keeping its other extras. A declared newer version is kept, never
-    downgraded. A spec that admits the desired version is left as is.
+    The plan adds a missing spec. It upgrades a declared spec that excludes the desired version
+    or lacks a desired extra, and keeps its other extras. It keeps a declared newer version and
+    never downgrades it. It leaves a spec that admits the desired version as is.
     """
     declared_by_name: Dict[str, Tuple[Requirement, str]] = {}
     for spec in declared:

@@ -44,7 +44,8 @@ class WorkspaceFileEngineNoUpgradePath(WorkspaceException):
         self.to_engine = to_engine
         super().__init__(
             f"`{path}` declares the profiles of this workspace with engine version {from_engine}."
-            f" This dlt supports version {to_engine}. A newer dlt wrote the file: upgrade dlt."
+            f" This version of dlt supports engine version {to_engine}. A newer dlt wrote the"
+            " file: upgrade dlt."
         )
 
 
@@ -54,8 +55,9 @@ class ToolkitsIndexEngineNoUpgradePath(WorkspaceException):
         self.from_engine = from_engine
         self.to_engine = to_engine
         super().__init__(
-            f"`{path}` lists the installed toolkits with engine version {from_engine}. This dlt"
-            f" supports version {to_engine}. A newer dlt wrote the file: upgrade dlt."
+            f"`{path}` lists the installed toolkits with engine version {from_engine}. This"
+            f" version of dlt supports engine version {to_engine}. A newer dlt wrote the file:"
+            " upgrade dlt."
         )
 
 
@@ -67,9 +69,9 @@ class InvalidProfileName(ProfileException, ValueError):
     def __init__(self, name: str) -> None:
         self.name = name
         super().__init__(
-            f"`{name}` is not a valid profile or environment name: use letters, digits, `_` and"
-            " `-`. A profile name prefixes its settings files, `<name>.config.toml` and"
-            " `<name>.secrets.toml` in `.dlt`."
+            f"`{name}` is not a valid profile or environment name. A profile name prefixes its"
+            " settings files, `<name>.config.toml` and `<name>.secrets.toml` in `.dlt`. Use only"
+            " letters, digits, `_` and `-`."
         )
 
 
@@ -124,13 +126,13 @@ class ProfileNotDeclared(ProfileException):
                 ""
                 if is_environment
                 else (
-                    f" Then, to use `{name}`, run `dlthub profile add {name}` and `dlthub local"
-                    f" profile use {name}`."
+                    f" To use `{name}` after that, run `dlthub profile add {name}`. Then run"
+                    f" `dlthub local profile use {name}`."
                 )
             )
             remedy = (
-                f"{hint} `.dlt/profile-name` records it as the active profile. Remove"
-                f" `.dlt/profile-name` to run with the default profile.{declared}{add}"
+                f"{hint} `.dlt/profile-name` records it as the active profile. To run with the"
+                f" default profile, remove `.dlt/profile-name`.{declared}{add}"
             )
         elif source == "environ":
             remedy = (
@@ -139,9 +141,9 @@ class ProfileNotDeclared(ProfileException):
             )
         elif source == "default":
             remedy = (
-                " It is the default profile, and nothing names another one. Name a declared"
-                f" profile with `WORKSPACE__PROFILE`.{declared} Then declare a local profile with"
-                f" `dlthub profile add {name} --local`."
+                " It is the default profile, and nothing names another one. Set"
+                f" `WORKSPACE__PROFILE` to a declared profile.{declared} Then add a local profile"
+                f" with `dlthub profile add {name} --local`."
             )
         elif is_environment:
             remedy = f"{hint}{declared}"
@@ -171,13 +173,13 @@ class EnvironmentNotDeclared(ProfileException):
         self.environments = list(environments)
         if profile_env:
             remedy = (
-                f" `{env}` is a profile of environment `{profile_env}`: name `{profile_env}`, or"
-                " the profile with --profile."
+                f" `{env}` is a profile of environment `{profile_env}`. Name `{profile_env}`, or"
+                " name the profile with `--profile`."
             )
         elif is_profile:
             remedy = f" `{env}` is a local profile, not an environment."
         else:
-            remedy = f" Declare it with `dlthub profile add-environment {env}`."
+            remedy = f" Add it with `dlthub profile add-environment {env}`."
         super().__init__(
             f"`{env}` is not an environment declared in `{path}` (declared:"
             f" {_format_environments(environments)}).{remedy}"
@@ -192,16 +194,16 @@ class NoEnvironment(ProfileException):
         self.path = path
         self.environments = list(environments)
         remedy = (
-            f" Name one with `--environment`: {', '.join(environments)}. Or set `default: true`"
-            f" on one under `environments` in `{path}`."
+            f" Name one with `--environment`: {', '.join(environments)}. Or edit `{path}` and"
+            " make one of them the default environment."
             if environments
             else (
-                f" No environment is declared in `{path}`. Declare one with `dlthub profile"
+                f" No environment is declared in `{path}`. Add one with `dlthub profile"
                 " add-environment <name>`."
             )
         )
         super().__init__(
-            f"The active profile `{active_profile}` is a local profile, so it selects no"
+            f"The active profile `{active_profile}` is a local profile and belongs to no"
             " environment. No environment is the default. A command that deploys or works with a"
             f" deployment needs one.{remedy}"
         )
@@ -223,7 +225,7 @@ class ProfileNotInEnvironment(ProfileException):
         self.env = env
         self.profiles = list(profiles)
         if profile_env is None:
-            problem = f"`{profile}` is a local profile and reaches no remote workspace."
+            problem = f"`{profile}` is a local profile and belongs to no environment."
         else:
             problem = f"`{profile}` is a profile of environment `{profile_env}`, not of `{env}`."
         if env:
@@ -234,8 +236,8 @@ class ProfileNotInEnvironment(ProfileException):
 
 
 class WorkspaceIdConflict(WorkspaceException):
-    """`workspace_id` under `[runtime]` in a settings file, and another one in the section of the
-    default environment."""
+    """Two settings name the remote workspace of the default environment: `workspace_id` under
+    `[runtime]` in a settings file, and the one in the section of the environment."""
 
     def __init__(self, environment: str, location: str) -> None:
         self.environment = environment
@@ -248,8 +250,8 @@ class WorkspaceIdConflict(WorkspaceException):
             # a vault or a plugin provider, by its name
             where = f"`{location}`"
         super().__init__(
-            f"`workspace_id` under `[runtime]` in {where}, set before environments existed, and"
-            f" `workspace_id` under `[workspace.environment.{environment}]` both name the remote"
+            f"`workspace_id` under `[runtime]` in {where} is a setting from before environments."
+            f" `workspace_id` under `[workspace.environment.{environment}]` also names the remote"
             f" workspace of the default environment `{environment}`. Remove `workspace_id` under"
             f" `[runtime]` in {where}."
         )
@@ -269,7 +271,7 @@ class EnvironmentNotConnected(WorkspaceException):
 
 
 class OrganizationMismatch(WorkspaceException):
-    """A workspace is connected to one organization, all its environments share it."""
+    """A workspace is connected to one organization, which all its environments share."""
 
     def __init__(self, environment: str, connected: str, requested: str, path: str) -> None:
         self.environment = environment

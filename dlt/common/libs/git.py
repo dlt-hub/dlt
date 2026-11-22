@@ -72,7 +72,10 @@ def get_default_branch(repo: Repo) -> str:
 
     origin = repo.remotes.origin
     if "HEAD" not in origin.refs:
-        raise GitError(f"{repo.working_dir} does not know the default branch of origin")
+        raise GitError(
+            f"dlt cannot determine the default branch of origin: {repo.working_dir} has no"
+            " `origin/HEAD`"
+        )
     try:
         # symbolic ref like 'origin/main'
         return origin.refs.HEAD.reference.remote_head
@@ -103,8 +106,8 @@ def ensure_remote_head(
     Raises:
         RepositoryDirtyError: If repository has uncommitted changes or is
             not synced with origin.
-        GitError: If the repository has no `origin`, `origin` is not `origin_url`, or the
-            repository is sparse when `path` is not set and the other way around.
+        GitError: If the repository has no `origin`, if `origin` is not `origin_url`, or if the
+            repository is sparse without `path` or full with `path`.
     """
     from git import GitCommandError, GitError, Repo, RepositoryDirtyError
 
@@ -116,7 +119,7 @@ def ensure_remote_head(
                 raise GitError(f"{repo_path} has no origin remote")
             if origin_url is not None and get_origin(repo) != origin_url:
                 raise GitError(f"{repo_path} is a clone of {get_origin(repo)}, not {origin_url}")
-            # git may keep the flag in config.worktree, which GitPython does not read
+            # git can keep the flag in config.worktree, which GitPython does not read
             try:
                 is_sparse = (
                     repo.git.config("--worktree", "--get", "--bool", "core.sparseCheckout")
@@ -125,7 +128,9 @@ def ensure_remote_head(
             except GitCommandError:
                 is_sparse = False
             if path is None and is_sparse:
-                raise GitError(f"{repo_path} is a sparse checkout, a full clone is requested")
+                raise GitError(
+                    f"{repo_path} is a sparse checkout, but the caller requested a full clone"
+                )
             if path is not None:
                 if not is_sparse:
                     raise GitError(f"{repo_path} is not a sparse checkout")

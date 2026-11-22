@@ -290,18 +290,18 @@ DECLARED_PROFILES = (
             "recorded",
             "nope",
             [
-                "Remove `.dlt/profile-name` to run with the default profile.",
+                "To run with the default profile, remove `.dlt/profile-name`.",
                 DECLARED_PROFILES,
                 (
-                    "Then, to use `nope`, run `dlthub profile add nope` and `dlthub local profile"
-                    " use nope`."
+                    "To use `nope` after that, run `dlthub profile add nope`. Then run `dlthub"
+                    " local profile use nope`."
                 ),
             ],
         ),
         (
             "recorded",
             "ci",
-            ["Remove `.dlt/profile-name` to run with the default profile.", DECLARED_PROFILES],
+            ["To run with the default profile, remove `.dlt/profile-name`.", DECLARED_PROFILES],
         ),
         (
             "argument",
@@ -320,11 +320,11 @@ DECLARED_PROFILES = (
             "dev",
             [
                 (
-                    "It is the default profile, and nothing names another one. Name a declared"
-                    " profile with `WORKSPACE__PROFILE`."
+                    "It is the default profile, and nothing names another one. Set"
+                    " `WORKSPACE__PROFILE` to a declared profile."
                 ),
                 "Declared profiles: tests, prod, access,",
-                "Then declare a local profile with `dlthub profile add dev --local`.",
+                "Then add a local profile with `dlthub profile add dev --local`.",
             ],
         ),
     ],

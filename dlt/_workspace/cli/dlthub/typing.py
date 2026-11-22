@@ -97,7 +97,7 @@ class TDeploymentJobInfo(TypedDict):
     display_label: str
     category: str
     profile: NotRequired[str]
-    """The profile the job runs with when deployed."""
+    """The profile that the job declares with `require`."""
     default_trigger: NotRequired[str]
     triggers: List[str]
 

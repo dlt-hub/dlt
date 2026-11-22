@@ -1197,7 +1197,7 @@ class Relation(WithSqlClient):
                     allow_partial=self._allow_partial_lineage,
                 )
             except LineageFailedException as ex:
-                # `to_sql` and `__str__` compute lineage again, so only the raw expression is safe
+                # `to_sql` and `__str__` compute lineage again, so the notes read the raw expression
                 ex.dataset_name = self._dataset.dataset_name
                 # the notes must not hide the lineage error that they explain
                 with suppress(Exception):

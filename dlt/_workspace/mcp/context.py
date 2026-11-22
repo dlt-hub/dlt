@@ -23,15 +23,15 @@ from dlt._workspace.typing import TProfileOptionsTakes
 _context_reload_lock = threading.Lock()
 
 TProfileArgument = Optional[str]
-"""The `profile` argument of a tool that works with a profile. The MCP server runs the call with
-it, see `with_tool_run_context`, and describes it unless the tool's docstring does. Outside of a
-workspace the server hides it from the tool schema."""
+"""The `profile` argument of a tool that works with a profile. The MCP server runs the call
+with this profile (`with_tool_run_context`). The server describes the argument unless the
+docstring of the tool does. Outside of a workspace, the server hides it from the tool schema."""
 
 TEnvironmentArgument = Optional[str]
 """The `environment` argument of a tool that deploys or works with a deployment. The MCP server
-runs the call with the default write profile of that environment, or with the profile that
-`select_environment_profile` selects when the tool also takes `profile`. The server describes it
-unless the tool's docstring does."""
+runs the call with the default write profile of that environment. When the tool also takes
+`profile`, `select_environment_profile` selects the profile. The server describes the argument
+unless the docstring of the tool does."""
 
 
 def _get_agent_info() -> Optional[Dict[str, str]]:
@@ -67,16 +67,15 @@ def _get_agent_info() -> Optional[Dict[str, str]]:
 
 
 def with_tool_run_context(fn: TFun) -> TFun:
-    """Runs each call of the MCP tool `fn` on the run context reloaded from disk, so every call
-    sees the latest on-disk state, with the profile that its arguments select:
+    """Runs each call of the MCP tool `fn` on a run context that dlt reloads from disk. Each call
+    runs with the profile that its arguments select:
 
     * `profile` alone: that profile, else the active one.
     * `environment` alone: the default write profile of the environment.
     * both: the profile that `select_environment_profile` selects.
 
     `DltMCP` wraps every tool that it serves. An argument that selects no profile raises
-    `ToolError` with the remedy. After the call the reloaded run context is back, see
-    `use_profile`.
+    `ToolError` with the remedy. After the call, `use_profile` restores the reloaded run context.
     """
     from fastmcp.exceptions import ToolError
 
@@ -139,10 +138,9 @@ def _check_workspace_context(ctx_plug: PluggableRunContext, argument: str) -> No
 def with_mcp_tool_telemetry(**extra_props: Any) -> Callable[[TFun], TFun]:
     """Telemetry decorator for MCP tool functions.
 
-    Emits an anonymous `mcp_tool_{name}` telemetry event after each tool
-    invocation, with the profile of the call for a tool that takes a `profile`
-    or an `environment` argument. `agent_info` is `None` outside of an MCP
-    session.
+    Emits an anonymous `mcp_tool_{name}` telemetry event after each tool call. For a
+    tool that takes a `profile` or an `environment` argument, the event carries the
+    profile of the call. `agent_info` is `None` outside of an MCP session.
 
     Args:
         **extra_props: literal key-value pairs added to the telemetry event

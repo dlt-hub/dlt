@@ -138,7 +138,7 @@ def test_print_deployment_info_generation_failed_non_verbose_hides_error(
     _print_deployment_info(info, verbosity=0)
     captured = capsys.readouterr()
     combined = captured.out + captured.err
-    assert "manifest generation from __deployment__.py failed" in combined
+    assert "failed to generate the manifest from __deployment__.py" in combined
     assert "ImportError: bad" not in combined
 
 
@@ -153,7 +153,7 @@ def test_print_deployment_info_generation_failed_verbose_shows_error(
     captured = capsys.readouterr()
     combined = captured.out + captured.err
     # a summary without the module still renders
-    assert "manifest generation failed" in combined
+    assert "failed to generate the manifest" in combined
     assert "ImportError: bad" in combined
 
 

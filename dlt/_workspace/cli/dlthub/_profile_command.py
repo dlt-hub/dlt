@@ -62,7 +62,7 @@ from dlt._workspace.typing import (
 
 @utils.track_command("profile", track_before=False, operation="info")
 def print_profile_info(info: TCurrentProfileFullInfo, verbosity: int = 0) -> None:
-    """Renders the active profile: name, paths, active and default markers, providers
+    """Renders the active profile: name, paths, the recorded and default markers, providers
     (verbose)."""
     print_profile_section(info, info["configured_profiles"])
     if verbosity > 0 and info["providers"]:
@@ -166,7 +166,9 @@ def _describe_profile(name: str, profile: TProfileDefinition) -> str:
 
 
 def _describe_environment(environment: TEnvironmentDefinition) -> str:
-    parts = ["deployed with %s" % fmt.bold(get_default_profile_for_env(environment, "write"))]
+    parts = [
+        "deployments to it use %s" % fmt.bold(get_default_profile_for_env(environment, "write"))
+    ]
     if environment.get("strict_access"):
         parts.append("strict about access")
     if environment.get("default"):
@@ -191,10 +193,10 @@ def _declare(
     Asks for confirmation, then saves `doc` and creates the files.
 
     Raises:
-        InvalidWorkspaceFile: `doc` is not valid, nothing is shown or saved.
+        InvalidWorkspaceFile: `doc` is not valid. dlt shows and saves nothing.
     """
     path = format_workspace_file_path(workspace_run_context)
-    # refused before dlt asks, never after the confirmation
+    # an invalid `doc` raises here, before dlt asks for confirmation
     build_stored_workspace_definition(doc, path)
     run_dir = workspace_run_context.run_dir
     with_settings = [n for n, p in profiles.items() if needs_settings_files(p)]
@@ -256,7 +258,7 @@ def _create_missing_settings(
         workspace_run_context,
         [n for n in names if needs_settings_files(workspace_run_context.get_profile_definition(n))],
     )
-    # `configured` of a profile follows its settings files
+    # the `configured` flag of a profile depends on its settings files
     workspace_run_context.reload_workspace_definition()
     _echo_settings_hint()
 
@@ -286,10 +288,10 @@ def add_profile(
     data_access: Optional[TProfileDataAccess] = None,
     env: Optional[str] = None,
 ) -> None:
-    """Declares one profile and creates its settings files. With `location` local, the profile is
-    a local one. Otherwise it belongs to `env`, the default environment when none is named, with
-    `data_access`, write when none is given. For a declared profile, creates only the settings
-    files that are missing.
+    """Declares one profile and creates its settings files. A profile with `location` local is a
+    local profile. Any other profile belongs to `env` and gets `data_access`, which default to the
+    default environment and to write. For a declared profile, creates only the missing settings
+    files.
 
     Raises:
         ProfileAlreadyExists: The profile is declared and has its settings files, or is declared
@@ -312,10 +314,11 @@ def add_profile(
     if location == "local":
         if env or data_access not in (None, "write"):
             raise ProfileException(
-                f"dlt cannot declare local profile `{profile_name}` with --environment or with"
+                f"dlt cannot add local profile `{profile_name}` with --environment or with"
                 " --access"
                 " other than write. A local profile has write data access and belongs to no"
-                f" environment. Run `dlthub profile add {profile_name} --local` alone."
+                f" environment. Run `dlthub profile add {profile_name} --local` without other"
+                " options."
             )
         env = None
         profile = {"data_access": "write"}
@@ -324,7 +327,7 @@ def add_profile(
         env = env or workspace_run_context.default_environment
         if env is None:
             raise ProfileException(
-                f"dlt cannot declare `{profile_name}`: no environment is the default in `{path}`."
+                f"dlt cannot add `{profile_name}`: no environment is the default in `{path}`."
                 " Name the environment with `--environment`:"
                 f" {', '.join(environments) or 'none declared'}."
             )
@@ -362,8 +365,8 @@ def add_environment(workspace_run_context: WorkspaceRunContext, name: str) -> No
     )
     if _declare(workspace_run_context, doc, environment["profiles"], {name: environment}):
         fmt.echo(
-            "Environment %s is strict about access and deploys with %s. Interactive jobs"
-            " (notebooks, dashboards) need a profile with read data access. Declare it with %s."
+            "Environment %s is strict about access, and deployments to it use %s. Interactive"
+            " jobs (notebooks, dashboards) need a profile with read data access. Add it with %s."
             % (
                 fmt.bold(name),
                 fmt.bold(get_default_profile_for_env(environment, "write")),
@@ -382,13 +385,14 @@ def pin_profile(workspace_run_context: WorkspaceRunContext, profile_name: str) -
         pinned_profile = read_profile_pin(workspace_run_context)
         if pinned_profile:
             fmt.echo(
-                "The active profile is %s, recorded in %s. To return to the default profile,"
+                "%s is the active profile recorded in %s. To return to the default profile,"
                 " remove this file." % (fmt.bold(pinned_profile), fmt.bold(pin_file))
             )
         else:
             fmt.echo(
                 "No active profile is recorded in %s. Local commands run with the default"
-                " profile, %s. Make a profile active with `dlthub local profile use <name>`."
+                " profile, %s. To make a profile the active profile, run"
+                " `dlthub local profile use <name>`."
                 % (fmt.bold(pin_file), fmt.bold(workspace_run_context.default_profile))
             )
         return
@@ -426,6 +430,6 @@ def pin_profile(workspace_run_context: WorkspaceRunContext, profile_name: str) -
         )
     if overriding := os.environ.get(WORKSPACE__PROFILE):
         fmt.warning(
-            "WORKSPACE__PROFILE=%s is set in this shell and overrides the active profile. To run"
+            "WORKSPACE__PROFILE=%s is set in this shell and overrides the recorded profile. To run"
             " local commands with %s, unset it." % (overriding, profile_name)
         )

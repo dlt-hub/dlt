@@ -573,7 +573,7 @@ def test_lineage_failure_describes_dataset(multi_schema_dataset: dlt.Dataset) ->
         exc.value
     )
 
-    # a table without typed columns is invisible to lineage
+    # lineage cannot use a table without typed columns
     schema = Schema("pending")
     schema.update_table(new_table("pending", columns=[{"name": "id"}]))
     dataset = dlt.dataset(

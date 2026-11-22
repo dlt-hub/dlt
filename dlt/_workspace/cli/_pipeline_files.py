@@ -77,9 +77,9 @@ class TVerifiedSourcesFileIndex(TypedDict):
     engine_version: int
     sources: Dict[str, TVerifiedSourceFileIndex]
     location: NotRequired[str]
-    """Verified sources repository the last install used, when not the default."""
+    """Verified sources repository that a command got last, when not the default."""
     branch: NotRequired[str]
-    """Branch the last install used, when not the default."""
+    """Branch that a command got last, when not the default."""
 
 
 def _save_dot_sources(index: TVerifiedSourcesFileIndex) -> None:
@@ -133,7 +133,7 @@ def save_verified_source_local_index(
     remote_modified: Dict[str, TVerifiedSourceFileEntry],
     remote_deleted: Dict[str, TVerifiedSourceFileEntry],
 ) -> None:
-    """Saves the files of `source_name`."""
+    """Saves the local file index of `source_name` to `.dlt/.sources`."""
     all_sources = _load_dot_sources()
     local_index = all_sources["sources"].setdefault(source_name, remote_index)
     _merge_remote_index(local_index, remote_index, remote_modified, remote_deleted)
@@ -141,8 +141,8 @@ def save_verified_source_local_index(
 
 
 def save_verified_sources_repo(location: str, branch: Optional[str]) -> None:
-    """Records the repository `location` and `branch` that the next commands default to. Defaults
-    are not recorded, so a reset removes them."""
+    """Records the repository `location` and `branch` that the next commands default to. A default
+    value is not recorded, so giving the default removes the recorded value."""
     source = get_recorded_repo_source(location, branch, DEFAULT_VERIFIED_SOURCES_REPO)
     if not source and not os.path.isfile(utils.make_dlt_settings_path(SOURCES_INIT_INFO_FILE)):
         return
@@ -156,8 +156,8 @@ def save_verified_sources_repo(location: str, branch: Optional[str]) -> None:
 def resolve_verified_sources_repo(
     location: Optional[str] = None, branch: Optional[str] = None
 ) -> Tuple[str, Optional[str]]:
-    """Verified sources repository and branch to fetch from: given, else given last to a command,
-    else the defaults. An empty value resets."""
+    """Returns the verified sources repository and branch to fetch from. A given value wins, then
+    the value that a command got last, then the default. An empty value resets to the default."""
     index = _load_dot_sources()
     recorded: TRepoSource = {}
     if "location" in index:

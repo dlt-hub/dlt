@@ -1,4 +1,4 @@
-"""Location and branch of the repositories that dlt installs from, remembered between installs."""
+"""Location and branch of the repositories that dlt installs from, recorded between commands."""
 
 import argparse
 import os
@@ -10,7 +10,8 @@ from dlt._workspace.cli import echo as fmt
 
 
 class TRepoSource(TypedDict, total=False):
-    """Location and branch an install came from, holding only what differs from the defaults."""
+    """Location and branch that a command got last. It holds only values that differ from the
+    defaults."""
 
     location: str
     branch: str
@@ -25,7 +26,8 @@ def add_repo_source_arguments(
         default=None,
         help=(
             f"Advanced. Git URL or local path of the {repo_description}. Defaults to the last"
-            f" location given to a command, else {default_location}. An empty value resets it."
+            f" location given to a command, else {default_location}. An empty value resets it to"
+            " the default."
         ),
     )
     parser.add_argument(
@@ -33,20 +35,20 @@ def add_repo_source_arguments(
         default=None,
         help=(
             "Advanced. Branch to fetch from. Defaults to the last branch given with the same"
-            " location, else the default branch. An empty value resets it."
+            " location, else the default branch. An empty value resets it to the default."
         ),
     )
 
 
 def format_repo_source(location: str, branch: Optional[str]) -> str:
-    """`location` and `branch` as messages show them."""
+    """Formats `location` and `branch` for a message."""
     if branch:
         return "%s (branch %s)" % (fmt.bold(location), fmt.bold(branch))
     return fmt.bold(location)
 
 
 def normalize_repo_location(location: str) -> str:
-    """Makes a local folder absolute, so it is found again from another working dir."""
+    """Makes the path of a local folder absolute, so that it works from any working directory."""
     return os.path.abspath(location) if os.path.isdir(location) else location
 
 
@@ -86,8 +88,8 @@ def get_recorded_repo_source(
     default_location: str,
     default_branch: Optional[str] = None,
 ) -> TRepoSource:
-    """The part of `location` and `branch` to record: what differs from the defaults, so an
-    install from the defaults follows the defaults of later releases."""
+    """Returns the values of `location` and `branch` that differ from the defaults. A default
+    value is not recorded, so a later release can change the default."""
     recorded: TRepoSource = {}
     if location != default_location:
         recorded["location"] = normalize_repo_location(location)

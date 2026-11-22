@@ -336,8 +336,8 @@ def _create_parser(
 def _use_command_profile(
     parser: argparse.ArgumentParser, args: argparse.Namespace, host: str
 ) -> ContextManager[Any]:
-    """The context that runs the command of `args`: with the profile that its profile options
-    select on the `dlthub` host. Exits when the options do not go together."""
+    """Returns the context that runs the command of `args` with the profile that its profile
+    options select. Only the `dlthub` host selects a profile. Exits when the options conflict."""
     if host != "dlthub":
         return nullcontext()
     from dlt._workspace.cli.dlthub._profile_options import use_command_profile

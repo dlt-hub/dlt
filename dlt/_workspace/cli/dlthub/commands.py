@@ -49,7 +49,6 @@ class AiCommand(SupportsCliCommand):
         }
     }
     help_string = "Use AI-powered development tools and utilities"
-    # docs_url =
     description = "Configure your LLM-enabled IDE and MCP server."
 
     def configure_parser(self, ai_cmd: argparse.ArgumentParser) -> None:
@@ -82,8 +81,8 @@ class AiCommand(SupportsCliCommand):
             default=False,
             action="store_true",
             help=(
-                "Overwrite existing files instead of skipping them and remove files the"
-                " installed version shipped but the new one does not."
+                "Overwrite existing files instead of skipping them. Remove files that the"
+                " installed version shipped and the new version does not."
             ),
         )
 
@@ -99,7 +98,10 @@ class AiCommand(SupportsCliCommand):
             "--agent",
             choices=AI_AGENT_CHOICES,
             default=None,
-            help="AI coding agent to print the rules for. The one set up by `ai init` if omitted.",
+            help=(
+                "AI coding agent to print the rules for. Defaults to the agent that"
+                " `dlthub ai init` configured."
+            ),
         )
 
         # secrets command group
@@ -198,8 +200,8 @@ class AiCommand(SupportsCliCommand):
             default=False,
             action="store_true",
             help=(
-                "Overwrite existing files instead of skipping them and remove files the"
-                " installed version shipped but the new one does not."
+                "Overwrite existing files instead of skipping them. Remove files that the"
+                " installed version shipped and the new version does not."
             ),
         )
         install_cmd.add_argument(
@@ -376,8 +378,8 @@ def _add_common_run_args(
         default=None,
         metavar="FILE",
         help=(
-            "Path to a .py deployment module. Defaults to __deployment__.py or the one configured"
-            " in the deployment environment."
+            "Path to a .py deployment module. Defaults to the deployment module of the"
+            " environment, else __deployment__.py."
         ),
     )
     parser.add_argument(
@@ -507,8 +509,8 @@ class LocalWorkspaceCommand(SupportsCliCommand):
         use_p = profile_sub.add_parser(
             "use",
             help=(
-                "Make a profile the active profile: local commands run with it until another one"
-                " is made active."
+                "Make a profile the active profile. Local commands run with it until you make"
+                " another profile active."
             ),
         )
         use_p.add_argument("profile_name", help="Profile name")
@@ -649,11 +651,11 @@ class ProfileCommand(SupportsCliCommand):
     command = "profile"
     compose: TCliCommandCompose = "additive"
     profile_options: TProfileOptions = {"takes": "none", "refusal": MANAGES_PROFILES_REFUSAL}
-    help_string = "Manage Workspace profiles"
+    help_string = "Manage workspace profiles and environments"
     description = (
-        "Show, list and declare workspace profiles and environments. A local profile runs only on"
+        "Show, list and add workspace profiles and environments. A local profile never leaves"
         " this machine. A remote profile belongs to an environment and deploys with it. Each"
-        " profile declares its data access."
+        " profile gives none, read or write data access."
     )
     docs_url: Optional[str] = None
 
@@ -672,15 +674,16 @@ class ProfileCommand(SupportsCliCommand):
         )
         add_p = sub.add_parser(
             "add",
-            help="Declare a profile",
+            help="Add a profile",
             description=(
-                "Declares a profile in .dlt/.workspace and creates its settings files,"
-                " NAME.config.toml and NAME.secrets.toml in .dlt. A remote profile, the default,"
-                " belongs to the default environment or to the one named with --environment. It"
-                " gets the data access of --access, write when --access is not given. The first"
-                " profile of a data access in an environment becomes its default. `profile"
-                " add-environment` declares the default write profile, which deployments are made"
-                " with. A local profile has write data access, belongs to no environment and"
+                "Adds a profile to .dlt/.workspace and creates its settings files,"
+                " NAME.config.toml and NAME.secrets.toml in .dlt. Without --local, the profile is"
+                " a remote profile. It belongs to the environment that --environment names, else"
+                " to the default environment. It gets the data access that --access gives, else"
+                " write data access. The first profile with a data access in an environment"
+                " becomes the default profile for that data access. `profile add-environment`"
+                " adds the default write profile, which deployments are made with. A local"
+                " profile has write data access, belongs to no environment and"
                 " never deploys. A profile without data access gets no settings files. For a"
                 " declared profile, dlt creates only the settings files that are missing and"
                 " fails when none is missing. dlt shows what it will change and asks for"
@@ -695,14 +698,14 @@ class ProfileCommand(SupportsCliCommand):
             const="remote",
             dest="location",
             default=None,
-            help="Declare a remote profile (default)",
+            help="Add a remote profile (default)",
         )
         location.add_argument(
             "--local",
             action="store_const",
             const="local",
             dest="location",
-            help="Declare a local profile",
+            help="Add a local profile",
         )
         add_p.add_argument(
             "--access",
@@ -711,22 +714,23 @@ class ProfileCommand(SupportsCliCommand):
             dest="data_access",
             help="Data access of a remote profile: none, read or write (default)",
         )
-        # the environment to declare the profile in, not one to activate: `profile` takes none
+        # the environment to add the profile to, not one to activate: `dlthub profile` takes no
+        # profile options
         add_p.add_argument(
             "--environment",
             dest="env",
             metavar="NAME",
-            help="Environment of a remote profile. The default environment when not given.",
+            help="Environment of a remote profile. Defaults to the default environment.",
         )
         env_p = sub.add_parser(
             "add-environment",
-            help="Declare an environment",
+            help="Add an environment",
             description=(
-                "An environment is what a deployment is made to. Declares environment NAME in"
+                "An environment is what a deployment is made to. Adds environment NAME to"
                 " .dlt/.workspace, strict about access, with one profile. NAME-write is its"
-                " default profile with write data access, which deployments are made with."
+                " default write profile, which deployments are made with."
                 " Creates NAME-write.config.toml and NAME-write.secrets.toml in .dlt. `profile"
-                " add` declares the other profiles that jobs need, for example NAME-read with"
+                " add` adds the other profiles that jobs need, for example NAME-read with"
                 " --access read for interactive jobs. For a declared environment, dlt creates"
                 " only the settings files that its profiles miss and fails when none is missing."
                 " dlt shows what it will change and asks for confirmation."
@@ -821,8 +825,8 @@ class InitWorkspaceCommand(SupportsCliCommand):
         "Creates local workspace files: config, secrets, gitignore and Python"
         " pyproject/requirements. In an existing Python project, adds the missing .gitignore"
         " entries and the missing or outdated dependencies. Shows these changes and asks for"
-        " confirmation first; `-y` accepts without asking. Refuses to run in an existing"
-        " workspace."
+        " confirmation first. `-y` accepts the changes without asking. Refuses to run in an"
+        " existing workspace."
     )
     docs_url: Optional[str] = None
 
@@ -840,7 +844,7 @@ class InitWorkspaceCommand(SupportsCliCommand):
             help=(
                 "Overwrite existing pyproject.toml/requirements.txt and .gitignore instead of"
                 " merging into them. Shows what it overwrites and asks for confirmation first."
-                " The settings files are never overwritten."
+                " dlt never overwrites config.toml and secrets.toml."
             ),
         )
         # the name of --overwrite before 1.33
@@ -876,9 +880,10 @@ class InitWorkspaceCommand(SupportsCliCommand):
             default=None,
             choices=["auto", *AI_AGENT_CHOICES],
             help=(
-                "Set up an AI coding agent after the workspace is created: install its rules"
-                " and skills and pick the workspace dependencies it needs. Without a name, the"
-                " agent is detected. Without the flag, no agent is set up."
+                "Configure an AI coding agent after dlt creates the workspace. dlt installs its"
+                " rules and skills and selects the workspace dependencies that it needs. Without"
+                " a name, dlt detects the coding agent. Without this option, dlt configures no"
+                " coding agent."
             ),
         )
 
@@ -965,6 +970,6 @@ def _execute_init(
         switch_context(plan["run_dir"], required="WorkspaceRunContext")
         # the scaffold's dependencies are not synced yet, so the MCP server cannot start here
         ai_init_command(agent=ai_agent.name, check_mcp_server=False)
-        # the harness may be unreachable, then the user still has to configure the agent
+        # the harness can be unreachable. Then the user must configure the agent
         agent_configured = is_toolkit_installed(_INIT_TOOLKIT)
     _print_init_welcome(plan, agent_configured=agent_configured)

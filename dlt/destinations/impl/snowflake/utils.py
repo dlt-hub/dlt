@@ -223,7 +223,7 @@ def snowflake_session_token_available() -> bool:
 
 
 def _read_connector_option(name: str) -> Any:
-    """Reads option `name` from the connector config manager (toml files and env variables)."""
+    """Reads option `name` from the connector config files and environment variables."""
     try:
         from snowflake.connector.config_manager import CONFIG_MANAGER
         from snowflake.connector.errors import ConfigSourceError
@@ -239,8 +239,9 @@ def _read_connector_option(name: str) -> Any:
         ) from ex
 
 
-def default_snowflake_connection_name() -> str:
-    """Default connection name of the connector: env variable, `config.toml` or `default`."""
+def read_default_snowflake_connection_name() -> str:
+    """Reads the default connection name of the connector from
+    `SNOWFLAKE_DEFAULT_CONNECTION_NAME` or `config.toml`, else returns `default`."""
     return cast(str, _read_connector_option("default_connection_name"))
 
 
@@ -253,7 +254,7 @@ def get_snowflake_default_connection_name() -> Optional[str]:
     """Default connection name of the connector, `None` when no such connection is defined or the
     connector is not installed."""
     try:
-        name = default_snowflake_connection_name()
+        name = read_default_snowflake_connection_name()
         return name if name in list_snowflake_connections() else None
     except MissingDependencyException:
         return None
@@ -284,8 +285,11 @@ def read_snowflake_connection_params(connection_name: str) -> Dict[str, Any]:
 
 
 def get_snowflake_connection_file_paths(connection_name: str) -> Dict[str, str]:
-    """File paths of connection `connection_name` with `~` expanded. The connector does not expand
-    `~`, so they go to `connect` next to the connection name."""
+    """Returns the file paths of connection `connection_name` with `~` expanded.
+
+    The connector does not expand `~`, so dlt passes these paths to `connect` together with the
+    connection name.
+    """
     params = read_snowflake_connection_params(connection_name)
     return {key: params[key] for key in CONNECTION_FILE_PATH_PARAMS if params.get(key)}
 

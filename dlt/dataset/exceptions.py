@@ -138,14 +138,14 @@ class LineageFailedException(DltException):
             )
         if self.reason == "unknown_table":
             return (
-                f"Column `{self.column}` has no known source: the columns of"
-                f" {self._format_labels(unknown_only=True)} are not known to dlt."
+                f"Column `{self.column}` has no known source: dlt does not know the columns of"
+                f" {self._format_labels(unknown_only=True)}."
             )
         if self.reason == "unresolved_star":
             return (
-                "dlt cannot expand `*`: the columns of"
-                f" {self._format_labels(unknown_only=True)} are not known to dlt. Select the"
-                " columns explicitly or limit `*` to known tables, for example `known_table.*`."
+                "dlt cannot expand `*` because it does not know the columns of"
+                f" {self._format_labels(unknown_only=True)}. Select the columns explicitly or"
+                " limit `*` to known tables, for example `known_table.*`."
             )
         if self.reason == "ambiguous_table":
             datasets = ", ".join(f"`{d}`" for d in self.datasets)
