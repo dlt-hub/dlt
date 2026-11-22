@@ -325,8 +325,7 @@ def connect_remote_workspace(
     """
     definition = _get_declared_environment(ctx, environment)
     # a `[runtime] workspace_id` from before environments moves to the section first
-    if environment == ctx.default_environment:
-        _migrate_runtime_workspace_id(ctx, definition)
+    _migrate_runtime_workspace_id(ctx, definition, environment == ctx.default_environment)
     resolved = ctx.get_environment_config(environment)
     sections = (known_sections.WORKSPACE, ENVIRONMENT_SECTION, environment)
     runtime_section = WorkspaceRuntimeConfiguration.__section__
@@ -389,13 +388,16 @@ def disconnect_remote_workspace(ctx: WorkspaceRunContext, environment: str) -> N
 
 
 def _migrate_runtime_workspace_id(
-    ctx: WorkspaceRunContext, definition: TEnvironmentDefinition
+    ctx: WorkspaceRunContext, definition: TEnvironmentDefinition, is_default: bool
 ) -> None:
-    """Moves the `[runtime] workspace_id` of the default environment `definition` to its section
-    in `config.toml`. The id in the files of its default write profile wins over the one in the
-    shared files. Removes the others. A section that has an id keeps it."""
+    """Moves the `[runtime] workspace_id` of the environment `definition` to its section."""
+    file_names = _get_profile_settings_files(definition)
+    # the shared files hold the id of the default environment
+    if is_default:
+        file_names += [CONFIG_TOML, SECRETS_TOML]
     runtime_id: Optional[str] = None
-    for file_name in [*_get_profile_settings_files(definition), CONFIG_TOML, SECRETS_TOML]:
+    # the first id found wins: the files of the default write profile come first
+    for file_name in file_names:
         path = os.path.join(ctx.settings_dir, file_name)
         if not os.path.isfile(path):
             continue
@@ -411,6 +413,7 @@ def _migrate_runtime_workspace_id(
         return
     sections = (known_sections.WORKSPACE, ENVIRONMENT_SECTION, definition["name"])
     config = ConfigTomlProvider(ctx.settings_dir)
+    # a section that has an id keeps it
     if config.get_value("workspace_id", str, None, *sections)[0] is None:
         config.set_value("workspace_id", runtime_id, None, *sections)
         config.write_toml()

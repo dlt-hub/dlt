@@ -824,9 +824,28 @@ def test_set_global_secret() -> None:
 
 
 def test_connect_with_legacy_settings() -> None:
-    """An id, a name and an organization that an environment resolves from the settings files
-    of its profiles count: the local workspace is connected and nothing is written again."""
+    """Connect moves the legacy `[runtime] workspace_id` of any environment to its section."""
+    # `prod.config.toml` and `stg.config.toml` each hold the remote workspace of one environment
     with isolated_workspace("cicd_staging") as ctx:
+        stg_settings = {
+            "runtime": {"organization_id": "org-id"},
+            "workspace": {"settings": {"name": "dlt-de-stage"}},
+        }
+        connect_remote_workspace(
+            ctx,
+            "stg",
+            workspace_id="stg-ws-id",
+            workspace_name="dlt-de-stage",
+            organization_id="org-id",
+        )
+        assert _settings(ctx, CONFIG_TOML) == {
+            "workspace": {"environment": {"stg": {"workspace_id": "stg-ws-id"}}}
+        }
+        assert _settings(ctx, "stg.config.toml") == stg_settings
+        # the default environment keeps its legacy id until it connects
+        assert _settings(ctx, "prod.config.toml")["runtime"]["workspace_id"] == "prod-ws-id"
+        assert ctx.get_environment_config("stg").runtime.workspace_id == "stg-ws-id"
+        # the name and the organization resolve from `stg.config.toml`: nothing is written again
         before = _settings_bytes(ctx)
         connect_remote_workspace(
             ctx,
@@ -836,7 +855,7 @@ def test_connect_with_legacy_settings() -> None:
             organization_id="org-id",
         )
         assert _settings_bytes(ctx) == before
-        # the organization lives in `stg.config.toml`, there is no `config.toml`
+        # the organization lives in `stg.config.toml`
         with pytest.raises(OrganizationMismatch) as exc:
             connect_remote_workspace(ctx, "stg", workspace_id="stg-ws-id-2", organization_id="o-2")
         assert exc.value.connected == "org-id"
@@ -850,8 +869,7 @@ def test_connect_with_legacy_settings() -> None:
             disconnect_remote_workspace(ctx, "qa")
         assert _settings_bytes(ctx) == before
 
-        # the default environment moves to its section, the other environments stay as they are
-        stg_before = _settings(ctx, "stg.config.toml")
+        # the default environment moves its id to its section, `stg` stays as it is
         connect_remote_workspace(
             ctx,
             "prod",
@@ -859,27 +877,26 @@ def test_connect_with_legacy_settings() -> None:
             workspace_name="dlt-de-prd",
             organization_id="org-id",
         )
-        assert _settings(ctx, CONFIG_TOML) == {
-            "workspace": {"environment": {"prod": {"workspace_id": "prod-ws-id"}}}
+        assert _connections(ctx, CONFIG_TOML) == {
+            "stg": {"workspace_id": "stg-ws-id"},
+            "prod": {"workspace_id": "prod-ws-id"},
         }
         assert "workspace_id" not in _settings(ctx, "prod.config.toml")["runtime"]
-        assert _settings(ctx, "stg.config.toml") == stg_before
+        assert _settings(ctx, "stg.config.toml") == stg_settings
         assert ctx.get_environment_config("prod").runtime.workspace_id == "prod-ws-id"
         assert ctx.get_environment_config("prod").settings.name == "dlt-de-prd"
 
-        # another environment connects with its section, which wins over the legacy id
+        # a legacy id in `config.toml` belongs to the default environment: `stg` leaves it
+        append_settings(ctx, CONFIG_TOML, '[runtime]\nworkspace_id = "old-id"\n')
         connect_remote_workspace(ctx, "stg", workspace_id="stg-ws-id-2", organization_id="org-id")
-        assert _settings(ctx, CONFIG_TOML)["workspace"]["environment"]["stg"] == {
-            "workspace_id": "stg-ws-id-2"
-        }
-        assert _settings(ctx, "stg.config.toml") == stg_before
+        assert _connections(ctx, CONFIG_TOML)["stg"] == {"workspace_id": "stg-ws-id-2"}
+        assert _settings(ctx, CONFIG_TOML)["runtime"]["workspace_id"] == "old-id"
         ctx = switch_context(ctx.run_dir, profile="stg")
         assert ctx.runtime_config.workspace_id == "stg-ws-id-2"
         assert ctx.name == "dlt-de-stage"
 
-        # a legacy id next to the section of the default environment is a conflict that
+        # next to the section of the default environment the legacy id is a conflict that
         # connect resolves
-        append_settings(ctx, CONFIG_TOML, '[runtime]\nworkspace_id = "old-id"\n')
         with pytest.raises(WorkspaceIdConflict):
             ctx.get_environment_config("prod")
         connect_remote_workspace(ctx, "prod", workspace_id="new-id")
