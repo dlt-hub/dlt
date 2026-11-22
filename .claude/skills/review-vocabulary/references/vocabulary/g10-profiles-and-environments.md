@@ -73,6 +73,10 @@ plain and the docs explain each one once.
   `--environment` activates the default write profile of an environment for the command. The recorded profile changes only with
   `dlthub local profile use`. When a sentence needs the recorded one, write "the active profile
   recorded in `.dlt/profile-name`".
+- **Explicit beats the environment variable.** The active profile is, in order: the one that
+  `--profile`, `--environment` or code (`switch_profile`) names, then `WORKSPACE__PROFILE`, then the
+  recorded profile, then the default local profile. Never write that `WORKSPACE__PROFILE` overrides
+  `--profile`.
 - **The environment of a local profile is none.** `dlt.current.workspace().environment` is
   `None` on `dev`. Write "a local profile belongs to no environment", never "the local
   environment".

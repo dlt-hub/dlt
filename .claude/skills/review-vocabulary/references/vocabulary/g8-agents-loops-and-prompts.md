@@ -21,6 +21,9 @@ operates, a run is one execution.
 | one model request | **turn** |
 | the record of what the loop ran and did | **agent trace** |
 | `{{ name }}` in a body | **placeholder** |
+| Claude Code, Cursor, Codex or Cortex Code: the tool a person codes with, which the dltHub AI Harness installs toolkits for | **AI coding agent** at the first mention in a message or a page section, then **coding agent** |
+| the location and branch the dltHub AI Harness is fetched from (`--location`, `--branch`) | **harness source** |
+| a rule of a toolkit installed as a skill that always applies, for a coding agent without a rules folder | **rule skill** |
 
 **Excluded**
 
@@ -36,6 +39,7 @@ operates, a run is one execution.
 | trace (bare, for an agent) | bare `trace` is the pipeline trace; write **agent trace** |
 | manifest (for `AGENT.md`) | **agent file**; the manifest is the deployment manifest (G7) |
 | framework (as a loop's name) | name it: **pydantic-ai**, **claude-agent-sdk** |
+| agent, AI agent (bare, for a coding agent) next to an agent definition, agent job or agent run | **AI coding agent** or **coding agent** |
 
 **Rulings**
 
@@ -55,3 +59,7 @@ operates, a run is one execution.
 - **`loop` is the agent loop.** In a file that also has Python loops, write **agent loop** once,
   then `loop`.
 - **Model names and aliases are technical nouns** (Rule 1.8): `sonnet`, `opus`, `claude-sonnet-5`.
+- **A coding agent is not a dlt agent.** In AI harness text that names no agent definition, job or
+  run, bare `agent` for the coding agent stays legal. Identifiers keep their names: `--agent`,
+  `toolkit.json` `agents` (coding agents) and `TToolkitIndexEntry.agent`. The `dlthub/agents/`
+  folder and `TWorkbenchToolkitInfo.agents` hold agent definitions.
