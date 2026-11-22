@@ -164,11 +164,14 @@ def select_environment(name: Optional[str] = None) -> TEnvironmentDefinition:
             )
         definition = ctx.get_environment_definition(name)
     config = ctx.get_environment_config(name)
-    return {
+    selected: TEnvironmentDefinition = {
         **definition,
         "deployment_module": config.deployment_module or DEFAULT_DEPLOYMENT_MODULE,
-        "deploy_dashboard": bool(config.deploy_dashboard),
     }
+    # unset, `should_deploy_dashboard` decides from the strictness of the environment
+    if config.deploy_dashboard is not None:
+        selected["deploy_dashboard"] = config.deploy_dashboard
+    return selected
 
 
 def activate_environment(name: Optional[str] = None) -> TEnvironmentDefinition:

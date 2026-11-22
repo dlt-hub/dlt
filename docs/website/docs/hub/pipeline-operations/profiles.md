@@ -242,7 +242,7 @@ deployment_module = "__staging__.py"
 
 `dlthub deploy --environment staging` then imports `__staging__.py`. Give a `.py` path relative to the workspace, or a module name. A local profile uses the deployment module of the default environment, for example in `dlthub local run`. `dlthub profile list` shows the deployment module of each environment. `dlthub local info` shows the deployment module that it reads.
 
-The workspace dashboard is deployed with the deployment module of the default environment. A module that you name in `dlthub deploy` gets no dashboard, and neither does another environment. To deploy without the dashboard in the default environment too, set `deploy_dashboard = false` in its section.
+The workspace dashboard is deployed with the deployment module of the default environment. A module that you name in `dlthub deploy` gets no dashboard, and neither does another environment. To deploy without the dashboard in the default environment too, set `deploy_dashboard = false` in its section. A strict environment deploys no dashboard unless its section sets `deploy_dashboard = true`.
 
 ## How to use profiles and environments
 

@@ -867,14 +867,15 @@ def should_deploy_dashboard(
     module_name: str, environment: Optional[TEnvironmentDefinition]
 ) -> bool:
     """True when the manifest of module `module_name` for `environment` gets the workspace
-    dashboard. The deployment module of the default environment gets it, unless the environment
-    sets `deploy_dashboard` to false. A local run always gets it."""
+    dashboard. The deployment module of the default environment gets it, a local run always."""
     if environment is None:
         return True
     deployment_module = environment.get("deployment_module", DEFAULT_DEPLOYMENT_MODULE)
+    # a strict environment may have no profile with read data access for the dashboard
+    deploy = environment.get("deploy_dashboard", not environment.get("strict_access", False))
     return (
         bool(environment.get("default"))
-        and bool(environment.get("deploy_dashboard", True))
+        and deploy
         and module_name == _resolve_module_name(deployment_module)
     )
 

@@ -219,14 +219,12 @@ def test_select_environment(name: Optional[str], profile: str, expected: str) ->
         declare_environment(ctx, "ci")
         ctx = ctx.switch_profile(profile)
         selected = select_environment(name)
-        # with the deployment settings from the configuration, the declared environment has none
+        # with the deployment module from the configuration, the declared environment has none
         assert _as_declared(selected) == {
             **environments[expected],
             "deployment_module": "__deployment__",
-            "deploy_dashboard": True,
         }
         assert "deployment_module" not in ctx.get_environment_definition(expected)
-        assert "deploy_dashboard" not in ctx.get_environment_definition(expected)
 
 
 @pytest.mark.parametrize(
@@ -305,7 +303,6 @@ def test_activate_environment() -> None:
         assert _as_declared(activate_environment("ci")) == {
             **full_environment("ci"),
             "deployment_module": "__deployment__",
-            "deploy_dashboard": True,
         }
         ctx = dlt.current.workspace()
         assert (ctx.profile, ctx.environment) == ("ci-write", "ci")
@@ -450,7 +447,8 @@ def test_get_deployment_module_for_env() -> None:
         with custom_environ({"WORKSPACE__ENVIRONMENT__CI__DEPLOYMENT_MODULE": "jobs/ci.py"}):
             ctx = ctx.switch_profile("dev")
             assert select_environment("ci")["deployment_module"] == "jobs/ci.py"
-            assert select_environment("ci")["deploy_dashboard"] is True
+            # unset, the manifest decides from the strictness of the environment
+            assert "deploy_dashboard" not in select_environment("ci")
             assert select_environment("prod")["deployment_module"] == "__prod__"
             assert select_environment("prod")["deploy_dashboard"] is False
             # a declared environment resolves it
