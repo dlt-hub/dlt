@@ -35,6 +35,7 @@ from dlt._workspace.profile import (
     use_profile,
 )
 from dlt._workspace.run_context import format_display_path
+from dlt._workspace.settings_files import save_file_atomic
 from dlt._workspace.typing import (
     DEFAULT_DEPLOYMENT_MODULE,
     TEnvironmentDefinition,
@@ -383,8 +384,7 @@ def disconnect_remote_workspace(ctx: WorkspaceRunContext, environment: str) -> N
         if is_default or file_name not in shared_files:
             dropped = _drop_runtime_workspace_id(doc) is not None or dropped
         if dropped:
-            with open(path, "w", encoding="utf-8") as f:
-                tomlkit.dump(doc, f)
+            save_file_atomic(path, tomlkit.dumps(doc))
             changed = True
     if changed:
         _reload_context(ctx)
@@ -410,8 +410,7 @@ def _migrate_runtime_workspace_id(
         if dropped is None:
             continue
         runtime_id = runtime_id or dropped
-        with open(path, "w", encoding="utf-8") as f:
-            tomlkit.dump(doc, f)
+        save_file_atomic(path, tomlkit.dumps(doc))
     if runtime_id is None:
         return
     sections = (known_sections.WORKSPACE, ENVIRONMENT_SECTION, definition["name"])

@@ -8,6 +8,7 @@ from typing import Any, List, Mapping, Optional, Sequence, Tuple
 import yaml
 
 from dlt.common.configuration.specs.pluggable_run_context import RunContextBase
+from dlt.common.storages.file_storage import FileStorage
 from dlt.common.typing import DictStrAny
 
 PIN_FILE_NAME = "profile-name"
@@ -42,10 +43,14 @@ def load_yaml_file(path: str) -> DictStrAny:
 
 
 def save_yaml_file(path: str, doc: Mapping[str, Any]) -> None:
-    if dir_name := os.path.dirname(path):
-        os.makedirs(dir_name, exist_ok=True)
-    with open(path, "w", encoding="utf-8") as f:
-        f.write(dump_yaml(doc))
+    save_file_atomic(path, dump_yaml(doc))
+
+
+def save_file_atomic(path: str, content: str) -> None:
+    """Writes `content` to `path`, so a concurrent reader never sees a partial file."""
+    dir_name = os.path.dirname(path) or "."
+    os.makedirs(dir_name, exist_ok=True)
+    FileStorage.save_atomic(dir_name, os.path.basename(path), content)
 
 
 def list_profiles_with_settings(settings_dir: str) -> List[str]:
@@ -98,6 +103,4 @@ def read_profile_pin(context: RunContextBase) -> Optional[str]:
 
 
 def save_profile_pin(context: RunContextBase, profile: str) -> None:
-    profile_pin = get_profile_pin_file(context)
-    with open(profile_pin, "wt", encoding="utf-8") as pin:
-        pin.write(profile)
+    save_file_atomic(get_profile_pin_file(context), profile)
