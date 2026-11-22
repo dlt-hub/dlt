@@ -60,13 +60,18 @@ def sync_from_runtime() -> None:
     if not fs:
         return
 
-    # TODO: there's no good way to get this value on sync.
-    data_dir_root = os.path.join(
-        context.settings_dir, DEFAULT_WORKSPACE_WORKING_FOLDER
-    )  # the local state folder
+    # the bucket holds `<profile>/pipelines` of every profile that ran a job
+    sync_dir(fs, config.bucket_url, _get_sync_root(context))
 
-    # Just sync the whole base folder into the local pipelines dir
-    sync_dir(fs, config.bucket_url, data_dir_root)
+
+def get_synced_pipelines_dir(context: WorkspaceRunContext, profile: str) -> str:
+    """The local pipelines dir where `sync_from_runtime` restores the pipelines of `profile`."""
+    return os.path.join(_get_sync_root(context), profile, "pipelines")
+
+
+def _get_sync_root(context: WorkspaceRunContext) -> str:
+    # TODO: there's no good way to get this value on sync.
+    return os.path.join(context.settings_dir, DEFAULT_WORKSPACE_WORKING_FOLDER)
 
 
 def _get_runtime_artifacts_fs(

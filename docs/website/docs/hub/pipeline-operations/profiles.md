@@ -123,6 +123,8 @@ A job without `access` declares the data access of its job type:
 
 A deployment gives every job the default profile of the data access it declares. A job that declares a profile with `require={"profile": ...}` gets that profile. If the job declares no `data` axis, the deployment gives it the data access of that profile.
 
+The workspace dashboard runs with the default read profile of its environment. It shows the pipelines that the default write profile of the environment ran, and reads their data with the credentials of the read profile.
+
 A **strict** environment accepts only a profile that gives exactly the data access a job declares and has settings files, `<profile>.config.toml` or `<profile>.secrets.toml`. Otherwise `dlthub deploy` fails and its message names the fix. A profile without data access holds no credentials and needs no settings files. Every environment that `dlthub profile add-environment` creates is strict.
 
 The `prod` environment of a new workspace is not strict. There, a job that declares read data access runs with `prod` as long as `access` has no settings files, and `dlthub deploy` warns about it. This keeps existing workspaces working and lets a small team start with one set of credentials. When you add `.dlt/access.secrets.toml` with read-only credentials, the next deployment gives these jobs `access`. A future release will deprecate this leniency.

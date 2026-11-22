@@ -1,4 +1,6 @@
+import os
 import re
+import shutil
 import time
 from typing import Any, Literal
 import asyncio
@@ -10,7 +12,7 @@ import dlt
 from dlt._workspace.helpers.dashboard.runner import start_dashboard
 from dlt._workspace.run_context import switch_profile
 from tests.e2e.helpers.dashboard.conftest import fruitshop_source, pipeline_path_text
-from tests.workspace.utils import isolated_workspace
+from tests.workspace.utils import append_settings, declare_environment, isolated_workspace
 from tests.utils import get_test_storage_root
 from playwright.sync_api import Page, expect
 
@@ -392,6 +394,40 @@ def test_workspace_profile_dev(page: Page):
 
             page.goto(f"http://localhost:{test_port}/?profile=dev&pipeline=fruit_pipeline")
 
+            expect(page.get_by_role("switch", name="overview")).to_be_visible(timeout=20000)
+            page.get_by_role("switch", name="loads").check()
+            expect(page.get_by_role("row", name="fruitshop").first).to_be_visible()
+
+
+def test_workspace_dashboard_shows_write_profile_pipelines(page: Page) -> None:
+    """On the runtime the dashboard runs with the read profile of a strict environment. It shows
+    the pipelines that the write profile ran, which the sync restores, and reads their data with
+    the credentials of the read profile."""
+    test_port = 2727
+    with isolated_workspace("pipelines") as ctx:
+        declare_environment(ctx, "staging")
+        bucket = os.path.join(ctx.run_dir, "_runtime_bucket")
+        # one warehouse that each profile reaches with its own credentials
+        db_path = os.path.join(ctx.run_dir, "staging.duckdb")
+        for profile in ("staging-write", "staging-read"):
+            append_settings(
+                ctx, f"{profile}.secrets.toml", f"[destination.duckdb]\ncredentials = '{db_path}'\n"
+            )
+        os.environ["RUNTIME__RUN_ID"] = "uniq_run_id"
+        os.environ["ARTIFACTS__KWARGS"] = '{"auto_mkdir": true}'
+        os.environ["SEND__ARTIFACTS__BUCKET_URL"] = os.path.join(
+            bucket, "staging-write", "pipelines"
+        )
+
+        write_ctx = ctx.switch_profile("staging-write")
+        dlt.pipeline(pipeline_name="fruit_pipeline", destination="duckdb").run(fruitshop_source())
+        # only the sync can bring back the runs of the write profile
+        shutil.rmtree(write_ctx.data_dir)
+
+        os.environ["DASHBOARD__SYNC_FROM_RUNTIME"] = "true"
+        os.environ["SYNC__ARTIFACTS__BUCKET_URL"] = bucket
+        with start_dashboard(port=test_port):
+            page.goto(f"http://localhost:{test_port}/?profile=staging-read&pipeline=fruit_pipeline")
             expect(page.get_by_role("switch", name="overview")).to_be_visible(timeout=20000)
             page.get_by_role("switch", name="loads").check()
             expect(page.get_by_role("row", name="fruitshop").first).to_be_visible()

@@ -676,12 +676,17 @@ def utils_discover_pipelines(
     ):
         switch_profile(dlt_profile_select.value)
 
+    # the runtime runs the dashboard with a read profile: show the runs of the write profile
+    _pipelines_dir = mo_cli_arg_pipelines_dir
+    if not _pipelines_dir and _tmp_config.sync_from_runtime:
+        _pipelines_dir = utils.pipeline.get_runtime_pipelines_dir()
+
     # discover pipelines and build selector
     dlt_pipelines_dir: str = ""
     dlt_all_pipelines: List[TPipelineListItem] = []
     dlt_local_pipeline_names: List[str] = []
     dlt_pipelines_dir, dlt_all_pipelines, dlt_local_pipeline_names = list_local_pipelines(
-        mo_cli_arg_pipelines_dir,
+        _pipelines_dir,
         additional_pipelines=[mo_cli_arg_pipeline, mo_query_var_pipeline_name],
     )
 
