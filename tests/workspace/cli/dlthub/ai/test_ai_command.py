@@ -305,7 +305,7 @@ def test_upgrade_moves_skill_into_new_dependency(
     --overwrite keeps the skill: the dependency takes it over, and the upgraded toolkit does not
     remove it as stale. Without --overwrite nothing is taken over."""
     project_root = Path(auto_isolated_workspace.run_dir)
-    skill_file = str(Path(".claude", "skills", "moved", "SKILL.md"))
+    skill_file = ".claude/skills/moved/SKILL.md"
     base = make_mock_workbench()
     _make_toolkit(base, "platform", [])
     _write_skill(base, "platform", "moved", "v1")
@@ -333,7 +333,7 @@ def test_new_dependency_takes_over_nothing_without_overwrite(
 ) -> None:
     """A dependency installed without --overwrite skips the files that exist, as before."""
     project_root = Path(auto_isolated_workspace.run_dir)
-    skill_file = str(Path(".claude", "skills", "moved", "SKILL.md"))
+    skill_file = ".claude/skills/moved/SKILL.md"
     base = make_mock_workbench()
     _make_toolkit(base, "platform", [])
     _write_skill(base, "platform", "moved", "v1")
@@ -437,7 +437,7 @@ def test_codex_install(
     assert not (project_root / "AGENTS.md").exists()
     hooks = json.loads((project_root / ".codex/hooks.json").read_text(encoding="utf-8"))
     assert hooks["hooks"]["SessionStart"] == [_CodexAgent.RULES_HOOK]
-    assert str(Path(".codex", "hooks.json")) not in load_toolkits_index()["init"]["files"]
+    assert ".codex/hooks.json" not in load_toolkits_index()["init"]["files"]
 
     # the hook command prints links to the rule skills of every installed toolkit
     ai_rules_command()

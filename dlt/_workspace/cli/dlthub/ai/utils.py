@@ -3,7 +3,7 @@ import os
 import re
 import threading
 from datetime import datetime, timezone
-from pathlib import Path
+from pathlib import Path, PureWindowsPath
 from typing import Any, Dict, List, Mapping, Optional, Set, Tuple
 
 import tomlkit
@@ -738,10 +738,10 @@ def _load_toolkits_file() -> TToolkitsIndex:
         return {"engine_version": TOOLKITS_INDEX_ENGINE_VERSION, "toolkits": {}}
     from_engine = doc.get("engine_version", 0)
     if from_engine == TOOLKITS_INDEX_ENGINE_VERSION:
-        return doc  # type: ignore[return-value]
+        return _normalize_file_keys(doc)  # type: ignore[arg-type]
     if from_engine != 0:
         raise ToolkitsIndexEngineNoUpgradePath(path, from_engine, TOOLKITS_INDEX_ENGINE_VERSION)
-    index = migrate_toolkits_index(doc)
+    index = _normalize_file_keys(migrate_toolkits_index(doc))
     # a read-only settings dir keeps the old file, so the next load migrates again
     try:
         save_yaml_file(path, index)
@@ -760,6 +760,16 @@ def migrate_toolkits_index(doc: Dict[str, Any]) -> TToolkitsIndex:
         # 1.33.0a1 and a2 recorded the harness source on the toolkits they installed
         if name == _INIT_TOOLKIT:
             index.update(source)  # type: ignore[typeddict-item]
+    return index
+
+
+def _normalize_file_keys(index: TToolkitsIndex) -> TToolkitsIndex:
+    """Uses `/` in the file keys of every toolkit, also in the keys that Windows wrote."""
+    for entry in index["toolkits"].values():
+        if isinstance(entry, dict) and (files := entry.get("files")):
+            entry["files"] = {
+                PureWindowsPath(key).as_posix(): value for key, value in files.items()
+            }
     return index
 
 

@@ -523,6 +523,22 @@ def test_toolkits_index_written_by_older_dlt(case_file: str, source: Dict[str, s
     assert index["sql"]["name"] == "sql"
 
 
+def test_toolkits_index_file_keys_written_on_windows() -> None:
+    """The file keys of an index that dlt wrote on Windows load with `/`."""
+    project_root = Path("project")
+    files = {".claude\\rules\\init.md": {"sha3_256": "a"}, ".claudeignore": {"sha3_256": "b"}}
+    entry = {"version": "1.0.0", "agent": "claude", "files": files}
+    _write_toolkits_index(
+        project_root,
+        {"engine_version": TOOLKITS_INDEX_ENGINE_VERSION, "toolkits": {"init": entry}},
+    )
+    with _patch_settings_paths(project_root):
+        assert set(load_toolkits_index()["init"]["files"]) == {
+            ".claude/rules/init.md",
+            ".claudeignore",
+        }
+
+
 def test_toolkits_index_written_by_newer_dlt() -> None:
     project_root = Path("project")
     _write_toolkits_index(project_root, {"engine_version": 2, "toolkits": {}})

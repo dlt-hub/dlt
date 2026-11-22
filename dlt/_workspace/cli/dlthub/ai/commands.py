@@ -489,7 +489,7 @@ def _execute_install(
         tracked_files: Optional[Dict[str, Any]] = None
         if project_root is not None:
             tracked_files = {
-                str(action.dest_path.relative_to(project_root)): {
+                action.dest_path.relative_to(project_root).as_posix(): {
                     "sha3_256": compute_content_hash(data)
                 }
                 for action, data in writes
