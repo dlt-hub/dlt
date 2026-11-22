@@ -510,6 +510,25 @@ def test_dlthub_init_with_agent(
     _assert_seeded_deps(workspace_dir / "pyproject.toml")
 
 
+def test_dlthub_init_with_agent_and_unreachable_harness(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """An unreachable harness keeps the scaffold and leaves the agent for the user to configure."""
+    from git import GitCommandError
+
+    def _fail_fetch(location: str, branch: Optional[str]) -> Path:
+        raise GitCommandError(["git", "clone", location], 128)
+
+    workspace_dir = _mock_harness(tmp_path, monkeypatch)
+    monkeypatch.setattr("dlt._workspace.cli.dlthub.ai.commands.fetch_workbench_base", _fail_fetch)
+    _run_init(monkeypatch, workspace_dir, agent="claude")
+    out = capsys.readouterr().out
+    assert "Workspace ready at" in out
+    assert "Configure your AI coding agent" in out
+    assert (workspace_dir / "pyproject.toml").is_file()
+    assert not (workspace_dir / ".claude").exists()
+
+
 @pytest.mark.parametrize(
     "init_args",
     [

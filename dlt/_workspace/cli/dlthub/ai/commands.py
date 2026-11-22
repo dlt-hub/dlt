@@ -159,9 +159,12 @@ def ai_mcp_install_command(
 
 def _fetch_workbench_base_cli(location: str, branch: Optional[str]) -> Optional[Path]:
     """Fetch dltHub AI Harness repo, warn on failure. CLI wrapper around fetch_workbench_base."""
+    from git import GitError
+
     try:
         return fetch_workbench_base(location, branch)
-    except FileNotFoundError as ex:
+    # an unreachable repository fails with a git error
+    except (FileNotFoundError, GitError) as ex:
         fmt.warning(str(ex))
         return None
 
