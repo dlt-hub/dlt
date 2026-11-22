@@ -170,7 +170,7 @@ A deployed job reads the environment that the deployment was made to. The runner
 dlt stores the declarations in `.dlt/.workspace`, a file that it writes for you. A new workspace declares the five profiles in [How profiles work](#how-profiles-work), with `prod`, `access` and `no-access` in the `prod` environment.
 
 :::note Workspaces from before dlt 1.33.0
-dlt declares the profiles of such a workspace the first time it loads it. Each profile that has settings files or is recorded in `.dlt/profile-name`, other than the built-in ones, gets an environment of its own. That environment is named after the profile, and deployments to it use this profile alone. This is the only time that dlt declares a profile for you. A profile that only `--profile` or `WORKSPACE__PROFILE` names, as in CI, is not declared: declare it with `dlthub profile add` before you upgrade.
+dlt declares the profiles of such a workspace the first time it loads it. Each profile that has settings files or is recorded in `.dlt/profile-name`, other than the built-in ones, gets an environment of its own. That environment is named after the profile, and deployments to it use this profile alone. This is the only time that dlt declares a profile for you. A profile that only `--profile` or `WORKSPACE__PROFILE` names, as in CI, is not declared. Commands that use it fail until you declare it with `dlthub profile add`.
 
 A job that declares such a profile no longer deploys to `prod`, because the profile belongs to another environment. To use the profile in `prod`, edit `.dlt/.workspace` and move its declaration to the `prod` environment. dlt validates the file and names what else to fix. To keep the profile in its own environment, deploy with `--environment <profile>`.
 
