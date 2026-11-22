@@ -86,8 +86,7 @@ def test_add_profiles() -> None:
             "qa-write2": None,
         }
 
-        # no local profile is the default: a profile of an environment never takes it, the
-        # first local profile added does
+        # `dev` without the flag stays the default: no added profile takes it
         doc = load_workspace_definition(ctx)
         del doc["local_profiles"]["dev"]["default"]
         save_definition(ctx, doc)
@@ -95,7 +94,12 @@ def test_add_profiles() -> None:
         assert ctx.get_profile_definition("ci-audit").get("default") is None
         assert get_profiles_for_env(ctx.environment_definitions["ci"])[-1] == "ci-audit"
         add_profiles(ctx, {"local2": {"data_access": "write"}})
-        assert ctx.default_profile == "local2"
+        assert ctx.default_profile == "dev"
+        # without `dev` the first local profile declared becomes the default
+        doc = load_workspace_definition(ctx)
+        del doc["local_profiles"]["dev"]
+        declare_profiles(doc, {"local3": {"data_access": "write"}}, None, "")
+        assert doc["local_profiles"]["local3"]["default"] is True
 
 
 def test_check_profile_declared() -> None:

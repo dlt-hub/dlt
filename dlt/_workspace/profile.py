@@ -84,7 +84,10 @@ def declare_profiles(
     check_new_profiles(doc, path, list(profiles))
     if env is None:
         declared = doc["local_profiles"]
-        has_default = any(p.get("default") for p in declared.values())
+        # a declared `dev` without the flag is the default already
+        has_default = DEFAULT_PROFILE in declared or any(
+            p.get("default") for p in declared.values()
+        )
         for name, profile in profiles.items():
             local: TProfileDefinition = {**profile, "location": "local"}
             # a local profile has no environment, even when an untyped caller passes `env`
