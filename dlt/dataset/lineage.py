@@ -122,21 +122,46 @@ def _lenient_qualify(
     )
 
 
+USER_ALIAS_KINDS: Tuple[Tuple[Any, str], ...] = (
+    (sge.Table, "table"),
+    (sge.Subquery, "subquery"),
+    (sge.Unnest, "UNNEST"),
+    (sge.Values, "VALUES"),
+    (sge.Lateral, "LATERAL"),
+)
+"""Query nodes that the query text can alias, and the kind that labels a derived one"""
+
+
+def _collect_user_aliases(expression: sge.Query) -> Dict[str, str]:
+    """The aliases that the text of `expression` gives its sources, with the kind of each."""
+    aliases: Dict[str, str] = {}
+    for node_type, kind in USER_ALIAS_KINDS:
+        for node in expression.find_all(node_type):
+            if node.alias:
+                aliases[node.alias] = kind
+    return aliases
+
+
 def _describe_sources(
-    scope: Scope, sqlglot_schema: SQLGlotSchema, user_aliases: Set[str]
+    scope: Scope, sqlglot_schema: SQLGlotSchema, user_aliases: Dict[str, str]
 ) -> Dict[str, TLineageSource]:
     """Labels the sources of `scope` and lists their columns, `None` when unknown to the schema."""
     resolver = Resolver(scope, sqlglot_schema)
     sources: Dict[str, TLineageSource] = {}
     for alias, source in scope.sources.items():
-        if isinstance(source, sge.Table):
+        if isinstance(source, sge.Table) and not isinstance(source.this, sge.Identifier):
+            label = f"table function `{source.this.sql()}`"
+            # sqlglot names an unaliased table function, so the name is not in the query text
+            if alias in user_aliases:
+                label += f" (alias `{alias}`)"
+        elif isinstance(source, sge.Table):
             label = f"table `{sge.table_name(source)}`"
             if alias != source.name:
                 label += f" (alias `{alias}`)"
         elif source.is_cte:
             label = f"CTE `{alias}`"
         elif alias in user_aliases:
-            label = f"subquery `{alias}`"
+            label = f"{user_aliases[alias]} `{alias}`"
         else:
             # sqlglot names unaliased subqueries, so the name is not in the query text
             label = "unaliased subquery"
@@ -232,6 +257,19 @@ def describe_lineage_failure(
     error: Optional[Exception] = None,
 ) -> TLineageDiagnosis:
     """Names the column, table or `*` that blocks `expression`, `other` when no cause is found."""
+    try:
+        return _diagnose_lineage_failure(expression, sqlglot_schema, dialect, error)
+    except Exception:
+        # the diagnosis must not hide the lineage error that it describes
+        return TLineageDiagnosis(reason="other")
+
+
+def _diagnose_lineage_failure(
+    expression: sge.Query,
+    sqlglot_schema: SQLGlotSchema,
+    dialect: TSqlGlotDialect,
+    error: Optional[Exception],
+) -> TLineageDiagnosis:
     # `error` is what `qualify` raised. `None` means a `*` stayed unexpanded
     if isinstance(error, SchemaError):
         ambiguous = _diagnose_ambiguous_table(expression, sqlglot_schema)
@@ -241,7 +279,7 @@ def describe_lineage_failure(
         work = _lenient_qualify(expression, sqlglot_schema, dialect)
     except (OptimizeError, SchemaError):
         return TLineageDiagnosis(reason="other")
-    user_aliases = {node.alias for node in expression.find_all(sge.Subquery) if node.alias}
+    user_aliases = _collect_user_aliases(expression)
     scopes = [
         (scope, _describe_sources(scope, sqlglot_schema, user_aliases))
         for scope in traverse_scope(work)
@@ -273,7 +311,8 @@ def describe_unknown_tables(
     notes: List[str] = []
     cte_names = {cte.alias_or_name for cte in expression.find_all(sge.CTE)}
     for table in expression.find_all(sge.Table):
-        if table.name in cte_names:
+        # a table function has no name
+        if not table.name or table.name in cte_names:
             continue
         dataset_name = table.db or default_dataset
         schemas = schema_map.get(dataset_name)

@@ -301,6 +301,37 @@ def test_compute_columns_schema(
             },
         ),
         (QUERY_DROP, {"reason": "not_select", "fragments": ["is not a SELECT statement."]}),
+        (
+            "SELECT u.nope FROM table_1 AS t, UNNEST([1, 2]) AS u(x)",
+            {
+                "reason": "unknown_column",
+                "sources": {"u": ("UNNEST `u`", ["x"])},
+                "fragments": ["UNNEST `u` has no column `nope`."],
+            },
+        ),
+        (
+            "SELECT v.nope FROM (VALUES (1, 2)) AS v(a, b)",
+            {
+                "reason": "unknown_column",
+                "sources": {"v": ("VALUES `v`", ["a", "b"])},
+                "fragments": ["VALUES `v` has no column `nope`."],
+            },
+        ),
+        (
+            "SELECT nope FROM read_parquet('x.parquet')",
+            {
+                "reason": "unknown_table",
+                "fragments": ["the columns of table function `READ_PARQUET('x.parquet')` are not"],
+            },
+        ),
+        (
+            "SELECT nope FROM table_1 AS t, LATERAL (SELECT 1 AS b) AS l",
+            {
+                "reason": "unknown_table",
+                "sources": {"l": ("LATERAL `l`", None)},
+                "fragments": ["the columns of LATERAL `l` are not known"],
+            },
+        ),
     ],
     ids=[
         "qualified_unknown_column",
@@ -314,6 +345,10 @@ def test_compute_columns_schema(
         "star_unknown_table",
         "star_known_and_unknown_join",
         "not_select",
+        "unnest_alias",
+        "values_alias",
+        "table_function",
+        "lateral_alias",
     ],
 )
 def test_lineage_failure_message(
@@ -335,6 +370,9 @@ def test_lineage_failure_message(
     msg = str(ex)
     assert "dlt cannot compute the lineage of the SQL query" in msg
     assert "Query (duckdb):" in msg
+    # names that sqlglot makes up and empty lists never reach the message
+    assert "_q_" not in msg.split("Query (duckdb):")[0]
+    assert "Query sources: ." not in msg
     for fragment in expected.get("fragments", []):
         assert fragment in msg
 

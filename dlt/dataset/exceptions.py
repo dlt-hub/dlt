@@ -97,7 +97,7 @@ class LineageFailedException(DltException):
         if self.resource_name:
             table = f" (table `{self.table_name}`)" if self.table_name else ""
             head = f"In resource `{self.resource_name}`{table}: {head}"
-        lines = [f"{head}. {self._headline()}", *self._known_columns(), *self.notes]
+        lines = [f"{head}. {self._format_headline()}", *self._format_known_columns(), *self.notes]
         if self.suggestions:
             lines.append("Did you mean: " + ", ".join(f"`{s}`" for s in self.suggestions) + "?")
         if self.query:
@@ -105,12 +105,16 @@ class LineageFailedException(DltException):
             lines.append(f"Query{dialect}: {self.query}")
         return "\n".join(lines)
 
-    def _labels(self, unknown_only: bool = False) -> str:
+    def _format_labels(self, unknown_only: bool = False) -> str:
         return ", ".join(
             label for label, columns in self.sources.values() if not unknown_only or columns is None
         )
 
-    def _headline(self) -> str:
+    def _format_query_sources(self) -> str:
+        labels = self._format_labels()
+        return f" Query sources: {labels}." if labels else ""
+
+    def _format_headline(self) -> str:
         if self.reason == "unknown_column":
             if self.qualifier in self.sources:
                 label = self.sources[self.qualifier][0]
@@ -121,28 +125,27 @@ class LineageFailedException(DltException):
         if self.reason == "unknown_qualifier":
             return (
                 f"`{self.qualifier}.{self.column}` refers to `{self.qualifier}`. The query has no"
-                f" table, alias or CTE `{self.qualifier}`. Query sources: {self._labels()}."
+                f" table, alias or CTE `{self.qualifier}`.{self._format_query_sources()}"
             )
         if self.reason == "column_not_found":
             return (
-                f"No source of the query has column `{self.column}`. Query sources:"
-                f" {self._labels()}."
+                f"No source of the query has column `{self.column}`.{self._format_query_sources()}"
             )
         if self.reason == "ambiguous_column":
             return (
-                f"Column `{self.column}` is ambiguous: it exists in {self._labels()}. Qualify it"
-                " with the table alias."
+                f"Column `{self.column}` is ambiguous: it exists in {self._format_labels()}."
+                " Qualify it with the table alias."
             )
         if self.reason == "unknown_table":
             return (
                 f"Column `{self.column}` has no known source: the columns of"
-                f" {self._labels(unknown_only=True)} are not known to dlt."
+                f" {self._format_labels(unknown_only=True)} are not known to dlt."
             )
         if self.reason == "unresolved_star":
             return (
-                f"dlt cannot expand `*`: the columns of {self._labels(unknown_only=True)} are not"
-                " known to dlt. Select the columns explicitly or limit `*` to known tables, for"
-                " example `known_table.*`."
+                "dlt cannot expand `*`: the columns of"
+                f" {self._format_labels(unknown_only=True)} are not known to dlt. Select the"
+                " columns explicitly or limit `*` to known tables, for example `known_table.*`."
             )
         if self.reason == "ambiguous_table":
             datasets = ", ".join(f"`{d}`" for d in self.datasets)
@@ -152,7 +155,7 @@ class LineageFailedException(DltException):
             )
         return self.msg or "Unknown error."
 
-    def _known_columns(self) -> List[str]:
+    def _format_known_columns(self) -> List[str]:
         if self.reason == "unknown_column":
             aliases = [self.qualifier]
         elif self.reason in ("column_not_found", "ambiguous_column", "unknown_table"):

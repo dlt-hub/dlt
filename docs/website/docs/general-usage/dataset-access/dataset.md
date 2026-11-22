@@ -131,7 +131,7 @@ dataset = dlt.dataset("warehouse", "orders_data")
 dataset = dlt.dataset("warehouse", "orders_data", schema="orders")
 ```
 
-SQL queries are not limited to that schema: `dataset("SELECT count(*) FROM orders")` reads any table of the dataset.
+dlt checks SQL queries against that schema too: a query that uses the columns of a table outside of it fails. The experimental `_execute_raw_query=True` runs any SQL as written, without that check and without the column schema of the result, for example `dataset("SELECT * FROM customers", _execute_raw_query=True)`.
 
 :::note
 On DuckDB, `dlt.dataset()` needs a named destination or the path of the database file, for example `dlt.dataset(dlt.destinations.duckdb("orders_pipeline.duckdb"), "orders_data")`. The plain `duckdb` destination names the file after the pipeline, so without a pipeline it opens `duckdb.duckdb`. See [Destination config](../../dlt-ecosystem/destinations/duckdb.md#destination-config) for how the file is named.

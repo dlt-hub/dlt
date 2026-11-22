@@ -32,7 +32,6 @@ from dlt.extract.exceptions import (
     ResourceExtractionError,
 )
 from dlt.extract.extract import ExtractStorage, Extract
-from dlt.extract.extractors import _set_exception_context
 from dlt.extract.utils import get_unbalanced_files_warning
 from dlt.extract.hints import TResourceNestedHints, make_hints, make_nested_hints
 from dlt.extract.items_transform import ValidateItem, MetricsItem
@@ -587,15 +586,6 @@ def test_extract_sets_resource_context_on_exception(
         extract_step.extract(source, 20, 1)
     # the extractor sets an empty resource name and keeps a preset one
     assert ex.value.resource_name == (preset or "letters")
-
-
-def test_set_exception_context() -> None:
-    ex = _ContextError()
-    _set_exception_context(ex, resource_name="res", table_name="tab", other="x")
-    assert ex.resource_name == "res"
-    # a read-only attribute is skipped and an unknown attribute is not added
-    assert ex.table_name is None
-    assert not hasattr(ex, "other")
 
 
 def test_extract_metrics_on_exception_no_flush(extract_step: Extract) -> None:

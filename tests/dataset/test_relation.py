@@ -566,6 +566,13 @@ def test_lineage_failure_describes_dataset(multi_schema_dataset: dlt.Dataset) ->
     assert exc.value.reason == "unresolved_star"
     assert "Did you mean: `items`?" in str(exc.value)
 
+    # a table of another dataset
+    with pytest.raises(LineageFailedException) as exc:
+        multi_schema_dataset("SELECT * FROM other_dataset.items").columns
+    assert "refers to dataset `other_dataset`, which is not a dataset of this relation" in str(
+        exc.value
+    )
+
     # a table without typed columns is invisible to lineage
     schema = Schema("pending")
     schema.update_table(new_table("pending", columns=[{"name": "id"}]))

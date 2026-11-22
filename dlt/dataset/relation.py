@@ -18,7 +18,7 @@ from typing import (
     get_args,
 )
 from textwrap import indent
-from contextlib import contextmanager
+from contextlib import contextmanager, suppress
 from dlt.common.utils import simple_repr, without_none
 
 from sqlglot import maybe_parse
@@ -1199,10 +1199,12 @@ class Relation(WithSqlClient):
             except LineageFailedException as ex:
                 # `to_sql` and `__str__` compute lineage again, so only the raw expression is safe
                 ex.dataset_name = self._dataset.dataset_name
-                if ex.reason != "not_select":
-                    ex.notes = lineage.describe_unknown_tables(
-                        self.sqlglot_expression, all_schemas, self._dataset.dataset_name
-                    )
+                # the notes must not hide the lineage error that they explain
+                with suppress(Exception):
+                    if ex.reason != "not_select":
+                        ex.notes = lineage.describe_unknown_tables(
+                            self.sqlglot_expression, all_schemas, self._dataset.dataset_name
+                        )
                 raise
             self._lineage_cache = _RelationLineage(key, sqlglot_schema, columns, qualified_query)
         return self._lineage_cache
