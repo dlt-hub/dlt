@@ -328,8 +328,10 @@ def describe_unknown_tables(
             close = difflib.get_close_matches(table.name, known)
             if close:
                 hint = " Did you mean: " + ", ".join(f"`{c}`" for c in close) + "?"
-            else:
+            elif known:
                 hint = f" Known tables: {join_names(known)}."
+            else:
+                hint = " The schema has no data tables."
             notes.append(
                 f"Table `{table.name}` is not in the schema of dataset `{dataset_name}`.{hint}"
             )

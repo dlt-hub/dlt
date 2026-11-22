@@ -583,6 +583,18 @@ def test_lineage_failure_describes_dataset(multi_schema_dataset: dlt.Dataset) ->
         dataset("SELECT * FROM pending").columns
     assert "none of its columns has a data type" in str(exc.value)
 
+    # a schema without data tables has no tables to list
+    dataset = dlt.dataset(
+        dlt.destinations.duckdb(destination_name="duck_db"),
+        "pipeline_dataset",
+        schema=Schema("empty"),
+    )
+    with pytest.raises(LineageFailedException) as exc:
+        dataset("SELECT * FROM items").columns
+    assert "is not in the schema of dataset `pipeline_dataset`. The schema has no data tables." in (
+        str(exc.value)
+    )
+
 
 def test_lineage_failure_in_extract_names_resource(
     multi_schema_pipeline: dlt.Pipeline, tmp_path: pathlib.Path
