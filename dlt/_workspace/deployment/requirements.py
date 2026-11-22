@@ -21,7 +21,7 @@ from packaging.requirements import InvalidRequirement, Requirement
 from packaging.utils import canonicalize_name
 from packaging.version import InvalidVersion, Version
 
-from dlt.common import json, logger
+from dlt.common import json
 from dlt.common.exceptions import DictValidationException
 from dlt.common.typing import DictStrAny
 from dlt.common.validation import validate_dict
@@ -421,6 +421,15 @@ def export_workspace_requirements(
     workspace_root: Path,
     default_groups: Optional[List[str]] = None,
 ) -> TWorkspaceRequirementsManifest:
+    """Export a workspace's dependencies as a `TWorkspaceRequirementsManifest`. Drops the
+    warnings that `export_workspace_requirements_with_warnings` returns."""
+    return export_workspace_requirements_with_warnings(workspace_root, default_groups)[0]
+
+
+def export_workspace_requirements_with_warnings(
+    workspace_root: Path,
+    default_groups: Optional[List[str]] = None,
+) -> Tuple[TWorkspaceRequirementsManifest, List[str]]:
     """Export a workspace's dependencies as a `TWorkspaceRequirementsManifest`.
 
     dlt exports a `pyproject.toml` from `uv.lock` next to it. Without that lock, dlt uses the lock
@@ -434,7 +443,8 @@ def export_workspace_requirements(
             Defaults to `["main"]`.
 
     Returns:
-        TWorkspaceRequirementsManifest: Always contains a `main` entry in `groups`.
+        Tuple[TWorkspaceRequirementsManifest, List[str]]: The manifest, which always contains a
+            `main` entry in `groups`, and the warnings of the export.
 
     Raises:
         WorkspaceRequirementsError: `uv.lock` out of sync, `uv` failure, parse error, or a
@@ -445,6 +455,7 @@ def export_workspace_requirements(
     requirements_txt_path = workspace_root / REQUIREMENTS_TXT
     requirements_in_path = workspace_root / REQUIREMENTS_IN
 
+    warnings: List[str] = []
     dlt_version = get_pkg_install_spec(DLT_PKG_NAME)
     # detection order: pyproject -> requirements.txt -> requirements.in -> empty main
     resolved = False
@@ -457,7 +468,11 @@ def export_workspace_requirements(
         main, compiled = _compile_requirements_file(workspace_root, file_path)
         groups = {MAIN_GROUP: main}
         if compiled:
-            dlt_version = _get_deployed_dlt_spec(main, dlt_version, workspace_root, file_path.name)
+            dlt_version, warning = _get_deployed_dlt_spec(
+                main, dlt_version, workspace_root, file_path.name
+            )
+            if warning:
+                warnings.append(warning)
     else:
         groups = {MAIN_GROUP: []}
 
@@ -480,7 +495,7 @@ def export_workspace_requirements(
     if _normalize_name(DLT_PKG_NAME) not in default_names:
         _inject_dlt_into_launchers(launcher_requirements)
 
-    return {
+    manifest: TWorkspaceRequirementsManifest = {
         "engine_version": REQUIREMENTS_ENGINE_VERSION,
         "python_version": python_version(),
         "dlt_version": dlt_version,
@@ -488,6 +503,7 @@ def export_workspace_requirements(
         "groups": dict(sorted(groups.items())),
         "launcher_requirements": launcher_requirements,
     }
+    return manifest, warnings
 
 
 PRE_TRACKING_DLT_INSTALL_SPEC: TInstallSpec = {
@@ -691,38 +707,41 @@ def _compile_requirements_file(workspace_root: Path, file_path: Path) -> Tuple[L
 
 def _get_deployed_dlt_spec(
     main: Sequence[str], installed: TInstallSpec, workspace_root: Path, file_name: str
-) -> TInstallSpec:
-    """The dlt that the resolved `main` installs. Warns when it is not the installed dlt."""
+) -> Tuple[TInstallSpec, Optional[str]]:
+    """The dlt that the resolved `main` installs and a warning when it is not the installed dlt."""
     for line in main:
         # an editable line names its path only
         if line.startswith("-e "):
             if _is_installed_path(line[3:].strip(), installed, workspace_root):
-                return installed
+                return installed, None
             continue
         requirement = _parse_requirements_line(line)
         if requirement is None or canonicalize_name(requirement.name) != DLT_PKG_NAME:
             continue
         if requirement.url:
-            if not _is_installed_source(requirement.url, installed, workspace_root):
-                logger.warning(
+            if _is_installed_source(requirement.url, installed, workspace_root):
+                return installed, None
+            return (
+                installed,
+                (
                     f"`{file_name}` installs dlt from `{requirement.url}`, but dlt"
                     f" {installed['version']} is installed. dlt cannot tell the version that the"
-                    " deployment runs. To deploy the installed dlt, pin it in"
-                    f" `{file_name}`."
-                )
-            return installed
+                    f" deployment runs. To deploy the installed dlt, pin it in `{file_name}`."
+                ),
+            )
         pinned = next((s.version for s in requirement.specifier if s.operator == "=="), None)
         if pinned is None:
-            return installed
+            return installed, None
+        warning = None
         if pinned != installed["version"]:
-            logger.warning(
+            warning = (
                 f"`{file_name}` resolves dlt {pinned}, but dlt {installed['version']} is installed."
                 f" The deployment runs dlt {pinned}. To deploy the installed dlt, pin it in"
                 f" `{file_name}`."
             )
-        return {"name": DLT_PKG_NAME, "extras": [], "version": pinned, "mode": "pypi"}
+        return {"name": DLT_PKG_NAME, "extras": [], "version": pinned, "mode": "pypi"}, warning
     # without dlt in main, the launchers get the installed dlt
-    return installed
+    return installed, None
 
 
 def _is_installed_source(url: str, installed: TInstallSpec, workspace_root: Path) -> bool:

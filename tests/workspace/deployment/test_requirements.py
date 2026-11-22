@@ -42,6 +42,7 @@ from dlt._workspace.deployment.requirements import (
     build_launcher_requirements,
     default_requirements_manifest,
     export_workspace_requirements,
+    export_workspace_requirements_with_warnings,
     get_dlt_requirement_spec,
     get_pkg_install_spec,
     load_requirements,
@@ -697,7 +698,9 @@ def test_collect_package_names_extras(spec: str, expected: Set[str]) -> None:
     assert _collect_package_names([spec]) == expected
 
 
-def _export_with_deps(specs: List[str], source: TDepsSource) -> TWorkspaceRequirementsManifest:
+def _export_with_deps(
+    specs: List[str], source: TDepsSource
+) -> Tuple[TWorkspaceRequirementsManifest, List[str]]:
     """Exports a workspace whose main dependencies are `specs`, read from `source`."""
     deps_file, resolve = source.split("-")
     with isolated_workspace("deps_none") as ctx:
@@ -710,13 +713,13 @@ def _export_with_deps(specs: List[str], source: TDepsSource) -> TWorkspaceRequir
             )
             if resolve == "resolved":
                 _run_uv_lock(ctx.run_dir)
-            return export_workspace_requirements(run_dir)
+            return export_workspace_requirements_with_warnings(run_dir)
         (run_dir / "requirements.txt").write_text("".join(f"{s}\n" for s in specs))
         if resolve == "resolved":
-            return export_workspace_requirements(run_dir)
+            return export_workspace_requirements_with_warnings(run_dir)
         # without uv on PATH the requirements file is taken as declared
         with patch(_SHUTIL_WHICH, return_value=None):
-            return export_workspace_requirements(run_dir)
+            return export_workspace_requirements_with_warnings(run_dir)
 
 
 @pytest.mark.parametrize(
@@ -762,8 +765,7 @@ def test_get_deployed_dlt_spec(
         "git_rev": "abc",
     }
     main = [line.format(path=dlt_path, url=dlt_path.as_uri()) for line in main_lines]
-    with patch("dlt._workspace.deployment.requirements.logger.warning") as warning:
-        deployed = _get_deployed_dlt_spec(main, installed, tmp_path, "requirements.txt")
+    deployed, warning = _get_deployed_dlt_spec(main, installed, tmp_path, "requirements.txt")
     if expected_version is None:
         assert deployed == installed
     else:
@@ -773,24 +775,24 @@ def test_get_deployed_dlt_spec(
             "version": expected_version,
             "mode": "pypi",
         }
-    assert warning.called is warns
+    assert (warning is not None) is warns
 
 
 def test_export_names_the_dlt_that_requirements_resolve() -> None:
     """With uv, `dlt_version` is the dlt that `requirements.txt` resolves, not the installed one."""
-    with patch("dlt._workspace.deployment.requirements.logger.warning") as warning:
-        result = _export_with_deps(["dlt==1.32.0"], "requirements-resolved")
+    result, warnings = _export_with_deps(["dlt==1.32.0"], "requirements-resolved")
     assert result["dlt_version"] == {
         "name": "dlt",
         "extras": [],
         "version": "1.32.0",
         "mode": "pypi",
     }
-    assert "resolves dlt 1.32.0" in warning.call_args.args[0]
+    assert len(warnings) == 1
+    assert "resolves dlt 1.32.0" in warnings[0]
     # declared as written, the installed dlt stays
-    assert _export_with_deps(["dlt==1.32.0"], "requirements-declared")[
-        "dlt_version"
-    ] == get_pkg_install_spec("dlt")
+    result, warnings = _export_with_deps(["dlt==1.32.0"], "requirements-declared")
+    assert result["dlt_version"] == get_pkg_install_spec("dlt")
+    assert warnings == []
 
 
 def _collect_keys(specs: List[str]) -> Set[str]:
@@ -855,7 +857,7 @@ def _get_spec_key(spec: str) -> str:
 def test_export_skips_specs_the_workspace_declares(
     specs: List[str], skipped: Set[str], dlt_injected: bool, source: TDepsSource
 ) -> None:
-    result = _export_with_deps(specs, source)
+    result, _ = _export_with_deps(specs, source)
     main = result["groups"][MAIN_GROUP]
     # uv-resolved sources pin every spec and flatten extras, declared ones keep them unchanged
     declared = source.endswith("-declared")
@@ -958,7 +960,7 @@ def test_added_specs_allow_no_prereleases() -> None:
 def _resolve_export(main_specs: List[str], tmp_path: Path) -> subprocess.CompletedProcess[str]:
     """Resolves a workspace's main group together with every spec the export adds."""
     # the union is a superset of what any single run installs, this checkout stands in for dlt
-    result = _export_with_deps(main_specs, "requirements-declared")
+    result, _ = _export_with_deps(main_specs, "requirements-declared")
     dlt_spec = get_dlt_requirement_spec()
     added = {
         s

@@ -31,6 +31,7 @@ from dlt._workspace.deployment.requirements import (
     build_launcher_requirements,
     default_requirements_manifest,
     export_workspace_requirements,
+    export_workspace_requirements_with_warnings,
     get_dlt_requirement_spec,
     get_pkg_install_spec,
     get_workspace_install_specs,

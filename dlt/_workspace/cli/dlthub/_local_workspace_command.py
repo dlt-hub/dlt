@@ -23,7 +23,7 @@ from dlt._workspace.cli.dlthub.utils import (
     generate_deployment_manifest,
     get_deployment_target,
 )
-from dlt._workspace.deployment.requirements import export_workspace_requirements
+from dlt._workspace.deployment.requirements import export_workspace_requirements_with_warnings
 from dlt._workspace.settings_files import dump_yaml
 from dlt._workspace.typing import TLocationInfo, TProviderInfo
 from dlt._workspace.access import format_data_access
@@ -166,12 +166,19 @@ def _print_deployment_manifests(
         with contextlib.redirect_stdout(sys.stderr):
             manifest, warnings = generate_deployment_manifest(*get_deployment_target())
         fmt.echo(dump_yaml(dict(manifest)))
-        # stdout holds the manifest alone
-        for warning in warnings:
-            fmt.echo(fmt.warning_style("WARNING: " + warning), err=True)
+        _print_warnings(warnings)
     if show_requirements:
-        requirements = export_workspace_requirements(Path(run_context.run_dir))
+        requirements, warnings = export_workspace_requirements_with_warnings(
+            Path(run_context.run_dir)
+        )
         fmt.echo(json.dumps(requirements, pretty=True))
+        _print_warnings(warnings)
+
+
+def _print_warnings(warnings: List[str]) -> None:
+    # stdout holds the manifest alone
+    for warning in warnings:
+        fmt.echo(fmt.warning_style("WARNING: " + warning), err=True)
 
 
 def _print_deployment_info(info: TDeploymentManifestInfo, verbosity: int) -> None:
