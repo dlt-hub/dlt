@@ -230,7 +230,7 @@ def test_unresolved_job_triggers() -> None:
     assert not result.is_valid
     assert "jobs.mod.b" in result.unresolved_triggers
     assert "jobs.mod.missing" in result.unresolved_triggers["jobs.mod.b"]
-    assert any("unknown jobs" in e for e in result.errors)
+    assert any("unknown jobs" in e and "Did you add jobs to __all__?" in e for e in result.errors)
 
 
 def test_resolved_job_triggers() -> None:

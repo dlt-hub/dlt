@@ -772,7 +772,10 @@ def validate_manifest(
 
     if unresolved:
         for job_ref, refs in unresolved.items():
-            errors.append(f"job {job_ref!r} has triggers referencing unknown jobs: {refs}")
+            errors.append(
+                f"job {job_ref!r} has triggers referencing unknown jobs: {refs}. Did you add"
+                " jobs to __all__?"
+            )
 
     # freshness upstream resolution (requires cross-job lookup)
     jobs_by_ref = {j["job_ref"]: j for j in jobs}
