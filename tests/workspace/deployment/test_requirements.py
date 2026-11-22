@@ -8,7 +8,6 @@ from contextlib import nullcontext
 from pathlib import Path
 from typing import Any, ContextManager, Dict, List, Literal, Set, Tuple, get_args
 from unittest.mock import patch
-from urllib.request import url2pathname
 
 import pytest
 import tomlkit
@@ -1019,7 +1018,10 @@ def test_get_pkg_install_spec_editable(monkeypatch: pytest.MonkeyPatch) -> None:
     [
         (LOCAL_INSTALL_URL, LOCAL_INSTALL_PATH),
         # a UNC path keeps its host
-        ("file://server/share/pkg", url2pathname("//server/share/pkg")),
+        (
+            "file://server/share/my%20pkg",
+            r"\\server\share\my pkg" if os.name == "nt" else "//server/share/my pkg",
+        ),
     ],
     ids=["local", "unc"],
 )

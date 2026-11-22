@@ -13,7 +13,7 @@ import subprocess
 import sys
 from pathlib import Path
 from typing import Any, BinaryIO, Dict, Final, List, Optional, Sequence, Set, Tuple
-from urllib.parse import urlparse
+from urllib.parse import unquote, urlparse
 from urllib.request import url2pathname
 
 import tomlkit
@@ -171,7 +171,9 @@ def get_file_url_path(url: str) -> str:
     host."""
     parsed = urlparse(url)
     if parsed.netloc and parsed.netloc != "localhost":
-        return url2pathname(f"//{parsed.netloc}{parsed.path}")
+        unc_path = f"//{parsed.netloc}{parsed.path}"
+        # python 3.14 `url2pathname` refuses a remote host on posix, which has no UNC paths
+        return url2pathname(unc_path) if os.name == "nt" else unquote(unc_path)
     return url2pathname(parsed.path)
 
 
