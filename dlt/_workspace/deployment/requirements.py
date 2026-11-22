@@ -324,10 +324,6 @@ def dlt_extra_specs(extra: str) -> Dict[str, str]:
     return specs
 
 
-# every launcher gets dlthub through dlt's hub extra, so it follows whichever dlt resolves. as a
-# direct spec dlt's `dlthub>=0.30.0a1` floor would make uv install dlthub prereleases
-_HUB_SPEC = f"{DLT_PKG_NAME}[hub]"
-
 # relaxed floors: rarely conflicting with a workspace's pins, never resolving ancient releases
 _FLOORS: Final[Dict[str, str]] = {
     # 0.2.126 is the first release whose ResultMessage carries terminal_reason
@@ -351,17 +347,19 @@ def floored_spec(name: str, *, extras: Sequence[str] = ()) -> str:
 def build_launcher_requirements() -> Dict[str, List[str]]:
     """Per-launcher mandatory specs. dlt is injected separately at build time."""
     s3 = list(dlt_extra_specs("s3").values())
+    # the bounds of dlt's hub extra keep dlthub compatible with the installed dlt
+    dlthub = dlt_extra_specs("hub")[DLTHUB_PKG_NAME]
     per_launcher: Dict[str, List[str]] = {
-        LAUNCHER_JOB: s3,
-        LAUNCHER_MODULE: s3,
+        LAUNCHER_JOB: [*s3, dlthub],
+        LAUNCHER_MODULE: [*s3, dlthub],
         # loop packages are per-job, so they live in `agent-loop-*` groups instead
         LAUNCHER_AGENT: s3,
-        LAUNCHER_MARIMO: [floored_spec("marimo"), floored_spec("uvicorn")],
-        LAUNCHER_MCP: [floored_spec("fastmcp"), floored_spec("uvicorn")],
-        LAUNCHER_STREAMLIT: [floored_spec("streamlit")],
-        LAUNCHER_DASHBOARD: [],
+        LAUNCHER_MARIMO: [floored_spec("marimo"), floored_spec("uvicorn"), dlthub],
+        LAUNCHER_MCP: [floored_spec("fastmcp"), floored_spec("uvicorn"), dlthub],
+        LAUNCHER_STREAMLIT: [floored_spec("streamlit"), dlthub],
+        LAUNCHER_DASHBOARD: [dlthub],
     }
-    return {k: sorted(set(v + [_HUB_SPEC])) for k, v in per_launcher.items()}
+    return {k: sorted(v) for k, v in per_launcher.items()}
 
 
 def build_dashboard_group() -> List[str]:
@@ -874,11 +872,6 @@ def _prune_specs(specs: List[str], names: Set[str]) -> List[str]:
     """Drop specs whose PEP 503 normalized name is in `names`, preserving order."""
     pruned: List[str] = []
     for s in specs:
-        if s == _HUB_SPEC:
-            # a workspace dlthub at any version wins, dlt[hub] would walk dlt back to match it
-            if DLTHUB_PKG_NAME not in names:
-                pruned.append(s)
-            continue
         m = _LEADING_NAME_RE.match(s)
         if m is None or _normalize_name(m.group("name")) not in names:
             pruned.append(s)

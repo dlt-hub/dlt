@@ -62,7 +62,7 @@ _SHUTIL_WHICH = "dlt._workspace.deployment.requirements.shutil.which"
 _RUN_UV = "dlt._workspace.deployment.requirements.run_uv"
 UV_WORKSPACE_CASE = "deps_uv_workspace"
 """A uv workspace whose member `workspace` is a dlt workspace, with the lock at the root."""
-_HUB = "dlt[hub]"
+_DLTHUB = dlt_extra_specs("hub")["dlthub"]
 _S3_NAMES = ["botocore", "s3fs"]
 
 TDepsSource = Literal[
@@ -449,20 +449,22 @@ def test_launcher_requirements_shape() -> None:
         LAUNCHER_DASHBOARD,
         LAUNCHER_AGENT,
     }
-    # every launcher gets dlt's hub extra, so dlthub follows whichever dlt resolves
-    for specs in lreq.values():
-        assert _HUB in specs
-        assert not {"dlthub", "dlthub-client"} & set(_get_names(specs))
+    # every launcher but the agent gets dlthub within the bounds of dlt's hub extra
+    for launcher, specs in lreq.items():
+        assert (_DLTHUB in specs) is (launcher != LAUNCHER_AGENT)
+        assert not {"dlt", "dlthub-client"} & set(_get_names(specs))
         assert specs == sorted(specs)
     # dlt itself is NOT in the bare launcher dict — it's injected conditionally
     # by export_workspace_requirements / default_requirements_manifest
-    for launcher in (LAUNCHER_JOB, LAUNCHER_MODULE, LAUNCHER_AGENT):
-        # loop packages live in agent-loop-* groups, not here
-        assert lreq[launcher] == sorted([*dlt_extra_specs("s3").values(), _HUB])
-    assert _get_names(lreq[LAUNCHER_MARIMO]) == ["dlt", "marimo", "uvicorn"]
-    assert _get_names(lreq[LAUNCHER_MCP]) == ["dlt", "fastmcp", "uvicorn"]
-    assert _get_names(lreq[LAUNCHER_STREAMLIT]) == ["dlt", "streamlit"]
-    assert lreq[LAUNCHER_DASHBOARD] == [_HUB]
+    s3 = list(dlt_extra_specs("s3").values())
+    for launcher in (LAUNCHER_JOB, LAUNCHER_MODULE):
+        assert lreq[launcher] == sorted([*s3, _DLTHUB])
+    # loop packages live in agent-loop-* groups, not here
+    assert lreq[LAUNCHER_AGENT] == sorted(s3)
+    assert _get_names(lreq[LAUNCHER_MARIMO]) == ["dlthub", "marimo", "uvicorn"]
+    assert _get_names(lreq[LAUNCHER_MCP]) == ["dlthub", "fastmcp", "uvicorn"]
+    assert _get_names(lreq[LAUNCHER_STREAMLIT]) == ["dlthub", "streamlit"]
+    assert lreq[LAUNCHER_DASHBOARD] == [_DLTHUB]
 
 
 def test_interactive_launchers_omit_artifact_storage_deps() -> None:
@@ -533,14 +535,14 @@ def test_default_requirements_manifest_shape() -> None:
     for specs in lreq.values():
         assert dlt_spec in specs
         assert specs == sorted(specs)
-    for specs in lreq.values():
-        assert _HUB in specs
+    for launcher, specs in lreq.items():
+        assert (_DLTHUB in specs) is (launcher != LAUNCHER_AGENT)
     # batch launchers carry dlt's s3 extra; interactive don't
     s3 = set(dlt_extra_specs("s3").values())
     assert s3 <= set(lreq[LAUNCHER_JOB])
     assert not s3 & set(lreq[LAUNCHER_MARIMO])
-    # dashboard has dlt's hub extra + dlt (extras come from DASHBOARD_JOB_REF group)
-    assert lreq[LAUNCHER_DASHBOARD] == sorted([_HUB, dlt_spec])
+    # dashboard has dlthub + dlt (extras come from DASHBOARD_JOB_REF group)
+    assert lreq[LAUNCHER_DASHBOARD] == sorted([_DLTHUB, dlt_spec])
 
 
 def test_default_requirements_manifest_is_save_load_stable() -> None:
@@ -585,8 +587,6 @@ def test_collect_package_names_recognizes_dlt_in_every_form(spec: str) -> None:
         ("croniter", set(), True),
         ("", {"s3fs"}, True),
         ("# comment", {"s3fs"}, True),
-        ("dlt[hub]", {"dlt"}, True),
-        ("dlt[hub]", {"dlthub"}, False),
     ],
     ids=[
         "bare-name",
@@ -599,8 +599,6 @@ def test_collect_package_names_recognizes_dlt_in_every_form(spec: str) -> None:
         "empty-set",
         "empty-line",
         "comment-line",
-        "dlt-hub-kept-by-plain-dlt",
-        "dlt-hub-pruned-by-dlthub",
     ],
 )
 def test_prune_specs_normalization(spec: str, names: Set[str], kept: bool) -> None:
@@ -651,7 +649,7 @@ def test_export_prunes_dashboard_group_with_normalized_names() -> None:
     # launcher lists share none of these names — untouched except dlt injection
     dlt_spec = get_dlt_requirement_spec()
     assert result["launcher_requirements"][LAUNCHER_JOB] == sorted(
-        [*dlt_extra_specs("s3").values(), _HUB, dlt_spec]
+        [*dlt_extra_specs("s3").values(), _DLTHUB, dlt_spec]
     )
 
 
@@ -738,14 +736,14 @@ def _get_spec_key(spec: str) -> str:
     [
         (["requests>=2.0"], set(), True),
         (["dlt>=1.0"], set(), False),
-        (["dlt[hub]>=1.0"], {_HUB}, False),
-        (["dlthub"], {_HUB}, True),
+        (["dlt[hub]>=1.0"], {"dlthub"}, False),
+        (["dlthub"], {"dlthub"}, True),
         (["dlthub-client"], set(), True),
         (["dlt[s3]>=1.0"], {"botocore", "s3fs"}, False),
         (["dlt[parquet]>=1.0"], {"pyarrow"}, False),
         (["botocore>=1.28"], {"botocore"}, True),
         (["s3fs>=2024.1"], {"botocore", "s3fs"}, True),
-        (["dlt[hub,s3]>=1.0"], {_HUB, "botocore", "s3fs"}, False),
+        (["dlt[hub,s3]>=1.0"], {"dlthub", "botocore", "s3fs"}, False),
         (["pydantic-ai>=2.45.0"], {"pydantic-ai-slim"}, True),
         (["marimo>=0.14.5"], {"marimo", "uvicorn"}, True),
         (
@@ -930,9 +928,8 @@ def test_export_resolves_with_workspace_pins(main_specs: List[str], tmp_path: Pa
     [
         ([_DLT_CHECKOUT_SPEC, "anthropic==0.75.0"], "pydantic-ai-slim"),
         ([_DLT_CHECKOUT_SPEC, "botocore==1.27.0"], "s3fs"),
-        ([_DLT_CHECKOUT_SPEC, "dlthub-client==0.28.0"], "dlthub-client"),
     ],
-    ids=["anthropic-before-1", "botocore-before-1.28", "dlthub-client-before-0.28.3"],
+    ids=["anthropic-before-1", "botocore-before-1.28"],
 )
 def test_export_fails_on_pins_below_floors(
     main_specs: List[str], needs: str, tmp_path: Path
