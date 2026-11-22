@@ -400,9 +400,8 @@ def test_workspace_profile_dev(page: Page):
 
 
 def test_workspace_dashboard_shows_write_profile_pipelines(page: Page) -> None:
-    """On the runtime the dashboard runs with the read profile of a strict environment. It shows
-    the pipelines that the write profile ran, which the sync restores, and reads their data with
-    the credentials of the read profile."""
+    """The dashboard with a read profile shows the synced runs of the write profile."""
+    # the runtime runs the dashboard with the read profile of a strict environment
     test_port = 2727
     with isolated_workspace("pipelines") as ctx:
         declare_environment(ctx, "staging")

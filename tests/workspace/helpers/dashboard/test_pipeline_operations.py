@@ -37,14 +37,14 @@ from tests.workspace.utils import declare_environment, isolated_workspace
 
 
 def test_get_runtime_pipelines_dir() -> None:
-    """Every profile of an environment reads the runs of its default write profile, which the
-    runtime sync restores. A local profile has none."""
+    """Every profile of an environment reads the synced runs of its default write profile."""
     with isolated_workspace("pipelines") as ctx:
         declare_environment(ctx, "staging")
         write_dir = os.path.join(ctx.settings_dir, "state", "staging-write", "pipelines")
         for profile in ("staging-read", "staging-write", "staging-none"):
             ctx.switch_profile(profile)
             assert get_runtime_pipelines_dir() == write_dir
+        # a local profile keeps its own pipelines dir
         ctx.switch_profile("dev")
         assert get_runtime_pipelines_dir() is None
 
