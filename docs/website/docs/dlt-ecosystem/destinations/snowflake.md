@@ -172,11 +172,23 @@ The connector loads the connection from
 in `SNOWFLAKE_HOME` (default `~/.snowflake`). Other credentials (`host`, `username`, `password`, keys, tokens) next to
 `connection_name` are a configuration error.
 
-Without any credentials configured, `dlt` uses the connector's **default connection** when there is one
-(`SNOWFLAKE_DEFAULT_CONNECTION_NAME`, `default_connection_name` in `config.toml` or `[default]`). In **Snowpark
-Container Services** that is the connection Snowflake mounts into the container: configure nothing.
+`dlt` does not pick the connector's **default connection** (`SNOWFLAKE_DEFAULT_CONNECTION_NAME`,
+`default_connection_name` in `config.toml` or `[default]`) on its own: name the connection. In **Snowpark Container
+Services**, configure nothing: without credentials, `dlt` uses the connection that Snowflake mounts into the
+container.
 
-The [dbt runner](../transformations/dbt/dbt.md) gets the password, key pair or OAuth token of the connection.
+To fall back to the default connection when the named one is not defined, set
+`allow_default_connection_fallback`. A workspace profile then keeps the connection of your machine and runs in a
+Snowpark container with the mounted connection:
+
+```toml
+[destination.snowflake.credentials]
+connection_name = "prod"
+allow_default_connection_fallback = true
+```
+
+The [dbt runner](../transformations/dbt/dbt.md) gets the password, key pair, OAuth token or programmatic access
+token of the connection.
 
 ### Additional connection options
 
@@ -733,7 +745,7 @@ which contains Python named formatters corresponding to tag names i.e., `{source
 
 ### dbt support
 
-This destination [integrates with dbt](../transformations/dbt/dbt.md) via [dbt-snowflake](https://github.com/dbt-labs/dbt-snowflake). Both password and key pair authentication are supported and shared with dbt runners.
+This destination [integrates with dbt](../transformations/dbt/dbt.md) via [dbt-snowflake](https://github.com/dbt-labs/dbt-snowflake). Passwords, key pairs, OAuth tokens and programmatic access tokens (as the password) are shared with dbt runners; other authenticators are refused.
 
 ### Syncing of `dlt` state
 

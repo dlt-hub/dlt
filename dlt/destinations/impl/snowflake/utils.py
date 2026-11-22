@@ -1,5 +1,5 @@
 import os
-from typing import Any, Dict, List, Optional, cast
+from typing import Any, Dict, List, Optional, Tuple, cast
 from urllib.parse import urlparse, urlunparse
 
 from dlt import version
@@ -24,6 +24,8 @@ from dlt.destinations.exceptions import LoadJobTerminalException
 
 
 SNOWFLAKE_SESSION_TOKEN_PATH = "/snowflake/session/token"
+CONNECTION_FILE_PATH_PARAMS: Tuple[str, ...] = ("private_key_file", "token_file_path")
+"""Connection parameters that hold a file path"""
 
 
 def ensure_snowflake_azure_url(
@@ -247,6 +249,24 @@ def list_snowflake_connections() -> List[str]:
     return list(cast(Dict[str, Any], _read_connector_option("connections")).keys())
 
 
+def get_snowflake_default_connection_name() -> Optional[str]:
+    """Default connection name of the connector, `None` when no such connection is defined or the
+    connector is not installed."""
+    try:
+        name = default_snowflake_connection_name()
+        return name if name in list_snowflake_connections() else None
+    except MissingDependencyException:
+        return None
+
+
+def get_snowflake_container_connection_name() -> Optional[str]:
+    """Name of the connection that Snowpark Container Services mounts into a container
+    (`sessionTokenConfig.mountConnectionConfig`), `None` outside such a container."""
+    if not snowflake_session_token_available():
+        return None
+    return get_snowflake_default_connection_name()
+
+
 def read_snowflake_connection_params(connection_name: str) -> Dict[str, Any]:
     """Parameters of connection `connection_name` with `~` expanded in its file paths."""
     connections = cast(Dict[str, Dict[str, Any]], _read_connector_option("connections"))
@@ -257,10 +277,17 @@ def read_snowflake_connection_params(connection_name: str) -> Dict[str, Any]:
             " `config.toml` in `SNOWFLAKE_HOME` (default `~/.snowflake`)."
         )
     params = dict(connections[connection_name])
-    for key in ("private_key_file", "token_file_path"):
+    for key in CONNECTION_FILE_PATH_PARAMS:
         if isinstance(params.get(key), str):
             params[key] = os.path.expanduser(params[key])
     return params
+
+
+def get_snowflake_connection_file_paths(connection_name: str) -> Dict[str, str]:
+    """File paths of connection `connection_name` with `~` expanded. The connector does not expand
+    `~`, so they go to `connect` next to the connection name."""
+    params = read_snowflake_connection_params(connection_name)
+    return {key: params[key] for key in CONNECTION_FILE_PATH_PARAMS if params.get(key)}
 
 
 def read_snowflake_session_token() -> str:

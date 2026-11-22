@@ -5,8 +5,9 @@ skip_if_not_active("snowflake")
 
 import os
 import sys
+from contextlib import contextmanager, nullcontext
 from pathlib import Path
-from typing import Any, Callable, Optional
+from typing import Any, Callable, Iterator, Optional
 from unittest.mock import patch
 
 import pytest
@@ -522,6 +523,17 @@ CONNECTION_PARAMS = {
 TSnowflakeHome = Callable[..., Path]
 
 
+@contextmanager
+def snowpark_container(token_path: str) -> Iterator[None]:
+    """Provides the session token and the env variables of a Snowpark container."""
+    Path(token_path).parent.mkdir(parents=True, exist_ok=True)
+    Path(token_path).write_text("SNOW_TOK", encoding="utf-8")
+    spcs_env = {"SNOWFLAKE_ACCOUNT": "host1", "SNOWFLAKE_HOST": "host1.snowflakecomputing.com"}
+    with patch.object(snowflake_utils, "SNOWFLAKE_SESSION_TOKEN_PATH", token_path):
+        with custom_environ(spcs_env):
+            yield
+
+
 @pytest.mark.parametrize(
     "explicit_value",
     [
@@ -556,12 +568,30 @@ def test_snowflake_connector_loads_connection(
     }
     assert str(c) == "snowflake://user1:***@acc1/db1"
 
-    # the connection name and the loaded values survive the round trip
+
+@pytest.mark.parametrize("connection_name", ["dev", "pkey"])
+def test_snowflake_connection_native_representation(
+    snowflake_home: TSnowflakeHome, connection_name: str
+) -> None:
+    """The native representation of credentials loaded from a connection holds the credentials
+    themselves: they resolve without the connection."""
+    snowflake_home(SNOWFLAKE_CONNECTIONS_TOML)
+    c = resolve_configuration(
+        SnowflakeCredentials(),
+        explicit_value={"connection_name": connection_name, "database": "db2"},
+    )
     native = c.to_native_representation()
-    assert "connection_name=dev" in native
-    parsed = SnowflakeCredentials(native)
-    assert parsed.connection_name == "dev"
-    assert parsed.database == "db1"
+    assert "connection_name" not in native
+
+    snowflake_home('[other]\naccount = "acc2"\n')
+    parsed = resolve_configuration(SnowflakeCredentials(), explicit_value=native)
+    assert not parsed.has_default_credentials()
+    assert parsed.connection_name is None
+    for field in ("host", "username", "password", "database", "warehouse", "role", "private_key"):
+        assert parsed[field] == c[field]
+    # an unresolved connection keeps its name
+    unresolved = SnowflakeCredentials("snowflake:///?connection_name=dev")
+    assert "connection_name=dev" in unresolved.to_native_representation()
 
 
 @pytest.mark.parametrize(
@@ -639,7 +669,35 @@ def test_snowflake_connection_loads_private_key(snowflake_home: TSnowflakeHome) 
     assert c.authenticator == "SNOWFLAKE_JWT"
     # dlt does not send the key because the connector reads the key file of the connection
     conn_params = c.to_connector_params()
-    assert conn_params.keys() == {"connection_name", "application", "timezone"}
+    assert conn_params.keys() == {"connection_name", "application", "timezone", "private_key_file"}
+
+
+def test_snowflake_connection_expands_home_in_file_paths(
+    snowflake_home: TSnowflakeHome, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The connector does not expand `~` in the file paths of a connection: dlt sends them
+    expanded next to the connection name."""
+    home = snowflake_home("")
+    monkeypatch.setenv("HOME", str(home))
+    monkeypatch.setenv("USERPROFILE", str(home))
+    (home / "key.p8").write_text(PKEY_PEM_STR, encoding="utf-8")
+    (home / "token").write_text("FILE_TOK\n", encoding="utf-8")
+    snowflake_home(
+        '[home_paths]\naccount = "acc1"\nuser = "user1"\nauthenticator = "SNOWFLAKE_JWT"\n'
+        'private_key_file = "~/key.p8"\n'
+        f'private_key_file_pwd = "{PKEY_PASSPHRASE}"\ntoken_file_path = "~/token"\n'
+    )
+    c = resolve_configuration(
+        SnowflakeCredentials(), explicit_value={"connection_name": "home_paths"}
+    )
+    assert c.private_key == PKEY_PEM_STR
+    assert c.to_connector_params() == {
+        "connection_name": "home_paths",
+        "application": SNOWFLAKE_APPLICATION_ID,
+        "timezone": "UTC",
+        "private_key_file": str(home / "key.p8"),
+        "token_file_path": str(home / "token"),
+    }
 
 
 def test_snowflake_connection_loads_token_file(snowflake_home: TSnowflakeHome) -> None:
@@ -675,6 +733,13 @@ def test_snowflake_connection_unknown_name(snowflake_home: TSnowflakeHome) -> No
     for name in ("dev", "pkey", "no_account", "host_only"):
         assert name in str(py_ex.value)
 
+    # without a default connection there is nothing to fall back to
+    with pytest.raises(ConfigurationValueError, match="`prod`"):
+        resolve_configuration(
+            SnowflakeCredentials(),
+            explicit_value={"connection_name": "prod", "allow_default_connection_fallback": True},
+        )
+
 
 def test_snowflake_connection_missing_connector(snowflake_home: TSnowflakeHome) -> None:
     snowflake_home(SNOWFLAKE_CONNECTIONS_TOML)
@@ -697,38 +762,92 @@ def test_snowflake_connection_missing_connector(snowflake_home: TSnowflakeHome) 
 def test_snowflake_default_connection(
     snowflake_home: TSnowflakeHome, config_toml: str, env_name: Optional[str], expected_name: str
 ) -> None:
+    """Credentials without auth use the default connection only in a Snowpark container."""
     snowflake_home(SNOWFLAKE_CONNECTIONS_TOML + DEFAULT_CONNECTION_TOML, config_toml)
     env = {"SNOWFLAKE_DEFAULT_CONNECTION_NAME": env_name} if env_name else {}
     with custom_environ(env):
-        c = resolve_configuration(SnowflakeCredentials())
-        assert c.connection_name == expected_name
-        assert c.has_default_credentials()
-        assert c.to_connector_params()["connection_name"] == expected_name
-        assert SnowflakeClientConfiguration(credentials=c).fingerprint() == digest128("acc1")
+        with pytest.raises(ConfigFieldMissingException):
+            resolve_configuration(SnowflakeCredentials())
 
-        # dlt keeps the session parameters as overrides
-        c = resolve_configuration(SnowflakeCredentials(), explicit_value={"database": "db2"})
-        assert c.connection_name == expected_name
-        assert c.to_connector_params()["database"] == "db2"
+        with snowpark_container(os.path.join(get_test_storage_root(), "token")):
+            c = resolve_configuration(SnowflakeCredentials())
+            assert c.connection_name == expected_name
+            assert c.has_default_credentials()
+            assert c.to_connector_params()["connection_name"] == expected_name
+            assert SnowflakeClientConfiguration(credentials=c).fingerprint() == digest128("acc1")
+
+            # dlt keeps the session parameters as overrides
+            c = resolve_configuration(SnowflakeCredentials(), explicit_value={"database": "db2"})
+            assert c.connection_name == expected_name
+            assert c.to_connector_params()["database"] == "db2"
 
 
 def test_snowflake_default_connection_not_used(snowflake_home: TSnowflakeHome) -> None:
-    # no connections at all
-    with pytest.raises(ConfigFieldMissingException) as missing_ex:
-        resolve_configuration(SnowflakeCredentials())
-    assert set(missing_ex.value.fields) == {"host", "database"}
+    with snowpark_container(os.path.join(get_test_storage_root(), "token")):
+        # no connections at all
+        with pytest.raises(ConfigFieldMissingException) as missing_ex:
+            resolve_configuration(SnowflakeCredentials())
+        assert set(missing_ex.value.fields) == {"host", "database"}
 
-    # default name points to a connection that is not defined
-    snowflake_home(SNOWFLAKE_CONNECTIONS_TOML, 'default_connection_name = "prod"')
-    with pytest.raises(ConfigFieldMissingException):
-        resolve_configuration(SnowflakeCredentials())
+        # default name points to a connection that is not defined
+        snowflake_home(SNOWFLAKE_CONNECTIONS_TOML, 'default_connection_name = "prod"')
+        with pytest.raises(ConfigFieldMissingException):
+            resolve_configuration(SnowflakeCredentials())
 
-    # any explicit credential disables the default connection
-    snowflake_home(SNOWFLAKE_CONNECTIONS_TOML, 'default_connection_name = "dev"')
-    with pytest.raises(ConfigFieldMissingException):
-        resolve_configuration(SnowflakeCredentials(), explicit_value={"username": "user2"})
-    with pytest.raises(ConfigurationValueError, match="username"):
-        resolve_configuration(SnowflakeCredentials(), explicit_value="snowflake://acc2/db2")
+        # any explicit credential disables the default connection
+        snowflake_home(SNOWFLAKE_CONNECTIONS_TOML, 'default_connection_name = "dev"')
+        with pytest.raises(ConfigFieldMissingException):
+            resolve_configuration(SnowflakeCredentials(), explicit_value={"username": "user2"})
+        with pytest.raises(ConfigurationValueError, match="username"):
+            resolve_configuration(SnowflakeCredentials(), explicit_value="snowflake://acc2/db2")
+
+
+@pytest.mark.parametrize("in_container", [False, True], ids=["machine", "snowpark-container"])
+@pytest.mark.parametrize(
+    "explicit_value,falls_back",
+    [
+        pytest.param(
+            {"connection_name": "prod", "allow_default_connection_fallback": True},
+            True,
+            id="flag",
+        ),
+        pytest.param(
+            "snowflake:///db2?connection_name=prod&allow_default_connection_fallback=true",
+            True,
+            id="flag-in-url",
+        ),
+        pytest.param({"connection_name": "prod"}, False, id="no-flag"),
+    ],
+)
+def test_snowflake_default_connection_fallback(
+    snowflake_home: TSnowflakeHome, in_container: bool, explicit_value: Any, falls_back: bool
+) -> None:
+    """A connection that is not defined falls back to the default connection only with
+    `allow_default_connection_fallback`, also outside a Snowpark container."""
+    snowflake_home(SNOWFLAKE_CONNECTIONS_TOML + DEFAULT_CONNECTION_TOML)
+    container = (
+        snowpark_container(os.path.join(get_test_storage_root(), "token"))
+        if in_container
+        else nullcontext()
+    )
+    with container:
+        if not falls_back:
+            with pytest.raises(ConfigurationValueError) as py_ex:
+                resolve_configuration(SnowflakeCredentials(), explicit_value=explicit_value)
+            assert "allow_default_connection_fallback" in str(py_ex.value)
+            assert "`prod`" in str(py_ex.value)
+            return
+        if isinstance(explicit_value, dict):
+            explicit_value = {**explicit_value, "database": "db2"}
+        c = resolve_configuration(SnowflakeCredentials(), explicit_value=explicit_value)
+    assert c.connection_name == "default"
+    assert c.default_credentials() == "default"
+    assert c.to_connector_params() == {
+        "connection_name": "default",
+        "application": SNOWFLAKE_APPLICATION_ID,
+        "timezone": "UTC",
+        "database": "db2",
+    }
 
 
 def test_snowflake_container_connection(

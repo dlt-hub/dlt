@@ -1,10 +1,11 @@
 import contextlib
-from typing import List
+from typing import Dict, List
 from packaging.requirements import Requirement
 from packaging.version import Version
 
 from dlt.common.runners import Venv
 from dlt.common.destination.client import DestinationClientDwhConfiguration
+from dlt.common.configuration.exceptions import ConfigurationValueError
 from dlt.common.configuration.specs import CredentialsWithDefault
 from dlt.common.typing import TSecretStrValue, ConfigValue
 from dlt.version import get_installed_requirement_string
@@ -20,6 +21,13 @@ DBT_DESTINATION_MAP = {
     "mssql": "sqlserver",
 }
 
+SNOWFLAKE_AUTHENTICATOR_PROFILES: Dict[str, str] = {
+    "snowflake": "",
+    "oauth": "_oauth",
+    "programmatic_access_token": "_pat",
+}
+"""Suffixes of the snowflake dbt profiles per `authenticator` of the credentials without a key pair"""
+
 
 def _default_profile_name(credentials: DestinationClientDwhConfiguration) -> str:
     profile_name = credentials.destination_type
@@ -27,10 +35,16 @@ def _default_profile_name(credentials: DestinationClientDwhConfiguration) -> str
     has_default = isinstance(creds, CredentialsWithDefault) and creds.has_default_credentials()
     if profile_name == "snowflake":
         # dlt loads the credentials of a `connections.toml` connection into the config fields
+        authenticator = (getattr(creds, "authenticator", None) or "snowflake").lower()
         if getattr(creds, "private_key", None):
             profile_name += "_pkey"
-        elif getattr(creds, "authenticator", None) == "oauth":
-            profile_name += "_oauth"
+        elif authenticator in SNOWFLAKE_AUTHENTICATOR_PROFILES:
+            profile_name += SNOWFLAKE_AUTHENTICATOR_PROFILES[authenticator]
+        else:
+            raise ConfigurationValueError(
+                f"dbt cannot use Snowflake authenticator `{authenticator}`. dlt shares a password,"
+                " a key pair, an OAuth token or a programmatic access token with dbt."
+            )
     elif has_default:
         # in case of credentials with default add default to the profile name
         profile_name += "_default"

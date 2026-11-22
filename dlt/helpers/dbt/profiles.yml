@@ -108,6 +108,22 @@ snowflake:
       threads: 4
 
 
+# snowflake with a programmatic access token, which Snowflake takes as the password
+snowflake_pat:
+  target: analytics
+  outputs:
+    analytics:
+      type: snowflake
+      account: "{{ env_var('DLT__CREDENTIALS__HOST') }}"
+      user: "{{ env_var('DLT__CREDENTIALS__USERNAME') }}"
+      password: "{{ env_var('DLT__CREDENTIALS__TOKEN') }}"
+      database: "{{ env_var('DLT__CREDENTIALS__DATABASE') }}"
+      role: "{{ env_var('DLT__CREDENTIALS__ROLE', '') }}"
+      schema: "{{ var('destination_dataset_name', var('source_dataset_name')) }}"
+      warehouse: "{{ env_var('DLT__CREDENTIALS__WAREHOUSE', '') }}"
+      threads: 4
+
+
 # snowflake with private key auth
 snowflake_pkey:
   target: analytics
@@ -134,6 +150,8 @@ snowflake_oauth:
     analytics:
       type: snowflake
       account: "{{ env_var('DLT__CREDENTIALS__HOST') }}"
+      # the account URL, which a Snowpark container connects to
+      host: "{{ env_var('DLT__CREDENTIALS___SNOWFLAKE_HOST', '') }}"
       user: "{{ env_var('DLT__CREDENTIALS__USERNAME', '') }}"
       database: "{{ env_var('DLT__CREDENTIALS__DATABASE') }}"
       role: "{{ env_var('DLT__CREDENTIALS__ROLE', '') }}"

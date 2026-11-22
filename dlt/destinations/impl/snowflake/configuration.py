@@ -5,16 +5,17 @@ from typing import Final, Optional, Any, Dict, ClassVar, List, Tuple
 
 from dlt.common import logger
 from dlt.common.destination.configuration import CsvFormatConfiguration
-from dlt.common.exceptions import MissingDependencyException
 from dlt.common.libs.cryptography import decode_private_key
 from dlt.common.typing import TSecretStrValue
 from dlt.common.configuration.specs import ConnectionStringCredentials, CredentialsWithDefault
 from dlt.common.configuration.exceptions import ConfigurationValueError
 from dlt.common.configuration import configspec
 from dlt.common.destination.client import DestinationClientDwhWithStagingConfiguration
-from dlt.common.utils import digest128
+from dlt.common.utils import digest128, str2bool
 from dlt.destinations.impl.snowflake.utils import (
-    default_snowflake_connection_name,
+    get_snowflake_connection_file_paths,
+    get_snowflake_container_connection_name,
+    get_snowflake_default_connection_name,
     list_snowflake_connections,
     read_snowflake_connection_params,
     read_snowflake_session_token,
@@ -171,6 +172,8 @@ class SnowflakeCredentialsWithoutDefaults(ConnectionStringCredentials):
         # the connector loads the credentials itself, so dlt does not send them
         conn_params: Dict[str, Any] = dict(self.query or {})
         conn_params["connection_name"] = self.connection_name
+        for key, path in get_snowflake_connection_file_paths(self.connection_name).items():
+            conn_params.setdefault(key, path)
         for param in CONNECTION_OVERRIDE_PARAMS:
             if getattr(self, param):
                 conn_params[param] = getattr(self, param)
@@ -207,21 +210,50 @@ class SnowflakeCredentialsWithoutDefaults(ConnectionStringCredentials):
 
     @property
     def _is_snowflake_auth(self) -> bool:
-        return not self.authenticator or self.authenticator == "snowflake"
+        return self._authenticator in (None, "snowflake")
+
+    @property
+    def _authenticator(self) -> Optional[str]:
+        """`authenticator` in lower case, as the connector compares it."""
+        return self.authenticator.lower() if self.authenticator else None
 
 
 @configspec(init=False)
 class SnowflakeCredentials(SnowflakeCredentialsWithoutDefaults, CredentialsWithDefault):
+    allow_default_connection_fallback: bool = False
+    """Use the default connection of the connector when `connection_name` is not defined"""
+
     _use_snowflake_session_token: bool = False
+
+    def parse_native_representation(self, native_value: Any) -> None:
+        super().parse_native_representation(native_value)
+        # a dlt option, not a connector parameter
+        if self.query and "allow_default_connection_fallback" in self.query:
+            self.allow_default_connection_fallback = str2bool(
+                self.query.pop("allow_default_connection_fallback")
+            )
+
+    def to_native_representation(self) -> str:
+        if not (self.connection_name and self.has_default_credentials()):
+            return super().to_native_representation()
+        # the credentials loaded from the connection stand without it. a connection with `host`
+        # and no `account` has no such form
+        url = self.to_url()
+        query = {k: v for k, v in url.query.items() if k != "connection_name"}
+        return url.set(query=query).render_as_string(hide_password=False)
 
     def on_partial(self) -> None:
         # `on_resolved` rejects credentials mixed with a connection
         if not self.connection_name:
-            if self.authenticator == "oauth" and not self.host:
+            if self._authenticator == "oauth" and not self.host:
                 self._from_snowflake_session_token()
             elif not self._has_explicit_auth:
-                # Snowpark containers mount a `default` connection
-                self.connection_name = self._default_connection_name()
+                self.connection_name = get_snowflake_container_connection_name()
+                if self.connection_name:
+                    logger.info(
+                        f"dlt uses the Snowflake connection `{self.connection_name}` that the"
+                        " container mounts"
+                    )
 
         if self.connection_name or not self.is_partial():
             self.resolve()
@@ -229,7 +261,7 @@ class SnowflakeCredentials(SnowflakeCredentialsWithoutDefaults, CredentialsWithD
     def on_resolved(self) -> None:
         if self.connection_name:
             self._from_connection()
-        elif self.authenticator == "oauth" and not self.token:
+        elif self._authenticator == "oauth" and not self.token:
             self._from_snowflake_session_token()
 
     def get_query(self) -> Dict[str, Any]:
@@ -246,6 +278,8 @@ class SnowflakeCredentials(SnowflakeCredentialsWithoutDefaults, CredentialsWithD
         self.host = os.environ["SNOWFLAKE_ACCOUNT"]
         self._snowflake_host = os.environ["SNOWFLAKE_HOST"]
         self._use_snowflake_session_token = True
+        # tools that get the credentials, such as dbt, need the token. each connection reads it again
+        self._ensure_fresh_token()
 
     def _ensure_fresh_token(self) -> None:
         if self._use_snowflake_session_token:
@@ -253,6 +287,8 @@ class SnowflakeCredentials(SnowflakeCredentialsWithoutDefaults, CredentialsWithD
 
     def _from_connection(self) -> None:
         """Loads the parameters of `connection_name` into the fields that are not set."""
+        if self.connection_name not in list_snowflake_connections():
+            self._use_default_connection()
         params = read_snowflake_connection_params(self.connection_name)
         for param, field_name in CONNECTION_PARAMS_TO_FIELDS.items():
             if param in params and getattr(self, field_name) is None:
@@ -264,17 +300,25 @@ class SnowflakeCredentials(SnowflakeCredentialsWithoutDefaults, CredentialsWithD
             self._read_private_key_path()
         self._set_default_credentials(self.connection_name)
 
-    @staticmethod
-    def _default_connection_name() -> Optional[str]:
-        """Default connection name of the connector, `None` when no such connection is defined."""
-        try:
-            name = default_snowflake_connection_name()
-            if name not in list_snowflake_connections():
-                return None
-        except MissingDependencyException:
-            return None
-        logger.info(f"dlt uses the default Snowflake connection `{name}`")
-        return name
+    def _use_default_connection(self) -> None:
+        """Replaces `connection_name`, which is not defined, with the default connection when
+        `allow_default_connection_fallback` is set."""
+        default_name = get_snowflake_default_connection_name()
+        if not default_name:
+            # `read_snowflake_connection_params` lists the known connections
+            return
+        if not self.allow_default_connection_fallback:
+            raise ConfigurationValueError(
+                f"dlt did not find Snowflake connection `{self.connection_name}`. Known"
+                f" connections: {list_snowflake_connections()}. Set"
+                " `allow_default_connection_fallback` to use the default connection"
+                f" `{default_name}` instead."
+            )
+        logger.info(
+            f"Snowflake connection `{self.connection_name}` is not defined: dlt uses the default"
+            f" Snowflake connection `{default_name}`"
+        )
+        self.connection_name = default_name
 
 
 @configspec
