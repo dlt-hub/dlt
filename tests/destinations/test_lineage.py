@@ -318,16 +318,16 @@ def test_compute_columns_schema(
             },
         ),
         (
-            "SELECT nope FROM read_parquet('x.parquet')",
+            "SELECT * FROM read_parquet('x.parquet')",
             {
-                "reason": "unknown_table",
+                "reason": "unresolved_star",
                 "fragments": [
-                    "dlt does not know the columns of table function `READ_PARQUET('x.parquet')`"
+                    "it does not know the columns of table function `READ_PARQUET('x.parquet')`"
                 ],
             },
         ),
         (
-            "SELECT nope FROM table_1 AS t, LATERAL (SELECT 1 AS b) AS l",
+            "SELECT nope FROM table_1 AS t, LATERAL (SELECT * FROM read_parquet('x.parquet')) AS l",
             {
                 "reason": "unknown_table",
                 "sources": {"l": ("LATERAL `l`", None)},
