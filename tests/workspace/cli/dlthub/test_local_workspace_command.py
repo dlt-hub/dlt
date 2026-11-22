@@ -301,6 +301,9 @@ def test_dlthub_local_profile_use(
     # WORKSPACE__PROFILE overrides the recorded profile
     monkeypatch.setenv(WORKSPACE__PROFILE, "dev")
     assert "WORKSPACE__PROFILE=dev is set in this shell" in use("prod")
+    out = use()
+    assert "prod is the active profile recorded in" in out
+    assert "local commands run with dev" in out
     # an undeclared name is refused
     with pytest.raises(ProfileNotDeclared, match="dlthub profile add staging --local"):
         use("staging")

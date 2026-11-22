@@ -395,6 +395,12 @@ def pin_profile(workspace_run_context: WorkspaceRunContext, profile_name: str) -
                 " `dlthub local profile use <name>`."
                 % (fmt.bold(pin_file), fmt.bold(workspace_run_context.default_profile))
             )
+        if overriding := os.environ.get(WORKSPACE__PROFILE):
+            fmt.warning(
+                "WORKSPACE__PROFILE is set in this shell: local commands run with %s. To run them"
+                " with the profile above, unset it."
+                % fmt.bold(overriding)
+            )
         return
     check_profile_declared(profile_name)
     doc = workspace_run_context.workspace_definition

@@ -513,7 +513,9 @@ class LocalWorkspaceCommand(SupportsCliCommand):
                 " another profile active."
             ),
         )
-        use_p.add_argument("profile_name", help="Profile name")
+        use_p.add_argument(
+            "profile_name", nargs="?", help="Profile name. Omit it to show the active profile."
+        )
 
         # delegate parser definition; `execute` re-instantiates fresh — these classes
         # don't reach for `self.parser` after configure_parser

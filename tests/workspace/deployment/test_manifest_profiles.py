@@ -87,7 +87,7 @@ def _get_profiles_and_access(manifest: TJobsDeploymentManifest) -> TJobProfiles:
         (
             "prod",
             [
-                "environment `prod` has no profile with no data access: 1 job"
+                "environment `prod` has no profile without data access: 1 job"
                 " (`jobs.jobs.triage`) that declares no data access runs with `access` (read data"
                 " access). Add one with `dlthub profile add prod-none --access none"
                 " --environment prod`."

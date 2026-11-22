@@ -635,8 +635,8 @@ NOT_IN_ENVIRONMENT = (
             (
                 JobProfileAccessMismatch,
                 (
-                    "Or declare a profile with write data access on the job. `stg-read` also has"
-                    " no settings files."
+                    "and needs write data access. `stg-read` also has no settings files."
+                    " Environment `stg` is strict about access"
                 ),
             ),
             (
@@ -731,7 +731,7 @@ def test_attach_job_profiles_warns_once_per_profile() -> None:
             " read data access."
         ),
         (
-            "environment `stg` has no profile with no data access: 1 job (`jobs.mod.agent`) that"
+            "environment `stg` has no profile without data access: 1 job (`jobs.mod.agent`) that"
             " declares no data access runs with `stg-write` (write data access). Add one with"
             " `dlthub profile add stg-none --access none --environment stg`."
         ),

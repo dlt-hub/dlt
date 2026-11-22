@@ -543,8 +543,9 @@ def _format_profile_fallback_warning(
             f"profile `{default}` has no settings files: {falls_back}. Create the settings files"
             f" with `dlthub profile add {default}` to give them {needed}."
         )
+    missing = "without data access" if data_access == "none" else f"with {needed}"
     return (
-        f"environment `{env}` has no profile with {needed}: {falls_back}. Add one with"
+        f"environment `{env}` has no profile {missing}: {falls_back}. Add one with"
         f" `dlthub profile add {env}-{data_access} --access {data_access} --environment {env}`."
     )
 

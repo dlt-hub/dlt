@@ -177,7 +177,7 @@ class JobProfileAccessMismatch(DeploymentValidationError):
             problem = f"Job `{job_ref}` declares profile `{profile}`, which has no settings files."
             remedy = f" Create the settings files with `dlthub profile add {profile}`."
         if not configured and profile_data_access != data_access:
-            remedy += f" `{profile}` also has no settings files."
+            problem += f" `{profile}` also has no settings files."
         super().__init__(
             f"{problem} Environment `{env}` is strict about access: the profile of a job gives"
             f" exactly the access that the job declares.{remedy}"
