@@ -53,7 +53,7 @@ You can also create the workspace with `dlthub init`. The command adds the depen
 uvx --from dlt@latest dlthub init --agent cortex
 ```
 
-Without a name, `--agent` detects the agent. Without `--agent`, `dlthub init` creates the workspace and installs no toolkit. Run `uv sync` afterwards to install the dependencies. In an existing workspace, `dlthub init` changes nothing: run `dlthub ai init` instead.
+If you pass `--agent` without a name, dlt detects the agent. Without `--agent`, `dlthub init` creates the workspace and installs no toolkit. Run `uv sync` afterwards to install the dependencies. In an existing workspace, `dlthub init` changes nothing. Run `dlthub ai init` instead.
 
 ## What you get
 
@@ -80,7 +80,7 @@ Each agent reads the server from its own config file:
 | Codex       | `.codex/config.toml`                                                          |
 | Cortex Code | `.cortex/mcp.json` for Desktop, `$SNOWFLAKE_HOME/cortex/mcp.json` for the CLI |
 
-The Cortex Code CLI reads MCP servers only from your user config, and `$SNOWFLAKE_HOME` is `~/.snowflake` by default. For Codex, dlt also sets `mcp_optional_startup_grace_ms = 5000` when your config does not set it. Codex then waits up to 5 seconds for the server before the first turn of a session.
+The Cortex Code CLI reads MCP servers only from your user config. `$SNOWFLAKE_HOME` is `~/.snowflake` by default. For Codex, dlt also sets `mcp_optional_startup_grace_ms = 5000` when your config does not set it. Codex then waits up to 5 seconds for the server before the first turn of a session.
 
 If your agent does not show the tools of `dlt-workspace-mcp`:
 
@@ -89,11 +89,11 @@ If your agent does not show the tools of `dlt-workspace-mcp`:
 3. In Cursor, enable the server in Cursor Settings > MCP.
 4. In Codex, trust the project. Codex reads `.codex/config.toml` only in a trusted project.
 5. In Cortex Code, run `cortex mcp list` to see the state of the server. Then run `cortex mcp reconnect dlt-workspace-mcp`.
-6. In Cortex Code Desktop, trust the workspace. Desktop loads project MCP servers only in a trusted workspace.
+6. In Cortex Code Desktop, trust the Cortex Code workspace of this project. Desktop loads project MCP servers only from a trusted Cortex Code workspace.
 
 ## Adding feature toolkits
 
-Usually, your agent installs feature toolkits for you. Tell the agent what you want to build, and `dlthub-router` picks the toolkit and installs it. For example, you tell the agent:
+Usually, your agent installs feature toolkits for you. When you tell the agent what you want to build, `dlthub-router` picks the toolkit and installs it. For example, you tell the agent:
 
 > I want to ingest pull requests and issues from the GitHub REST API.
 
@@ -117,13 +117,13 @@ Install the toolkit:
 uv run dlthub ai toolkit install rest-api-pipeline
 ```
 
-`toolkit install` installs for the agent of the workspace. To install for a different agent, pass `--agent claude|cursor|codex|cortex`. To update an installed toolkit, pass `--overwrite`. The update replaces the files that the toolkit ships, and removes the files that the new version does not ship. This includes the files that you edited. The files that you added stay.
+`toolkit install` installs for the AI coding agent of the workspace. To install for a different coding agent, pass `--agent claude|cursor|codex|cortex`. To update an installed toolkit, pass `--overwrite`. The update replaces the files that the toolkit ships, and removes the files that the new version does not ship. The update also replaces and removes the files that you edited. The files that you added stay.
 
-A toolkit that ships agent definitions installs each one to `.claude/dlthub/agents/<toolkit>/<agent>/`. For Cursor, Codex, and Cortex Code, the folder starts with `.cursor/`, `.agents/`, or `.cortex/`. There, `run.agent("<toolkit>:<agent>")` finds it. See [Background agents](../agents/index.md).
+dlt installs each agent definition of a toolkit to `.claude/dlthub/agents/<toolkit>/<agent>/`. For Cursor, Codex, and Cortex Code, the folder starts with `.cursor/`, `.agents/`, or `.cortex/`. There, `run.agent("<toolkit>:<agent>")` finds it. See [Background agents](../agents/index.md).
 
 ### Toolkits for specific agents
 
-The `toolkit.json` file of a toolkit can name the agents that see the toolkit, or that see one of its skills, rules, or MCP servers. Your agent sees and installs only what is made for it. To see and install everything, pass `--see-all` to `toolkit list`, `toolkit info`, or `toolkit install`.
+The `toolkit.json` file of a toolkit can name the AI coding agents that see the toolkit, or that see one of its components, such as a skill, a rule, or an MCP server. Your agent sees and installs only what is made for it. To see and install everything, pass `--see-all` to `toolkit list`, `toolkit info`, or `toolkit install`.
 
 For example, the `snowflake-platform` toolkit is made for Cortex Code. To install it for Claude Code, run:
 
@@ -131,14 +131,14 @@ For example, the `snowflake-platform` toolkit is made for Cortex Code. To instal
 uv run dlthub ai toolkit install snowflake-platform --agent claude --see-all
 ```
 
-A toolkit that you installed with `--see-all` keeps all its parts when you update it.
+A toolkit that you installed with `--see-all` keeps all its components when you update it.
 
 ### Rules for Codex and Cortex Code
 
 Codex and Cortex Code do not read a folder of rules, so dlt gives them the rules in a different way:
 
 - **Codex**: dlt installs each rule as a skill in `.agents/skills/`. A session start hook in `.codex/hooks.json` runs `uv run dlthub ai rules --agent codex`. This command prints a link to each rule skill and tells Codex to obey these skills. Codex runs the hook only in a trusted project, after you approve it once with `/hooks`. You can delete the skill list that older dlt versions wrote to `AGENTS.md`.
-- **Cortex Code**: dlt installs each rule to `.cortex/rules/`. After each toolkit install, dlt writes all the rules into the `# dltHub rules` section of `CORTEX.md`. To change a rule, edit its file, because dlt replaces the section. The text outside the section stays. Cortex Code reads skills and `CORTEX.md` when a session starts, so start a new session after an install.
+- **Cortex Code**: dlt installs each rule to `.cortex/rules/`. After each toolkit install, dlt writes all the rules into the `# dltHub rules` section of `CORTEX.md`. To change a rule, edit its file, because dlt replaces the section. The text outside the section stays. Cortex Code reads skills and `CORTEX.md` only when a session starts. Start a new session after an install.
 
 ## Verify
 

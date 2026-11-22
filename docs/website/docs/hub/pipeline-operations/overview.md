@@ -46,13 +46,13 @@ Each interactive application is exposed via a unique public URL tied to its run.
 
 ### Profiles and environments
 
-A [profile](./profiles.md) controls access to your data. It holds the credentials that a job runs with and declares their data access: write, read or none. The platform gives each job the profile with the data access that it declares, and you set up the credentials:
+A [profile](./profiles.md) controls access to your data. It holds the credentials that a job runs with and declares their data access: write, read or none. A deployment gives each job the default profile of the data access that it declares. You set up the credentials:
 
 - Local development uses [DuckDB](../../dlt-ecosystem/destinations/duckdb.md) with no credentials needed
-- Production jobs use [MotherDuck](../../dlt-ecosystem/destinations/motherduck.md) (or [any cloud destination](../../dlt-ecosystem/destinations/index.md)) with write data access
+- Production jobs use [MotherDuck](../../dlt-ecosystem/destinations/motherduck.md) (or [any cloud destination](../../dlt-ecosystem/destinations/index.md)) with credentials that can write
 - Interactive jobs use read-only credentials
 
-An [environment](./profiles.md#how-environments-work) is what a deployment is made to. Each environment deploys the same workspace to a remote workspace of its own, `prod` by default, `staging` for a review of your changes. See [Workspace setup](workspace-setup.md#understanding-workspace-profiles) for the built-in profiles.
+An [environment](./profiles.md#how-environments-work) is what a deployment is made to: `prod` by default, or `staging` to review your changes. In each environment, the same local workspace deploys to a remote workspace of its own. See [Workspace setup](workspace-setup.md#understanding-workspace-profiles) for the built-in profiles.
 
 ### Deployments and configurations
 
@@ -151,5 +151,5 @@ For detailed CLI documentation, see [CLI](../command-line-interface.md).
 - **UI operations**: new jobs must currently be created via the CLI; once a job exists, subsequent runs can be triggered from the Web UI (and schedules can be changed there too)
 - **Pagination**: list views are paginated; the page size can be adjusted in the Web UI
 - **Log latency**: logs typically lag a few seconds during execution and are guaranteed complete after the run finishes (completed or failed state)
-- **One remote workspace per environment**: in each environment, a local workspace is connected to one remote workspace at a time; reconnecting deactivates jobs deployed under the previous connection — see [Workspace setup](workspace-setup.md#2-log-in-to-the-dlthub-platform)
+- **One remote workspace per environment**: in each environment, a local workspace is connected to one remote workspace at a time. A new connection deactivates the jobs deployed under the previous one. See [Workspace setup](workspace-setup.md#2-log-in-to-the-dlthub-platform).
 - **No drift detection**: the CLI does not yet detect whether local code differs from remote. Run `dlthub workspace deployment sync` (or any `run` / `serve` / `deploy`) to ensure your latest code is deployed

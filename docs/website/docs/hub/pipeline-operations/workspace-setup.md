@@ -42,7 +42,7 @@ The first time you run `dlthub deploy`, `dlthub run`, or `dlthub serve`, the CLI
 :::
 
 :::caution
-In each environment, a local workspace is connected to only one remote workspace at a time. You connect with `dlthub workspace connect`. If you point the same repo at a different remote workspace, jobs deployed under the previous connection are deactivated — run history is preserved but their triggers no longer fire.
+In each environment, a local workspace is connected to only one remote workspace at a time. You connect it with `dlthub workspace connect`. If you connect it to a different remote workspace, the jobs deployed under the previous connection are deactivated. Their run history stays, but their triggers no longer fire.
 
 Connecting multiple local repositories to the same remote workspace is not yet supported.
 :::
@@ -59,7 +59,9 @@ This reuses the same machinery as `dlt init`, so verified sources and templates 
 
 ### Understanding workspace profiles
 
-A **profile** controls access to your data. It holds the credentials that a pipeline or job runs with and declares their data access: write, read or none. It also holds settings. You set up the rights of each credential at the destination, dlt does not check them. A local profile runs only on your machine. A remote profile belongs to an environment and deploys with it. The built-in profiles are:
+A **profile** controls access to your data. It holds the credentials that a pipeline or job runs with and declares their data access: write, read or none. It also holds settings. dlt does not check what a credential can do. You set up the rights of each credential at the destination.
+
+A local profile never leaves your machine. A remote profile belongs to an environment and deploys with it. The built-in profiles are:
 
 | Profile     | Location | Data access | Used by                                                      |
 | ----------- | -------- | ----------- | ------------------------------------------------------------ |
@@ -69,7 +71,7 @@ A **profile** controls access to your data. It holds the credentials that a pipe
 | `access`    | remote   | read        | interactive jobs on the dltHub platform                      |
 | `no-access` | remote   | none        | [agent jobs](../agents/index.md) that declare no data access |
 
-A deployment is made to an **environment**, `prod` by default, and gives every job the profile of the environment with the data access that the job declares. See [Profiles and environments](./profiles.md) for the full reference.
+A deployment is made to an **environment**, `prod` by default. It gives every job the default profile of the data access that the job declares. See [Profiles and environments](./profiles.md) for the full reference.
 
 ### Setting up configuration files
 

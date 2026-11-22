@@ -26,7 +26,7 @@ dlthub run fruitshop_pipeline.py
 # Stream logs in your terminal until the run completes
 dlthub run fruitshop_pipeline.py -f
 
-# Deploy and serve an interactive app (notebook, dashboard, MCP — runs with the profile with read data access, `access`)
+# Serve an interactive app (notebook, dashboard, MCP). On the platform it runs with `access`, the default profile with read data access
 dlthub local serve fruitshop_notebook.py    # local
 dlthub serve fruitshop_notebook.py          # remote
 ```
@@ -154,7 +154,7 @@ This is the central command for manifest-based deployment. It reads the deployme
 dlthub deploy
 ```
 
-The deployment is made to the [environment](profiles.md#how-environments-work) of the active profile, else to the default environment, `prod`, with its default write profile. Name another environment with `--environment`:
+A deployment is made to the [environment](profiles.md#how-environments-work) of the active profile, else to the default environment, `prod` in a new workspace. `dlthub deploy` runs with the default write profile of that environment. Name another environment with `--environment`:
 
 ```cli
 dlthub deploy --environment staging

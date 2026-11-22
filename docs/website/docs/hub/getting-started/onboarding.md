@@ -195,7 +195,7 @@ warehouse = "your_warehouse"
 role = "your_role"
 ```
 
-Local runs, via `dlthub local run`, use the `dev` profile, while batch jobs on the dltHub platform use the `prod` profile. The pipeline code therefore remains unchanged while the destination changes between profiles.
+Local runs, via `dlthub local run`, use the active profile, `dev` by default, while batch jobs on the dltHub platform use the `prod` profile. The pipeline code therefore remains unchanged while the destination changes between profiles.
 
 Supported destinations include
 [MotherDuck](../../dlt-ecosystem/destinations/motherduck.md),

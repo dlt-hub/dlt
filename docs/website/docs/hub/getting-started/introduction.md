@@ -38,7 +38,7 @@ dltHub is built around the open-source library [dlt](../../intro.md). It reuses 
 * [Managed infrastructure for pipelines and data apps](../pipeline-operations/overview.md)
 * [Observability](../ingestion/dashboard.md) for pipelines and data apps
 
-dltHub supports both local and managed cloud development. From a [dltHub Workspace](./installation.md#what-is-a-dlthub-workspace), with the isolated [profiles](../pipeline-operations/profiles.md) `dev`, `prod`, and `access` and an environment for each remote workspace that it deploys to, a single developer can deploy and operate pipelines, transformations, and notebooks with a single command. The [platform](../pipeline-operations/overview.md), [workspace dashboard](../ingestion/dashboard.md), and validation tools provide monitoring, troubleshooting, and reliability across the full data workflow:
+dltHub supports both local and managed cloud development. A [dltHub Workspace](./installation.md#what-is-a-dlthub-workspace) has the isolated [profiles](../pipeline-operations/profiles.md) `dev`, `prod`, and `access`, and an environment for each remote workspace that it deploys to. From this workspace, a single developer can deploy and operate pipelines, transformations, and notebooks with a single command. The [platform](../pipeline-operations/overview.md), [workspace dashboard](../ingestion/dashboard.md), and validation tools provide monitoring, troubleshooting, and reliability across the full data workflow:
 
 ```mermaid
 flowchart LR
@@ -93,7 +93,8 @@ Write transformations alongside your ingestion pipelines so they share datasets,
 Deploy, schedule, and monitor pipelines, transformations, and notebooks without standing up infrastructure.
 
 * [dltHub platform](../pipeline-operations/overview.md)—one-command deploy of an entire workspace, with cron and event-driven [triggers](../pipeline-operations/triggers.md), follow-up chains, freshness checks, and refresh cascades. Sign in at [app.dlthub.com](https://app.dlthub.com)
-* [Profiles and environments](../pipeline-operations/profiles.md) and [regions](../platform-capabilities/regions.md)—isolate the settings and credentials of `dev`, `prod`, and `access`, deploy the same workspace to `staging` and `prod`, and choose where your data plane runs
+* [Profiles and environments](../pipeline-operations/profiles.md)—isolate the settings and credentials of the `dev`, `prod`, and `access` profiles, and deploy the same workspace to the `staging` and `prod` environments
+* [Regions](../platform-capabilities/regions.md)—choose where your data plane runs
 * [Workspace dashboard & monitoring](../ingestion/dashboard.md)—observe runs, schemas, and lineage from a single UI; stream logs and [diagnose failures](../pipeline-operations/monitoring.md) from the CLI or Web UI
 
 ### [Data quality & governance](../data-quality/index.md)

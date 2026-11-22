@@ -94,7 +94,7 @@ The first three are documented in the [OSS internal tables](../../general-usage/
 
 ## Reading a dataset from another job or notebook
 
-A transformation, downstream job, or marimo notebook can read a dataset another pipeline produced — without re-extracting from source. Import the pipeline from the module that creates it, or create the same pipeline, and take its dataset:
+A transformation, downstream job, or marimo notebook can read a dataset another pipeline produced — without re-extracting from source. Import the pipeline from the module that creates it, or create the same pipeline. Then take its dataset:
 
 ```py
 import dlt
@@ -103,7 +103,7 @@ pipeline = dlt.pipeline("orders_pipeline", destination="warehouse", dataset_name
 orders = pipeline.dataset()["orders"].df()
 ```
 
-The same code runs locally and on the Platform: `warehouse` resolves through the active profile, and the dataset reads its schemas from the destination. For a dataset whose pipeline you don't know, and for when `dlt.attach` fits, see [Access a dataset from another script, job or notebook](../../general-usage/dataset-access/dataset.md#access-a-dataset-from-another-script-job-or-notebook).
+The same code runs locally and on the Platform. `warehouse` resolves through the active profile, and the dataset reads its schemas from the destination. If you do not know the pipeline of a dataset, or if `dlt.attach` fits better, see [Access a dataset from another script, job or notebook](../../general-usage/dataset-access/dataset.md#access-a-dataset-from-another-script-job-or-notebook).
 
 A quick sanity check that returns a frame of `(table_name, row_count)` across the whole dataset:
 

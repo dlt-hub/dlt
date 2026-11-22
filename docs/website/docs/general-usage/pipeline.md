@@ -84,8 +84,8 @@ argument when creating the pipeline.
 
 :::info
 You can attach a `Pipeline` instance to an existing working folder, without creating a new
-pipeline with `dlt.attach`. The folder must exist on this machine, for example to load the pending
-packages of a failed run. To read a dataset from another script, see
+pipeline with `dlt.attach`. The folder must exist on this machine. A typical use is to load the
+pending packages of a failed run. To read a dataset from another script, see
 [Access a dataset from another script, job or notebook](dataset-access/dataset.md#access-a-dataset-from-another-script-job-or-notebook).
 :::
 

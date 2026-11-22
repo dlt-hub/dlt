@@ -26,7 +26,11 @@ Accepted timeout formats: a duration string (`"6h"`, `"30m"`) or an integer numb
 
 ## Access and profile
 
-`access` is what a job declares it needs to run. The dltHub platform grants the job no more than it declares, and the [profile](profiles.md) of the job gives the credentials. Declare it per axis: `local` for the files and the shell, `data` for the data in your destinations, `context` for runs, logs, and telemetry.
+`access` is what a job declares it needs to run. The dltHub platform grants the job no more than it declares, and the [profile](profiles.md) of the job gives the credentials. Declare it per access axis:
+
+- `local`: the files and the shell
+- `data`: the data in your destinations
+- `context`: runs, logs, job definitions and telemetry
 
 ```py notype
 @run.job(access={"data": ["read"]})
@@ -36,7 +40,7 @@ def check_freshness():
 
 A job without `access` declares the data access of its job type: write for batch and stream jobs, read for interactive jobs, none for agent jobs. A job with `access` and no `data` declares no data access.
 
-A deployment gives the job the profile of the environment with the data access that the job declares. To give the job another profile, declare it with `require={"profile": "sensitive-access"}`. A job that declares a profile and no `data` access needs the data access of that profile. A strict environment accepts only a profile that gives exactly the declared data access. See [How a job gets its profile](profiles.md#how-a-job-gets-its-profile) for the rules, and [Access declaration](../agents/agent-definitions.md#access-declaration) for the verbs of each axis.
+A deployment gives the job the default profile of the environment for the data access that the job declares. To give the job another profile, declare it with `require={"profile": "sensitive-access"}`. A job that declares a profile and no `data` access needs the data access of that profile. A strict environment accepts only a profile that gives exactly the declared data access. See [How a job gets its profile](profiles.md#how-a-job-gets-its-profile) for the rules, and [Access declaration](../agents/agent-definitions.md#access-declaration) for the verbs of each axis.
 
 ## Dependency groups
 
@@ -110,7 +114,7 @@ The static egress IPs for the **US region** are:
 
 ## Options of module jobs
 
-A marimo notebook, an MCP server or a Streamlit app is deployed as a module: you import it in `__deployment__.py` and no decorator declares it. Set the options of such a job with variables in the module. They take the same values as the decorator arguments:
+A marimo notebook, an MCP server or a Streamlit app is deployed as a module. You import it in the deployment module, and no decorator declares it. Set the options of such a job with variables in the module. They take the same values as the decorator arguments:
 
 | Variable      | Same as    | What it sets                                                                                        |
 | ------------- | ---------- | --------------------------------------------------------------------------------------------------- |
@@ -129,7 +133,7 @@ __access__ = {"data": ["read", "write"]}
 app = marimo.App()
 ```
 
-Without `__access__`, a module job declares the data access of its type: read for a notebook, a dashboard or an MCP server, write for a plain module that runs as a batch job. The notebook above writes to the destination, so it declares write data access and gets the profile for it.
+Without `__access__`, a module job declares the data access of its job type. A notebook, a dashboard and an MCP server declare read data access. A plain module that runs as a batch job declares write data access. The notebook above writes to the destination, so it declares write data access and gets the default write profile.
 
 ## Inputs and outputs
 

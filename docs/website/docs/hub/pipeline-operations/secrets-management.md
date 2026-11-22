@@ -16,7 +16,7 @@ There are two broad approaches:
 
 Your secrets never live in plaintext on the platform. When you deploy, your configuration is transmitted over an encrypted channel and stored **encrypted at rest** in a secure, isolated store. That store can be reached by **only a single vault service identity, running inside a private network (VPC)**, so nothing else can touch it. At run time, your pipeline runner is granted **short-lived access** to only the secrets that run needs.
 
-dltHub workspaces use **profiles** to separate credentials. Deployed pipelines run with the `prod` profile, so put production secrets in `.dlt/prod.secrets.toml` and development secrets in `.dlt/dev.secrets.toml`. See [Profiles and environments](profiles.md) for how `dev`, `prod`, and `access` work and when each is used.
+dltHub workspaces use **profiles** to separate credentials. Deployed pipelines run with the default write profile of their environment, `prod` in the `prod` environment. So put production secrets in `.dlt/prod.secrets.toml` and development secrets in `.dlt/dev.secrets.toml`. See [Profiles and environments](profiles.md) for how `dev`, `prod`, and `access` work and when each is used.
 
 For stronger isolation, especially in production, keep the secret values in your own vault instead.
 

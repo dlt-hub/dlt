@@ -187,7 +187,9 @@ If your agent reports something else, declare your own headings in the body.
 
 ### Access declaration
 
-`access` is what the job declares it needs to run. The platform grants the job no more than it declares, and the profile of the job gives the credentials. It is declared per axis. An axis is an area of the workspace that `access` covers: `local` for the files and the shell, `data` for the data in your destinations, `context` for runs, logs, job definitions, and telemetry. Each axis takes one verb or a list of verbs, and an axis that you leave out declares no access. With no `access` at all, the agent gets no file tools and no shell. If `tools` starts an MCP server, the server serves only the tools that need no access, such as the toolkit catalog.
+`access` is what the job declares it needs to run. The platform grants the job no more than it declares, and the profile of the job gives the credentials.
+
+`access` is declared per axis. An axis is an area of the workspace that `access` covers: `local` for the files and the shell, `data` for the data in your destinations, `context` for runs, logs, job definitions, and telemetry. Each axis takes one verb or a list of verbs, and an axis that you leave out declares no access. With no `access` at all, the agent gets no file tools and no shell. If `tools` starts an MCP server, the server serves only the tools that need no access, such as the toolkit catalog.
 
 | Axis      | Verbs           | Grants                                                                                                                                                                                        |
 | --------- | --------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -200,7 +202,9 @@ If your agent reports something else, declare your own headings in the body.
 
 `all` is shorthand for every verb on an axis. `local` maps to the same toolset on both loops, under the names Claude Code uses. Credential files (`*secrets.toml`, `.env`, `.env.*`) are never readable by a file tool, whatever verbs `local` declares. The job runner carries no `curl`, so an agent with `execute` makes an HTTP request from Python with `urllib`: through `RunPython` on `pydantic-ai`, through `python` in `Bash` on `claude-agent-sdk`.
 
-The `data` axis also decides the profile of the job. On the platform, a deployment gives an agent job the profile with the data access that `data` declares. An agent with `data: read` gets `access`, the profile with read data access, or `prod` while `access` has no settings files. An agent without `data` gets a profile without data access, `no-access` in the `prod` environment. `dlthub local run` uses the active profile. Declare `data: write` only on an agent that must write, because the agent then gets `prod`, the default write profile. See [Profile of an agent job](index.md#profile-of-an-agent-job).
+The `data` axis also decides the profile of the job. On the platform, a deployment gives an agent job the default profile of the data access that `data` declares. An agent job with `data: read` gets `access`, the profile with read data access, or `prod` while `access` has no settings files. An agent job without `data` gets a profile without data access, `no-access` in the `prod` environment. `dlthub local run` uses the active profile.
+
+Declare `data: write` only when the agent must write data, because the agent job then gets `prod`, the default write profile. See [Profile of an agent job](index.md#profile-of-an-agent-job).
 
 The declaration is a request that the runtime grants as far as it can. If a loop has no tool for a granted verb, the run proceeds with the tools it has. The agent trace of each agent run lists the tools that the loop wired.
 
