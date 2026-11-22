@@ -220,12 +220,11 @@ def open_url(url: str) -> None:
 def display_run_context_info() -> None:
     run_context = dlt.current.run_context()
     if isinstance(run_context, ProfilesRunContext):
-        # warn when active profile is not local-only — such profiles map to
-        # data synced with dltHub, so a local destructive command can affect it
+        # a profile of an environment reaches production data, also from a local command
         if not is_local_profile(run_context.profile):
             fmt.echo(
                 "Profile `%s` is active and is not a local-only profile — "
-                "this command may read or write data synced to dltHub."
+                "this command may read or write production data."
                 % fmt.style(run_context.profile, fg="yellow", reset=True),
                 err=True,
             )
