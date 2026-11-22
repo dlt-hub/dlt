@@ -454,7 +454,17 @@ class LocalWorkspaceCommand(SupportsCliCommand):
         # `dest="local_op"` keeps the inner pipeline subparsers' `dest="operation"` from clashing
         sub = parser.add_subparsers(title="Available subcommands", dest="local_op", required=False)
 
-        sub.add_parser("info", help="Display detailed local workspace info")
+        info_p = sub.add_parser("info", help="Display detailed local workspace info")
+        info_p.add_argument(
+            "--show-manifest",
+            action="store_true",
+            help="Print only the expanded deployment manifest, as YAML",
+        )
+        info_p.add_argument(
+            "--show-requirements",
+            action="store_true",
+            help="Print only the requirements manifest that a deployment uploads, as JSON",
+        )
 
         show_p = sub.add_parser("show", help="Show workspace dashboard")
         show_p.add_argument(
@@ -633,7 +643,12 @@ class LocalWorkspaceCommand(SupportsCliCommand):
             clean_workspace(active(), args)
             return
         if op == "info":
-            print_workspace_info(active(), getattr(args, "verbosity", 0))
+            print_workspace_info(
+                active(),
+                getattr(args, "verbosity", 0),
+                show_manifest=args.show_manifest,
+                show_requirements=args.show_requirements,
+            )
             return
         if op == "profile":
             from dlt._workspace.cli.dlthub._profile_command import pin_profile

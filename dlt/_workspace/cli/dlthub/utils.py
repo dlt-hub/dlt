@@ -4,7 +4,7 @@ import os
 import shutil
 from contextlib import nullcontext
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, Set
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Set, Tuple
 
 import tomlkit
 from packaging.specifiers import SpecifierSet
@@ -76,9 +76,18 @@ from dlt._workspace.deployment.requirements import (
     render_requirements_lines,
     render_uv_source,
 )
-from dlt._workspace.deployment.typing import TDependencyChange, TInstallSpec
+from dlt._workspace.deployment.typing import (
+    TDependencyChange,
+    TInstallSpec,
+    TJobsDeploymentManifest,
+)
 from dlt._workspace.settings_files import read_profile_pin
-from dlt._workspace.typing import DEFAULT_DEPLOYMENT_MODULE, TLocationInfo, TProviderInfo
+from dlt._workspace.typing import (
+    DEFAULT_DEPLOYMENT_MODULE,
+    TEnvironmentDefinition,
+    TLocationInfo,
+    TProviderInfo,
+)
 
 
 def workspace_deps() -> List[str]:
@@ -420,19 +429,30 @@ def fetch_profile_info() -> Optional[TCurrentProfileFullInfo]:
     )
 
 
-def fetch_deployment_info() -> TDeploymentManifestInfo:
-    """Summarize the workspace deployment manifest."""
-
-    # summarizes a deployment to the environment of a remote profile, or a local run of a local one
+def get_deployment_target() -> Tuple[Optional[TEnvironmentDefinition], str]:
+    """The environment of the active profile, `None` for a local profile, and the file of its
+    deployment module."""
     ctx = Container()[PluggableRunContext].context
     environment = None
     if isinstance(ctx, WorkspaceRunContext) and ctx.environment:
         environment = select_environment(ctx.environment)
-    module_file = get_deployment_module_file(get_deployment_module_for_env(environment))
+    return environment, get_deployment_module_file(get_deployment_module_for_env(environment))
+
+
+def generate_deployment_manifest(
+    environment: Optional[TEnvironmentDefinition], module_file: str
+) -> Tuple[TJobsDeploymentManifest, List[str]]:
+    """The manifest of `module_file` for `environment`, a local run without one, and its warnings."""
+    # imported with the default write profile of the environment, as a deployment imports it
+    with use_environment(environment["name"]) if environment else nullcontext():
+        return manifest_from_module(module_file, environment)
+
+
+def fetch_deployment_info() -> TDeploymentManifestInfo:
+    """Summarize the workspace deployment manifest."""
+    environment, module_file = get_deployment_target()
     try:
-        # imported with the default write profile of the environment, as a deployment imports it
-        with use_environment(environment["name"]) if environment else nullcontext():
-            manifest, _warnings = manifest_from_module(module_file, environment)
+        manifest, _warnings = generate_deployment_manifest(environment, module_file)
     except Exception as exc:
         if isinstance(exc, ImportError) and is_module_missing(exc, module_file):
             return TDeploymentManifestInfo(status="not_found", deployment_module=module_file)

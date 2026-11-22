@@ -1,6 +1,8 @@
 import argparse
+import contextlib
 import sys
 import webbrowser
+from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from dlt.common import json
@@ -18,7 +20,11 @@ from dlt._workspace.cli.dlthub.utils import (
     delete_local_data,
     fetch_deployment_info,
     fetch_workspace_info,
+    generate_deployment_manifest,
+    get_deployment_target,
 )
+from dlt._workspace.deployment.requirements import export_workspace_requirements
+from dlt._workspace.settings_files import dump_yaml
 from dlt._workspace.typing import TLocationInfo, TProviderInfo
 from dlt._workspace.access import format_data_access
 
@@ -110,7 +116,16 @@ def print_providers(providers: List[TProviderInfo], verbosity: int) -> None:
 
 
 @utils.track_command("local", track_before=False, operation="info")
-def print_workspace_info(run_context: WorkspaceRunContext, verbosity: int = 0) -> None:
+def print_workspace_info(
+    run_context: WorkspaceRunContext,
+    verbosity: int = 0,
+    show_manifest: bool = False,
+    show_requirements: bool = False,
+) -> None:
+    # the manifests print alone, so their output can be piped
+    if show_manifest or show_requirements:
+        _print_deployment_manifests(run_context, show_manifest, show_requirements)
+        return
     info = fetch_workspace_info()
 
     if info["name"]:
@@ -140,6 +155,23 @@ def print_workspace_info(run_context: WorkspaceRunContext, verbosity: int = 0) -
     # deployment manifest summary
     fmt.echo()
     _print_deployment_info(fetch_deployment_info(), verbosity)
+
+
+def _print_deployment_manifests(
+    run_context: WorkspaceRunContext, show_manifest: bool, show_requirements: bool
+) -> None:
+    """Prints the deployment manifest as YAML and the requirements manifest as JSON."""
+    if show_manifest:
+        # the deployment module may print while it is imported
+        with contextlib.redirect_stdout(sys.stderr):
+            manifest, warnings = generate_deployment_manifest(*get_deployment_target())
+        fmt.echo(dump_yaml(dict(manifest)))
+        # stdout holds the manifest alone
+        for warning in warnings:
+            fmt.echo(fmt.warning_style("WARNING: " + warning), err=True)
+    if show_requirements:
+        requirements = export_workspace_requirements(Path(run_context.run_dir))
+        fmt.echo(json.dumps(requirements, pretty=True))
 
 
 def _print_deployment_info(info: TDeploymentManifestInfo, verbosity: int) -> None:

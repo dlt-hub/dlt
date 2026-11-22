@@ -1,11 +1,13 @@
 """Tests for `dlt workspace info` — fetch_deployment_info + view."""
 
+import json
 import os
 from functools import partial
 from pathlib import Path
 from typing import Any, Dict, List
 
 import pytest
+import yaml
 
 import dlt
 from dlt._workspace._known_env import WORKSPACE__PROFILE
@@ -223,6 +225,19 @@ def test_dlthub_local_info_verbose(
 ) -> None:
     args, _ = parse_dlthub(["local", "-v", "info"])
     assert args.verbosity == 1
+
+
+def test_dlthub_local_info_shows_only_the_manifests(run_dlthub: TRunDlthub) -> None:
+    """`--show-manifest` and `--show-requirements` print the manifests and nothing else."""
+    with isolated_workspace("deployment_mixed", profile="dev"):
+        manifest = yaml.safe_load(run_dlthub("local", "info", "--show-manifest"))
+        assert "jobs.__deployment__.batch_one" in {j["job_ref"] for j in manifest["jobs"]}
+        requirements = json.loads(run_dlthub("local", "info", "--show-requirements"))
+        assert "main" in requirements["groups"]
+        both = run_dlthub("local", "info", "--show-manifest", "--show-requirements")
+        assert "jobs.__deployment__.batch_one" in both
+        assert '"groups"' in both
+        assert "Workspace dir:" not in both
 
 
 def test_dlthub_local_run_parses(auto_isolated_workspace: Any, parse_dlthub: TParseDlthub) -> None:
