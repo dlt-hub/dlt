@@ -173,6 +173,8 @@ The connector loads the connection from
 in `SNOWFLAKE_HOME` (default `~/.snowflake`). If that folder does not exist, the connector uses the config folder of
 the platform, for example `~/.config/snowflake` on Linux. If you set other credentials (`host`, `username`,
 `password`, `authenticator`, keys, tokens) together with `connection_name`, `dlt` raises a configuration error.
+`dlt` sets `application` and `session_timezone` (`UTC` by default) over the values of the connection. To change
+them, set them in the credentials.
 
 `dlt` does not use the **default connection** of the connector (`SNOWFLAKE_DEFAULT_CONNECTION_NAME`,
 `default_connection_name` in `config.toml`, or `[default]`) on its own. To use a connection, set `connection_name`.
