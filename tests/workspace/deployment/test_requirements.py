@@ -183,6 +183,10 @@ def test_pyproject_with_lock_resolves_all_groups() -> None:
     gpu_names = {Requirement(s).name for s in groups["gpu"]}
     assert "numpy" in gpu_names
 
+    # the runtime installs a group on top of main: `packaging`, which pytest needs, is in main only
+    assert "packaging" not in dev_names
+    assert not (dev_names | gpu_names) & main_names
+
 
 def test_pyproject_lock_out_of_sync_raises() -> None:
     with isolated_workspace("deps_pyproject") as ctx:

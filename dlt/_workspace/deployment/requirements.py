@@ -448,8 +448,9 @@ def export_workspace_requirements(
     requirements_in_path = workspace_root / REQUIREMENTS_IN
 
     # detection order: pyproject -> requirements.txt -> requirements.in -> empty main
+    resolved = False
     if pyproject_path.exists():
-        groups = _export_from_pyproject(workspace_root, pyproject_path, uv_lock_path)
+        groups, resolved = _export_from_pyproject(workspace_root, pyproject_path, uv_lock_path)
     elif requirements_txt_path.exists():
         groups = {MAIN_GROUP: _compile_requirements_file(workspace_root, requirements_txt_path)}
     elif requirements_in_path.exists():
@@ -463,6 +464,8 @@ def export_workspace_requirements(
     for name in resolved_default_groups:
         default_names.update(_collect_package_names(groups.get(name, [])))
     _add_transitive_names(default_names)
+    if resolved:
+        _prune_resolved_groups(groups, resolved_default_groups, default_names)
 
     groups[DASHBOARD_JOB_REF] = _prune_specs(build_dashboard_group(), default_names)
     _add_agent_loop_groups(groups, default_names)
@@ -530,9 +533,22 @@ def load_requirements(f: BinaryIO) -> TWorkspaceRequirementsManifest:
     return manifest
 
 
+def _prune_resolved_groups(
+    groups: Dict[str, List[str]], default_groups: Sequence[str], default_names: Set[str]
+) -> None:
+    """Drops from each resolved group what the default groups install: the runtime installs a
+    group on top of them."""
+    default_specs = {spec for name in default_groups for spec in groups.get(name, [])}
+    for name, specs in groups.items():
+        if name not in default_groups:
+            # an editable or a path install has no leading name, so it matches as written
+            groups[name] = [s for s in _prune_specs(specs, default_names) if s not in default_specs]
+
+
 def _export_from_pyproject(
     workspace_root: Path, pyproject_path: Path, uv_lock_path: Path
-) -> Dict[str, List[str]]:
+) -> Tuple[Dict[str, List[str]], bool]:
+    """The dependency groups of `pyproject_path`, and whether they come resolved from a lock."""
     try:
         doc = tomlkit.parse(pyproject_path.read_text(encoding="utf-8"))
     except Exception as ex:
@@ -545,7 +561,7 @@ def _export_from_pyproject(
         _require_uv()
         # verify the lock is in sync — non-mutating
         _run_uv_on_lock(["lock", "--check"], workspace_root)
-        return _export_locked(workspace_root, group_names, [])
+        return _export_locked(workspace_root, group_names, []), True
 
     workspace_member = _get_uv_workspace_member(workspace_root, doc)
     if workspace_member is not None:
@@ -553,8 +569,11 @@ def _export_from_pyproject(
         # validates the lock at the root of the uv workspace
         _run_uv_on_lock(["lock", "--check"], workspace_root)
         _check_no_workspace_member_dependencies(workspace_root, member, uv_workspace_root)
-        return _export_locked(
-            workspace_root, group_names, ["--package", member, "--no-emit-workspace"]
+        return (
+            _export_locked(
+                workspace_root, group_names, ["--package", member, "--no-emit-workspace"]
+            ),
+            True,
         )
 
     # no lock — parse declarations directly
@@ -565,7 +584,7 @@ def _export_from_pyproject(
     groups = doc.get("dependency-groups", {}) or {}
     for name in group_names:
         result[name] = _parse_dep_list(list(groups.get(name, []) or []))
-    return dict(sorted(result.items()))
+    return dict(sorted(result.items())), False
 
 
 _UV_EXPORT_ARGS = [
