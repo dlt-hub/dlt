@@ -61,18 +61,29 @@ def resolve_dashboard_config(p: Optional[dlt.Pipeline]) -> DashboardConfiguratio
     )
 
 
-def get_runtime_pipelines_dir() -> Optional[str]:
-    """The synced pipelines dir of the default write profile of the active environment."""
+def get_runtime_pipelines_profile() -> Optional[str]:
+    """The profile whose synced pipelines the dashboard shows: the default write profile of the
+    environment of the active profile. `None` for a local profile."""
     context = dlt.current.run_context()
-    # a local profile has no environment and keeps its own pipelines dir
     if not isinstance(context, WorkspaceRunContext) or not context.environment:
         return None
-    write_profile = get_default_profile_for_env(
+    return get_default_profile_for_env(
         context.get_environment_definition(context.environment), "write"
     )
-    if not write_profile:
+
+
+def get_dashboard_pipelines_dir(
+    pipelines_dir: Optional[str], sync_from_runtime: bool
+) -> Optional[str]:
+    """The pipelines dir that the dashboard lists, `None` for the dir of the active profile."""
+    if pipelines_dir or not sync_from_runtime:
+        return pipelines_dir
+    # the runtime runs the dashboard with a read profile: show the runs of the write profile
+    context = dlt.current.run_context()
+    profile = get_runtime_pipelines_profile()
+    if not profile or not isinstance(context, WorkspaceRunContext):
         return None
-    return get_synced_pipelines_dir(context, write_profile)
+    return get_synced_pipelines_dir(context, profile)
 
 
 def get_pipeline(pipeline_name: str, pipelines_dir: str) -> dlt.Pipeline:

@@ -36,6 +36,7 @@ from dlt.pipeline.exceptions import PipelineStepFailed
 from tests.utils import preserve_environ, skipifwindows
 from tests.workspace.cases.runtime_workspace import batch_jobs
 from tests.workspace.utils import (
+    declare_environment,
     importable_workspace,
     isolated_workspace,
     restore_clean_workspace,
@@ -561,6 +562,32 @@ def test_launcher_activates_profile_first(launcher: str) -> None:
         else:
             module.run(ep)
     assert calls == ["activate_profile", "apply_job_configuration"]
+
+
+def test_dashboard_launcher_logs_runtime_pipelines() -> None:
+    """A read profile syncs the runtime pipelines and logs the ones of the write profile."""
+    dashboard = pytest.importorskip("dlt._workspace.deployment.launchers.dashboard")
+    with isolated_workspace("pipelines") as ctx:
+        declare_environment(ctx, "staging")
+        ctx.switch_profile("staging-read")
+        write_dir = os.path.join(ctx.settings_dir, "state", "staging-write", "pipelines")
+        os.makedirs(os.path.join(write_dir, "my_pipeline"))
+        with (
+            patch.object(dashboard, "sync_from_runtime") as sync,
+            patch.object(dashboard.logger, "info") as info,
+        ):
+            # a local dashboard does not sync
+            dashboard._sync_and_log_runtime_pipelines()
+            assert not sync.called and not info.called
+
+            os.environ["DASHBOARD__SYNC_FROM_RUNTIME"] = "true"
+            dashboard._sync_and_log_runtime_pipelines()
+        sync.assert_called_once()
+        assert (
+            info.call_args.args[0]
+            == "Dashboard shows the pipelines of profile `staging-write` (active profile"
+            f" `staging-read`) in `{write_dir}`: my_pipeline"
+        )
 
 
 def test_job_launcher_with_config() -> None:
