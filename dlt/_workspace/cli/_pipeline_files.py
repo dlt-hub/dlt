@@ -14,7 +14,11 @@ from dlt.common.typing import NotRequired, TypedDict
 from dlt.common.reflection.utils import get_module_docstring
 
 from dlt._workspace.cli import DEFAULT_VERIFIED_SOURCES_REPO, utils
-from dlt._workspace.cli._repo_source import TRepoSource, resolve_repo_source
+from dlt._workspace.cli._repo_source import (
+    TRepoSource,
+    get_recorded_repo_source,
+    resolve_repo_source,
+)
 from dlt._workspace.cli.requirements import SourceRequirements
 from dlt._workspace.settings_files import load_yaml_file, save_yaml_file
 
@@ -128,24 +132,32 @@ def save_verified_source_local_index(
     remote_index: TVerifiedSourceFileIndex,
     remote_modified: Dict[str, TVerifiedSourceFileEntry],
     remote_deleted: Dict[str, TVerifiedSourceFileEntry],
-    source: Optional[TRepoSource] = None,
 ) -> None:
-    """Saves the files of `source_name` and, when given, the repository `source` it came from."""
+    """Saves the files of `source_name`."""
     all_sources = _load_dot_sources()
     local_index = all_sources["sources"].setdefault(source_name, remote_index)
     _merge_remote_index(local_index, remote_index, remote_modified, remote_deleted)
-    if source is not None:
-        all_sources.pop("location", None)
-        all_sources.pop("branch", None)
-        all_sources.update(source)
+    _save_dot_sources(all_sources)
+
+
+def save_verified_sources_repo(location: str, branch: Optional[str]) -> None:
+    """Records the repository `location` and `branch` that the next commands default to. Defaults
+    are not recorded, so a reset removes them."""
+    source = get_recorded_repo_source(location, branch, DEFAULT_VERIFIED_SOURCES_REPO)
+    if not source and not os.path.isfile(utils.make_dlt_settings_path(SOURCES_INIT_INFO_FILE)):
+        return
+    all_sources = _load_dot_sources()
+    all_sources.pop("location", None)
+    all_sources.pop("branch", None)
+    all_sources.update(source)
     _save_dot_sources(all_sources)
 
 
 def resolve_verified_sources_repo(
     location: Optional[str] = None, branch: Optional[str] = None
 ) -> Tuple[str, Optional[str]]:
-    """Verified sources repository and branch to fetch from: given, else recorded in `.sources`
-    by the last install, else the defaults. An empty value resets."""
+    """Verified sources repository and branch to fetch from: given, else given last to a command,
+    else the defaults. An empty value resets."""
     index = _load_dot_sources()
     recorded: TRepoSource = {}
     if "location" in index:

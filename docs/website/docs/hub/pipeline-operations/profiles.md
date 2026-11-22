@@ -7,7 +7,7 @@ keywords: [dltHub, profiles, environments, workspace, configuration, secrets, da
 
 A **profile** controls access to your data. It holds the credentials that a pipeline or job runs with and declares what those credentials may do with the data: **write** it, only **read** it, or not touch it at all (**none**).
 
-Every job, in turn, declares the data access that it needs. When you deploy, dltHub matches the two: each pipeline and job runs with the profile that gives the data access it declares, without any code on your side. In a new workspace, pipelines load with the `prod` profile and notebooks read with the `access` profile.
+Every job, in turn, declares the data access that it needs. When you deploy, dltHub matches the two: each pipeline and job runs with the profile that gives the data access it declares, without any code on your side. In a new workspace, pipelines load with the `prod` profile and notebooks read with the `access` profile once it has settings files. Until then, they run with `prod`.
 
 :::warning
 dlt trusts the declaration and never checks what a credential can actually do. You bring your own destination, so set up the rights of each credential there: give `access` a read-only database role, or a storage key without write permission.
@@ -60,7 +60,7 @@ A **local profile** runs only on your machine. A deployment never reads or inclu
 
 A command that works on your machine, such as `dlthub local run`, runs with one profile, the **active profile**. dlt picks it in this order:
 
-1. The profile named with `--profile`, before or after the command.
+1. The profile named with `--profile` after the command name, as in `dlthub local show --profile tests`. Commands that never read a profile, such as `dlthub init`, `dlthub profile` and `dlthub ai toolkit`, refuse it.
 2. The profile in the `WORKSPACE__PROFILE` environment variable. Runners set it for deployed jobs.
 3. The profile that `dlthub local profile use <name>` recorded in `.dlt/profile-name`.
 4. The default profile, `dev`.
@@ -95,7 +95,7 @@ A deployment is made to one environment and runs in the remote workspace of that
 
 Every environment has a default profile with write data access, its **default write profile**. `dlthub deploy` runs with it. The first profile of a data access that you add to an environment becomes the default for that data access.
 
-A deployment ships only the settings files of the profiles of its environment, with the shared `config.toml` and `secrets.toml`. The credentials of `prod` never reach `staging`. The workspace dashboard is deployed to the default environment only.
+A deployment ships only the settings files of the profiles of its environment, with the shared `config.toml`, `secrets.toml` and `.workspace`. The credentials of `prod` never reach `staging`. The workspace dashboard is deployed with the deployment module of the default environment only, see [Choose the deployment module of an environment](#choose-the-deployment-module-of-an-environment).
 
 ### How a job gets its profile
 
@@ -121,23 +121,36 @@ A job without `access` declares the data access of its job type:
 | agent jobs without `access`                          | none                                                        |
 | any job with `access`                                | what `data` says: write or read. Without `data` it is none. |
 
-A deployment gives every job the default profile of the data access it declares. A job that names a profile with `require={"profile": ...}` keeps that one.
+A deployment gives every job the default profile of the data access it declares. A job that names a profile with `require={"profile": ...}` keeps that one. If it declares no `data` access, it needs the data access of that profile.
 
 A **strict** environment accepts only a profile that gives exactly the data access a job declares and has settings files, `<profile>.config.toml` or `<profile>.secrets.toml`. A profile without data access holds no credentials and needs none. Otherwise `dlthub deploy` fails and its message names the fix. Every environment that `dlthub profile add-environment` creates is strict.
 
 The `prod` environment of a new workspace is not strict. There, a job that declares read data access runs with `prod` as long as `access` has no settings files, and `dlthub deploy` warns about it. This keeps existing workspaces working and lets a small team start with one set of credentials. Add `.dlt/access.secrets.toml` with read-only credentials, and the next deployment gives these jobs `access`. This leniency will be deprecated in a future release.
 
-A job run activates its profile before it imports the job module, on the dltHub platform and in `dlthub local run` alike. A pipeline created at module level therefore picks up the profile of the job, and other jobs and notebooks can import it to read its dataset, see [Access a dataset from another script, job or notebook](../../general-usage/dataset-access/dataset.md#access-a-dataset-from-another-script-job-or-notebook).
+A job run on the dltHub platform activates the profile of the job before it imports the job module. `dlthub local run` activates the active profile, or the one named with `--profile`. A pipeline created at module level therefore picks up the profile of the run, and other jobs and notebooks can import it to read its dataset, see [Access a dataset from another script, job or notebook](../../general-usage/dataset-access/dataset.md#access-a-dataset-from-another-script-job-or-notebook).
 
 ### Select an environment
 
-A command that deploys or works with a deployment, its jobs, runs, logs and traces, takes `--environment` and no `--profile`. dlt picks the environment in this order:
+A command that deploys or works with a deployment, its jobs, runs, logs and traces, takes `--environment` after the command name. Local commands such as `dlthub local` and `dlthub profile` refuse it. dlt picks the environment in this order:
 
-1. The environment named with `--environment`.
+1. The environment named with `--environment`. The commands that also take `--profile`, such as `dlthub variable`, take `--workspace` as well: `--environment` without a name, which picks the environment in the order below.
 2. The environment of the active profile, when that profile is a remote one.
 3. The default environment, `prod` in a new workspace.
 
 The command then runs with the default write profile of that environment. `dlthub deploy --environment staging` generates the manifest and deploys with `staging-write`. `dlthub local profile use staging-read` makes `staging` the environment of these commands, until another profile is active. A plain `dlthub deploy` then deploys to `staging`, not to `prod`.
+
+These commands take no `--profile`, except the ones that work with one profile of the environment, such as `dlthub variable` and the MCP tools that restore a pipeline. They run with the profile named with `--profile`, which must belong to the environment. Without `--environment`, the profile picks its own environment. Without `--profile`, they run with the active profile if it belongs to the environment, else with the default write profile. `--workspace` names no environment, so it can't go with `--profile`. `dlthub variable set` and `dlthub variable delete` need one of them: `--profile` for the variables of one profile, `--environment` or `--workspace` for the variables of the whole environment.
+
+`dlthub <command> --help` shows the options that a command takes. A command group shows the options that all of its commands take.
+
+| Commands                                                                                                                                     | Options                                     |
+| -------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------- |
+| `dlthub local`, `dlthub ai secrets`, `dlthub ai mcp`                                                                                         | `--profile`                                 |
+| `dlthub deploy`, `dlthub run`, `dlthub show`, `dlthub job`, `dlthub workspace`                                                               | `--environment`                             |
+| `dlthub variable`                                                                                                                            | `--environment`, `--workspace`, `--profile` |
+| `dlthub init`, `dlthub profile`, `dlthub local profile`, `dlthub local schema`, `dlthub ai toolkit`, `dlthub ai mcp install`, `dlthub login` | none                                        |
+
+The MCP tools take the same choice as arguments. The tools that read data or secrets, such as `execute_sql_query` and `list_tables`, take `profile`: each call runs with the profile that it names, else with the active profile.
 
 In code, the environment of the active profile is on the workspace run context. It is `None` for a local profile:
 
@@ -155,7 +168,7 @@ A deployed job reads the environment that the deployment was made to. The runner
 dlt stores the declarations in `.dlt/.workspace`, a file that it writes for you. A new workspace declares the five profiles in [How profiles work](#how-profiles-work), with `prod`, `access` and `no-access` in the `prod` environment.
 
 :::note Workspaces from before dlt 1.33.0
-dlt declares the profiles of such a workspace the first time it loads it. Each profile that has settings files or is recorded in `.dlt/profile-name` becomes an environment of its own, deployed with that profile alone. This is the only time that dlt declares a profile for you.
+dlt declares the profiles of such a workspace the first time it loads it. Each profile other than the built-in ones that has settings files or is recorded in `.dlt/profile-name` becomes an environment of its own, deployed with that profile alone. This is the only time that dlt declares a profile for you. A profile that only `--profile` or `WORKSPACE__PROFILE` names, as in CI, is not declared: declare it with `dlthub profile add` before you upgrade.
 
 A job that requires such a profile no longer deploys to `prod`, because the profile belongs to another environment. To use the profile in `prod`, edit `.dlt/.workspace`: move its declaration to the `prod` environment, remove `default: true` from it, and remove the environment that is left without profiles. To keep it apart, deploy with `--environment <profile>`.
 
@@ -168,20 +181,20 @@ Add profiles and environments with the CLI. Both commands show what they add to 
 # the staging environment, deployed with staging-write
 dlthub profile add-environment staging
 # a profile with read data access in staging
-dlthub profile add staging-read --access read --env staging
+dlthub profile add staging-read --access read --environment staging
 # a profile with read data access in the default environment
 dlthub profile add sensitive-access --access read
 # a profile without data access in staging
-dlthub profile add staging-none --access none --env staging
+dlthub profile add staging-none --access none --environment staging
 # a local profile
 dlthub profile add lab --local
 ```
 
-`profile add-environment <name>` declares a strict environment with one profile, `<name>-write`, its default write profile. Then it prints the command that adds the profile with read data access that interactive jobs need. `profile add` declares one profile in the default environment, or in the environment named with `--env`, with write data access unless `--access` says otherwise. The first profile of a data access in an environment becomes the default for that data access. With `--local`, it declares a local profile.
+`profile add-environment <name>` declares a strict environment with one profile, `<name>-write`, its default write profile. Then it prints the command that adds the profile with read data access that interactive jobs need. `profile add` declares one profile in the default environment, or in the environment named with `--environment`, with write data access unless `--access` says otherwise. The first profile of a data access in an environment becomes the default for that data access. With `--local`, it declares a local profile.
 
 Both commands create `<profile>.config.toml` and `<profile>.secrets.toml` for each new profile with data access. A profile without data access takes the shared `config.toml` and `secrets.toml`. Existing files are kept. For a declared profile or environment, the command creates the settings files that are missing. When none is missing, it shows the declaration and fails.
 
-For anything else, edit `.dlt/.workspace`. To make another profile the default of its data access, move `default: true` to it. dlt validates the file on every command and explains what to fix.
+For anything else, edit `.dlt/.workspace`, for example to make another profile the default of its data access. dlt validates the file on every command and explains what to fix.
 
 ## Connect to a remote workspace in each environment
 
@@ -201,14 +214,14 @@ workspace_id = "..."
 workspace_id = "..."
 ```
 
-dlt writes these sections for you. `dlthub workspace connect` connects the local workspace in the default environment. The first deployment to another environment connects the local workspace in that environment. The remote workspace is named after the local workspace and the environment: the workspace `ingest` deploys to `ingest-staging` in `staging`. The default environment keeps the plain workspace name. To use another name, set `workspace_name` in the section of the environment.
+dlt writes these sections for you. `dlthub workspace connect` connects the local workspace in the environment of the active profile, else in the default environment. Name another one with `--environment`. The first deployment to another environment connects the local workspace in that environment. The remote workspace is named after the local workspace and the environment: the workspace `ingest` deploys to `ingest-staging` in `staging`. The default environment keeps the plain workspace name. To use another name, set `name` in the section of the environment, as `name` under `[workspace.settings]` names the local workspace.
 
 CI sets the same values with environment variables, `WORKSPACE__ENVIRONMENT__STAGING__WORKSPACE_ID` for example.
 
 `dlthub profile list` shows the remote workspace of each environment. `dlthub profile info` shows the one of the active profile.
 
 :::note Workspaces connected before dlt 1.33.0
-Such a workspace keeps the id of its remote workspace as `workspace_id` under `[runtime]` in `config.toml`. dlt still reads it as the remote workspace of the default environment, and nothing needs to change. The same key in the settings file of a profile, `stg.config.toml` for example, connects the local workspace in the environment of that profile.
+Such a workspace keeps the id of its remote workspace as `workspace_id` under `[runtime]` in `config.toml`. dlt still reads it as the remote workspace of the default environment, and nothing needs to change. `dlthub workspace connect` moves it to `[workspace.environment.prod]`, and `dlthub workspace disconnect` removes it. If both are set, even to the same id, dlt stops with an error: remove `workspace_id` under `[runtime]`. The same key in the settings file of a profile of another environment, `stg.config.toml` for example, connects that environment until its section has a `workspace_id`. In the settings file of a profile of the default environment, it counts as the one in `config.toml`. `RUNTIME__WORKSPACE_ID`, which the platform and CI set, always wins.
 :::
 
 ## Choose the deployment module of an environment
@@ -222,6 +235,8 @@ deployment_module = "__staging__.py"
 ```
 
 `dlthub deploy --environment staging` then imports `__staging__.py`. Give a `.py` path relative to the workspace, or a module name. A local profile uses the deployment module of the default environment, for example in `dlthub local run`. `dlthub profile list` shows the deployment module of each environment. `dlthub local info` shows the deployment module that it reads.
+
+The workspace dashboard is deployed with the deployment module of the default environment. A module that you name in `dlthub deploy` gets no dashboard, and neither does another environment. To leave the dashboard out of the default environment too, set `deploy_dashboard = false` in its section.
 
 ## How to use profiles and environments
 
@@ -349,12 +364,12 @@ WORKSPACE__PROFILE=tests uv run pytest
 3. If a test fails, inspect the pipeline that it ran with `--profile tests`:
 
 ```cli
-dlthub --profile tests local pipeline trace pokemon_api_pipeline
-dlthub --profile tests local pipeline failed-jobs pokemon_api_pipeline
-dlthub --profile tests local show
+dlthub local pipeline trace pokemon_api_pipeline --profile tests
+dlthub local pipeline failed-jobs pokemon_api_pipeline --profile tests
+dlthub local show --profile tests
 ```
 
-`dlthub --profile tests local clean` removes the data and state of the test runs.
+`dlthub local clean --profile tests` removes the data and state of the test runs.
 
 ### Limit the data access of jobs
 
@@ -367,7 +382,7 @@ destination_type = "motherduck"
 credentials = "md:///dlt_data?motherduck_token=...."
 ```
 
-Until `access` has settings files, these jobs run with `prod` and `dlthub deploy` warns about each of them.
+Until `access` has settings files, these jobs run with `prod`, and `dlthub deploy` warns once and names them.
 
 A batch job declares write data access unless it says otherwise. Declare what the job needs with `access=`, and the deployment gives it `access` and not `prod`:
 
@@ -411,8 +426,8 @@ A staging environment deploys the same local workspace to a second remote worksp
 
 ```cli
 dlthub profile add-environment staging
-dlthub profile add staging-read --access read --env staging
-dlthub profile add staging-sensitive-access --access read --env staging
+dlthub profile add staging-read --access read --environment staging
+dlthub profile add staging-sensitive-access --access read --environment staging
 ```
 
 `staging` is strict and deployed with `staging-write`, its default write profile. `staging-read` is the first profile with read data access, so it is the default that interactive jobs get. Without it, a deployment with a notebook fails. `staging-sensitive-access` is not a default: only a job that declares it gets it.
@@ -476,16 +491,17 @@ Credentials and limits live in the settings files of each profile. The deploymen
 
 ## Commands
 
-| Command                                 | What it does                                                                               |
-| --------------------------------------- | ------------------------------------------------------------------------------------------ |
-| `dlthub profile list`                   | Lists the declared profiles, with the remote workspace of each environment.                |
-| `dlthub profile info`                   | Shows the active profile: location, data access, environment and folders.                  |
-| `dlthub profile add <name>`             | Declares a profile in an environment (`--env`, `--access`) or a local profile (`--local`). |
-| `dlthub profile add-environment <name>` | Declares a strict environment with `<name>-write` as its default write profile.            |
-| `dlthub local profile use <name>`       | Makes a profile the active profile.                                                        |
-| `dlthub local clean`                    | Removes the state and data folders of the active profile.                                  |
-| `dlthub <command> --profile <name>`     | Overrides the recorded profile for one local command.                                      |
-| `dlthub <command> --environment <name>` | Names the environment for a command that deploys or works with a deployment.               |
+| Command                                 | What it does                                                                                                                                                  |
+| --------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `dlthub profile list`                   | Lists the declared profiles, with the remote workspace of each environment.                                                                                   |
+| `dlthub profile info`                   | Shows the active profile: location, data access, environment and folders.                                                                                     |
+| `dlthub profile add <name>`             | Declares a profile in an environment (`--environment`, `--access`) or a local profile (`--local`).                                                            |
+| `dlthub profile add-environment <name>` | Declares a strict environment with `<name>-write` as its default write profile.                                                                               |
+| `dlthub local profile use <name>`       | Makes a profile the active profile.                                                                                                                           |
+| `dlthub local clean`                    | Removes the state and data folders of the active profile.                                                                                                     |
+| `dlthub <command> --profile <name>`     | Overrides the recorded profile for one local command.                                                                                                         |
+| `dlthub <command> --environment <name>` | Names the environment for a command that deploys or works with a deployment.                                                                                  |
+| `dlthub variable --workspace`           | `--environment` without a name: the environment of the active profile, else the default one. Only commands that take `--profile` and `--environment` take it. |
 
 ## Next steps
 

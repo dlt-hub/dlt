@@ -1,19 +1,13 @@
-import argparse
 import os
-from types import SimpleNamespace
-from typing import Any, List, Optional, Type
+from typing import List, Type
 
 import pytest
 
+import dlt
 from dlt.common.utils import custom_environ
 
 from dlt._workspace._known_env import WORKSPACE__PROFILE
 from dlt._workspace._workspace_context import WorkspaceRunContext, switch_context
-from dlt._workspace.cli._dlt import (
-    _add_profile_argument,
-    _create_parser,
-    add_environment_argument,
-)
 from dlt._workspace.cli.dlthub._profile_command import list_profiles, print_profile_info
 from dlt._workspace.cli.dlthub.utils import (
     fetch_environments_list,
@@ -25,10 +19,8 @@ from dlt._workspace.exceptions import (
     EnvironmentNotDeclared,
     ProfileAlreadyExists,
     ProfileException,
-    TProfileSource,
 )
 from dlt._workspace.settings_files import (
-    get_profile_pin_file,
     load_yaml_file,
     get_profile_settings_files,
     save_profile_pin,
@@ -38,7 +30,7 @@ from dlt._workspace.profile import LOCAL_PROFILES
 from dlt._workspace.workspace_definition import get_default_profile_for_env
 from dlt._workspace.workspace_file import load_workspace_definition
 
-from tests.workspace.cli.conftest import TMainDlthub, TParseDlthub, TRunDlthub
+from tests.workspace.cli.conftest import TRunDlthub
 from tests.workspace.utils import declare_environment, save_definition, touch_settings
 
 
@@ -52,7 +44,7 @@ def test_fetch_profile_info(auto_isolated_workspace: WorkspaceRunContext) -> Non
     assert os.path.isabs(info["local_dir"])
     # `dev` is declared but the empty workspace has no settings files for it
     assert info["configured_profiles"] == []
-    assert info["is_configured"] is False
+    assert info["configured"] is False
     assert info["location"] == "local"
     # only provider locations that are global or of the active profile
     for prov in info["providers"]:
@@ -163,9 +155,9 @@ def test_fetch_profiles_list_flags(
     assert profiles["dev"]["is_pinned"] is False and profiles["dev"]["is_current"] is False
 
     # a profile with settings files is configured
-    assert not any(p["is_configured"] for p in profiles.values())
+    assert not any(p["configured"] for p in profiles.values())
     touch_settings(ctx, "tests.config.toml")
-    assert [p["name"] for p in fetch_profiles_list() if p["is_configured"]] == ["tests"]
+    assert [p["name"] for p in fetch_profiles_list() if p["configured"]] == ["tests"]
 
 
 def test_list_profiles_groups_local_then_environments(
@@ -217,162 +209,6 @@ def test_dlthub_profile_without_operation_shows_info(
     assert "dev" in out and out == run_dlthub("profile", "info")
 
 
-@pytest.mark.parametrize(
-    "argv,expected",
-    [
-        (["--profile", "prod", "local", "info"], "prod"),
-        (["local", "info", "--profile", "prod"], "prod"),
-        (["local", "--profile", "prod", "info"], "prod"),
-        (["local", "run", "job", "--profile", "prod"], "prod"),
-        (["--profile", "prod", "local", "pipeline", "run", "p"], "prod"),
-        (["local", "info"], None),
-        (["ai", "secrets", "list", "--profile", "prod"], "prod"),
-        (["ai", "mcp", "run", "--profile", "prod"], "prod"),
-    ],
-    ids=[
-        "before-command",
-        "after-command",
-        "between",
-        "local-run",
-        "pipeline-run",
-        "absent",
-        "ai-secrets",
-        "ai-mcp-run",
-    ],
-)
-def test_dlthub_profile_option_at_any_position(
-    auto_isolated_workspace: WorkspaceRunContext,
-    parse_dlthub: TParseDlthub,
-    argv: List[str],
-    expected: Optional[str],
-) -> None:
-    args, _ = parse_dlthub(argv)
-    assert getattr(args, "profile", None) == expected
-
-
-@pytest.mark.parametrize(
-    "argv",
-    [
-        ["profile", "list", "--profile", "prod"],
-        ["local", "profile", "use", "prod", "--profile", "prod"],
-        ["--profile", "prod", "profile", "list"],
-        ["--profile", "prod", "local", "profile", "use", "prod"],
-        ["init", "--profile", "prod"],
-        ["--profile", "prod", "init"],
-        ["ai", "toolkit", "list", "--profile", "prod"],
-        ["ai", "--profile", "prod", "toolkit", "list"],
-        ["ai", "status", "--profile", "prod"],
-        ["ai", "mcp", "install", "--profile", "prod"],
-    ],
-    ids=[
-        "after-profile",
-        "after-local-profile",
-        "before-profile",
-        "before-local-profile",
-        "after-init",
-        "before-init",
-        "after-ai-toolkit",
-        "before-ai-toolkit",
-        "after-ai-status",
-        "after-ai-mcp-install",
-    ],
-)
-def test_dlthub_profile_commands_take_no_profile_option(
-    auto_isolated_workspace: WorkspaceRunContext, main_dlthub: TMainDlthub, argv: List[str]
-) -> None:
-    code, err = main_dlthub(*argv)
-    assert code == 2
-    assert "--profile" in err
-
-
-def test_dlthub_environment_command(
-    auto_isolated_workspace: WorkspaceRunContext,
-    monkeypatch: pytest.MonkeyPatch,
-    main_dlthub: TMainDlthub,
-) -> None:
-    """A command that takes `--environment` gets no `--profile` and refuses one given before or
-    after it."""
-    seen: List[argparse.Namespace] = []
-
-    def create_parser(host: str) -> Any:
-        parser, pre_parser, installed = _create_parser(host)
-        subparsers = next(a for a in parser._actions if isinstance(a, argparse._SubParsersAction))
-        add_environment_argument(subparsers.add_parser("deploy"))
-        _add_profile_argument(parser)
-        installed["deploy"] = SimpleNamespace(execute=seen.append, docs_url=None)  # type: ignore[assignment]
-        return parser, pre_parser, installed
-
-    monkeypatch.setattr("dlt._workspace.cli._dlt._create_parser", create_parser)
-    assert main_dlthub("deploy", "--environment", "prod")[0] == 0
-    assert seen[-1].environment == "prod"
-    assert not hasattr(seen[-1], "profile")
-    assert main_dlthub("deploy")[0] == 0
-    assert seen[-1].environment is None
-    # other commands still take --profile
-    assert main_dlthub("local", "info", "--profile", "prod")[0] == 0
-    for argv in (["deploy", "--profile", "prod"], ["--profile", "prod", "deploy"]):
-        code, err = main_dlthub(*argv)
-        assert code == 2
-        assert "--environment" in err
-
-
-def test_dlthub_refuses_undeclared_profile(
-    auto_isolated_workspace: WorkspaceRunContext,
-    monkeypatch: pytest.MonkeyPatch,
-    main_dlthub: TMainDlthub,
-) -> None:
-    """`--profile` takes a declared profile. An environment is not one."""
-    monkeypatch.delenv(WORKSPACE__PROFILE, raising=False)
-    declare_environment(auto_isolated_workspace, "ci")
-    for name, remedy in (
-        ("staging", "dlthub profile add staging --local"),
-        ("ci", "Name one of its profiles"),
-    ):
-        code, err = main_dlthub("--profile", name, "local", "info")
-        assert code == -1
-        assert remedy in err
-        # a refused name does not reach the processes the command starts
-        assert WORKSPACE__PROFILE not in os.environ
-    assert main_dlthub("--profile", "ci-read", "local", "info")[0] == 0
-    assert os.environ[WORKSPACE__PROFILE] == "ci-read"
-
-
-@pytest.mark.parametrize(
-    "source", ["recorded", "environ"], ids=["recorded-profile", "environment-variable"]
-)
-def test_dlthub_stops_on_undeclared_active_profile(
-    auto_isolated_workspace: WorkspaceRunContext,
-    monkeypatch: pytest.MonkeyPatch,
-    main_dlthub: TMainDlthub,
-    source: TProfileSource,
-) -> None:
-    """An undeclared profile recorded in `.dlt/profile-name` or named by `WORKSPACE__PROFILE`
-    stops every command when the workspace loads."""
-    monkeypatch.delenv(WORKSPACE__PROFILE, raising=False)
-    if source == "recorded":
-        save_profile_pin(auto_isolated_workspace, "staging")
-    else:
-        monkeypatch.setenv(WORKSPACE__PROFILE, "staging")
-    for argv in (["profile", "list"], ["local", "info"]):
-        code, err = main_dlthub(*argv)
-        assert code == -1
-        assert "`staging` is not a profile declared" in err
-
-    if source == "recorded":
-        os.remove(get_profile_pin_file(auto_isolated_workspace))
-    else:
-        monkeypatch.delenv(WORKSPACE__PROFILE)
-    for argv in (["profile", "list"], ["local", "info"]):
-        assert main_dlthub(*argv)[0] == 0
-
-
-def test_dlthub_profile_option_outside_workspace(
-    legacy_workspace_context: Any, parse_dlthub: TParseDlthub
-) -> None:
-    with pytest.raises(SystemExit):
-        parse_dlthub(["--profile", "prod", "init"])
-
-
 def test_dlthub_profile_add(
     auto_isolated_workspace: WorkspaceRunContext, run_dlthub: TRunDlthub
 ) -> None:
@@ -402,15 +238,15 @@ def test_dlthub_profile_add(
     ]
     assert settings("ci-write") == [True, True]
     assert "Environment ci is strict about access and deploys with ci-write." in out
-    assert "dlthub profile add ci-read --access read --env ci" in out
+    assert "dlthub profile add ci-read --access read --environment ci" in out
     profiles = {p["name"]: p for p in fetch_profiles_list()}
     assert "ci" not in profiles
-    assert profiles["ci-write"]["is_configured"] is True
+    assert profiles["ci-write"]["configured"] is True
     # the definition is loaded again once the settings files exist
     assert ctx.get_profile_definition("ci-write")["configured"] is True
     # the profile with read data access that interactive jobs need joins the environment, as
     # the default of its data access
-    out = run_dlthub("profile", "add", "ci-read", "--access", "read", "--env", "ci")
+    out = run_dlthub("profile", "add", "ci-read", "--access", "read", "--environment", "ci")
     assert "  * profile ci-read: environment ci, read data access, default" in out.splitlines()
     assert settings("ci-read") == [True, True]
     profiles = {p["name"]: p for p in fetch_profiles_list()}
@@ -427,7 +263,7 @@ def test_dlthub_profile_add(
     with open(ctx.get_setting("analytics.secrets.toml"), encoding="utf-8") as f:
         assert f.read() == "key = 1\n"
     run_dlthub("profile", "add", "sensitive-access", "--access", "read")
-    out = run_dlthub("profile", "add", "ci-audit", "--access", "none", "--env", "ci")
+    out = run_dlthub("profile", "add", "ci-audit", "--access", "none", "--environment", "ci")
     assert "will create" not in out
     run_dlthub("profile", "add", "lab", "--local")
     profiles = {p["name"]: p for p in fetch_profiles_list()}
@@ -446,15 +282,23 @@ def test_dlthub_profile_add(
 @pytest.mark.parametrize(
     "argv,error,match",
     [
-        (["add", "x", "--env", "access"], EnvironmentNotDeclared, "`access` is not an environment"),
         (
-            ["add", "x", "--env", "staging"],
+            ["add", "x", "--environment", "access"],
+            EnvironmentNotDeclared,
+            "`access` is not an environment",
+        ),
+        (
+            ["add", "x", "--environment", "staging"],
             EnvironmentNotDeclared,
             "`staging` is not an environment",
         ),
-        (["add", "x"], ProfileException, "Name the environment with `--env`: prod, ci"),
+        (["add", "x"], ProfileException, "Name the environment with `--environment`: prod, ci"),
         (["add-environment", "ci"], EnvironmentAlreadyExists, "Environment `ci` is already"),
-        (["add", "x", "--local", "--env", "prod"], ProfileException, "belongs to no environment"),
+        (
+            ["add", "x", "--local", "--environment", "prod"],
+            ProfileException,
+            "belongs to no environment",
+        ),
         (["add", "x", "--local", "--access", "read"], ProfileException, "write data access"),
     ],
     ids=[
@@ -477,7 +321,7 @@ def test_dlthub_profile_add_refused(
     """A refusal comes before dlt asks and declares nothing."""
     ctx = auto_isolated_workspace
     run_dlthub("profile", "add-environment", "ci")
-    # no environment is the default, so `profile add` needs `--env`
+    # no environment is the default, so `profile add` needs `--environment`
     doc = load_workspace_definition(ctx)
     del doc["environments"]["prod"]["default"]
     save_definition(ctx, doc)
@@ -499,7 +343,7 @@ def test_dlthub_profile_add_existing(
     # `access` is declared without settings files: they are created, the declaration stays
     assert ctx.get_profile_definition("access")["configured"] is False
     declared = load_yaml_file(ctx.get_setting(".workspace"))
-    out = run_dlthub("profile", "add", "access", "--env", "prod")
+    out = run_dlthub("profile", "add", "access", "--environment", "prod")
     assert "dlt will create the missing settings files:" in out and "will add" not in out
     assert [os.path.isfile(f) for f in get_profile_settings_files(ctx, "access")] == [True, True]
     assert load_yaml_file(ctx.get_setting(".workspace")) == declared
@@ -517,7 +361,7 @@ def test_dlthub_profile_add_existing(
     assert f"settings files: {', '.join(files)}" in out
     # a profile without data access needs no settings files
     run_dlthub("profile", "add-environment", "ci")
-    run_dlthub("profile", "add", "ci-none", "--access", "none", "--env", "ci")
+    run_dlthub("profile", "add", "ci-none", "--access", "none", "--environment", "ci")
     with pytest.raises(ProfileAlreadyExists):
         run_dlthub("profile", "add", "ci-none")
     assert "settings files: none" in capsys.readouterr().out
@@ -525,8 +369,8 @@ def test_dlthub_profile_add_existing(
     # options that contradict the declaration are refused
     with pytest.raises(ProfileAlreadyExists, match="declaration differs from --access write"):
         run_dlthub("profile", "add", "access", "--access", "write")
-    with pytest.raises(ProfileAlreadyExists, match="--local, --env ci"):
-        run_dlthub("profile", "add", "access", "--local", "--env", "ci")
+    with pytest.raises(ProfileAlreadyExists, match="--local, --environment ci"):
+        run_dlthub("profile", "add", "access", "--local", "--environment", "ci")
 
     # an environment gets back the settings files its profiles miss
     os.remove(get_profile_settings_files(ctx, "ci-write")[1])

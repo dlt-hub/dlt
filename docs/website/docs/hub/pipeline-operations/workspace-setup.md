@@ -33,7 +33,7 @@ This opens a GitHub OAuth device flow and authenticates the current user. Then c
 dlthub workspace connect [<workspace>] [--org-id <org_id>]
 ```
 
-With no argument, an interactive picker is shown, grouped by organization. The chosen `workspace_id` (and `organization_id`, on the first connect) is persisted to `.dlt/config.toml`. The command connects the local workspace in the default environment, `prod`. The first deployment to another environment [connects the local workspace in that environment](profiles.md#connect-to-a-remote-workspace-in-each-environment). To list workspaces you have access to, use `dlthub workspace list`.
+With no argument, an interactive picker is shown, grouped by organization. The chosen `workspace_id` (and `organization_id`, on the first connect) is persisted to `.dlt/config.toml`. The command connects the local workspace in the environment of the active profile, else in the default environment, `prod`. Name another one with `--environment`. The first deployment to another environment [connects the local workspace in that environment](profiles.md#connect-to-a-remote-workspace-in-each-environment). To list workspaces you have access to, use `dlthub workspace list`.
 
 :::note
 The first time you run `dlthub deploy`, `dlthub run`, or `dlthub serve`, the CLI walks you through GitHub OAuth and then prompts you to pick (or create) a remote workspace — so you can skip this step entirely.

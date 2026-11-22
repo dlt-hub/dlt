@@ -1,9 +1,11 @@
 import os
-from typing import Sequence
+from typing import Optional, Sequence
 
+from dlt.common.configuration.providers.toml import GLOBAL_ORIGIN_PREFIX
 from dlt.common.exceptions import DltException
 from dlt.common.typing import Literal
 from dlt.common.runtime.exceptions import RunContextNotAvailable
+from dlt.common.runtime.run_context import DOT_DLT
 
 
 class WorkspaceException(DltException):
@@ -30,15 +32,8 @@ class InvalidWorkspaceFile(WorkspaceException, ValueError):
         self.errors = list(errors)
         listed = "\n".join(f"  - {e}" for e in errors)
         super().__init__(
-            f"`{path}` declares the profiles of this workspace and is invalid:\n{listed}\nAn"
-            " environment is a key under `environments`. It declares its remote `profiles`."
-            " `default` and `strict_access` are optional. One profile of each data access has"
-            " `default: true`. Deployments are made with the default profile with write data"
-            " access. A local profile is a key under `local_profiles`, `default` is optional."
-            " Each profile has `data_access` (none, read or write). The deployment module of an"
-            " environment is not set here, set `deployment_module` under"
-            " `[workspace.environment.<name>]` in `config.toml`. Fix the entries above. Or empty"
-            " the file: dlt then declares the built-in profiles again."
+            f"`{path}` declares the profiles of this workspace and is invalid:\n{listed}\nFix the"
+            " entries above, or empty the file: dlt then declares the built-in profiles again."
         )
 
 
@@ -50,6 +45,17 @@ class WorkspaceFileEngineNoUpgradePath(WorkspaceException):
         super().__init__(
             f"`{path}` declares the profiles of this workspace with engine version {from_engine}."
             f" This dlt supports version {to_engine}. A newer dlt wrote the file: upgrade dlt."
+        )
+
+
+class ToolkitsIndexEngineNoUpgradePath(WorkspaceException):
+    def __init__(self, path: str, from_engine: int, to_engine: int) -> None:
+        self.path = path
+        self.from_engine = from_engine
+        self.to_engine = to_engine
+        super().__init__(
+            f"`{path}` lists the installed toolkits with engine version {from_engine}. This dlt"
+            f" supports version {to_engine}. A newer dlt wrote the file: upgrade dlt."
         )
 
 
@@ -142,7 +148,7 @@ class ProfileNotDeclared(ProfileException):
         else:
             remedy = (
                 f" To use `{name}` on this machine only, run `dlthub profile add {name} --local`."
-                f" To add it to an environment, run `dlthub profile add {name} --env"
+                f" To add it to an environment, run `dlthub profile add {name} --environment"
                 f" <environment>`. Environments: {_format_environments(environments)}. `dlthub"
                 " profile list` shows the declared profiles."
             )
@@ -152,14 +158,29 @@ class ProfileNotDeclared(ProfileException):
 class EnvironmentNotDeclared(ProfileException):
     """`env` names no declared environment."""
 
-    def __init__(self, env: str, path: str, environments: Sequence[str]) -> None:
+    def __init__(
+        self,
+        env: str,
+        path: str,
+        environments: Sequence[str],
+        is_profile: bool = False,
+        profile_env: Optional[str] = None,
+    ) -> None:
         self.env = env
         self.path = path
         self.environments = list(environments)
+        if profile_env:
+            remedy = (
+                f" `{env}` is a profile of environment `{profile_env}`: name `{profile_env}`, or"
+                " the profile with --profile."
+            )
+        elif is_profile:
+            remedy = f" `{env}` is a local profile, not an environment."
+        else:
+            remedy = f" Declare it with `dlthub profile add-environment {env}`."
         super().__init__(
             f"`{env}` is not an environment declared in `{path}` (declared:"
-            f" {_format_environments(environments)}). Declare it with `dlthub profile"
-            f" add-environment {env}`."
+            f" {_format_environments(environments)}).{remedy}"
         )
 
 
@@ -183,6 +204,54 @@ class NoEnvironment(ProfileException):
             f"The active profile `{active_profile}` is a local profile, so it selects no"
             " environment. No environment is the default. A command that deploys or works with a"
             f" deployment needs one.{remedy}"
+        )
+
+
+class ProfileNotInEnvironment(ProfileException):
+    """A command that takes an environment and a profile got a local profile, or a profile of
+    another environment."""
+
+    def __init__(
+        self,
+        profile: str,
+        profile_env: Optional[str],
+        env: Optional[str] = None,
+        profiles: Sequence[str] = (),
+    ) -> None:
+        self.profile = profile
+        self.profile_env = profile_env
+        self.env = env
+        self.profiles = list(profiles)
+        if profile_env is None:
+            problem = f"`{profile}` is a local profile and reaches no remote workspace."
+        else:
+            problem = f"`{profile}` is a profile of environment `{profile_env}`, not of `{env}`."
+        if env:
+            remedy = f" Name a profile of `{env}`: {', '.join(profiles)}."
+        else:
+            remedy = " Name a profile of an environment. `dlthub profile list` shows them."
+        super().__init__(problem + remedy)
+
+
+class WorkspaceIdConflict(WorkspaceException):
+    """`workspace_id` under `[runtime]` in a settings file, and another one in the section of the
+    default environment."""
+
+    def __init__(self, environment: str, location: str) -> None:
+        self.environment = environment
+        self.location = location
+        if location.startswith(GLOBAL_ORIGIN_PREFIX):
+            where = f"the global `{location.removeprefix(GLOBAL_ORIGIN_PREFIX)}`"
+        elif location.endswith(".toml"):
+            where = f"`{os.path.join(DOT_DLT, location)}`"
+        else:
+            # a vault or a plugin provider, by its name
+            where = f"`{location}`"
+        super().__init__(
+            f"`workspace_id` under `[runtime]` in {where}, set before environments existed, and"
+            f" `workspace_id` under `[workspace.environment.{environment}]` both name the remote"
+            f" workspace of the default environment `{environment}`. Remove `workspace_id` under"
+            f" `[runtime]` in {where}."
         )
 
 

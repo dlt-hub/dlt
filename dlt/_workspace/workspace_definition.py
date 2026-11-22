@@ -2,10 +2,12 @@
 the facts about each entry. No files and no run context."""
 
 import re
-from typing import Collection, Dict, Optional
+from typing import Collection, Dict, Optional, Tuple
 
+from dlt._workspace.access import DATA_ACCESS_LEVELS
 from dlt._workspace.typing import (
     TEnvironmentDefinition,
+    TProfileDataAccess,
     TProfileDefinition,
     TProfileStoredDefinition,
     TWorkspaceDefinition,
@@ -99,7 +101,7 @@ def get_environment_definition(doc: TWorkspaceDefinition, env: str) -> TEnvironm
     return doc["environments"][env]
 
 
-def get_profile_data_access(profile: TProfileStoredDefinition) -> str:
+def get_profile_data_access(profile: TProfileStoredDefinition) -> TProfileDataAccess:
     """Data access level of `profile`: `none`, `read` or `write`."""
     return "write" if profile["data_access"] == "all" else profile["data_access"]
 
@@ -112,9 +114,14 @@ def needs_settings_files(profile: TProfileStoredDefinition) -> bool:
 def set_configured_profiles(
     profiles: Dict[str, TProfileDefinition], with_settings: Collection[str]
 ) -> None:
-    """Sets `configured` on `profiles`: a profile has settings files or needs none."""
+    """Sets `configured` on `profiles`: whether a profile has settings files."""
     for name, profile in profiles.items():
-        profile["configured"] = not needs_settings_files(profile) or name in with_settings
+        profile["configured"] = name in with_settings
+
+
+def is_profile_usable(profile: TProfileDefinition) -> bool:
+    """True when `profile` is configured or holds no credentials and needs no settings files."""
+    return profile.get("configured", True) or not needs_settings_files(profile)
 
 
 def get_default_profile_for_env(
@@ -125,4 +132,22 @@ def get_default_profile_for_env(
     for name, profile in environment["profiles"].items():
         if profile.get("default") and get_profile_data_access(profile) == data_access:
             return name
+    return None
+
+
+def find_default_profile_for_access(
+    environment: TEnvironmentDefinition, data_access: TProfileDataAccess
+) -> Optional[Tuple[str, TProfileDataAccess]]:
+    """The default profile of `environment` that serves `data_access`, with the data access it
+    gives. A profile without settings files does not count. In an environment that is not strict,
+    the closest default profile with more data access takes over. `None` when no profile fits."""
+    strict = bool(environment.get("strict_access"))
+    levels = DATA_ACCESS_LEVELS[DATA_ACCESS_LEVELS.index(data_access) :]
+    for level in levels[:1] if strict else levels:
+        name = get_default_profile_for_env(environment, level)
+        if name is None:
+            continue
+        # nothing is above the profile with write data access, so it is taken as it is
+        if is_profile_usable(environment["profiles"][name]) or (level == "write" and not strict):
+            return name, level
     return None

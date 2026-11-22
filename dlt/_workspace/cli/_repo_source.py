@@ -19,21 +19,21 @@ class TRepoSource(TypedDict, total=False):
 def add_repo_source_arguments(
     parser: argparse.ArgumentParser, repo_description: str, default_location: str
 ) -> None:
-    """Adds `--location` and `--branch`, which default to the ones the last install used."""
+    """Adds `--location` and `--branch`, which default to the ones given last to a command."""
     parser.add_argument(
         "--location",
         default=None,
         help=(
-            f"Advanced. Git URL or local path of the {repo_description}. Defaults to the location"
-            f" the last install used, else {default_location}. An empty value resets it."
+            f"Advanced. Git URL or local path of the {repo_description}. Defaults to the last"
+            f" location given to a command, else {default_location}. An empty value resets it."
         ),
     )
     parser.add_argument(
         "--branch",
         default=None,
         help=(
-            "Advanced. Branch to fetch from. Defaults to the branch the last install from the"
-            " same location used, else the default branch. An empty value resets it."
+            "Advanced. Branch to fetch from. Defaults to the last branch given with the same"
+            " location, else the default branch. An empty value resets it."
         ),
     )
 

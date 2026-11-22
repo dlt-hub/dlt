@@ -12,12 +12,15 @@ import yaml
 
 from dlt.common.configuration.const import TYPE_EXAMPLES
 from dlt._workspace.cli.dlthub.ai.utils import (
+    DEFAULT_AI_WORKBENCH_REPO,
+    TOOLKITS_INDEX_ENGINE_VERSION,
     ensure_cursor_rule_frontmatter,
     extract_toolkit_info,
     fetch_ai_status,
     is_component_visible,
     is_toolkit_visible,
     load_toolkits_index,
+    resolve_harness_source,
     resolve_toolkit_dependencies,
     save_toolkit_entry,
     merge_json_mcp_servers,
@@ -33,6 +36,7 @@ from dlt._workspace.cli.dlthub.ai.utils import (
     MIN_REDACT_STARS,
 )
 from dlt._workspace.cli.markdown import MarkdownDocument
+from dlt._workspace.exceptions import ToolkitsIndexEngineNoUpgradePath
 
 from tests.workspace.cli.dlthub.ai.utils import AI_CASES_DIR
 
@@ -462,12 +466,21 @@ def _write_toolkits_index(project_root: Path, data: Dict[str, Any]) -> None:
         yaml.dump(data, f)
 
 
-def test_toolkits_index_written_by_older_dlt() -> None:
-    """An index without `see_all` loads as is; a new entry adds it, the old ones stay."""
+@pytest.mark.parametrize(
+    "case_file,source",
+    [
+        ("toolkits_index_dlt_1_32.yaml", {}),
+        ("toolkits_index_dlt_1_33a2.yaml", {"location": "/home/me/harness", "branch": "feat"}),
+    ],
+    ids=["dlt-1.32", "dlt-1.33a2"],
+)
+def test_toolkits_index_written_by_older_dlt(case_file: str, source: Dict[str, str]) -> None:
+    """The flat index of an older dlt is migrated and saved on load: its toolkits stay as they
+    are, and the harness source that 1.33.0a2 recorded on `init` becomes the global one."""
     project_root = Path("project")
     index_path = project_root / ".dlt" / ".toolkits"
     index_path.parent.mkdir(parents=True)
-    shutil.copy(os.path.join(AI_CASES_DIR, "toolkits_index_dlt_1_32.yaml"), index_path)
+    shutil.copy(os.path.join(AI_CASES_DIR, case_file), index_path)
     original = yaml.safe_load(index_path.read_text(encoding="utf-8"))
 
     with _patch_settings_paths(project_root):
@@ -475,6 +488,10 @@ def test_toolkits_index_written_by_older_dlt() -> None:
         assert set(index) == {"init", "rest-api-pipeline"}
         assert index["init"]["agent"] == "claude"
         assert "see_all" not in index["init"]
+        migrated = yaml.safe_load(index_path.read_text(encoding="utf-8"))
+        assert migrated["engine_version"] == TOOLKITS_INDEX_ENGINE_VERSION
+        assert {k: v for k, v in migrated.items() if k in ("location", "branch")} == source
+        assert resolve_harness_source()[0] == source.get("location", DEFAULT_AI_WORKBENCH_REPO)
 
         save_toolkit_entry(
             extract_toolkit_info(
@@ -492,13 +509,26 @@ def test_toolkits_index_written_by_older_dlt() -> None:
         index = load_toolkits_index()
 
     saved = yaml.safe_load(index_path.read_text(encoding="utf-8"))
-    # the old entries are written back without the `name` key, the new one adds see_all
-    assert saved["init"] == {k: v for k, v in original["init"].items() if k != "name"}
-    assert saved["rest-api-pipeline"] == original["rest-api-pipeline"]
+    assert {k: v for k, v in saved.items() if k in ("location", "branch")} == source
+    saved = saved["toolkits"]
+    # the old entries are written back without the `name` key and the source, the new one adds
+    # see_all
+    for name in ("init", "rest-api-pipeline"):
+        assert saved[name] == {
+            k: v for k, v in original[name].items() if k not in ("name", "location", "branch")
+        }
     assert saved["sql"]["see_all"] is True
     # visibility is metadata of the harness, it is not recorded
     assert "agent_visibility" not in saved["sql"]
     assert index["sql"]["name"] == "sql"
+
+
+def test_toolkits_index_written_by_newer_dlt() -> None:
+    project_root = Path("project")
+    _write_toolkits_index(project_root, {"engine_version": 2, "toolkits": {}})
+    with _patch_settings_paths(project_root):
+        with pytest.raises(ToolkitsIndexEngineNoUpgradePath):
+            load_toolkits_index()
 
 
 def test_fetch_ai_status_empty_workspace(environment: Any) -> None:

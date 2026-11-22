@@ -2,6 +2,7 @@ import hashlib
 import os
 import re
 import threading
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Mapping, Optional, Set, Tuple
 
@@ -9,7 +10,6 @@ import tomlkit
 import yaml
 
 from dlt.common.json import json
-from dlt.common.pendulum import pendulum
 from dlt.common.utils import uniq_id, update_dict_nested
 from dlt.common.configuration.const import TYPE_EXAMPLES
 from dlt.common.configuration.providers.toml import SecretsTomlProvider, SettingsTomlProvider
@@ -32,16 +32,19 @@ from dlt._workspace.cli.dlthub.ai.typing import (
     TAiStatusWarning,
     TToolkitIndexEntry,
     TToolkitInfo,
+    TToolkitsIndex,
     TWorkbenchComponentInfo,
     TWorkbenchToolkitInfo,
 )
 from dlt._workspace.cli.markdown import MarkdownDocument
 from dlt._workspace.cli.utils import get_provider_locations, make_dlt_settings_path
+from dlt._workspace.exceptions import ToolkitsIndexEngineNoUpgradePath
 from dlt._workspace.settings_files import load_yaml_file, save_yaml_file
 from dlt._workspace.typing import TLocationInfo
 
 AI_WORKBENCH_BASE_DIR = "workbench"
 TOOLKITS_INDEX_FILE = ".toolkits"
+TOOLKITS_INDEX_ENGINE_VERSION = 1
 DLTHUB_AGENTS_DIR = "dlthub/agents"
 """Folder of dlt agents in a toolkit and in a host folder, apart from the host's own `agents`."""
 
@@ -719,13 +722,59 @@ def _toolkits_index_path() -> str:
     return make_dlt_settings_path(TOOLKITS_INDEX_FILE)
 
 
+def _load_toolkits_file() -> TToolkitsIndex:
+    """Loads `.dlt/.toolkits`, migrated to the current engine version and saved when migrated.
+
+    Raises:
+        ToolkitsIndexEngineNoUpgradePath: A newer dlt wrote the file.
+    """
+    path = _toolkits_index_path()
+    try:
+        doc: Dict[str, Any] = load_yaml_file(path)
+    except (ValueError, OSError):
+        doc = {}
+    if not doc:
+        return {"engine_version": TOOLKITS_INDEX_ENGINE_VERSION, "toolkits": {}}
+    from_engine = doc.get("engine_version", 0)
+    if from_engine == TOOLKITS_INDEX_ENGINE_VERSION:
+        return doc  # type: ignore[return-value]
+    if from_engine != 0:
+        raise ToolkitsIndexEngineNoUpgradePath(path, from_engine, TOOLKITS_INDEX_ENGINE_VERSION)
+    index = migrate_toolkits_index(doc)
+    # a read-only settings dir keeps the old file, the next load migrates again
+    try:
+        save_yaml_file(path, index)
+    except OSError:
+        pass
+    return index
+
+
+def migrate_toolkits_index(doc: Dict[str, Any]) -> TToolkitsIndex:
+    """Migrates the flat map of toolkits that dlt 1.33.0a2 and earlier wrote to engine 1."""
+    index: TToolkitsIndex = {"engine_version": TOOLKITS_INDEX_ENGINE_VERSION, "toolkits": doc}
+    for name, entry in doc.items():
+        if not isinstance(entry, dict):
+            continue
+        source = {key: entry.pop(key) for key in ("location", "branch") if key in entry}
+        # 1.33.0a1 and a2 recorded the harness source on the toolkits they installed
+        if name == _INIT_TOOLKIT:
+            index.update(source)  # type: ignore[typeddict-item]
+    return index
+
+
+def _save_toolkits_file(index: TToolkitsIndex) -> None:
+    """Saves `index` without the names of the toolkits, which are their keys."""
+    toolkits = {
+        key: {k: v for k, v in entry.items() if k != "name"}
+        for key, entry in index["toolkits"].items()
+    }
+    save_yaml_file(_toolkits_index_path(), {**index, "toolkits": toolkits})
+
+
 def load_toolkits_index(hide_init: bool = False) -> Dict[str, TToolkitIndexEntry]:
     """Load the installed toolkits index from the workspace settings directory. `hide_init`
     leaves out `init` and the toolkits it depends on, which set up the agent."""
-    try:
-        data: Dict[str, TToolkitIndexEntry] = load_yaml_file(_toolkits_index_path())
-    except (ValueError, OSError):
-        return {}
+    data = _load_toolkits_file()["toolkits"]
     # restore name from the YAML key (stripped on write)
     for key, entry in data.items():
         entry["name"] = key
@@ -751,7 +800,6 @@ def save_toolkit_entry(
     files: Optional[Dict[str, Any]] = None,
     mcp_servers: Optional[List[str]] = None,
     see_all: bool = False,
-    source: Optional[TRepoSource] = None,
 ) -> None:
     """Record that a toolkit was installed or updated in the toolkits index.
 
@@ -761,17 +809,16 @@ def save_toolkit_entry(
         files: Mapping of installed file paths to their content hashes.
         mcp_servers: Names of MCP servers provided by the toolkit.
         see_all: Whether the toolkit was installed with `--see-all`.
-        source: Harness location and branch to record, see `get_recorded_repo_source`.
     """
 
-    index = load_toolkits_index()
+    index = _load_toolkits_file()
     entry: Dict[str, Any] = dict(toolkit_meta)
     name = entry.pop("name")
     # visibility and MCP features describe the harness, not what got installed
     entry.pop("agent_visibility", None)
     entry.pop("component_visibility", None)
     entry.pop("mcp_features", None)
-    entry["installed_at"] = pendulum.now("UTC").isoformat()
+    entry["installed_at"] = datetime.now(timezone.utc).isoformat()
     if agent:
         entry["agent"] = agent
     if files:
@@ -780,25 +827,34 @@ def save_toolkit_entry(
         entry["mcp_servers"] = mcp_servers
     if see_all:
         entry["see_all"] = True
-    if source:
-        entry.update(source)
-    index[name] = entry  # type: ignore[assignment]
-    # the name is the YAML key: `load_toolkits_index` restores it on read
-    stored = {key: {k: v for k, v in e.items() if k != "name"} for key, e in index.items()}
-    save_yaml_file(_toolkits_index_path(), stored)
+    index["toolkits"][name] = entry  # type: ignore[assignment]
+    _save_toolkits_file(index)
+
+
+def save_harness_source(location: str, branch: Optional[str]) -> None:
+    """Records the harness `location` and `branch` that the next commands default to. Defaults are
+    not recorded, so a reset removes them."""
+    source = get_recorded_harness_source(location, branch)
+    if not source and not os.path.isfile(_toolkits_index_path()):
+        return
+    index = _load_toolkits_file()
+    index.pop("location", None)
+    index.pop("branch", None)
+    index.update(source)
+    _save_toolkits_file(index)
 
 
 def resolve_harness_source(
     location: Optional[str] = None, branch: Optional[str] = None
 ) -> Tuple[str, Optional[str]]:
-    """Harness location and branch to fetch from: given, else recorded by the installed `init`
-    toolkit, which every install brings, else the defaults. An empty value resets."""
+    """Harness location and branch to fetch from: given, else given last to a command, else the
+    defaults. An empty value resets."""
+    index = _load_toolkits_file()
     recorded: TRepoSource = {}
-    if init_entry := load_toolkits_index().get(_INIT_TOOLKIT):
-        if "location" in init_entry:
-            recorded["location"] = init_entry["location"]
-        if "branch" in init_entry:
-            recorded["branch"] = init_entry["branch"]
+    if "location" in index:
+        recorded["location"] = index["location"]
+    if "branch" in index:
+        recorded["branch"] = index["branch"]
     return resolve_repo_source(
         location,
         branch,

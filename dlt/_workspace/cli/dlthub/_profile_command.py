@@ -90,7 +90,7 @@ def _format_profile_line(p: TProfileInfo) -> str:
         )
     elif p.get("default"):
         markers.append(_format_marker("default"))
-    if p["is_configured"]:
+    if p.get("configured"):
         markers.append(_format_marker("has settings files"))
     line = fmt.bold(p["name"]) + "".join(markers)
     return line if remote_default else "%s - %s" % (line, format_data_access(p["data_access"]))
@@ -274,7 +274,7 @@ def _find_conflicting_options(
     if data_access and data_access != profile["data_access"]:
         conflicting.append(f"--access {data_access}")
     if env and env != profile.get("env"):
-        conflicting.append(f"--env {env}")
+        conflicting.append(f"--environment {env}")
     return conflicting
 
 
@@ -312,7 +312,8 @@ def add_profile(
     if location == "local":
         if env or data_access not in (None, "write"):
             raise ProfileException(
-                f"dlt cannot declare local profile `{profile_name}` with --env or with --access"
+                f"dlt cannot declare local profile `{profile_name}` with --environment or with"
+                " --access"
                 " other than write. A local profile has write data access and belongs to no"
                 f" environment. Run `dlthub profile add {profile_name} --local` alone."
             )
@@ -324,7 +325,8 @@ def add_profile(
         if env is None:
             raise ProfileException(
                 f"dlt cannot declare `{profile_name}`: no environment is the default in `{path}`."
-                f" Name the environment with `--env`: {', '.join(environments) or 'none declared'}."
+                " Name the environment with `--environment`:"
+                f" {', '.join(environments) or 'none declared'}."
             )
         if env not in environments:
             raise EnvironmentNotDeclared(env, path, list(environments))
@@ -365,7 +367,7 @@ def add_environment(workspace_run_context: WorkspaceRunContext, name: str) -> No
             % (
                 fmt.bold(name),
                 fmt.bold(get_default_profile_for_env(environment, "write")),
-                fmt.bold(f"dlthub profile add {name}-read --access read --env {name}"),
+                fmt.bold(f"dlthub profile add {name}-read --access read --environment {name}"),
             )
         )
 

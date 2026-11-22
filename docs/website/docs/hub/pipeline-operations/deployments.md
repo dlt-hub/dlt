@@ -154,7 +154,7 @@ This is the central command for manifest-based deployment. It reads the deployme
 dlthub deploy
 ```
 
-The deployment is made to the default [environment](profiles.md#how-environments-work), `prod`, with its default write profile. Name another environment with `--environment`:
+The deployment is made to the [environment](profiles.md#how-environments-work) of the active profile, else to the default environment, `prod`, with its default write profile. Name another environment with `--environment`:
 
 ```cli
 dlthub deploy --environment staging

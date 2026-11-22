@@ -1,0 +1,13 @@
+[project]
+name = "monorepo"
+version = "0.1.0"
+requires-python = ">=3.9"
+dependencies = [
+    "requests>=2.0",
+]
+
+[dependency-groups]
+dev = ["pytest>=7.0"]
+
+[tool.uv.workspace]
+members = ["workspace", "reporting", "packages/*"]

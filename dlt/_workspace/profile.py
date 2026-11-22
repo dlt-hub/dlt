@@ -1,10 +1,17 @@
 """Profiles of the active workspace: declare, check and activate them."""
 
 import os
-from typing import Mapping, Optional, Sequence
+from contextlib import contextmanager
+from typing import Iterator, Mapping, Optional, Sequence
 
-from dlt.common.configuration.specs.pluggable_run_context import ProfilesRunContext
+from dlt.common.configuration.container import Container
+from dlt.common.configuration.specs.pluggable_run_context import (
+    PluggableRunContext,
+    ProfilesRunContext,
+    RunContextBase,
+)
 from dlt.common.runtime.run_context import active as active_run_context
+from dlt.common.utils import custom_environ
 
 from dlt._workspace._known_env import WORKSPACE__PROFILE
 from dlt._workspace._workspace_context import WorkspaceRunContext, active
@@ -129,8 +136,11 @@ def check_profile_declared(profile: str) -> None:
     """Refuses `profile` when the active workspace does not declare it.
 
     Raises:
+        InvalidProfileName: `profile` is not a profile name, so it cannot be declared either.
         ProfileNotDeclared: The profile is not declared.
     """
+    if not PROFILE_NAME_RE.match(profile):
+        raise InvalidProfileName(profile)
     ctx = active()
     doc = ctx.workspace_definition
     if not is_profile_declared(doc, profile):
@@ -157,3 +167,25 @@ def activate_profile(profile: str) -> None:
     # a run context created before the env var was set keeps its profile until switched
     if isinstance(ctx, ProfilesRunContext) and ctx.profile != profile:
         ctx.switch_profile(profile)
+
+
+@contextmanager
+def use_profile(profile: str) -> Iterator[RunContextBase]:
+    """Runs the block with `profile` active in this process and, via `WORKSPACE__PROFILE`, in the
+    processes it starts. Restores the run context and the variable afterwards.
+
+    Raises:
+        InvalidProfileName: `profile` is not a profile name.
+        ProfileNotDeclared: The active workspace does not declare `profile`.
+    """
+    plug = Container()[PluggableRunContext]
+    if isinstance(plug.context, WorkspaceRunContext):
+        check_profile_declared(profile)
+    cookie = plug.push_context()
+    try:
+        with custom_environ({WORKSPACE__PROFILE: profile}):
+            if not isinstance(plug.context, ProfilesRunContext) or plug.context.profile != profile:
+                plug.reload(plug.context.run_dir, runtime_kwargs={"profile": profile})
+            yield plug.context
+    finally:
+        plug.pop_context(cookie)

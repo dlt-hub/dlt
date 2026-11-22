@@ -8,6 +8,7 @@ from pytest_mock import MockerFixture
 from fastmcp.prompts import Prompt
 from fastmcp.tools import Tool
 
+import dlt
 from dlt.common.configuration import plugins
 from dlt.common.configuration.container import Container
 from dlt.common.configuration.providers.toml import SecretsTomlProvider
@@ -33,7 +34,17 @@ from dlt._workspace._plugins import (
     plug_mcp_workspace,
 )
 from dlt._workspace.configuration import WorkspaceRuntimeConfiguration
+from dlt._workspace.environment import (
+    ENVIRONMENT_ARGUMENT_HELP,
+    ENVIRONMENT_PROFILE_ARGUMENT_HELP,
+)
+from dlt._workspace.mcp.context import (
+    TEnvironmentArgument,
+    TProfileArgument,
+    with_tool_run_context,
+)
 from dlt._workspace.mcp.tools import secrets_tools
+from dlt._workspace.profile import PROFILE_ARGUMENT_HELP
 
 from tests.common.runtime.utils import mock_github_env, mock_pod_env
 from tests.utils import (
@@ -41,6 +52,7 @@ from tests.utils import (
     start_test_telemetry,
 )
 from tests.workspace.utils import (
+    declare_environment,
     isolated_workspace,
     pokemon_pipeline_context as pokemon_pipeline_context,
 )
@@ -130,10 +142,12 @@ def test_workspace_mcp_server(pokemon_pipeline_context: RunContextBase) -> None:
             assert (
                 "pipeline_name" in param_names
             ), f"Tool {tool.name} should expose pipeline_name parameter"
-    # in a workspace the profile tools take a profile
+    # in a workspace the profile tools take a profile with the default help, the tools that
+    # manage profiles take none
     by_name = {tool.name: tool for tool in tools}
-    assert "profile" in by_name["get_workspace_info"].parameters["properties"]
-    assert "profile" in by_name["list_profiles"].parameters["properties"]
+    profile_param = by_name["get_workspace_info"].parameters["properties"]["profile"]
+    assert profile_param["description"] == PROFILE_ARGUMENT_HELP
+    assert "profile" not in by_name["list_profiles"].parameters.get("properties", {})
 
 
 def test_workspace_mcp_server_outside_workspace() -> None:
@@ -142,7 +156,7 @@ def test_workspace_mcp_server_outside_workspace() -> None:
         mcp = WorkspaceMCP("dlt")
         by_name = {tool.name: tool for tool in asyncio.run(mcp.list_tools())}
         assert "profile" not in by_name["get_workspace_info"].parameters.get("properties", {})
-        assert "profile" not in by_name["list_profiles"].parameters.get("properties", {})
+        assert "profile" not in by_name["list_pipelines"].parameters.get("properties", {})
 
 
 @pytest.mark.parametrize(
@@ -263,6 +277,69 @@ def test_register_tool_and_prompt_objects(pokemon_pipeline_context: RunContextBa
         m.unregister(name="test-obj-plugin")
 
 
+def test_server_runs_tool_with_its_environment() -> None:
+    """The server runs a plugin tool with the profile that its `environment` argument selects,
+    without any decorator on the tool. A tool that fails gives the run context back as well."""
+    failed_with: List[str] = []
+
+    def deployment_tool(environment: TEnvironmentArgument = None) -> str:
+        """Names the profile of the call."""
+        return dlt.current.workspace().profile
+
+    def failing_tool(environment: TEnvironmentArgument = None) -> str:
+        """Fails after it records the profile of the call."""
+        failed_with.append(dlt.current.workspace().profile)
+        raise ValueError("the tool failed")
+
+    def restore_tool(
+        environment: TEnvironmentArgument = None, profile: TProfileArgument = None
+    ) -> str:
+        """Names the profile of the call.
+
+        Args:
+            environment: The environment whose remote workspace has the run.
+        """
+        return dlt.current.workspace().profile
+
+    class _EnvironmentPlugin:
+        @plugins.hookimpl(specname="plug_mcp")
+        def plug_mcp_environment(self, features: Set[str]) -> Optional[McpFeatures]:
+            if "workspace" not in features:
+                return None
+            return McpFeatures(
+                name="environment-plugin", tools=[deployment_tool, restore_tool, failing_tool]
+            )
+
+    m = get_manager()
+    m.register(_EnvironmentPlugin(), name="test-environment-plugin")
+    try:
+        with isolated_workspace("default") as ctx:
+            declare_environment(ctx, "ci")
+            mcp = WorkspaceMCP("test")
+            for arguments, profile in (({}, "prod"), ({"environment": "ci"}, "ci-write")):
+                result = asyncio.run(mcp.call_tool("deployment_tool", arguments))
+                assert result.content[0].text == profile
+            active_profile = dlt.current.workspace().profile
+            with pytest.raises(Exception):
+                asyncio.run(mcp.call_tool("failing_tool", {"environment": "ci"}))
+            assert failed_with == ["ci-write"]
+            assert dlt.current.workspace().profile == active_profile
+            result = asyncio.run(mcp.call_tool("deployment_tool", {}))
+            assert result.content[0].text == "prod"
+            # the server describes the arguments that the docstring of the tool does not
+            by_name = {tool.name: tool for tool in asyncio.run(mcp.list_tools())}
+            deployment_params = by_name["deployment_tool"].parameters["properties"]
+            assert deployment_params["environment"]["description"] == ENVIRONMENT_ARGUMENT_HELP
+            restore_params = by_name["restore_tool"].parameters["properties"]
+            assert (
+                restore_params["environment"]["description"]
+                == "The environment whose remote workspace has the run."
+            )
+            assert restore_params["profile"]["description"] == ENVIRONMENT_PROFILE_ARGUMENT_HELP
+    finally:
+        m.unregister(name="test-environment-plugin")
+
+
 @pytest.mark.parametrize(
     "tokens,expected_in,expected_not_in",
     [
@@ -318,14 +395,16 @@ def test_secrets_update_then_merged_view_reflects_change(
     required: str,
 ) -> None:
     """After secrets_update_fragment writes a key, the merged view (no path)
-    must include that key. Calls MCP tool functions which use with_reload_context."""
+    must include that key. Calls MCP tool functions as the server runs them, on a run context
+    reloaded for each call."""
+    view_redacted = with_tool_run_context(secrets_tools.secrets_view_redacted)
 
     with isolated_workspace(workspace_name, profile=profile, required=required):
         os.makedirs(".dlt", exist_ok=True)
 
         # 1) merged view before update — should be empty or raise ToolError
         try:
-            before = secrets_tools.secrets_view_redacted()
+            before = view_redacted()
         except Exception:
             before = None
         if before is not None:
@@ -350,7 +429,7 @@ def test_secrets_update_then_merged_view_reflects_change(
         assert "sk-test-12345" not in result
 
         # 4) merged view after update — must see the new section
-        after = secrets_tools.secrets_view_redacted()
+        after = view_redacted()
         assert after is not None, "Merged view returned None after update"
         assert "[sources.my_source]" in after
         assert "api_key" in after

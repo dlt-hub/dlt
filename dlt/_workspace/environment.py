@@ -2,12 +2,18 @@
 them, and connect each to its remote workspace."""
 
 import os
-from typing import List, Mapping, Optional
+from contextlib import contextmanager, nullcontext
+from typing import Any, ContextManager, Iterator, List, Mapping, Optional, Tuple
 
 import tomlkit
 
 from dlt.common.configuration.container import Container
-from dlt.common.configuration.providers import CONFIG_TOML, ConfigTomlProvider
+from dlt.common.configuration.providers import (
+    CONFIG_TOML,
+    SECRETS_TOML,
+    ConfigTomlProvider,
+    SecretsTomlProvider,
+)
 from dlt.common.configuration.specs import known_sections
 from dlt.common.configuration.specs.pluggable_run_context import PluggableRunContext
 
@@ -19,16 +25,28 @@ from dlt._workspace.exceptions import (
     InvalidProfileName,
     NoEnvironment,
     OrganizationMismatch,
+    ProfileNotInEnvironment,
     WorkspaceRunContextNotAvailable,
 )
-from dlt._workspace.profile import activate_profile, check_new_profiles
+from dlt._workspace.profile import (
+    activate_profile,
+    check_new_profiles,
+    check_profile_declared,
+    use_profile,
+)
 from dlt._workspace.run_context import format_display_path
 from dlt._workspace.typing import (
     DEFAULT_DEPLOYMENT_MODULE,
     TEnvironmentDefinition,
+    TProfileOptionsTakes,
     TWorkspaceDefinition,
 )
-from dlt._workspace.workspace_definition import PROFILE_NAME_RE, get_default_profile_for_env
+from dlt._workspace.workspace_definition import (
+    PROFILE_NAME_RE,
+    get_default_profile_for_env,
+    get_environment_for_profile,
+    is_profile_declared,
+)
 from dlt._workspace.workspace_file import (
     load_workspace_definition,
     save_workspace_file,
@@ -41,6 +59,18 @@ ENVIRONMENT_ARGUMENT_HELP = (
 )
 """Help of the `--environment` option of commands that deploy or work with a deployment and of the
 `environment` argument of MCP tools."""
+
+ENVIRONMENT_PROFILE_ARGUMENT_HELP = (
+    "Profile of the environment to run with. Selects the environment when no environment is given."
+)
+"""Help of the `--profile` option of commands that also take `--environment` and of the `profile`
+argument of MCP tools that also take `environment`."""
+
+WORKSPACE_ARGUMENT_HELP = (
+    "The environment of the active profile, else the default environment: --environment without"
+    " a name. Takes no --profile."
+)
+"""Help of the `--workspace` option."""
 
 
 def create_environment_definition(name: str) -> TEnvironmentDefinition:
@@ -115,9 +145,11 @@ def select_environment(name: Optional[str] = None) -> TEnvironmentDefinition:
     environment of the active profile, else the default environment.
 
     Returns:
-        TEnvironmentDefinition: The environment, with its profiles and its deployment module.
+        TEnvironmentDefinition: The environment, with its profiles, its deployment module and
+            whether it deploys the workspace dashboard.
 
     Raises:
+        InvalidProfileName: `name` is not an environment name.
         EnvironmentNotDeclared: `name` is not declared.
         NoEnvironment: Nothing names an environment and none is the default.
     """
@@ -131,7 +163,12 @@ def select_environment(name: Optional[str] = None) -> TEnvironmentDefinition:
                 ctx.profile, format_workspace_file_path(ctx), list(ctx.environment_definitions)
             )
         definition = ctx.get_environment_definition(name)
-    return {**definition, "deployment_module": _get_configured_deployment_module(ctx, name)}
+    config = ctx.get_environment_config(name)
+    return {
+        **definition,
+        "deployment_module": config.deployment_module or DEFAULT_DEPLOYMENT_MODULE,
+        "deploy_dashboard": bool(config.deploy_dashboard),
+    }
 
 
 def activate_environment(name: Optional[str] = None) -> TEnvironmentDefinition:
@@ -143,6 +180,100 @@ def activate_environment(name: Optional[str] = None) -> TEnvironmentDefinition:
     environment = select_environment(name)
     activate_profile(get_default_profile_for_env(environment, "write"))
     return environment
+
+
+def select_environment_profile(
+    environment: Optional[str] = None, profile: Optional[str] = None
+) -> Tuple[TEnvironmentDefinition, str]:
+    """The environment and the profile of a command that takes both.
+
+    `profile` must belong to `environment`. Without `environment`, the environment of `profile`
+    is used. Without `profile`, the active profile is used when it belongs to the environment that
+    `select_environment` selects, else the default write profile of that environment.
+
+    Returns:
+        Tuple[TEnvironmentDefinition, str]: The environment and the profile to run with.
+
+    Raises:
+        InvalidProfileName: `profile` or `environment` is not a profile or environment name.
+        ProfileNotDeclared: `profile` is not declared.
+        ProfileNotInEnvironment: `profile` is a local profile or a profile of another environment.
+        EnvironmentNotDeclared: `environment` is not declared.
+        NoEnvironment: Nothing names an environment and none is the default.
+    """
+    ctx = active()
+    if not profile:
+        definition = select_environment(environment)
+        if ctx.environment == definition["name"]:
+            return definition, ctx.profile
+        return definition, get_default_profile_for_env(definition, "write")
+    check_profile_declared(profile)
+    profile_env = get_environment_for_profile(ctx.workspace_definition, profile)
+    definition = select_environment(environment) if environment else None
+    if profile_env is None or (definition is not None and definition["name"] != profile_env):
+        raise ProfileNotInEnvironment(
+            profile,
+            profile_env,
+            environment,
+            get_profiles_for_env(definition) if definition else (),
+        )
+    return definition or select_environment(profile_env), profile
+
+
+def activate_environment_profile(
+    environment: Optional[str] = None, profile: Optional[str] = None
+) -> TEnvironmentDefinition:
+    """Activates the profile that `select_environment_profile` selects.
+
+    Returns:
+        TEnvironmentDefinition: The environment of the activated profile.
+    """
+    definition, selected = select_environment_profile(environment, profile)
+    activate_profile(selected)
+    return definition
+
+
+@contextmanager
+def use_environment(name: Optional[str] = None) -> Iterator[TEnvironmentDefinition]:
+    """Runs the block with the default write profile of the environment that `select_environment`
+    selects, see `use_profile`. Restores the run context afterwards.
+
+    Yields:
+        TEnvironmentDefinition: The environment, with its profiles, to generate the manifest from.
+    """
+    environment = select_environment(name)
+    with use_profile(get_default_profile_for_env(environment, "write")):
+        yield environment
+
+
+@contextmanager
+def use_environment_profile(
+    environment: Optional[str] = None, profile: Optional[str] = None
+) -> Iterator[TEnvironmentDefinition]:
+    """Runs the block with the profile that `select_environment_profile` selects, see
+    `use_profile`. Restores the run context afterwards.
+
+    Yields:
+        TEnvironmentDefinition: The environment of the profile.
+    """
+    definition, selected = select_environment_profile(environment, profile)
+    with use_profile(selected):
+        yield definition
+
+
+def use_profile_options(
+    takes: TProfileOptionsTakes, environment: Optional[str] = None, profile: Optional[str] = None
+) -> ContextManager[Any]:
+    """Runs the block with the profile that a command or an MCP tool that takes `takes` selects
+    with `environment` and `profile`, see `use_environment`, `use_environment_profile` and
+    `use_profile`. Without a selection, the block runs with the active profile."""
+    if takes == "both":
+        return use_environment_profile(environment, profile)
+    if takes == "environment":
+        return use_environment(environment)
+    if takes == "profile" and profile:
+        return use_profile(profile)
+    return nullcontext()
 
 
 def get_deployment_environment(
@@ -185,15 +316,20 @@ def connect_remote_workspace(
 ) -> None:
     """Connects the local workspace to a remote workspace in `environment`.
 
-    Writes `workspace_id` and `workspace_name` under `[workspace.environment.<environment>]` in
-    `config.toml` and `organization_id`, the one organization of the workspace, under
-    `[runtime]`. A value that is `None`, or that `environment` resolves already, is not written.
+    Writes `workspace_id`, and `workspace_name` as `name`, under
+    `[workspace.environment.<environment>]` in `config.toml`, and `organization_id`, the one
+    organization of the workspace, under `[runtime]`. A value that is `None`, or that
+    `environment` resolves already, is not written.
+    The `[runtime] workspace_id` of the default environment, set before environments existed,
+    moves to its section first.
 
     Raises:
         EnvironmentNotDeclared: `environment` is not declared.
         OrganizationMismatch: The workspace is connected to another organization.
     """
-    _get_declared_environment(ctx, environment)
+    definition = _get_declared_environment(ctx, environment)
+    if environment == ctx.default_environment:
+        _migrate_runtime_workspace_id(ctx, definition)
     resolved = ctx.get_environment_config(environment)
     sections = (known_sections.WORKSPACE, ENVIRONMENT_SECTION, environment)
     runtime_section = WorkspaceRuntimeConfiguration.__section__
@@ -215,7 +351,7 @@ def connect_remote_workspace(
         config.set_value("workspace_id", workspace_id, None, *sections)
         changed = True
     if workspace_name and workspace_name != resolved.settings.name:
-        config.set_value("workspace_name", workspace_name, None, *sections)
+        config.set_value("name", workspace_name, None, *sections)
         changed = True
     if changed:
         config.write_toml()
@@ -225,35 +361,30 @@ def connect_remote_workspace(
 def disconnect_remote_workspace(ctx: WorkspaceRunContext, environment: str) -> None:
     """Disconnects the local workspace from the remote workspace of `environment`.
 
-    Removes the section of `environment` and the `[runtime] workspace_id` set before
-    environments existed: from the settings files of the profiles of `environment`, and from
-    `config.toml` when `environment` is the default one. The organization and the workspace
-    name stay. Environment variables and the global settings dir are not touched.
+    Removes `workspace_id` from the section of `environment` and the `[runtime] workspace_id` set
+    before environments existed: from the shared settings files and the settings files of the
+    profiles of `environment`, the `[runtime]` one in the shared files only when `environment` is
+    the default one. The other settings of the environment, such as its workspace name and
+    deployment module, and the organization stay. Environment variables and the global settings
+    dir are not touched.
 
     Raises:
         EnvironmentNotDeclared: `environment` is not declared.
     """
     definition = _get_declared_environment(ctx, environment)
     is_default = environment == ctx.default_environment
-    files = [(CONFIG_TOML, is_default)]
-    files += [(f"{profile}.{CONFIG_TOML}", True) for profile in get_profiles_for_env(definition)]
     changed = False
-    for file_name, drop_runtime_id in files:
+    shared_files = (CONFIG_TOML, SECRETS_TOML)
+    for file_name in [*shared_files, *_get_profile_settings_files(definition)]:
         path = os.path.join(ctx.settings_dir, file_name)
         if not os.path.isfile(path):
             continue
         with open(path, "r", encoding="utf-8") as f:
             doc = tomlkit.parse(f.read())
-        workspace = doc.get(known_sections.WORKSPACE, {})
-        dropped = workspace.get(ENVIRONMENT_SECTION, {}).pop(environment, None) is not None
-        if drop_runtime_id:
-            # `[workspace.runtime]` is the other place the runtime section resolves from
-            for runtime in (
-                doc.get(WorkspaceRuntimeConfiguration.__section__),
-                workspace.get(WorkspaceRuntimeConfiguration.__section__),
-            ):
-                if runtime is not None and runtime.pop("workspace_id", None) is not None:
-                    dropped = True
+        dropped = _drop_environment_workspace_id(doc, environment)
+        # the one in the shared files belongs to the default environment
+        if is_default or file_name not in shared_files:
+            dropped = _drop_runtime_workspace_id(doc) is not None or dropped
         if dropped:
             with open(path, "w", encoding="utf-8") as f:
                 tomlkit.dump(doc, f)
@@ -262,11 +393,103 @@ def disconnect_remote_workspace(ctx: WorkspaceRunContext, environment: str) -> N
         _reload_context(ctx)
 
 
+def _migrate_runtime_workspace_id(
+    ctx: WorkspaceRunContext, definition: TEnvironmentDefinition
+) -> None:
+    """Moves the `[runtime] workspace_id` of the default environment `definition` to its section
+    in `config.toml`: the one in the files of its default write profile, else the one in the
+    shared files. Removes the others. A section that has an id keeps it."""
+    runtime_id: Optional[str] = None
+    for file_name in [*_get_profile_settings_files(definition), CONFIG_TOML, SECRETS_TOML]:
+        path = os.path.join(ctx.settings_dir, file_name)
+        if not os.path.isfile(path):
+            continue
+        with open(path, "r", encoding="utf-8") as f:
+            doc = tomlkit.parse(f.read())
+        dropped = _drop_runtime_workspace_id(doc)
+        if dropped is None:
+            continue
+        runtime_id = runtime_id or dropped
+        with open(path, "w", encoding="utf-8") as f:
+            tomlkit.dump(doc, f)
+    if runtime_id is None:
+        return
+    sections = (known_sections.WORKSPACE, ENVIRONMENT_SECTION, definition["name"])
+    config = ConfigTomlProvider(ctx.settings_dir)
+    if config.get_value("workspace_id", str, None, *sections)[0] is None:
+        config.set_value("workspace_id", runtime_id, None, *sections)
+        config.write_toml()
+    _reload_context(ctx)
+
+
+def _get_profile_settings_files(definition: TEnvironmentDefinition) -> List[str]:
+    """The settings files of the profiles of the environment `definition`, the ones of its
+    default write profile first."""
+    return [
+        f"{profile}.{file_name}"
+        for profile in get_profiles_for_env(definition)
+        for file_name in (CONFIG_TOML, SECRETS_TOML)
+    ]
+
+
+def _drop_environment_workspace_id(doc: tomlkit.TOMLDocument, environment: str) -> bool:
+    """Removes `workspace_id` from the section of `environment` in the settings file `doc`, and
+    the section when nothing else is left in it. Returns whether `doc` had it."""
+    environments = doc.get(known_sections.WORKSPACE, {}).get(ENVIRONMENT_SECTION, {})
+    section = environments.get(environment)
+    if section is None or section.pop("workspace_id", None) is None:
+        return False
+    if not section:
+        del environments[environment]
+    return True
+
+
+def _drop_runtime_workspace_id(doc: tomlkit.TOMLDocument) -> Optional[str]:
+    """Removes `workspace_id` from the runtime section of the settings file `doc`. Returns it,
+    `None` when `doc` has none."""
+    dropped: Optional[str] = None
+    workspace = doc.get(known_sections.WORKSPACE, {})
+    # `[workspace.runtime]` is the other place the runtime section resolves from
+    for runtime in (
+        doc.get(WorkspaceRuntimeConfiguration.__section__),
+        workspace.get(WorkspaceRuntimeConfiguration.__section__),
+    ):
+        if runtime is not None and (value := runtime.pop("workspace_id", None)) is not None:
+            dropped = dropped or str(value)
+    return dropped
+
+
+def set_global_secret(
+    ctx: WorkspaceRunContext, key: str, value: Any, *sections: str, reload_context: bool = True
+) -> None:
+    """Writes `value` under `key` in `sections` of the global `secrets.toml` in `ctx.global_dir`:
+    a secret of the user, not of the workspace, like an auth token. A dict `value` is merged into
+    the existing one.
+
+    With `reload_context`, `ctx` drops its resolved configuration and its providers, so the value
+    takes effect right away. Without it, `ctx` sees the value only after its next reload.
+    """
+    os.makedirs(ctx.global_dir, exist_ok=True)
+    secrets = SecretsTomlProvider(ctx.global_dir)
+    secrets.set_value(key, value, None, *sections)
+    secrets.write_toml()
+    if reload_context:
+        _reload_context(ctx)
+
+
 def _get_declared_environment(ctx: WorkspaceRunContext, environment: str) -> TEnvironmentDefinition:
+    if not PROFILE_NAME_RE.match(environment):
+        raise InvalidProfileName(environment)
     definitions = ctx.environment_definitions
     if environment not in definitions:
+        doc = ctx.workspace_definition
+        is_profile = is_profile_declared(doc, environment)
         raise EnvironmentNotDeclared(
-            environment, format_workspace_file_path(ctx), list(definitions)
+            environment,
+            format_workspace_file_path(ctx),
+            list(definitions),
+            is_profile=is_profile,
+            profile_env=get_environment_for_profile(doc, environment) if is_profile else None,
         )
     return definitions[environment]
 

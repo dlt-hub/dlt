@@ -169,7 +169,13 @@ def validate_workspace_definition(doc: StrAny, path: str) -> None:
     try:
         validation.validate_dict(TWorkspaceStoredDefinition, doc, ".")
     except DictValidationException as ex:
-        raise InvalidWorkspaceFile(path, [str(ex)]) from ex
+        hints = [
+            f"environment `{env}`: set `deployment_module` under"
+            f" `[workspace.environment.{env}]` in `config.toml`, not here"
+            for env, environment in (doc.get("environments") or {}).items()
+            if isinstance(environment, dict) and "deployment_module" in environment
+        ]
+        raise InvalidWorkspaceFile(path, [str(ex), *hints]) from ex
 
     errors: List[str] = []
     environments: Dict[str, TEnvironmentStoredDefinition] = doc["environments"]

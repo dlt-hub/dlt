@@ -18,7 +18,7 @@ from dlt._workspace.access import RequiresAccess
 from dlt._workspace.mcp.context import with_mcp_tool_telemetry
 
 
-def _agent_name() -> Optional[str]:
+def _get_agent_name() -> Optional[str]:
     from dlt._workspace.cli.dlthub.ai.agents import _AIAgent
 
     return _AIAgent.detect_agent_name(None, Path(run_context.active().run_dir))
@@ -31,7 +31,7 @@ def list_toolkits() -> Annotated[Dict[str, TToolkitInfo], RequiresAccess()]:
         base = fetch_workbench_base(*resolve_harness_source())
     except FileNotFoundError as ex:
         raise ToolError(str(ex))
-    toolkits, _ = fetch_workbench_toolkits(base, listed_only=True, agent_name=_agent_name())
+    toolkits, _ = fetch_workbench_toolkits(base, listed_only=True, agent_name=_get_agent_name())
     return toolkits
 
 
@@ -40,7 +40,7 @@ def toolkit_info(
     name: Annotated[str, Field(description="Name of the toolkit to inspect")],
 ) -> Annotated[TWorkbenchToolkitInfo, RequiresAccess()]:
     """Show detailed contents of a dlt AI toolkit."""
-    agent_name = _agent_name()
+    agent_name = _get_agent_name()
     try:
         info = fetch_workbench_toolkit_info(name, *resolve_harness_source(), agent_name=agent_name)
     except (FileNotFoundError, ValueError) as ex:

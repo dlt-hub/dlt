@@ -126,7 +126,7 @@ class ProfileDataAccessNotAvailable(DeploymentValidationError):
             deployed = ", ".join(f"{n} ({format_data_access(a)})" for n, a in profiles.items())
             problem = (
                 f"and has no profile for it: {deployed}. Declare one with `dlthub profile add"
-                f" {env}-{data_access} --access {data_access} --env {env}`."
+                f" {env}-{data_access} --access {data_access} --environment {env}`."
             )
         super().__init__(
             f"Job `{job_ref}` declares {format_data_access(data_access)}."
@@ -206,7 +206,7 @@ class JobProfileNotInEnvironment(DeploymentValidationError):
             f" `{env}` ({', '.join(profiles)})."
             " A deployment uses only the profiles of its environment, never a local profile."
             f" If `{profile}` is not declared, declare it with `dlthub profile add {profile}"
-            f" --access {data_access} --env {env}`: the job needs"
+            f" --access {data_access} --environment {env}`: the job needs"
             f" {format_data_access(data_access)}."
             " If it belongs to another environment, deploy there with `--environment`, or edit"
             f" `.dlt/.workspace` and move its declaration to environment `{env}`."

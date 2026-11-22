@@ -13,7 +13,10 @@ from dlt._workspace.exceptions import InvalidWorkspaceFile, WorkspaceFileEngineN
 from dlt._workspace.profile import add_profiles
 from dlt._workspace.settings_files import dump_yaml, load_yaml_file, save_profile_pin
 from dlt._workspace.typing import TWorkspaceDefinition
-from dlt._workspace.workspace_definition import create_built_in_workspace_definition
+from dlt._workspace.workspace_definition import (
+    create_built_in_workspace_definition,
+    is_profile_usable,
+)
 from dlt._workspace.workspace_file import (
     WORKSPACE_FILE_NAME,
     expand_workspace_definition,
@@ -95,9 +98,11 @@ def _assert_invalid(ex: InvalidWorkspaceFile, path: str, errors: List[str]) -> N
     assert len(ex.errors) == len(errors)
     for expected in errors:
         assert any(expected in error for error in ex.errors), expected
-    # the message tells where the profiles are declared and how to fix the file
+    # the message tells where the profiles are declared and how to fix the file, nothing more
     assert path in str(ex)
-    assert "empty the file" in str(ex)
+    assert str(ex).endswith(
+        "Fix the entries above, or empty the file: dlt then declares the built-in profiles again."
+    )
 
 
 INVALID_DEFINITIONS: Dict[str, Tuple[DictStrAny, List[str]]] = {
@@ -118,7 +123,10 @@ INVALID_DEFINITIONS: Dict[str, Tuple[DictStrAny, List[str]]] = {
     # what follows from where an entry is declared, or comes from the configuration, is not stored
     "environment-deployment-module": (
         _definition(_make_single_environment(deployment_module="x")),
-        ["unexpected fields"],
+        [
+            "unexpected fields",
+            "set `deployment_module` under `[workspace.environment.b]` in `config.toml`",
+        ],
     ),
     "profile-location": (
         _definition(local_profiles={"dev": _make_stored_profile(location="local")}),
@@ -469,12 +477,15 @@ def test_build_stored_workspace_definition() -> None:
 def test_configured_follows_settings_files() -> None:
     with isolated_workspace("empty") as ctx:
         # a declared profile without settings files is not configured, one without data access is
+        # usable all the same
         assert ctx.get_profile_definition("dev")["configured"] is False
-        assert ctx.get_environment_definition("prod")["profiles"] == {
+        profiles = ctx.get_environment_definition("prod")["profiles"]
+        assert profiles == {
             "prod": {**_remote("prod"), "configured": False},
             "access": {**_remote("prod", "read"), "configured": False},
-            "no-access": {**_remote("prod", "none"), "configured": True},
+            "no-access": {**_remote("prod", "none"), "configured": False},
         }
+        assert [name for name, p in profiles.items() if is_profile_usable(p)] == ["no-access"]
         # the flag follows the settings files once the definition is loaded again
         touch_settings(ctx, "access.config.toml")
         assert ctx.get_profile_definition("access")["configured"] is False
@@ -486,7 +497,8 @@ def test_configured_follows_settings_files() -> None:
         assert ctx.get_profile_definition("access")["configured"] is True
         # a profile without data access needs no settings files
         add_profiles(ctx, {"audit": {"data_access": "none"}}, "prod")
-        assert ctx.get_profile_definition("audit")["configured"] is True
+        assert ctx.get_profile_definition("audit")["configured"] is False
+        assert is_profile_usable(ctx.get_profile_definition("audit"))
         assert ctx.configured_profiles() == ["access"]
 
         # the saved file has no flag, and a flag written to the file is refused

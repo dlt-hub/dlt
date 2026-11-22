@@ -33,8 +33,8 @@ def test_create_profile_settings() -> None:
 def test_yaml_files() -> None:
     path = os.path.join(get_test_storage_root(), "settings", "doc.yaml")
     assert load_yaml_file(path) == {}
-    save_yaml_file(path, {"engine_version": 1, "profiles": {"dev": {"location": "local"}}})
-    assert load_yaml_file(path) == {"engine_version": 1, "profiles": {"dev": {"location": "local"}}}
+    save_yaml_file(path, {"engine_version": 1, "items": {"a": {"b": 1}}})
+    assert load_yaml_file(path) == {"engine_version": 1, "items": {"a": {"b": 1}}}
     with open(path, "w", encoding="utf-8") as f:
         f.write("")
     assert load_yaml_file(path) == {}

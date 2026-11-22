@@ -12,6 +12,7 @@ from dlt._workspace.deployment.decorators import job
 from dlt._workspace.deployment.exceptions import InvalidManifest, InvalidTrigger
 from dlt._workspace.deployment.manifest import (
     DASHBOARD_JOB_REF,
+    default_dashboard_manifest,
     generate_manifest,
     is_module_missing,
     load_manifest,
@@ -458,17 +459,21 @@ def test_default_dashboard_job_shape() -> None:
     assert "http:" in dashboard["triggers"]
 
 
-def test_dashboard_goes_to_the_default_environment() -> None:
-    """The dashboard goes to a local run without environment and to the default environment,
-    whatever the module, and never to another environment or to an ad-hoc deployment. The
-    environments are not declared in the workspace: the manifest comes from the arguments alone."""
+def test_dashboard_goes_with_the_deployment_module_of_the_default_environment() -> None:
+    """The dashboard goes to a local run without environment and to the deployment module of the
+    default environment, unless the environment sets `deploy_dashboard` to false. Never to
+    another module, another environment or an ad-hoc deployment. The environments are not declared
+    in the workspace: the manifest comes from the arguments alone."""
     mod = import_module(f"{WORKSPACE}.deployment_batch_only")
-    qa = full_environment("qa")
+    qa: TEnvironmentDefinition = {**full_environment("qa"), "deployment_module": mod.__name__}
     default_qa: TEnvironmentDefinition = {**qa, "default": True}
     cases: List[Tuple[Optional[TEnvironmentDefinition], bool, bool]] = [
         (None, True, True),
         (default_qa, True, True),
         (qa, True, False),
+        # the module is not the deployment module of the environment
+        ({**default_qa, "deployment_module": "__deployment__"}, True, False),
+        ({**default_qa, "deploy_dashboard": False}, True, False),
         # ad-hoc: `dlthub local serve <file>` serves that file alone
         (None, False, False),
         (default_qa, False, False),
@@ -479,6 +484,23 @@ def test_dashboard_goes_to_the_default_environment() -> None:
             assert (DASHBOARD_JOB_REF in {j["job_ref"] for j in manifest["jobs"]}) is has_dashboard
             if environment is not None:
                 assert manifest["environment"] == "qa"
+
+
+def test_default_dashboard_manifest() -> None:
+    """The dashboard-only manifest is for an environment: the dashboard gets the profile of the
+    environment for read data access, and an environment that deploys no dashboard gets none."""
+    qa = full_environment("qa")
+    with isolated_workspace("default"):
+        manifest = default_dashboard_manifest({**qa, "default": True})
+        assert manifest["environment"] == "qa"
+        assert [(j["job_ref"], j["require"]["profile"]) for j in manifest["jobs"]] == [
+            (DASHBOARD_JOB_REF, "qa-read")
+        ]
+        assert default_dashboard_manifest(qa)["jobs"] == []
+        # a local run gets the dashboard without a profile
+        assert [j["job_ref"] for j in default_dashboard_manifest(None)["jobs"]] == [
+            DASHBOARD_JOB_REF
+        ]
 
 
 @pytest.mark.parametrize(

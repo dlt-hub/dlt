@@ -4,7 +4,29 @@ from dlt.common.typing import NotRequired, TypedDict
 
 from dlt._workspace.cli.dlthub.ai.typing import TToolkitIndexEntry
 from dlt._workspace.deployment.typing import TDependencyChange
-from dlt._workspace.typing import TEnvironmentDefinition, TProfileDefinition, TProviderInfo
+from dlt._workspace.typing import (
+    TEnvironmentDefinition,
+    TProfileDefinition,
+    TProfileOptionsTakes,
+    TProviderInfo,
+)
+
+
+class TProfileOptions(TypedDict, total=False):
+    """The profile options of a `dlthub` command, declared in `profile_options` of its
+    `SupportsCliCommand`. A declaration replaces the one of the command above it, except one with
+    `subcommands` only."""
+
+    takes: TProfileOptionsTakes
+    """`profile` when not given."""
+    required: bool
+    """The command needs `--profile`, `--environment` or `--workspace`."""
+    refusal: str
+    """Why a command that takes none of the options refuses `--profile`."""
+    option_help: Dict[str, str]
+    """Help of an option, by option string, that replaces its default help."""
+    subcommands: Dict[str, "TProfileOptions"]
+    """The subcommands that declare other options, by name."""
 
 
 class TProfileInfo(TProfileDefinition):
@@ -15,8 +37,6 @@ class TProfileInfo(TProfileDefinition):
     """The other profiles of the environment."""
     is_current: bool
     is_pinned: bool
-    is_configured: bool
-    """True when the profile has a `<profile>.config.toml` or `<profile>.secrets.toml`."""
 
 
 class TEnvironmentInfo(TEnvironmentDefinition):
@@ -99,7 +119,9 @@ class TDeploymentManifestInfo(TypedDict):
 TInitDependencySystem = Literal["pyproject.toml", "requirements.txt"]
 TInitDependencyChoice = Literal["auto", "pyproject", "requirements"]
 TInitFileStatus = Literal["create", "skip", "merge", "overwrite"]
-TInitMergeError = Literal["uv_missing", "no_project_table"]
+TInitMergeError = Literal[
+    "uv_missing", "no_project_table", "hashed_requirements", "included_requirements"
+]
 
 
 class TInitFileEntry(TypedDict):

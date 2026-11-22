@@ -98,13 +98,17 @@ def isolated_workspace(
     profile: str = None,
     required: str = "WorkspaceRunContext",
     global_dir: str = None,
+    workspace_subdir: str = None,
 ) -> Iterator[WorkspaceRunContext]:
     """Copies `name` workspace from WORKSPACE_CASES_DIR to `_storage` top level folder
     changes cwd to a workspace copy and activates it to create a fully isolated workspace.
     `global_dir` stands in for the user's `~/.dlt` in every workspace context created inside:
-    an empty folder in the copy unless given.
+    an empty folder in the copy unless given. `workspace_subdir` is the folder of the case that
+    holds the workspace, for example a member of a uv workspace.
     """
     new_run_dir = restore_clean_workspace(name)
+    if workspace_subdir:
+        new_run_dir = os.path.join(new_run_dir, workspace_subdir)
     with set_working_dir(new_run_dir):
         global_dir = global_dir or os.path.abspath(".global_dir")
         os.makedirs(global_dir, exist_ok=True)

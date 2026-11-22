@@ -1,5 +1,6 @@
 """Export, save, load, and migrate `TWorkspaceRequirementsManifest` — the wire format for workspace dependencies shipped to the runtime.
-Supports requirements.txt and requirements.in. If uv installed - supports pyproject with dependency groups and uv/PEP lock files.
+Supports requirements.txt and requirements.in. If uv installed - supports pyproject with dependency groups and uv/PEP lock files,
+also the lock at the root of a uv workspace that the dlt workspace is a member of.
 poetry/PDM support can be easily added.
 """
 
@@ -76,6 +77,7 @@ __all__ = [
     "export_workspace_requirements",
     "floored_spec",
     "get_dlt_requirement_spec",
+    "get_file_url_path",
     "get_pkg_install_spec",
     "get_workspace_install_specs",
     "is_uv_available",
@@ -150,7 +152,7 @@ def get_pkg_install_spec(pkg_name: str, *, extras: Optional[List[str]] = None) -
     # both editable and plain local installs use file:// URIs
     if url.startswith("file://"):
         spec["mode"] = "editable" if dir_info.get("editable") else "path"
-        spec["path"] = url2pathname(urlparse(url).path)
+        spec["path"] = get_file_url_path(url)
         return spec
 
     # http(s) archive — `pip install https://.../pkg.zip` (incl. github archive URLs)
@@ -161,6 +163,15 @@ def get_pkg_install_spec(pkg_name: str, *, extras: Optional[List[str]] = None) -
 
     # unknown direct_url variant — fall back to pypi version pin
     return spec
+
+
+def get_file_url_path(url: str) -> str:
+    """The local path of a `file://` URL, decoded. A UNC URL (`file://server/share/pkg`) keeps its
+    host."""
+    parsed = urlparse(url)
+    if parsed.netloc and parsed.netloc != "localhost":
+        return url2pathname(f"//{parsed.netloc}{parsed.path}")
+    return url2pathname(parsed.path)
 
 
 def _name_with_extras(spec: TInstallSpec) -> str:
@@ -411,8 +422,9 @@ def export_workspace_requirements(
 ) -> TWorkspaceRequirementsManifest:
     """Export a workspace's dependencies as a `TWorkspaceRequirementsManifest`.
 
-    If no default group names dlt, the installed dlt spec is injected into the
-    launcher baseline so every job gets it.
+    A `pyproject.toml` is exported from `uv.lock` next to it, else from the lock at the root of
+    the uv workspace that the workspace is a member of, else as declared. If no default group
+    names dlt, the installed dlt spec is injected into the launcher baseline so every job gets it.
 
     Args:
         workspace_root (Path): Workspace directory.
@@ -423,7 +435,8 @@ def export_workspace_requirements(
         TWorkspaceRequirementsManifest: Always contains a `main` entry in `groups`.
 
     Raises:
-        WorkspaceRequirementsError: `uv.lock` out of sync, `uv` failure, or parse error.
+        WorkspaceRequirementsError: `uv.lock` out of sync, `uv` failure, parse error, or a
+            dependency on another member of the uv workspace.
     """
     pyproject_path = workspace_root / PYPROJECT_TOML
     uv_lock_path = workspace_root / UV_LOCK
@@ -524,42 +537,21 @@ def _export_from_pyproject(
     group_names = _dependency_group_names(doc)
 
     if uv_lock_path.exists():
-        # lockfile is binary-ish YAML that only uv can faithfully interpret,
-        # so this path has no fallback — require uv upfront.
+        # only uv interprets its lock faithfully, so this path has no fallback
         _require_uv()
         # verify the lock is in sync — non-mutating
-        run_uv(["lock", "--check"], cwd=workspace_root)
-        result: Dict[str, List[str]] = {}
-        result[MAIN_GROUP] = _parse_uv_output(
-            run_uv(
-                [
-                    "export",
-                    "--no-hashes",
-                    "--no-emit-project",
-                    "--no-default-groups",
-                    "--format",
-                    "requirements.txt",
-                ],
-                cwd=workspace_root,
-            )
+        _run_uv_on_lock(["lock", "--check"], workspace_root)
+        return _export_locked(workspace_root, group_names, [])
+
+    workspace_member = _get_uv_workspace_member(workspace_root, doc)
+    if workspace_member is not None:
+        member, uv_workspace_root = workspace_member
+        # validates the lock at the root of the uv workspace
+        _run_uv_on_lock(["lock", "--check"], workspace_root)
+        _check_no_workspace_member_dependencies(workspace_root, member, uv_workspace_root)
+        return _export_locked(
+            workspace_root, group_names, ["--package", member, "--no-emit-workspace"]
         )
-        for name in group_names:
-            result[name] = _parse_uv_output(
-                run_uv(
-                    [
-                        "export",
-                        "--no-hashes",
-                        "--no-emit-project",
-                        "--no-default-groups",
-                        "--only-group",
-                        name,
-                        "--format",
-                        "requirements.txt",
-                    ],
-                    cwd=workspace_root,
-                )
-            )
-        return dict(sorted(result.items()))
 
     # no lock — parse declarations directly
     project = doc.get("project", {}) or {}
@@ -570,6 +562,84 @@ def _export_from_pyproject(
     for name in group_names:
         result[name] = _parse_dep_list(list(groups.get(name, []) or []))
     return dict(sorted(result.items()))
+
+
+_UV_EXPORT_ARGS = [
+    "export",
+    "--no-hashes",
+    "--no-emit-project",
+    "--no-default-groups",
+    "--format",
+    "requirements.txt",
+]
+
+
+def _export_locked(
+    workspace_root: Path, group_names: Sequence[str], extra_args: Sequence[str]
+) -> Dict[str, List[str]]:
+    """Exports the main dependencies and each of `group_names` from the lock with `uv export`,
+    passing `extra_args` to every call."""
+    result: Dict[str, List[str]] = {
+        MAIN_GROUP: _parse_uv_output(
+            _run_uv_on_lock([*_UV_EXPORT_ARGS, *extra_args], workspace_root)
+        )
+    }
+    for name in group_names:
+        result[name] = _parse_uv_output(
+            _run_uv_on_lock([*_UV_EXPORT_ARGS, "--only-group", name, *extra_args], workspace_root)
+        )
+    return dict(sorted(result.items()))
+
+
+def _run_uv_on_lock(args: List[str], cwd: Path) -> str:
+    """Runs uv on the lock without the uv settings that skip its checks or update it."""
+    # with `UV_FROZEN`, `uv lock --check` passes a stale lock
+    env = {k: v for k, v in os.environ.items() if k not in ("UV_FROZEN", "UV_LOCKED", "UV_NO_SYNC")}
+    return run_uv(args, cwd, env)
+
+
+def _get_uv_workspace_member(
+    workspace_root: Path, pyproject_doc: Any
+) -> Optional[Tuple[str, Path]]:
+    """The name of the project in `workspace_root` and the root of its uv workspace when it is a
+    member of a uv workspace whose root holds `uv.lock`, `None` otherwise or when uv cannot
+    tell."""
+    name = (pyproject_doc.get("project", {}) or {}).get("name")
+    if not name or not is_uv_available():
+        return None
+    try:
+        root = Path(run_uv(["workspace", "dir"], cwd=workspace_root).strip())
+        if root.resolve() == workspace_root.resolve() or not (root / UV_LOCK).exists():
+            return None
+        member_dir = Path(
+            run_uv(["workspace", "dir", "--package", str(name)], cwd=workspace_root).strip()
+        )
+    except WorkspaceRequirementsError:
+        # an older uv without `workspace dir` or no such member
+        return None
+    if member_dir.resolve() != workspace_root.resolve():
+        return None
+    return str(name), root
+
+
+def _check_no_workspace_member_dependencies(
+    workspace_root: Path, member: str, uv_workspace_root: Path
+) -> None:
+    """Raises when `member` depends on other members of its uv workspace: the deployment ships
+    only the dlt workspace and could not install them."""
+    args = [*_UV_EXPORT_ARGS, "--package", member, "--all-groups"]
+    with_members = _parse_uv_output(_run_uv_on_lock(args, workspace_root))
+    without_members = set(
+        _parse_uv_output(_run_uv_on_lock([*args, "--no-emit-workspace"], workspace_root))
+    )
+    other_members = [line for line in with_members if line not in without_members]
+    if other_members:
+        raise WorkspaceRequirementsError(
+            f"`{member}` depends on other members of the uv workspace in `{uv_workspace_root}`:"
+            f" {', '.join(other_members)}. A deployment ships only the dlt workspace in"
+            f" `{workspace_root}` and cannot install them. Publish them as packages or move their"
+            " code into the dlt workspace."
+        )
 
 
 def _compile_requirements_file(workspace_root: Path, file_path: Path) -> List[str]:
@@ -618,8 +688,9 @@ def read_requirements_file(file_path: Path) -> List[str]:
 
 def _parse_requirements_line(line: str) -> Optional[Requirement]:
     """The requirement a `requirements.txt` line declares, `None` for comments, flag lines (`-e`,
-    `-r`, `--index-url`) and lines that are not PEP 508."""
-    line = line.split(" #", 1)[0].strip()
+    `-r`, `--index-url`) and lines that are not PEP 508. Options of the requirement, such as
+    `--hash`, are dropped."""
+    line = line.split(" #", 1)[0].split(" --", 1)[0].strip()
     if not line or line.startswith(("#", "-")):
         return None
     try:

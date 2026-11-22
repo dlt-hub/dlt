@@ -36,7 +36,7 @@ def check_freshness():
 
 A job without `access` declares the data access of its job type: write for batch and stream jobs, read for interactive jobs, none for agent jobs. A job with `access` and no `data` declares no data access.
 
-A deployment gives the job the profile of the environment with the data access that the job declares. To give the job another profile, declare it with `require={"profile": "sensitive-access"}`. A strict environment accepts only a profile that gives exactly the declared data access. See [How a job gets its profile](profiles.md#how-a-job-gets-its-profile) for the rules, and [Access declaration](../agents/agent-definitions.md#access-declaration) for the verbs of each axis.
+A deployment gives the job the profile of the environment with the data access that the job declares. To give the job another profile, declare it with `require={"profile": "sensitive-access"}`. A job that declares a profile and no `data` access needs the data access of that profile. A strict environment accepts only a profile that gives exactly the declared data access. See [How a job gets its profile](profiles.md#how-a-job-gets-its-profile) for the rules, and [Access declaration](../agents/agent-definitions.md#access-declaration) for the verbs of each axis.
 
 ## Dependency groups
 
@@ -129,7 +129,7 @@ __access__ = {"data": ["read", "write"]}
 app = marimo.App()
 ```
 
-Without `__access__`, a module job declares read data access, as every interactive job does. The notebook above writes to the destination, so it declares write data access and gets the profile for it.
+Without `__access__`, a module job declares the data access of its type: read for a notebook, a dashboard or an MCP server, write for a plain module that runs as a batch job. The notebook above writes to the destination, so it declares write data access and gets the profile for it.
 
 ## Inputs and outputs
 

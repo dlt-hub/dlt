@@ -37,7 +37,7 @@ STAGING_BATCH_REFS = ("jobs.__staging__.load_items", "jobs.__staging__.transform
 REVIEW_NOTEBOOK = "jobs.notebooks.review_notebook"
 MIGRATION_NOTEBOOK = "jobs.notebooks.migration_notebook"
 CONNECTED_IN_PROD = (
-    '[workspace.environment.prod]\nworkspace_id = "prod-ws-id"\nworkspace_name = "dlt-de-prd"\n'
+    '[workspace.environment.prod]\nworkspace_id = "prod-ws-id"\nname = "dlt-de-prd"\n'
 )
 """Shared `config.toml` once `dlthub workspace connect` wrote the section of `prod`."""
 
@@ -65,11 +65,15 @@ def _ci_job(
         yield switch_context(ctx.run_dir)
 
 
-def _assert_fallbacks(warnings: List[str], job_refs: Sequence[str]) -> None:
-    """One warning for each job in `job_refs`: it gets a profile with more data access."""
-    assert len(warnings) == len(job_refs)
-    for job_ref, warning in zip(job_refs, warnings):
-        assert f"job `{job_ref}`" in warning
+def _get_access_fallback_warning(job_refs: Sequence[str]) -> str:
+    """The one warning for the jobs with read data access that get `prod`, because `access` has
+    no settings files."""
+    listed = ", ".join(f"`{job_ref}`" for job_ref in job_refs)
+    return (
+        f"profile `access` has no settings files: {len(job_refs)} jobs ({listed}) that declare"
+        " read data access run with `prod` (write data access). Create them with `dlthub profile"
+        " add access` to give them read data access."
+    )
 
 
 def test_ci_deploys_production() -> None:
@@ -86,7 +90,7 @@ def test_ci_deploys_production() -> None:
     # `access` has no settings files: the notebook and the dashboard get `prod`
     interactive_refs = (REVIEW_NOTEBOOK, DASHBOARD_JOB_REF)
     assert job_profiles(manifest) == dict.fromkeys([*BATCH_REFS, *interactive_refs], "prod")
-    _assert_fallbacks(warnings, interactive_refs)
+    assert warnings == [_get_access_fallback_warning(interactive_refs)]
 
 
 @pytest.mark.parametrize(
@@ -119,11 +123,11 @@ def test_ci_deploys_staging_with_the_default_environment(
 
     assert manifest["deployment_module"] == "__staging__"
     assert manifest["environment"] == "prod"
-    # `access` has no settings files: the notebooks and the dashboard of the default environment
-    # get `prod`
-    interactive_refs = (REVIEW_NOTEBOOK, MIGRATION_NOTEBOOK, DASHBOARD_JOB_REF)
+    # `access` has no settings files: the notebooks get `prod`. `__staging__` is not the deployment
+    # module of `prod`, so the dashboard stays out
+    interactive_refs = (REVIEW_NOTEBOOK, MIGRATION_NOTEBOOK)
     assert job_profiles(manifest) == dict.fromkeys([*STAGING_BATCH_REFS, *interactive_refs], "prod")
-    _assert_fallbacks(warnings, interactive_refs)
+    assert warnings == [_get_access_fallback_warning(interactive_refs)]
     for job in manifest["jobs"]:
         if job["job_ref"] in STAGING_BATCH_REFS:
             # copies of the production jobs: they belong to `__staging__` and run on demand only
@@ -151,13 +155,17 @@ def test_developer_deploys_to_the_stg_environment(recorded: bool) -> None:
         assert ctx.runtime_config.organization_id == "org-id"
         manifest, warnings = manifest_from_module("__deployment__", environment)
         # the settings of `prod` stay on the machine
-        assert shipped_settings(ctx, environment) == ["stg.config.toml"]
+        assert shipped_settings(ctx, environment) == [".workspace", "stg.config.toml"]
 
     assert manifest["environment"] == "stg"
     # the dashboard goes to the default environment only. no profile of `stg` has read data
     # access: the notebook gets the default write profile
     assert job_profiles(manifest) == dict.fromkeys([*BATCH_REFS, REVIEW_NOTEBOOK], "stg")
-    _assert_fallbacks(warnings, [REVIEW_NOTEBOOK])
+    assert warnings == [
+        f"environment `stg` has no profile with read data access: 1 job (`{REVIEW_NOTEBOOK}`)"
+        " that declares read data access runs with `stg` (write data access). Declare one with"
+        " `dlthub profile add stg-read --access read --environment stg`."
+    ]
 
 
 def test_stg_environment_names_its_deployment_module() -> None:

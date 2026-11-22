@@ -90,7 +90,6 @@ def test_write_package_to_stream() -> None:
             "additional_exclude/empty_file.py",
             "ducklake_pipeline.py",
             ".ignorefile",
-            ".dlt/.workspace",
         ]
 
         # Verify tar.gz structure

@@ -2,6 +2,7 @@
 
 import os
 import shutil
+from contextlib import nullcontext
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Set
 
@@ -58,6 +59,7 @@ from dlt._workspace.environment import (
     get_deployment_module_for_env,
     get_profiles_for_env,
     select_environment,
+    use_environment,
 )
 from dlt._workspace.deployment._job_ref import format_job_label, job_category
 from dlt._workspace.deployment._trigger_helpers import parse_trigger
@@ -250,19 +252,18 @@ def _build_profile_info(ctx: WorkspaceRunContext, name: str) -> TProfileInfo:
     profile = ctx.get_profile_definition(name)
     env = profile.get("env")
     environment = ctx.get_environment_definition(env) if env else None
-    info = TProfileInfo(
-        **profile,
-        name=name,
-        also_in_env=(
-            [n for n in get_profiles_for_env(environment) if n != name] if environment else []
-        ),
-        is_current=name == ctx.profile,
-        is_pinned=name == read_profile_pin(ctx),
-        is_configured=name in ctx.configured_profiles(),
+    return TProfileInfo(
+        **{
+            **profile,
+            "name": name,
+            "also_in_env": (
+                [n for n in get_profiles_for_env(environment) if n != name] if environment else []
+            ),
+            "is_current": name == ctx.profile,
+            "is_pinned": name == read_profile_pin(ctx),
+            "configured": name in ctx.configured_profiles(),
+        }
     )
-    # `is_configured` states the fact, `configured` also holds for a profile that needs no files
-    info.pop("configured", None)
-    return info
 
 
 def fetch_profiles_list() -> List[TProfileInfo]:
@@ -428,7 +429,9 @@ def fetch_deployment_info() -> TDeploymentManifestInfo:
         environment = select_environment(ctx.environment)
     module_file = get_deployment_module_file(get_deployment_module_for_env(environment))
     try:
-        manifest, _warnings = manifest_from_module(module_file, environment)
+        # imported with the default write profile of the environment, as a deployment imports it
+        with use_environment(environment["name"]) if environment else nullcontext():
+            manifest, _warnings = manifest_from_module(module_file, environment)
     except Exception as exc:
         if isinstance(exc, ImportError) and is_module_missing(exc, module_file):
             return TDeploymentManifestInfo(status="not_found", deployment_module=module_file)
@@ -508,6 +511,18 @@ def _has_project_table(pyproject_path: str) -> bool:
         return "project" in tomlkit.parse(f.read())
 
 
+def _get_requirements_merge_error(requirements_path: str) -> Optional[TInitMergeError]:
+    """Why lines cannot be merged into the `requirements.txt` at `requirements_path`: it pins
+    hashes, which the merged lines lack, or it includes files, which may pin them already."""
+    with open(requirements_path, encoding="utf-8") as f:
+        lines = [line.strip() for line in f.read().splitlines()]
+    if any("--hash" in line for line in lines if not line.startswith("#")):
+        return "hashed_requirements"
+    if any(line.startswith(("-r", "--requirement", "-c", "--constraint")) for line in lines):
+        return "included_requirements"
+    return None
+
+
 def fetch_init_plan(
     run_dir: str,
     *,
@@ -533,9 +548,9 @@ def fetch_init_plan(
         dependency_system: TInitDependencySystem = PYPROJECT_TOML  # type: ignore[assignment]
     elif dependencies == "requirements":
         dependency_system = REQUIREMENTS_TXT  # type: ignore[assignment]
-    elif not skip and os.path.isfile(os.path.join(abs_run_dir, PYPROJECT_TOML)):
+    elif os.path.isfile(os.path.join(abs_run_dir, PYPROJECT_TOML)):
         dependency_system = PYPROJECT_TOML  # type: ignore[assignment]
-    elif not skip and os.path.isfile(os.path.join(abs_run_dir, REQUIREMENTS_TXT)):
+    elif os.path.isfile(os.path.join(abs_run_dir, REQUIREMENTS_TXT)):
         dependency_system = REQUIREMENTS_TXT  # type: ignore[assignment]
     else:
         dependency_system = PYPROJECT_TOML if uv else REQUIREMENTS_TXT  # type: ignore[assignment]
@@ -545,13 +560,14 @@ def fetch_init_plan(
     dependency_path = os.path.join(abs_run_dir, dependency_system)
     gitignore_path = os.path.join(abs_run_dir, GITIGNORE_FILE)
 
-    # settings files are always kept, the dlthub scaffold is replaced only with `overwrite`
+    # settings files are always kept, the dlthub scaffold is replaced only with `overwrite`. init
+    # refuses an existing workspace, so `.workspace` is only ever created
     files: List[TInitFileEntry] = [
         _make_init_entry(dependency_path, keep=not overwrite),
         _make_init_entry(gitignore_path, keep=not overwrite),
         _make_init_entry(os.path.join(abs_run_dir, ".dlt", "config.toml"), keep=True),
         _make_init_entry(os.path.join(abs_run_dir, ".dlt", "secrets.toml"), keep=True),
-        _make_init_entry(workspace_marker, keep=not overwrite),
+        _make_init_entry(workspace_marker, keep=True),
     ]
 
     # reproduce dlt[hub]/dlthub/dlthub-client install modes (editable/path/git) in the
@@ -596,6 +612,8 @@ def fetch_init_plan(
             files[0]["status"] = "merge"
             if dependency_system == PYPROJECT_TOML and not uv:
                 merge_error = "uv_missing"
+            elif dependency_system != PYPROJECT_TOML:
+                merge_error = _get_requirements_merge_error(dependency_path)
 
     # like `uv init`: the running Python and newer ones, which the packages pinned from this
     # environment all support, up to the newest Python dlt supports

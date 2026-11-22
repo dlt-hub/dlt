@@ -308,7 +308,10 @@ DECLARED_PROFILES = (
             "nope",
             [
                 "run `dlthub profile add nope --local`",
-                "run `dlthub profile add nope --env <environment>`. Environments: prod, ci.",
+                (
+                    "run `dlthub profile add nope --environment <environment>`. Environments:"
+                    " prod, ci."
+                ),
             ],
         ),
         ("argument", "ci", [DECLARED_PROFILES]),

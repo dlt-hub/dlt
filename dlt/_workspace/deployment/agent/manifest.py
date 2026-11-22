@@ -20,17 +20,10 @@ from dlt._workspace.deployment.agent.exceptions import (
     AgentComponentNotFound,
     InvalidAgentSpec,
 )
-from dlt._workspace.access import (
-    ACCESS_AXES,
-    ACCESS_AXIS_VERBS,
-    ACCESS_AXIS_VOCABULARY,
-    granted_verbs,
-    missing_access,
-)
+from dlt._workspace.access import granted_verbs, missing_access, normalize_access
 from dlt._workspace.deployment._trigger_helpers import normalize_execute
 from dlt._workspace.deployment.agent.typing import TAgentSpec
 from dlt._workspace.deployment.typing import AGENT_DEFINITION_ENGINE_VERSION, TAgentDefinition
-from dlt._workspace.typing import TWorkspaceAccess
 
 
 _PLACEHOLDER = re.compile(r"\{\{\s*([\w.]+)\s*\}\}")
@@ -113,24 +106,12 @@ def validate_agent_spec(spec: TAgentSpec, source: str) -> TAgentSpec:
     spec["inputs"] = declared.get("inputs") or {}
     if "prompt" in spec["inputs"]:
         raise InvalidAgentSpec(source, "inputs must not declare 'prompt'. Put the task in the body")
-    access: Dict[str, Any] = dict(declared.get("access") or {})
-    if unknown := sorted(set(access) - set(ACCESS_AXES)):
-        raise InvalidAgentSpec(
-            source, f"access takes {', '.join(ACCESS_AXES)}. Got {', '.join(unknown)}"
-        )
-    for axis in ACCESS_AXES:
-        if isinstance(access.get(axis), str):
-            access[axis] = [access[axis]]
-        allowed = ACCESS_AXIS_VERBS[axis] + ("all",)
-        refused = sorted({verb for verb in access.get(axis) or [] if verb not in allowed})
-        if refused:
-            unserved = sorted(set(ACCESS_AXIS_VOCABULARY[axis]) - set(allowed))
-            reason = f"access.{axis} takes {', '.join(allowed)}"
-            if set(unserved) & set(refused):
-                reason += f", and no runtime serves {', '.join(unserved)} yet"
-            raise InvalidAgentSpec(source, f"{reason}. Got {', '.join(refused)}")
+    try:
+        access = normalize_access(declared.get("access") or {})
+    except ValueError as ex:
+        raise InvalidAgentSpec(source, str(ex)) from ex
     if access:
-        spec["access"] = cast(TWorkspaceAccess, access)
+        spec["access"] = access
     # a single component may be written without the list, as an access verb may
     fields = cast(Dict[str, Any], spec)
     for list_key in ("tools", "skills", "rules"):

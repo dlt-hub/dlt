@@ -1,6 +1,18 @@
 import sys
 import warnings
-from typing import TYPE_CHECKING, Any, Optional, Sequence, Type, cast, List, Dict, Tuple
+from contextlib import nullcontext
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    ContextManager,
+    Optional,
+    Sequence,
+    Type,
+    cast,
+    List,
+    Dict,
+    Tuple,
+)
 
 if TYPE_CHECKING:
     from _typeshed import SupportsWrite
@@ -16,26 +28,7 @@ from dlt._workspace.cli._telemetry_command import (
     telemetry_change_status_command_wrapper,
 )
 from dlt._workspace.cli.echo import maybe_no_stdin
-from dlt._workspace.environment import ENVIRONMENT_ARGUMENT_HELP
 from dlt._workspace.exceptions import WorkspaceException
-from dlt._workspace.profile import PROFILE_ARGUMENT_HELP, activate_profile
-
-PROFILE_COMMAND = "profile"
-"""`dlthub profile` and `dlthub local profile` manage profiles and take no `--profile`."""
-
-ENVIRONMENT_DEST = "environment"
-"""`dest` of the `--environment` option: a command that has it takes no `--profile`."""
-
-COMMANDS_WITHOUT_PROFILE = (
-    "init",
-    "ai init",
-    "ai toolkit",
-    "ai rules",
-    "ai status",
-    "ai mcp install",
-)
-"""Commands, with their subcommands, that never read the active profile and take no `--profile`.
-`ai secrets` and `ai mcp run` read it."""
 
 ACTION_EXECUTED = False
 
@@ -265,6 +258,8 @@ def _create_parser(
     top_groups, sub_groups = _compose.group_commands(results)
 
     installed_commands: Dict[str, _compose.ComposedExecutable] = {}
+    # the command whose `configure_parser` built each parser
+    configured: List[Tuple[argparse.ArgumentParser, SupportsCliCommand]] = []
 
     # install top level commands
     for name, group in top_groups.items():
@@ -274,6 +269,7 @@ def _create_parser(
             description=getattr(group[0], "description", None),
         )
         installed_commands[name] = _compose.configure_parser(command_parser, group)
+        configured.append((command_parser, installed_commands[name].primary))
 
     # attach sub commands to commands
     for (parent_name, sub_name), sub_group in sub_groups.items():
@@ -311,6 +307,7 @@ def _create_parser(
         )
         sub_node = _compose.configure_parser(sub_parser, sub_group)
         sub_parser.set_defaults(execute=sub_node.execute)
+        configured.append((sub_parser, sub_node.primary))
 
     # recursively add formatter class
     def add_formatter_class(parser: argparse.ArgumentParser) -> None:
@@ -327,74 +324,25 @@ def _create_parser(
 
     add_formatter_class(parser)
 
-    # in a workspace every dlthub command takes --profile, before or after the command
+    # in a workspace every dlthub command takes the profile options it declares
     if host == "dlthub" and is_workspace_active():
-        _add_profile_argument(parser)
+        from dlt._workspace.cli.dlthub._profile_options import add_profile_options
+
+        add_profile_options(parser, configured)
 
     return parser, pre_parser, installed_commands
 
 
-def add_environment_argument(parser: argparse.ArgumentParser) -> None:
-    """Adds `--environment` to the parser of a command that deploys or works with a deployment.
-    Such a command takes no `--profile`. It activates the environment with `activate_environment`
-    before it generates a manifest or works with the deployment."""
-    parser.add_argument(
-        "--environment",
-        metavar="NAME",
-        default=None,
-        dest=ENVIRONMENT_DEST,
-        help=ENVIRONMENT_ARGUMENT_HELP,
-    )
+def _use_command_profile(
+    parser: argparse.ArgumentParser, args: argparse.Namespace, host: str
+) -> ContextManager[Any]:
+    """The context that runs the command of `args`: with the profile that its profile options
+    select on the `dlthub` host. Exits when the options do not go together."""
+    if host != "dlthub":
+        return nullcontext()
+    from dlt._workspace.cli.dlthub._profile_options import use_command_profile
 
-
-def _add_profile_argument(parser: argparse.ArgumentParser, command_path: str = "") -> None:
-    """Adds `--profile` to `parser` and to every command under it that has no `profile` option,
-    except the commands that manage profiles and `COMMANDS_WITHOUT_PROFILE`. A command that takes
-    `--environment` gets a hidden `--profile`, so that `main` can name the option to use instead."""
-    if _is_command_without_profile(command_path):
-        return
-    dests = {a.dest for a in parser._actions}
-    if "profile" not in dests:
-        # SUPPRESS so a command parser does not reset a value given before the command
-        parser.add_argument(
-            "--profile",
-            metavar="NAME",
-            default=argparse.SUPPRESS,
-            help=argparse.SUPPRESS if ENVIRONMENT_DEST in dests else PROFILE_ARGUMENT_HELP,
-        )
-    for action in parser._actions:
-        if isinstance(action, argparse._SubParsersAction):
-            for name, subparser in action.choices.items():
-                if name != PROFILE_COMMAND:
-                    _add_profile_argument(subparser, f"{command_path} {name}".strip())
-
-
-def _is_command_without_profile(command_path: str) -> bool:
-    return any(
-        command_path == command or command_path.startswith(command + " ")
-        for command in COMMANDS_WITHOUT_PROFILE
-    )
-
-
-def _get_command_path(args: argparse.Namespace) -> str:
-    """The command path of parsed `args` as far as `COMMANDS_WITHOUT_PROFILE` needs it."""
-    parts = [getattr(args, "command", None)]
-    if parts[0] == "ai":
-        parts.append(getattr(args, "operation", None))
-        if parts[-1] == "mcp":
-            # `ai mcp` without a subcommand runs the server
-            parts.append(getattr(args, "mcp_operation", None) or "run")
-    return " ".join(part for part in parts if part)
-
-
-def _manages_profiles(args: argparse.Namespace) -> bool:
-    command: Optional[str] = getattr(args, "command", None)
-    local_op: Optional[str] = getattr(args, "local_op", None)
-    return command == PROFILE_COMMAND or (command == "local" and local_op == PROFILE_COMMAND)
-
-
-def _takes_environment(args: argparse.Namespace) -> bool:
-    return ENVIRONMENT_DEST in vars(args)
+    return use_command_profile(parser, args)
 
 
 def main(host: str = "dlt") -> int:
@@ -414,22 +362,7 @@ def main(host: str = "dlt") -> int:
         if ex.code == 2 and host == "dlthub":
             _print_dlthub_workspace_hint()
         raise
-    profile = getattr(args, "profile", None)
-    if profile and _manages_profiles(args):
-        parser.error(
-            "`dlthub profile` and `dlthub local profile` take no --profile. To show another"
-            " profile with `dlthub profile info`, make it active first with `dlthub local"
-            " profile use NAME`."
-        )
-    if profile and _takes_environment(args):
-        parser.error(
-            "this command deploys or works with a deployment and takes no --profile. Name the"
-            " environment with --environment NAME."
-        )
-    if profile and _is_command_without_profile(command_path := _get_command_path(args)):
-        parser.error(
-            "`%s %s` does not use a profile and takes no --profile." % (host, command_path)
-        )
+    profile_context = _use_command_profile(parser, args, host)
 
     if Venv.is_virtual_env() and not Venv.is_venv_activated():
         fmt.warning(
@@ -446,9 +379,8 @@ def main(host: str = "dlt") -> int:
                 if not args.no_pwd:
                     if "" not in sys.path:
                         sys.path.insert(0, "")
-                if profile:
-                    activate_profile(profile)
-                cmd.execute(args)
+                with profile_context:
+                    cmd.execute(args)
         except Exception as ex:
             docs_url = getattr(cmd, "docs_url", None)
             error_code = -1

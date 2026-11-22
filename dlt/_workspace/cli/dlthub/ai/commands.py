@@ -8,7 +8,7 @@ import yaml
 from dlt.common.runtime import run_context
 from dlt._workspace.access import FULL_ACCESS, format_access, parse_access
 from dlt._workspace.run_context import format_display_path
-from dlt._workspace.cli._repo_source import TRepoSource, format_repo_source
+from dlt._workspace.cli._repo_source import format_repo_source
 from dlt._workspace.cli import echo as fmt, utils
 from dlt._workspace.cli.utils import (
     DEFAULT_MCP_FEATURES,
@@ -40,7 +40,6 @@ from dlt._workspace.cli.dlthub.ai.utils import (
     fetch_secrets_view_redacted,
     fetch_workbench_toolkit_info,
     fetch_workbench_base,
-    get_recorded_harness_source,
     is_component_visible,
     is_toolkit_installed,
     is_toolkit_visible,
@@ -50,6 +49,7 @@ from dlt._workspace.cli.dlthub.ai.utils import (
     resolve_harness_source,
     resolve_toolkit_dependencies,
     safe_write_bytes,
+    save_harness_source,
     save_toolkit_entry,
     fetch_workbench_toolkits,
     _INIT_TOOLKIT,
@@ -299,12 +299,12 @@ def _plan_toolkit_install(
 
     actions = agent.finalize_actions(actions, project_root)
     if previous_files:
-        actions.extend(_stale_file_actions(agent, project_root, previous_files, actions))
+        actions.extend(_get_stale_file_actions(agent, project_root, previous_files, actions))
     actions.extend(agent.post_finalize_actions(actions, project_root))
     return actions, warnings
 
 
-def _with_mcp_features(
+def _add_mcp_features_to_config(
     config: Dict[str, Any], features: Sequence[str], no_default_features: bool = False
 ) -> Dict[str, Any]:
     """`config` with `features` added to its args, and without the default features if asked."""
@@ -314,7 +314,7 @@ def _with_mcp_features(
     return {**config, "args": add_mcp_features(args, features)}
 
 
-def _mcp_feature_selection(server: Dict[str, Any]) -> Tuple[List[str], bool]:
+def _get_mcp_feature_selection(server: Dict[str, Any]) -> Tuple[List[str], bool]:
     """The `--features` tokens of `server` and whether it drops the default features."""
     other, tokens = split_mcp_features([str(arg) for arg in server.get("args", [])])
     return tokens, "--no-default-features" in other
@@ -348,7 +348,7 @@ def _plan_mcp_config(
             continue
         # a reinstalled server keeps the features other toolkits and the user selected
         written[name] = (
-            _with_mcp_features(config, *_mcp_feature_selection(existing[name]))
+            _add_mcp_features_to_config(config, *_get_mcp_feature_selection(existing[name]))
             if name in existing
             else config
         )
@@ -377,11 +377,11 @@ def _plan_mcp_config(
                 % (name, config_path, toolkit_name)
             )
             continue
-        updated = _with_mcp_features(target, features)
+        updated = _add_mcp_features_to_config(target, features)
         if updated == target:
             continue
-        before = _mcp_feature_selection(target)[0]
-        added = [token for token in _mcp_feature_selection(updated)[0] if token not in before]
+        before = _get_mcp_feature_selection(target)[0]
+        added = [token for token in _get_mcp_feature_selection(updated)[0] if token not in before]
         written[name] = updated
         labels[name] = "%s (%s)" % (name, _format_feature_labels(added))
 
@@ -398,7 +398,7 @@ def _plan_mcp_config(
     )
 
 
-def _stale_file_actions(
+def _get_stale_file_actions(
     agent: "_AIAgent",
     project_root: Path,
     previous_files: Dict[str, Any],
@@ -455,7 +455,6 @@ def _execute_install(
     agent_name: Optional[str] = None,
     project_root: Optional[Path] = None,
     see_all: bool = False,
-    source: Optional[TRepoSource] = None,
 ) -> Tuple[int, List["InstallAction"]]:
     """Commits non-conflicting actions and the toolkit index. Returns count of items installed
     and the render actions that changed their file.
@@ -505,7 +504,6 @@ def _execute_install(
             files=tracked_files,
             mcp_servers=mcp_servers or None,
             see_all=see_all,
-            source=source,
         )
     return installed, rendered
 
@@ -548,7 +546,6 @@ def _report_and_execute(
     agent_name: Optional[str] = None,
     project_root: Optional[Path] = None,
     see_all: bool = False,
-    source: Optional[TRepoSource] = None,
 ) -> int:
     """Print planned actions, skip conflicts, execute, return count installed.
 
@@ -599,7 +596,6 @@ def _report_and_execute(
         agent_name=agent_name,
         project_root=project_root,
         see_all=see_all,
-        source=source,
     )
     for a in rendered:
         fmt.echo(
@@ -633,10 +629,14 @@ def _install_toolkit(
     overwrite: bool = False,
     strict: bool = False,
     see_all: bool = False,
-    source: Optional[TRepoSource] = None,
+    take_over_from: Optional[str] = None,
 ) -> int:
     """Core install logic: read plugin.json, version-check, plan, execute. Returns count of items
-    installed."""
+    installed.
+
+    With `take_over_from`, the files that toolkit installed and this one ships now are written and
+    recorded for this one, not skipped as conflicts: an upgrade of `take_over_from` moved them
+    here."""
     toolkit_dir = base / name
     meta = read_workbench_toolkit_combined_info(toolkit_dir)
     if meta is None:
@@ -686,6 +686,16 @@ def _install_toolkit(
         toolkit_info=toolkit_meta,
         see_all=see_all,
     )
+    if take_over_from and (owner := installed_index.get(take_over_from)):
+        moved = {project_root / path for path in owner.get("files", {})}
+        actions = [
+            (
+                action._replace(conflict=False)
+                if action.conflict and action.dest_path in moved
+                else action
+            )
+            for action in actions
+        ]
     # render actions only rewrite files from what the toolkit installs
     if not any(a.op != "render" for a in actions) and not warnings:
         fmt.echo("No components found in toolkit %s." % fmt.bold(name))
@@ -699,7 +709,6 @@ def _install_toolkit(
         agent_name=agent.name,
         project_root=project_root,
         see_all=see_all,
-        source=source,
     )
 
 
@@ -710,11 +719,13 @@ def _install_dependencies(
     agent: "_AIAgent",
     project_root: Path,
     see_all: bool = False,
-    source: Optional[TRepoSource] = None,
+    take_over: bool = False,
 ) -> None:
     """Install upstream dependencies for `name` that are not yet installed.
 
     Dependencies hidden from the agent are skipped with their own dependencies, unless `see_all`.
+    With `take_over`, set when `name` is upgraded, a new dependency takes over the files of `name`
+    that it ships now, so the upgrade of `name` does not remove them as stale.
     """
     dep_map = build_toolkits_dependency_map(toolkits)
     hidden = (
@@ -729,14 +740,27 @@ def _install_dependencies(
         fmt.warning(str(ex))
         return
     for dep in skipped:
+        # a visible toolkit is skipped when only hidden toolkits depend on it
+        reason = (
+            "not available for %s"
+            if dep in hidden
+            else "only toolkits not available for %s need it"
+        )
         fmt.echo(
-            "Skipping dependency %s: not available for %s. Use --see-all to install it."
-            % (fmt.bold(dep), agent.name)
+            "Skipping dependency %s: %s. Use --see-all to install it."
+            % (fmt.bold(dep), reason % agent.name)
         )
     for dep in deps:
         if is_toolkit_installed(dep):
             continue
-        _install_toolkit(dep, base, agent, project_root, see_all=see_all, source=source)
+        _install_toolkit(
+            dep,
+            base,
+            agent,
+            project_root,
+            see_all=see_all,
+            take_over_from=name if take_over else None,
+        )
 
 
 def _install_toolkit_with_dependencies(
@@ -747,7 +771,6 @@ def _install_toolkit_with_dependencies(
     overwrite: bool = False,
     strict: bool = False,
     see_all: bool = False,
-    source: Optional[TRepoSource] = None,
 ) -> int:
     """Install toolkit `name` after its dependencies. Returns count of items installed for
     `name`."""
@@ -763,7 +786,15 @@ def _install_toolkit_with_dependencies(
             % (fmt.bold(name), agent.name)
         )
         raise CliCommandException()
-    _install_dependencies(name, toolkits, base, agent, project_root, see_all=see_all, source=source)
+    _install_dependencies(
+        name,
+        toolkits,
+        base,
+        agent,
+        project_root,
+        see_all=see_all,
+        take_over=overwrite,
+    )
     return _install_toolkit(
         name,
         base,
@@ -772,7 +803,6 @@ def _install_toolkit_with_dependencies(
         overwrite=overwrite,
         strict=strict,
         see_all=see_all,
-        source=source,
     )
 
 
@@ -836,13 +866,16 @@ def ai_init_command(
     location: Optional[str] = None,
     branch: Optional[str] = None,
     overwrite: bool = False,
+    check_mcp_server: bool = True,
 ) -> None:
     """Install the init toolkit into the current project.
 
-    `location` and `branch` default to the ones the installed toolkits came from.
+    `location` and `branch` default to the ones given last to a command. `check_mcp_server` warns
+    when the workspace MCP server cannot start.
     """
     project_root = Path(run_context.active().run_dir)
     var = _resolve_agent(agent, project_root)
+    given = (location, branch)
     location, branch = resolve_harness_source(location, branch)
 
     fmt.echo(
@@ -853,6 +886,7 @@ def ai_init_command(
     base = _fetch_workbench_base_cli(location, branch)
     if base is None:
         return
+    _save_given_harness_source(given, location, branch)
 
     installed = _install_toolkit_with_dependencies(
         _INIT_TOOLKIT,
@@ -860,13 +894,12 @@ def ai_init_command(
         var,
         project_root,
         overwrite=overwrite,
-        source=get_recorded_harness_source(location, branch),
     )
     if not installed:
         return
 
     status = fetch_ai_status(project_root)
-    if "mcp_unavailable" in status["warnings"]:
+    if check_mcp_server and "mcp_unavailable" in status["warnings"]:
         fmt.warning(f"MCP server cannot be started. Run `{fmt.cli_cmd('ai status')}` for details.")
     for note in var.install_notes():
         fmt.warning(note)
@@ -891,10 +924,11 @@ def ai_toolkit_install_command(
 ) -> None:
     """Install toolkit components into the current project.
 
-    `location` and `branch` default to the ones the installed toolkits came from.
+    `location` and `branch` default to the ones given last to a command.
     """
     project_root = Path(run_context.active().run_dir)
     var = _resolve_agent(agent, project_root)
+    given = (location, branch)
     location, branch = resolve_harness_source(location, branch)
 
     fmt.echo(
@@ -905,6 +939,7 @@ def ai_toolkit_install_command(
     base = _fetch_workbench_base_cli(location, branch)
     if base is None:
         return
+    _save_given_harness_source(given, location, branch)
 
     _install_toolkit_with_dependencies(
         name,
@@ -914,11 +949,18 @@ def ai_toolkit_install_command(
         overwrite=overwrite,
         strict=strict,
         see_all=see_all,
-        source=get_recorded_harness_source(location, branch),
     )
 
 
-def _agent_scope(agent: Optional[str], see_all: bool) -> Optional[str]:
+def _save_given_harness_source(
+    given: Tuple[Optional[str], Optional[str]], location: str, branch: Optional[str]
+) -> None:
+    """Records the harness `location` and `branch` when the command got either of them."""
+    if given != (None, None):
+        save_harness_source(location, branch)
+
+
+def _get_agent_scope(agent: Optional[str], see_all: bool) -> Optional[str]:
     """Agent whose toolkits are shown, `None` for all of them. Tells the user which."""
     if see_all:
         return None
@@ -947,11 +989,13 @@ def ai_toolkit_list_command(
     see_all: bool = False,
 ) -> None:
     """List available toolkits with name and description."""
+    given = (location, branch)
     location, branch = resolve_harness_source(location, branch)
     base = _fetch_workbench_base_cli(location, branch)
     if base is None:
         return
-    agent_name = _agent_scope(agent, see_all)
+    _save_given_harness_source(given, location, branch)
+    agent_name = _get_agent_scope(agent, see_all)
     toolkits, warnings = fetch_workbench_toolkits(base, listed_only=True, agent_name=agent_name)
     for w in warnings:
         fmt.warning(w)
@@ -1004,14 +1048,16 @@ def ai_toolkit_info_command(
     see_all: bool = False,
 ) -> None:
     """Show what's inside a toolkit."""
+    given = (location, branch)
     location, branch = resolve_harness_source(location, branch)
-    agent_name = _agent_scope(agent, see_all)
+    agent_name = _get_agent_scope(agent, see_all)
     info = fetch_workbench_toolkit_info(name, location, branch, agent_name=agent_name)
     if info is None:
         fmt.warning(
             "Toolkit %s not found (missing %s)" % (fmt.bold(name), ".claude-plugin/plugin.json")
         )
         return
+    _save_given_harness_source(given, location, branch)
     if not is_toolkit_visible(info, agent_name):
         fmt.warning(
             "Toolkit %s is not available for %s. Use --see-all to see it anyway."

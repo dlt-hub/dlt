@@ -333,31 +333,44 @@ def test_auto_refresh_pipeline_mode_with_block_warns() -> None:
 
 
 @pytest.mark.parametrize(
-    "profile_name,warned",
-    [("prod", False), ("access", True)],
-    ids=["gives-declared-access", "gives-less-access"],
+    "profile_name,fields,access",
+    [
+        ("prod", {}, {"data": ["read", "write"]}),
+        ("access", {}, {"data": ["read"]}),
+        ("access", {"access": {"local": ["read"]}}, {"local": ["read"], "data": ["read"]}),
+    ],
+    ids=["write-profile", "read-profile", "other-axis-declared"],
 )
-def test_attach_keeps_profile_of_environment(profile_name: str, warned: bool) -> None:
+def test_attach_takes_data_access_of_declared_profile(
+    profile_name: str, fields: Dict[str, Any], access: TWorkspaceAccess
+) -> None:
+    """A batch job that declares a profile and no data access keeps the profile and needs its
+    data access."""
     job = make_job(
-        "jobs.mod.synced", triggers=["schedule:0 0 * * *"], require={"profile": profile_name}
+        "jobs.mod.synced",
+        triggers=["schedule:0 0 * * *"],
+        require={"profile": profile_name},
+        **fields,
     )
     environment = create_built_in_workspace_definition()["environments"]["prod"]
-    # a batch job needs write data access: it keeps a declared profile with less, with a warning
-    warnings = attach_job_profiles([job], environment)
-    assert ["`jobs.mod.synced`" in warning for warning in warnings] == [True] * warned
+    assert attach_job_profiles([job], environment) == []
     assert job["require"]["profile"] == profile_name
+    assert job["access"] == access
 
 
 TProfileResult = Tuple[Union[str, Type[Exception]], Optional[str]]
 """The profile with its warning, or the exception that the job fails with and a part of its
 message."""
 
-NO_PROFILE_FOR_NONE = "Declare one with `dlthub profile add stg-none --access none --env stg`."
+NO_PROFILE_FOR_NONE = (
+    "Declare one with `dlthub profile add stg-none --access none --environment stg`."
+)
 NOT_IN_ENVIRONMENT = (
     "Job `jobs.mod.job` declares profile `prod`, which is not a profile of environment `stg`"
     " (stg-write, stg-read, stg-none, stg-pii). A deployment uses only the profiles of its"
     " environment, never a local profile. If `prod` is not declared, declare it with `dlthub"
-    " profile add prod --access write --env stg`: the job needs write data access. If it belongs"
+    " profile add prod --access write --environment stg`: the job needs write data access. If it"
+    " belongs"
     " to another environment, deploy there with `--environment`, or edit `.dlt/.workspace` and"
     " move its declaration to environment `stg`."
 )
@@ -451,7 +464,7 @@ NOT_IN_ENVIRONMENT = (
                 (
                     "Environment `stg` is strict about access and has no profile for it: stg-write"
                     " (write data access), stg-none (no data access). Declare one with `dlthub"
-                    " profile add stg-read --access read --env stg`."
+                    " profile add stg-read --access read --environment stg`."
                 ),
             ),
             (
@@ -462,6 +475,18 @@ NOT_IN_ENVIRONMENT = (
                 ),
             ),
             id="default-not-declared",
+        ),
+        # a profile without data access holds no credentials and needs no settings files
+        pytest.param(
+            "batch",
+            {"local": ["read"]},
+            None,
+            [],
+            ["stg-none"],
+            "none",
+            ("stg-none", None),
+            ("stg-none", None),
+            id="none-without-settings",
         ),
         pytest.param(
             "batch",
@@ -523,9 +548,21 @@ NOT_IN_ENVIRONMENT = (
             ("stg-pii", None),
             id="declared-exact",
         ),
+        # a job that declares a profile and no data access needs the data access of the profile
         pytest.param(
             "interactive",
             None,
+            "stg-write",
+            [],
+            [],
+            "write",
+            ("stg-write", None),
+            ("stg-write", None),
+            id="declared-sets-access",
+        ),
+        pytest.param(
+            "interactive",
+            {"data": ["read"]},
             "stg-write",
             [],
             [],
@@ -545,7 +582,7 @@ NOT_IN_ENVIRONMENT = (
         ),
         pytest.param(
             "batch",
-            None,
+            {"data": ["read", "write"]},
             "stg-read",
             [],
             [],
@@ -590,7 +627,7 @@ NOT_IN_ENVIRONMENT = (
         ),
         pytest.param(
             "batch",
-            None,
+            {"data": ["read", "write"]},
             "stg-read",
             [],
             ["stg-read"],
@@ -667,6 +704,50 @@ def test_resolve_job_profile(
     assert job == declared
 
 
+def test_attach_job_profiles_warns_once_per_profile() -> None:
+    """Jobs that declare no profile and get another one than the default for their data access
+    share one warning per default profile without settings files or without a declaration. A
+    job that declares a profile keeps its own warning."""
+    environment = full_environment("stg")
+    environment["strict_access"] = False
+    environment["profiles"]["stg-read"]["configured"] = False
+    del environment["profiles"]["stg-none"]
+    jobs = [
+        make_job("jobs.mod.notebook", job_type="interactive"),
+        make_job("jobs.mod.dashboard", job_type="interactive"),
+        make_job("jobs.mod.agent", access={"local": ["read"]}),
+        make_job("jobs.mod.load"),
+        make_job("jobs.mod.pinned", job_type="interactive", require={"profile": "stg-read"}),
+    ]
+    assert attach_job_profiles(jobs, environment) == [
+        (
+            "job `jobs.mod.pinned` declares profile `stg-read` (read data access), which has no"
+            " settings files"
+        ),
+        (
+            "profile `stg-read` has no settings files: 2 jobs (`jobs.mod.notebook`,"
+            " `jobs.mod.dashboard`) that declare read data access run with `stg-write` (write data"
+            " access). Create them with `dlthub profile add stg-read` to give them read data"
+            " access."
+        ),
+        (
+            "environment `stg` has no profile with no data access: 1 job (`jobs.mod.agent`) that"
+            " declares no data access runs with `stg-write` (write data access). Declare one with"
+            " `dlthub profile add stg-none --access none --environment stg`."
+        ),
+    ]
+    assert [job["require"]["profile"] for job in jobs] == ["stg-write"] * 4 + ["stg-read"]
+
+    # many jobs: the warning names the first ones and counts them all
+    notebooks = [make_job(f"jobs.mod.notebook_{i}", job_type="interactive") for i in range(7)]
+    listed = ", ".join(f"`jobs.mod.notebook_{i}`" for i in range(5))
+    assert attach_job_profiles(notebooks, environment) == [
+        f"profile `stg-read` has no settings files: 7 jobs ({listed}, ...) that declare read data"
+        " access run with `stg-write` (write data access). Create them with `dlthub profile add"
+        " stg-read` to give them read data access."
+    ]
+
+
 @pytest.mark.parametrize(
     "job_type,fields,configured,profile,data_access,warned",
     [
@@ -692,6 +773,16 @@ def test_resolve_job_profile(
             "write",
             False,
             id="declared-custom-profile",
+        ),
+        # a notebook that declares the write profile needs write data access
+        pytest.param(
+            "interactive",
+            {"require": {"profile": "prod"}},
+            None,
+            "prod",
+            "write",
+            False,
+            id="interactive-declared-prod",
         ),
     ],
 )

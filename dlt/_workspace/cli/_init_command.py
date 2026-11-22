@@ -28,7 +28,7 @@ from dlt._workspace.cli import (
     source_detection,
     utils,
 )
-from dlt._workspace.cli._repo_source import format_repo_source, get_recorded_repo_source
+from dlt._workspace.cli._repo_source import format_repo_source
 from dlt._workspace.cli.config_toml_writer import WritableConfigValue
 from dlt._workspace.cli._pipeline_files import (
     TEMPLATE_FILES,
@@ -526,11 +526,7 @@ def init_pipeline_at_destination(
             if dest_storage.has_file(file_name):
                 dest_storage.delete(file_name)
         files_ops.save_verified_source_local_index(
-            source_name,
-            remote_index,
-            remote_modified,
-            remote_deleted,
-            source=get_recorded_repo_source(repo_location, branch, DEFAULT_VERIFIED_SOURCES_REPO),
+            source_name, remote_index, remote_modified, remote_deleted
         )
 
     if (
@@ -763,11 +759,21 @@ def init_command_wrapper(
         branch,
         eject_source,
     )
+    _save_given_verified_sources_repo(repo_location, branch)
 
 
 @utils.track_command("list_sources", False)
 def list_sources_command_wrapper(repo_location: Optional[str], branch: Optional[str]) -> None:
     list_sources_command(repo_location, branch)
+    _save_given_verified_sources_repo(repo_location, branch)
+
+
+def _save_given_verified_sources_repo(repo_location: Optional[str], branch: Optional[str]) -> None:
+    """Records the verified sources repository when the command got `--location` or `--branch`."""
+    if repo_location is not None or branch is not None:
+        files_ops.save_verified_sources_repo(
+            *files_ops.resolve_verified_sources_repo(repo_location, branch)
+        )
 
 
 @utils.track_command("list_destinations", False)

@@ -178,9 +178,9 @@ def test_init_command_new_pipeline_same_name(repo_dir: str, workspace_files: Fil
 def test_init_command_reuses_recorded_repo_location(
     repo_dir: str, workspace_files: FileStorage
 ) -> None:
-    """A verified source records the repo it came from in `.sources` and the next init without
-    `--location` reuses it. A `.sources` that an older dlt wrote still loads and keeps its
-    sources."""
+    """The repo given last to `dlt init` or `dlt init --list-sources` is recorded in `.sources`
+    and the next commands without `--location` reuse it. An empty value resets it. A `.sources`
+    that an older dlt wrote still loads and keeps its sources."""
     legacy_source = files_ops.load_verified_sources_local_index("legacy")
     files_ops._save_dot_sources(
         {
@@ -190,15 +190,21 @@ def test_init_command_reuses_recorded_repo_location(
     )
     assert files_ops.resolve_verified_sources_repo() == (DEFAULT_VERIFIED_SOURCES_REPO, None)
 
-    _init_command.init_command("chess", "duckdb", repo_dir)
+    _init_command.init_command_wrapper("chess", "duckdb", repo_dir, None)
     index = files_ops._load_dot_sources()
     assert index["location"] == os.path.abspath(repo_dir)
     assert "branch" not in index
     assert set(index["sources"]) == {"legacy", "chess"}
 
     assert files_ops.resolve_verified_sources_repo() == (os.path.abspath(repo_dir), None)
-    _init_command.init_command("pipedrive", "duckdb")
+    _init_command.init_command_wrapper("pipedrive", "duckdb", None, None)
     assert "pipedrive" in files_ops._load_dot_sources()["sources"]
+
+    # a list of the sources records too, here a reset (the default repo is not cloned)
+    with mock.patch.object(_init_command, "list_sources_command"):
+        _init_command.list_sources_command_wrapper("", None)
+    assert "location" not in files_ops._load_dot_sources()
+    assert files_ops.resolve_verified_sources_repo() == (DEFAULT_VERIFIED_SOURCES_REPO, None)
 
 
 def test_init_command_chess_verified_source(

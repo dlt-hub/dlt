@@ -55,6 +55,17 @@ def reporting() -> str:
     return "report"
 
 
+@interactive(interface="rest_api", require={"profile": "prod"})
+def admin() -> None:
+    """An interactive job that declares the write profile: needs write data access."""
+
+
+@agent(agent=TRIAGE, require={"profile": "access"})
+def reader(run_context: TJobRunContext = None) -> TAgentOutput:
+    """An agent job that declares a profile and no data access: needs read data access."""
+    return {"status": "succeeded", "summary": "read"}
+
+
 @job
 def ci_only() -> str:
     """Deployed to the `ci` environment only."""

@@ -1,6 +1,6 @@
 import dataclasses
 import typing
-from typing import Any, Dict, List, Optional, Sequence, Set, Tuple
+from typing import Any, Dict, List, Mapping, Optional, Sequence, Set, Tuple
 
 from dlt.common.typing import AnyFun, annotation_metadata, get_args
 
@@ -33,7 +33,9 @@ FULL_ACCESS: TWorkspaceAccess = typing.cast(
 )
 """Everything there is to grant."""
 
-DATA_ACCESS_LEVELS: Tuple[str, ...] = ("none",) + ACCESS_AXIS_VERBS["data"]
+DATA_ACCESS_LEVELS = typing.cast(
+    Tuple[TProfileDataAccess, ...], ("none",) + ACCESS_AXIS_VERBS["data"]
+)
 """Data access levels, the lowest first: `none`, then the data verbs of job access."""
 
 
@@ -68,6 +70,36 @@ def required_access(f: AnyFun) -> TWorkspaceAccess:
             return metadata.as_access()
     # a function that declares nothing needs everything; `RequiresAccess()` asks for nothing
     return FULL_ACCESS
+
+
+def normalize_access(declared: Any, name: str = "access") -> TWorkspaceAccess:
+    """Validates an access declaration and returns it with a single verb of an axis as a list.
+
+    Args:
+        declared (Any): The declaration, a mapping of axes to verbs.
+        name (str): How messages name the declaration, e.g. `access` or `__access__`.
+
+    Raises:
+        ValueError: The declaration is not a mapping, names an unknown axis, or a verb that its
+            axis does not take.
+    """
+    if not isinstance(declared, Mapping):
+        raise ValueError(f"{name} takes a mapping of {', '.join(ACCESS_AXES)} to verbs")
+    access: Dict[str, Any] = dict(declared)
+    if unknown := sorted(set(access) - set(ACCESS_AXES)):
+        raise ValueError(f"{name} takes {', '.join(ACCESS_AXES)}. Got {', '.join(unknown)}")
+    for axis in ACCESS_AXES:
+        if isinstance(access.get(axis), str):
+            access[axis] = [access[axis]]
+        allowed = ACCESS_AXIS_VERBS[axis] + ("all",)
+        refused = sorted({verb for verb in access.get(axis) or [] if verb not in allowed})
+        if refused:
+            unserved = sorted(set(ACCESS_AXIS_VOCABULARY[axis]) - set(allowed))
+            reason = f"{name}.{axis} takes {', '.join(allowed)}"
+            if set(unserved) & set(refused):
+                reason += f", and no runtime serves {', '.join(unserved)} yet"
+            raise ValueError(f"{reason}. Got {', '.join(refused)}")
+    return typing.cast(TWorkspaceAccess, access)
 
 
 def granted_verbs(access: Optional[TWorkspaceAccess], axis: str) -> Set[str]:

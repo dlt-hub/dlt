@@ -4,9 +4,11 @@ import os
 import re
 import subprocess
 import sys
+from contextlib import nullcontext
 from pathlib import Path
-from typing import Any, Dict, List, Literal, Set, Tuple, get_args
+from typing import Any, ContextManager, Dict, List, Literal, Set, Tuple, get_args
 from unittest.mock import patch
+from urllib.request import url2pathname
 
 import pytest
 import tomlkit
@@ -58,6 +60,9 @@ from tests.workspace.utils import isolated_workspace
 
 
 _SHUTIL_WHICH = "dlt._workspace.deployment.requirements.shutil.which"
+_RUN_UV = "dlt._workspace.deployment.requirements.run_uv"
+UV_WORKSPACE_CASE = "deps_uv_workspace"
+"""A uv workspace whose member `workspace` is a dlt workspace, with the lock at the root."""
 _HUB = "dlt[hub]"
 _S3_NAMES = ["botocore", "s3fs"]
 
@@ -186,6 +191,80 @@ def test_pyproject_lock_out_of_sync_raises() -> None:
         (Path(ctx.run_dir) / "uv.lock").write_text("")
         with pytest.raises(WorkspaceRequirementsError):
             export_workspace_requirements(Path(ctx.run_dir))
+
+
+def test_stale_lock_raises_with_uv_frozen() -> None:
+    """A lock that misses a dependency added after locking fails the export, also with
+    `UV_FROZEN`, a setting of CI and Docker images that skips the lock check."""
+    with isolated_workspace("deps_pyproject") as ctx:
+        root = Path(ctx.run_dir)
+        _run_uv_lock(ctx.run_dir)
+        pyproject = root / "pyproject.toml"
+        doc = tomlkit.parse(pyproject.read_text(encoding="utf-8"))
+        doc["project"]["dependencies"].append("six")  # type: ignore[index, union-attr, call-arg]
+        pyproject.write_text(tomlkit.dumps(doc), encoding="utf-8")
+        with patch.dict(os.environ, {"UV_FROZEN": "1"}):
+            with pytest.raises(WorkspaceRequirementsError, match="lock --check"):
+                export_workspace_requirements(root)
+
+
+def _get_user_groups(groups: Dict[str, List[str]]) -> Dict[str, List[str]]:
+    return {
+        k: v
+        for k, v in groups.items()
+        if k != DASHBOARD_JOB_REF and not k.startswith(AGENT_LOOP_GROUP_PREFIX)
+    }
+
+
+def test_uv_workspace_member_exports_from_root_lock() -> None:
+    """A dlt workspace that is a member of a uv workspace exports its own dependencies from the
+    lock at the root, without the dependencies of the root project and of the other members."""
+    with isolated_workspace(UV_WORKSPACE_CASE, workspace_subdir="workspace") as ctx:
+        _run_uv_lock(os.path.dirname(ctx.run_dir))
+        groups = _get_user_groups(export_workspace_requirements(Path(ctx.run_dir))["groups"])
+
+    assert set(groups) == {MAIN_GROUP, "gpu", "all"}
+    for group, specs in groups.items():
+        assert specs and all("==" in spec for spec in specs), (group, specs)
+    assert _get_names(groups[MAIN_GROUP]) == ["tomlkit"]
+    assert _get_names(groups["gpu"]) == ["packaging"]
+    # the lock resolves `include-group`
+    assert _get_names(groups["all"]) == ["packaging", "six"]
+    exported = {name for specs in groups.values() for name in _get_names(specs)}
+    assert not exported & {"requests", "pytest", "shared"}
+
+
+@pytest.mark.parametrize("uv", ["no-root-lock", "uv-missing", "old-uv"])
+def test_uv_workspace_member_falls_back_to_declarations(uv: str) -> None:
+    """Without the lock at the root, without uv, or with a uv that cannot tell the workspace, the
+    member's dependencies are taken as declared."""
+    context: ContextManager[Any] = nullcontext()
+    if uv == "uv-missing":
+        context = patch(_SHUTIL_WHICH, return_value=None)
+    elif uv == "old-uv":
+        context = patch(_RUN_UV, side_effect=WorkspaceRequirementsError("unknown command"))
+    with isolated_workspace(UV_WORKSPACE_CASE, workspace_subdir="workspace") as ctx:
+        if uv != "no-root-lock":
+            _run_uv_lock(os.path.dirname(ctx.run_dir))
+        with context:
+            groups = _get_user_groups(export_workspace_requirements(Path(ctx.run_dir))["groups"])
+
+    assert groups == {
+        MAIN_GROUP: ["tomlkit>=0.12"],
+        "gpu": ["packaging>=23.0"],
+        # declarations do not resolve `include-group`
+        "all": ["six"],
+    }
+
+
+def test_uv_workspace_member_depending_on_another_member_raises() -> None:
+    """A dlt workspace that depends on a library member of its uv workspace cannot deploy: the
+    deployment ships the dlt workspace only."""
+    with isolated_workspace(UV_WORKSPACE_CASE, workspace_subdir="reporting") as ctx:
+        _run_uv_lock(os.path.dirname(ctx.run_dir))
+        with pytest.raises(WorkspaceRequirementsError, match="depends on other members") as exc:
+            export_workspace_requirements(Path(ctx.run_dir))
+    assert "shared" in str(exc.value)
 
 
 @pytest.mark.parametrize(
@@ -935,16 +1014,24 @@ def test_get_pkg_install_spec_editable(monkeypatch: pytest.MonkeyPatch) -> None:
     assert spec["path"] == LOCAL_INSTALL_PATH
 
 
-def test_get_pkg_install_spec_path_non_editable(monkeypatch: pytest.MonkeyPatch) -> None:
+@pytest.mark.parametrize(
+    "url,path",
+    [
+        (LOCAL_INSTALL_URL, LOCAL_INSTALL_PATH),
+        # a UNC path keeps its host
+        ("file://server/share/pkg", url2pathname("//server/share/pkg")),
+    ],
+    ids=["local", "unc"],
+)
+def test_get_pkg_install_spec_path_non_editable(
+    monkeypatch: pytest.MonkeyPatch, url: str, path: str
+) -> None:
     from dlt._workspace.deployment.requirements import get_pkg_install_spec
 
-    _patch_distribution(
-        monkeypatch,
-        {"url": LOCAL_INSTALL_URL, "dir_info": {"editable": False}},
-    )
+    _patch_distribution(monkeypatch, {"url": url, "dir_info": {"editable": False}})
     spec = get_pkg_install_spec("dlthub")
     assert spec["mode"] == "path"
-    assert spec["path"] == LOCAL_INSTALL_PATH
+    assert spec["path"] == path
 
 
 def test_get_pkg_install_spec_git(monkeypatch: pytest.MonkeyPatch) -> None:

@@ -18,8 +18,10 @@ from dlt.common.typing import DictStrAny
 from dlt.common.utils import get_module_name
 from dlt.common.warnings import apply_deprecations
 
+from dlt._workspace.access import normalize_access
 from dlt._workspace.deployment._job_ref import make_job_ref
 from dlt._workspace.deployment._trigger_helpers import normalize_triggers
+from dlt._workspace.deployment.exceptions import InvalidJobDefinition, JobValidationResult
 from dlt._workspace.deployment.launchers import LAUNCHER_MODULE, get_launcher_for_framework
 from dlt._workspace.deployment import trigger as _triggers
 from dlt._workspace.deployment.typing import (
@@ -32,7 +34,6 @@ from dlt._workspace.deployment.typing import (
     TRequireSpec,
     TRequireSpecDeprecated,
     TTrigger,
-    TWorkspaceAccess,
     WORKSPACE_DEPRECATED_SINCE,
 )
 
@@ -116,7 +117,12 @@ def _apply_module_dunders(module: ModuleType, job_def: TJobDefinition) -> None:
     # __access__: what the job needs to run (matches `access` decorator argument)
     access = getattr(module, "__access__", None)
     if access is not None:
-        job_def["access"] = cast(TWorkspaceAccess, dict(access))
+        try:
+            job_def["access"] = normalize_access(access, "__access__")
+        except ValueError as ex:
+            raise InvalidJobDefinition(
+                job_def["job_ref"], JobValidationResult([str(ex)], [])
+            ) from ex
 
 
 def _detect_marimo(module: ModuleType) -> Optional[TJobDefinition]:

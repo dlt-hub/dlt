@@ -36,8 +36,9 @@ DEFAULT_IGNORES: List[str] = [
     ".env",
 ]
 
-SETTINGS_INCLUDES: List[str] = [TOOLKITS_INDEX_FILE, WORKSPACE_FILE_NAME]
-"""Settings-dir files that ship with the code. Never anything holding secrets."""
+CONFIGURATION_INCLUDES: List[str] = [WORKSPACE_FILE_NAME, TOOLKITS_INDEX_FILE]
+"""Settings-dir files without secrets that ship with every configuration: the profile and
+environment declarations and the toolkit index that agent jobs read."""
 
 GIT_IGNORES: List[str] = [".git/"]
 """Git's own folder, which a `.gitignore` never lists."""
@@ -167,7 +168,8 @@ class WorkspaceFileSelector(GitignoreFileSelector):
     """Iterates files in workspace respecting ignore patterns and excluding workspace internals.
 
     Uses gitignore-style patterns from a configurable ignore file (default .gitignore). Additional
-    patterns can be provided as relative paths from workspace root. Settings directory is always excluded.
+    patterns can be provided as relative paths from workspace root. The settings directory is
+    always excluded: its files ship with the configuration, see `ConfigurationFileSelector`.
     """
 
     def __init__(
@@ -187,18 +189,18 @@ class WorkspaceFileSelector(GitignoreFileSelector):
 
     def _base_excludes(self) -> List[str]:
         settings_rel = self.settings_dir.relative_to(self.root_path).as_posix()
-        # the settings dir stays out, except what the runner reads and holds no secrets
-        return [f"{settings_rel}/", *(f"!{settings_rel}/{name}" for name in SETTINGS_INCLUDES)]
+        return [f"{settings_rel}/"]
 
 
 class ConfigurationFileSelector(BaseFileSelector):
-    """Iterates the settings files that a deployment to `environment` ships: the shared
-    `config.toml` and `secrets.toml`, and the config and secrets files of the profiles of
-    `environment`. Files of other environments and of local profiles never leave the machine."""
+    """Iterates the settings files that a deployment to `environment` ships: `.workspace`, the
+    toolkit index, the shared `config.toml` and `secrets.toml`, and the config and secrets files
+    of the profiles of `environment`. Files of other environments and of local profiles never
+    leave the machine."""
 
     def __init__(self, context: WorkspaceRunContext, environment: TEnvironmentDefinition) -> None:
         self.settings_dir: Path = Path(context.settings_dir).resolve()
-        self._file_names: List[str] = [CONFIG_TOML, SECRETS_TOML]
+        self._file_names: List[str] = [*CONFIGURATION_INCLUDES, CONFIG_TOML, SECRETS_TOML]
         for profile in get_profiles_for_env(environment):
             self._file_names += [f"{profile}.{CONFIG_TOML}", f"{profile}.{SECRETS_TOML}"]
 

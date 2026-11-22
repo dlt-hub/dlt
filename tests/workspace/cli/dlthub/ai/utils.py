@@ -39,7 +39,7 @@ def assert_toolkit_install(
     index_path = project_root / ".dlt" / ".toolkits"
     assert index_path.is_file(), ".toolkits index missing at %s" % index_path
 
-    index = yaml.safe_load(index_path.read_text(encoding="utf-8"))
+    index = yaml.safe_load(index_path.read_text(encoding="utf-8"))["toolkits"]
     assert toolkit_name in index, "%s not in index (keys: %s)" % (
         toolkit_name,
         list(index.keys()),

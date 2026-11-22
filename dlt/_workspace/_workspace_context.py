@@ -163,12 +163,12 @@ class WorkspaceRunContext(ProfilesRunContext):
         if profile == self.profile:
             return self.config
         plug = Container()[PluggableRunContext]
-        providers = plug.providers
-        plug.providers = ConfigProvidersContainer(self._initial_providers(profile))
-        try:
+        # the providers of the other profile serve the current thread only
+        with plug.use_providers(
+            ConfigProvidersContainer(self._initial_providers(profile))
+        ) as providers:
+            providers.add_extras()
             return self._resolve_config(environment)
-        finally:
-            plug.providers = providers
 
     def _resolve_config(self, environment: Optional[str]) -> WorkspaceConfiguration:
         return resolve_configuration(

@@ -26,12 +26,10 @@ def test_file_selector_respects_gitignore(with_additional_exclude: bool) -> None
     """Test that .gitignore patterns are respected with and without additional excludes."""
 
     additional_excludes = ["additional_exclude/"] if with_additional_exclude else None
-    # the profiles declared in `.workspace` ship with the code
     expected_files = {
         "additional_exclude/empty_file.py",
         "ducklake_pipeline.py",
         ".ignorefile",
-        ".dlt/.workspace",
     }
     if with_additional_exclude:
         expected_files.remove("additional_exclude/empty_file.py")
@@ -150,7 +148,7 @@ def test_default_ignores_not_applied_with_ignore_file() -> None:
         assert ".venv/somefile" in files
 
 
-SHARED_SETTINGS = ["config.toml", "secrets.toml"]
+SHARED_SETTINGS = [".workspace", "config.toml", "secrets.toml"]
 PROD_SETTINGS = [
     "access.config.toml",
     "access.secrets.toml",
@@ -192,8 +190,8 @@ def _configure_environments(ctx: WorkspaceRunContext) -> None:
 def test_configuration_file_selector(
     environment: str, profile_settings: List[str], other_settings: List[str]
 ) -> None:
-    """A deployment ships the shared settings files and the settings files of the profiles of its
-    environment, sorted by name. `.workspace` ships with the code."""
+    """A deployment ships `.workspace`, the shared settings files and the settings files of the
+    profiles of its environment, sorted by name."""
     with isolated_workspace("configured_workspace") as ctx:
         _configure_environments(ctx)
         assert "analytics" not in ctx.profile_definitions
@@ -204,8 +202,10 @@ def test_configuration_file_selector(
     assert set(files).isdisjoint(other_settings + NEVER_SHIPPED)
 
 
-def test_toolkits_index_ships_but_secrets_do_not() -> None:
-    """The agent launcher resolves `<toolkit>:<agent>` from the index, so it must reach the runner."""
+def test_settings_ship_with_the_configuration_only() -> None:
+    """`.workspace` and the toolkit index, from which the agent launcher resolves
+    `<toolkit>:<agent>`, ship with the configuration. The code package gets nothing from the
+    settings dir."""
     with isolated_workspace("default") as ctx:
         settings = Path(ctx.settings_dir)
         settings.mkdir(parents=True, exist_ok=True)
@@ -216,12 +216,10 @@ def test_toolkits_index_ships_but_secrets_do_not() -> None:
         (settings / "state" / "local.duckdb").write_text("x")
 
         files = {rel.as_posix() for _, rel in WorkspaceFileSelector(ctx, ignore_file=".ignorefile")}
+        configuration = shipped_settings(ctx, ctx.get_environment_definition("prod"))
 
-    assert f".dlt/{TOOLKITS_INDEX_FILE}" in files
-    # everything else under the settings dir stays out, secrets above all
-    assert ".dlt/secrets.toml" not in files
-    assert ".dlt/config.toml" not in files
-    assert ".dlt/state/local.duckdb" not in files
+    assert not any(name.startswith(".dlt/") for name in files)
+    assert configuration == [TOOLKITS_INDEX_FILE, ".workspace", "config.toml", "secrets.toml"]
 
 
 def test_gitignore_selector_never_enters_ignored_folders(monkeypatch: pytest.MonkeyPatch) -> None:

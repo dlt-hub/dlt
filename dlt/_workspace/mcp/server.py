@@ -4,6 +4,7 @@ from typing import Any, Callable, Dict, List, Optional, Set, Tuple
 
 from fastmcp import FastMCP
 from fastmcp.prompts import Prompt
+from fastmcp.tools import Tool
 
 from dlt.common import logger
 from dlt.common.configuration.container import Container
@@ -13,6 +14,12 @@ from dlt.common.configuration.specs.pluggable_run_context import PluggableRunCon
 from dlt._workspace._workspace_context import WorkspaceRunContext
 from dlt._workspace.access import FULL_ACCESS, missing_access, required_access
 from dlt._workspace.cli.utils import DEFAULT_MCP_FEATURES as _DEFAULT_MCP_FEATURES
+from dlt._workspace.environment import (
+    ENVIRONMENT_ARGUMENT_HELP,
+    ENVIRONMENT_PROFILE_ARGUMENT_HELP,
+)
+from dlt._workspace.mcp.context import with_tool_run_context
+from dlt._workspace.profile import PROFILE_ARGUMENT_HELP
 from dlt._workspace.typing import TWorkspaceAccess
 
 
@@ -56,6 +63,18 @@ def _hide_params(fn: Callable[..., Any], **bound: Any) -> Callable[..., Any]:
     wrapper.__signature__ = sig.replace(parameters=params)  # type: ignore[attr-defined]
     wrapper.__annotations__ = {k: v for k, v in fn.__annotations__.items() if k not in bound}
     return wrapper
+
+
+def _set_default_argument_help(tool: Tool) -> None:
+    """Describes the `profile` and `environment` arguments of `tool` that its docstring does not
+    describe."""
+    properties: Dict[str, Dict[str, Any]] = tool.parameters.get("properties", {})
+    profile_help = (
+        ENVIRONMENT_PROFILE_ARGUMENT_HELP if "environment" in properties else PROFILE_ARGUMENT_HELP
+    )
+    for name, help_text in (("profile", profile_help), ("environment", ENVIRONMENT_ARGUMENT_HELP)):
+        if name in properties and "description" not in properties[name]:
+            properties[name]["description"] = help_text
 
 
 class DltMCP(FastMCP):
@@ -111,15 +130,23 @@ class DltMCP(FastMCP):
                 self._add_tool(tool)
 
     def _add_tool(self, tool: Any, **bound: Any) -> None:
-        """Adds `tool` without its `bound` parameters. Outside of a workspace there is no profile
-        or environment to select, so the server hides the `profile` and `environment` parameters
-        too."""
+        """Adds the function `tool` without its `bound` parameters. Each call runs with the
+        profile that its `profile` and `environment` arguments select, see
+        `with_tool_run_context`, and the docstring of the tool may describe them instead of the
+        default help. Outside of a workspace there is no profile or environment to select, so the
+        server hides these parameters too. A `Tool` object is added as it is."""
+        if isinstance(tool, Tool):
+            self.add_tool(tool)
+            return
         ctx = Container()[PluggableRunContext].context
         if not isinstance(ctx, WorkspaceRunContext):
             for name in ("profile", "environment"):
                 if name in inspect.signature(tool).parameters:
                     bound[name] = None
-        self.add_tool(_hide_params(tool, **bound) if bound else tool)
+        wrapped = with_tool_run_context(tool)
+        _set_default_argument_help(
+            self.add_tool(_hide_params(wrapped, **bound) if bound else wrapped)
+        )
 
 
 class WorkspaceMCP(DltMCP):

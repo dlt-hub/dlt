@@ -579,7 +579,7 @@ def test_toolkit_install_mcp_features_in_workspace_of_older_dlt(
         *OLD_INIT_SERVER["args"],
         "--features=dlthub.jobs,dlthub.logs",
     ]
-    saved = yaml.safe_load(index_path.read_text(encoding="utf-8"))
+    saved = yaml.safe_load(index_path.read_text(encoding="utf-8"))["toolkits"]
     assert saved["init"] == {k: v for k, v in original["init"].items() if k != "name"}
     assert saved["rest-api-pipeline"] == original["rest-api-pipeline"]
     # features of another toolkit's server are not recorded
@@ -1043,11 +1043,6 @@ def test_resolve_agent_from_init_index(capsys: pytest.CaptureFixture[str]) -> No
         _resolve_agent(None, project_root)
 
 
-# ---------------------------------------------------------------------------
-# Secrets update-fragment helpers (moved from test_ai_command)
-# ---------------------------------------------------------------------------
-
-
 def test_ai_secrets_update_fragment_creates_new(capsys: pytest.CaptureFixture[str]) -> None:
     secrets_file = Path("secrets.toml")
     fragment = '[destination.bigquery]\nproject_id = "my-project"\n'
@@ -1152,11 +1147,6 @@ def test_ai_secrets_roundtrip(capsys: pytest.CaptureFixture[str]) -> None:
     assert "staging-pw" not in output
     assert "[destination.postgres]" in output
     assert "***" in output
-
-
-# ---------------------------------------------------------------------------
-# Toolkit list / info / install helpers (moved from test_ai_command)
-# ---------------------------------------------------------------------------
 
 
 def test_toolkit_list(capsys: pytest.CaptureFixture[str]) -> None:

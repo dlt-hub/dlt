@@ -93,6 +93,26 @@ def _run_init(
         )
 
 
+def _read_files(root: Path) -> Dict[Path, bytes]:
+    return {path: path.read_bytes() for path in root.rglob("*") if path.is_file()}
+
+
+def _assert_init_refused(
+    monkeypatch: pytest.MonkeyPatch,
+    workspace_dir: Path,
+    capsys: pytest.CaptureFixture[str],
+    **init_args: Any,
+) -> None:
+    """`dlthub init` stops in an existing workspace and leaves its files as they are."""
+    files = _read_files(workspace_dir)
+    with pytest.raises(CliCommandException):
+        _run_init(monkeypatch, workspace_dir, **init_args)
+    out = capsys.readouterr().out
+    assert "is already a dlthub workspace" in out
+    assert "dlthub ai init" in out
+    assert _read_files(workspace_dir) == files
+
+
 def _mock_harness(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     """Copies the mock AI harness and makes it the default one; returns the workspace dir."""
     harness = tmp_path / "harness"
@@ -174,6 +194,19 @@ def test_fetch_init_plan_existing_pyproject(tmp_path: Path) -> None:
     plan = fetch_init_plan(str(tmp_path), overwrite=True)
     assert _statuses(plan)[pyproject] == "overwrite"
     assert "merge_error" not in plan
+
+
+def test_fetch_init_plan_skip_keeps_existing_requirements(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """With `--skip` an existing `requirements.txt` stays the dependency file, also with uv: no
+    `pyproject.toml` is added next to it."""
+    _set_uv(monkeypatch, True)
+    (tmp_path / "requirements.txt").write_text("requests\n", encoding="utf-8")
+    plan = fetch_init_plan(str(tmp_path), skip=True)
+    assert plan["dependency_system"] == "requirements.txt"
+    assert _statuses(plan)[os.path.join(str(tmp_path), "requirements.txt")] == "skip"
+    assert not any(path.endswith("pyproject.toml") for path in _paths(plan))
 
 
 def test_fetch_init_plan_secrets_toml_skipped_when_present(tmp_path: Path) -> None:
@@ -418,7 +451,7 @@ def test_fetch_init_plan_dependencies_override(
 def test_dlthub_init_new_workspace_asks_nothing(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    """A new workspace is written without showing the plan or asking, a re-run writes nothing."""
+    """A new workspace is written without showing the plan or asking, a re-run is refused."""
     # `_run_init` declines when asked
     _run_init(monkeypatch, tmp_path)
     out = capsys.readouterr().out
@@ -426,10 +459,7 @@ def test_dlthub_init_new_workspace_asks_nothing(
     assert "Workspace ready at" in out
     assert (tmp_path / ".dlt" / ".workspace").is_file()
 
-    _run_init(monkeypatch, tmp_path)
-    out = capsys.readouterr().out
-    assert "Workspace exists. Nothing to do." in out
-    assert "Workspace ready at" not in out
+    _assert_init_refused(monkeypatch, tmp_path, capsys)
 
 
 def test_dlthub_init_dry_run_implies_verbose_and_writes_nothing(
@@ -460,38 +490,55 @@ def test_dlthub_init_without_agent_sets_up_no_agent(
 def test_dlthub_init_with_agent(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    """The agent's rules are installed into the new workspace right after the scaffold."""
+    """The agent's rules are installed into the new workspace right after the scaffold. The MCP
+    server is not checked: the dependencies of the new workspace are not installed yet."""
     workspace_dir = _mock_harness(tmp_path, monkeypatch)
+    monkeypatch.setattr(
+        "dlt._workspace.cli.dlthub.ai.commands.fetch_ai_status",
+        lambda project_root: {"warnings": ["mcp_unavailable"]},
+    )
     _run_init(monkeypatch, workspace_dir, agent="claude")
     out = capsys.readouterr().out
+    assert "MCP server cannot be started" not in out
     assert (workspace_dir / ".claude" / "rules" / "init-base.md").is_file()
     index = load_yaml_file(str(workspace_dir / ".dlt" / ".toolkits"))
-    assert index["init"]["agent"] == "claude"
+    assert index["toolkits"]["init"]["agent"] == "claude"
     assert "Workspace ready at" in out
     assert "Configure your AI coding agent" not in out
     # claude gets the default dependencies
     _assert_seeded_deps(workspace_dir / "pyproject.toml")
 
-    # the agent is already set up
-    _run_init(monkeypatch, workspace_dir, agent="claude")
-    out = capsys.readouterr().out
-    assert "Workspace exists. Nothing to do." in out
-    assert "install your first toolkit" not in out
 
-
-def test_dlthub_init_agent_into_existing_workspace(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+@pytest.mark.parametrize(
+    "init_args",
+    [
+        {},
+        {"dry_run": True},
+        {"skip": True},
+        {"overwrite": True, "answer": True},
+        {"overwrite": True, "answer": True, "agent": "claude"},
+    ],
+    ids=["no-flags", "dry-run", "skip", "overwrite", "overwrite-with-agent"],
+)
+def test_dlthub_init_refuses_existing_workspace(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    init_args: Dict[str, Any],
 ) -> None:
-    """Setting up an agent in an up-to-date workspace is a change, not an existing workspace."""
+    """An existing workspace keeps its declared environments and profiles: init writes nothing
+    and points to `dlthub ai init` for the agent."""
     workspace_dir = _mock_harness(tmp_path, monkeypatch)
     _run_init(monkeypatch, workspace_dir)
+    workspace_file = workspace_dir / ".dlt" / ".workspace"
+    workspace_file.write_text(
+        _read(workspace_file).replace("environments:", "environments:\n  staging: {}"),
+        encoding="utf-8",
+    )
     capsys.readouterr()
 
-    _run_init(monkeypatch, workspace_dir, agent="claude")
-    out = capsys.readouterr().out
-    assert "Workspace ready at" in out
-    assert "Workspace exists." not in out
-    assert (workspace_dir / ".claude" / "rules" / "init-base.md").is_file()
+    _assert_init_refused(monkeypatch, workspace_dir, capsys, **init_args)
+    assert not (workspace_dir / ".claude").exists()
 
 
 def test_dlthub_init_with_cortex_agent(
@@ -544,10 +591,8 @@ def test_dlthub_init_dry_run_with_agent(
 def test_dlthub_init_skip(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    """--skip keeps an existing workspace and its files without asking and adds what is missing."""
+    """--skip keeps the files of an existing project without asking and adds what is missing."""
     settings = tmp_path / ".dlt"
-    settings.mkdir()
-    (settings / ".workspace").write_text("", encoding="utf-8")
     (tmp_path / "pyproject.toml").write_text("# user\n", encoding="utf-8")
     (tmp_path / ".gitignore").write_text(".venv\n", encoding="utf-8")
 
@@ -556,17 +601,16 @@ def test_dlthub_init_skip(
     assert "Workspace ready at" in capsys.readouterr().out
     assert _read(tmp_path / "pyproject.toml") == "# user\n"
     assert _read(tmp_path / ".gitignore") == ".venv\n"
-    assert _read(settings / ".workspace") == ""
+    assert (settings / ".workspace").is_file()
     assert (settings / "config.toml").is_file()
 
 
-def test_dlthub_init_overwrite_existing_workspace(
+def test_dlthub_init_overwrite_existing_project(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
     """--overwrite shows the files it overwrites and asks, secrets are preserved."""
     settings = tmp_path / ".dlt"
     settings.mkdir()
-    (settings / ".workspace").write_text("", encoding="utf-8")
     (tmp_path / "pyproject.toml").write_text("# old\n", encoding="utf-8")
     (settings / "secrets.toml").write_text("# user creds\n", encoding="utf-8")
 
@@ -609,7 +653,7 @@ def test_dlthub_init_merge_into_requirements_project(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
     """A merge adds the missing .gitignore entries and the missing or outdated dependencies and
-    keeps everything else. It shows the changes and asks first, a second run changes nothing."""
+    keeps everything else. It shows the changes and asks first, a second run is refused."""
     (tmp_path / ".gitignore").write_text(".venv\nsecrets.toml\n", encoding="utf-8")
     (tmp_path / "requirements.txt").write_text(
         "# my deps\nrequests>=2\ndlt==1.20.0  # old\n", encoding="utf-8"
@@ -651,13 +695,36 @@ def test_dlthub_init_merge_into_requirements_project(
     assert _read(settings / "secrets.toml") == "# user creds\n"
     assert (settings / ".workspace").is_file()
 
-    merged = {name: _read(tmp_path / name) for name in (".gitignore", "requirements.txt")}
     capsys.readouterr()
-    _run_init(monkeypatch, tmp_path, uv=False)
+    _assert_init_refused(monkeypatch, tmp_path, capsys, uv=False)
+
+
+@pytest.mark.parametrize(
+    "requirements,error",
+    [
+        (f"dlt==1.20.0 \\\n    --hash=sha256:{'0' * 64}\nrequests==2.31.0\n", "pins hashes"),
+        ("-r base.txt\ndlt==1.20.0\n", "includes other files"),
+    ],
+    ids=["hashed", "included"],
+)
+def test_dlthub_init_refuses_to_merge_into_compiled_requirements(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    requirements: str,
+    error: str,
+) -> None:
+    """dlthub init does not merge into a `requirements.txt` that pins hashes or includes other
+    files: it lists the dependencies to add there and changes nothing."""
+    (tmp_path / "requirements.txt").write_text(requirements, encoding="utf-8")
+    files = _read_files(tmp_path)
+    with pytest.raises(CliCommandException):
+        _run_init(monkeypatch, tmp_path, dry_run=True, uv=False)
     out = capsys.readouterr().out
-    assert "[MERGE]" not in out
-    assert "Workspace exists. Nothing to do." in out
-    assert {name: _read(tmp_path / name) for name in merged} == merged
+    # the pin with hashes is read, so dlt is upgraded and not added twice
+    assert "~ dlt==1.20.0 -> " in out
+    assert error in out
+    assert _read_files(tmp_path) == files
 
 
 @pytest.mark.skipif(not is_uv_available(), reason="uv merges into pyproject.toml")
@@ -725,24 +792,37 @@ def test_dlthub_init_cannot_merge_pyproject(
     assert _read(tmp_path / "pyproject.toml") == pyproject
 
 
-def test_dlthub_init_merge_existing_workspace(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, main_dlthub: Any
+@pytest.mark.parametrize(
+    "flags,merged",
+    [(["-y"], True), (["--force", "-y"], False)],
+    ids=["merge", "force-is-overwrite"],
+)
+def test_dlthub_init_merge_existing_project(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    main_dlthub: Any,
+    flags: List[str],
+    merged: bool,
 ) -> None:
-    """`dlthub init -y` adds what an existing workspace lacks and keeps its settings."""
-    _run_init(monkeypatch, tmp_path, uv=False)
+    """`dlthub init -y` adds what an existing project lacks and keeps its settings, `--force` is
+    the old name of `--overwrite`. Then the project is a workspace, and init refuses it."""
+    monkeypatch.chdir(str(tmp_path))
+    _set_uv(monkeypatch, False)
+    settings = tmp_path / ".dlt"
+    settings.mkdir()
+    (settings / "config.toml").write_text("# user config\n", encoding="utf-8")
+    (settings / "secrets.toml").write_text("# user creds\n", encoding="utf-8")
     (tmp_path / ".gitignore").write_text(".venv\n", encoding="utf-8")
-    settings = {
-        name: _read(tmp_path / ".dlt" / name)
-        for name in ("config.toml", "secrets.toml", ".workspace")
-    }
 
-    code, err = main_dlthub("init", "-y")
+    code, err = main_dlthub("init", *flags)
     assert code == 0, err
-    assert "secrets.toml" in _read(tmp_path / ".gitignore").splitlines()
-    assert {name: _read(tmp_path / ".dlt" / name) for name in settings} == settings
+    gitignore = _read(tmp_path / ".gitignore")
+    assert "secrets.toml" in gitignore.splitlines()
+    assert (MERGE_MARKER in gitignore) is merged
+    assert _read(settings / "config.toml") == "# user config\n"
+    assert _read(settings / "secrets.toml") == "# user creds\n"
 
-    # --force is the old name of --overwrite
-    code, err = main_dlthub("init", "--force", "-y")
-    assert code == 0, err
-    assert MERGE_MARKER not in _read(tmp_path / ".gitignore")
-    assert _read(tmp_path / ".dlt" / "secrets.toml") == settings["secrets.toml"]
+    workspace = _read(settings / ".workspace")
+    code, _ = main_dlthub("init", *flags)
+    assert code != 0
+    assert _read(settings / ".workspace") == workspace

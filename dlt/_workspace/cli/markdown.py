@@ -60,7 +60,7 @@ class MarkdownDocument:
         name = fm.get("name") or default_name or path.stem
         return name, fm.get("description") or (heading.text if heading else "")
 
-    def _frontmatter_close(self) -> Optional[int]:
+    def _find_frontmatter_close(self) -> Optional[int]:
         """Line index of the `---` that closes a frontmatter block at the top, or None."""
         if not self._lines or self._lines[0].rstrip("\r") != "---":
             return None
@@ -76,7 +76,7 @@ class MarkdownDocument:
         Raises:
             yaml.YAMLError: When the frontmatter is not valid YAML.
         """
-        close = self._frontmatter_close()
+        close = self._find_frontmatter_close()
         if close is None:
             return {}, str(self)
         data = yaml.safe_load("\n".join(self._lines[1:close])) or {}
@@ -87,13 +87,13 @@ class MarkdownDocument:
     @property
     def body_text(self) -> str:
         """Text after the delimited frontmatter block, whether or not its YAML parses."""
-        close = self._frontmatter_close()
+        close = self._find_frontmatter_close()
         return "\n".join(self._lines[0 if close is None else close + 1 :])
 
-    def _body_tokens(self) -> Tuple[List[Token], int]:
+    def _parse_body_tokens(self) -> Tuple[List[Token], int]:
         """Block tokens of the body and the line index the body starts at."""
         # a delimited block at the top is never body, even when its YAML does not parse
-        close = self._frontmatter_close()
+        close = self._find_frontmatter_close()
         start = 0 if close is None else close + 1
         if self._tokens is None:
             self._tokens = _PARSER.parse("\n".join(self._lines[start:]))
@@ -101,7 +101,7 @@ class MarkdownDocument:
 
     def find_headings(self) -> List[MarkdownHeading]:
         """Return all headings of the body, ATX and setext."""
-        tokens, start = self._body_tokens()
+        tokens, start = self._parse_body_tokens()
         return [
             MarkdownHeading(
                 start + token.map[0],

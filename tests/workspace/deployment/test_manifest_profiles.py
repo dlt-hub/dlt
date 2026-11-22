@@ -56,6 +56,9 @@ JOBS: Dict[str, TJobProfiles] = {
         "jobs.jobs.writer": ("prod", {"data": ["write"]}),
         "jobs.jobs.declared": ("prod", READ_WRITE),
         "jobs.jobs.reporting": ("analytics", READ_WRITE),
+        # a job that declares a profile and no data access needs the data access of the profile
+        "jobs.jobs.admin": ("prod", READ_WRITE),
+        "jobs.jobs.reader": ("access", READ),
         # the workspace dashboard goes to the default environment only
         DASHBOARD_JOB_REF: ("access", READ),
     },
@@ -79,11 +82,22 @@ def _profiles_and_access(manifest: TJobsDeploymentManifest) -> TJobProfiles:
 
 @pytest.mark.parametrize("isolated", [False, True], ids=["inprocess", "isolated"])
 @pytest.mark.parametrize(
-    "env,fallbacks",
-    [("prod", ["jobs.jobs.triage"]), ("ci", [])],
+    "env,expected_warnings",
+    [
+        (
+            "prod",
+            [
+                "environment `prod` has no profile with no data access: 1 job"
+                " (`jobs.jobs.triage`) that declares no data access runs with `access` (read data"
+                " access). Declare one with `dlthub profile add prod-none --access none"
+                " --environment prod`."
+            ],
+        ),
+        ("ci", []),
+    ],
     ids=["not-strict-environment", "strict-environment"],
 )
-def test_manifest_for_environment(env: str, fallbacks: List[str], isolated: bool) -> None:
+def test_manifest_for_environment(env: str, expected_warnings: List[str], isolated: bool) -> None:
     """`prod` is not strict: a job without data access gets `access`, with a warning. `ci` has a
     profile for every data access and deploys `ci_only` too. The caller activates the
     environment, so `__deployment__.py` is imported with the default write profile."""
@@ -92,21 +106,27 @@ def test_manifest_for_environment(env: str, fallbacks: List[str], isolated: bool
         manifest, warnings = manifest_from_module("__deployment__", environment, isolated=isolated)
     assert manifest["environment"] == env
     assert _profiles_and_access(manifest) == JOBS[env]
-    assert len(warnings) == len(fallbacks)
-    for job_ref, warning in zip(fallbacks, warnings):
-        assert f"job `{job_ref}`" in warning
+    assert warnings == expected_warnings
 
 
 def test_manifest_without_environment() -> None:
     """A local run generates without an environment: the jobs keep the profiles they declare and
-    the manifest records no environment."""
+    the access of their type, and the manifest records no environment."""
     with importable_workspace(WORKSPACE, *MODULES, profile="prod"):
         manifest, warnings = manifest_from_module("__deployment__", None)
     assert "environment" not in manifest
     assert warnings == []
-    declared = {"jobs.jobs.declared": "prod", "jobs.jobs.reporting": "analytics"}
+    declared = {
+        "jobs.jobs.declared": "prod",
+        "jobs.jobs.reporting": "analytics",
+        "jobs.jobs.admin": "prod",
+        "jobs.jobs.reader": "access",
+    }
+    # without the environment, the data access of a declared profile is not known
+    type_access: Dict[str, TWorkspaceAccess] = {"jobs.jobs.admin": READ, "jobs.jobs.reader": {}}
     assert _profiles_and_access(manifest) == {
-        job_ref: (declared.get(job_ref), access) for job_ref, (_, access) in JOBS["prod"].items()
+        job_ref: (declared.get(job_ref), type_access.get(job_ref, access))
+        for job_ref, (_, access) in JOBS["prod"].items()
     }
 
 
@@ -122,7 +142,7 @@ def test_manifest_strict_environment_without_profiles(isolated: bool) -> None:
         # the message names the job and the fixes
         message = str(exc.value)
         assert "Job `jobs.jobs.api` declares read data access." in message
-        assert "dlthub profile add solo-read --access read --env solo" in message
+        assert "dlthub profile add solo-read --access read --environment solo" in message
         assert "strict_access: false" in message
 
 
@@ -170,7 +190,7 @@ def load() -> int:
     return 1
 
 
-@job(require={"profile": "%s"})
+@job(require={"profile": "%s"}, access={"data": ["write"]})
 def report() -> int:
     return 2
 '''
@@ -211,7 +231,7 @@ def test_job_profile_access_mismatch(isolated: bool) -> None:
 
 
 def _add_to_prod(ctx: WorkspaceRunContext, profile: str) -> str:
-    """Declares `profile` like `dlthub profile add <profile> --access write --env prod`, with
+    """Declares `profile` like `dlthub profile add <profile> --access write --environment prod`, with
     its settings files."""
     create_profile_settings(ctx, [profile])
     add_profiles(ctx, {profile: {"data_access": "write"}}, "prod")
@@ -271,8 +291,14 @@ def test_job_profile_after_migration(
             # `access` has no settings files: the dashboard of `prod` gets `prod`, with a warning
             in_prod = environment["name"] == "prod"
             assert profiles.pop(DASHBOARD_JOB_REF, None) == ("prod" if in_prod else None)
-            assert [DASHBOARD_JOB_REF in warning for warning in warnings] == (
-                [True] if in_prod else []
+            assert warnings == (
+                [
+                    f"profile `access` has no settings files: 1 job (`{DASHBOARD_JOB_REF}`) that"
+                    " declares read data access runs with `prod` (write data access). Create them"
+                    " with `dlthub profile add access` to give them read data access."
+                ]
+                if in_prod
+                else []
             )
             # a job that declares no profile gets the default write profile
             assert profiles == {

@@ -1,8 +1,9 @@
 import json
 import os
+import shutil
 import sys
 from pathlib import Path
-from typing import Any, List
+from typing import Any, List, Optional
 from unittest.mock import patch
 
 import pytest
@@ -31,6 +32,7 @@ from dlt._workspace.cli.dlthub.ai.utils import (
     AI_WORKBENCH_BASE_DIR,
     build_toolkits_dependency_map,
     load_toolkits_index,
+    resolve_harness_source,
     resolve_toolkit_dependencies,
     fetch_workbench_toolkits,
 )
@@ -228,24 +230,34 @@ def test_ai_init_installs_init_dependencies(capsys: pytest.CaptureFixture[str]) 
 
 
 def test_toolkits_reuse_recorded_harness_location(capsys: pytest.CaptureFixture[str]) -> None:
-    """An install records a harness location other than the default, later commands reuse it,
-    and an empty `--location` resets to the default."""
-    make_mock_workbench()
+    """The harness location and branch given last to any command are the defaults of the next
+    ones. An empty value resets them."""
+    base = make_mock_workbench()
     harness_location = os.path.abspath(MOCK_WORKBENCH_LOCATION)
     ai_init_command(agent="claude", location=MOCK_WORKBENCH_LOCATION)
-    assert load_toolkits_index()["init"]["location"] == harness_location
+    assert resolve_harness_source() == (harness_location, DEFAULT_AI_WORKBENCH_BRANCH)
+    assert "location" not in load_toolkits_index()["init"]
 
     # no location: the recorded one, which is the mock harness
     ai_toolkit_install_command(name="rest-api-pipeline", agent="claude")
-    assert load_toolkits_index()["rest-api-pipeline"]["location"] == harness_location
     assert harness_location in capsys.readouterr().out
 
+    def fetch_base(location: str, branch: Optional[str]) -> Path:
+        return base
+
     with patch(
-        "dlt._workspace.cli.dlthub.ai.commands.fetch_workbench_base",
-        side_effect=FileNotFoundError("no harness"),
-    ) as fetch_base:
+        "dlt._workspace.cli.dlthub.ai.commands.fetch_workbench_base", side_effect=fetch_base
+    ) as fetch:
+        # a branch given to an install of an installed toolkit is recorded too
+        ai_toolkit_install_command(name="rest-api-pipeline", agent="claude", branch="feat")
+        ai_toolkit_list_command()
+        assert fetch.call_args.args == (harness_location, "feat")
+
+        # a reset given to a list sticks
         ai_toolkit_list_command(location="")
-    fetch_base.assert_called_once_with(DEFAULT_AI_WORKBENCH_REPO, DEFAULT_AI_WORKBENCH_BRANCH)
+        ai_toolkit_list_command()
+        assert fetch.call_args.args == (DEFAULT_AI_WORKBENCH_REPO, DEFAULT_AI_WORKBENCH_BRANCH)
+    assert resolve_harness_source() == (DEFAULT_AI_WORKBENCH_REPO, DEFAULT_AI_WORKBENCH_BRANCH)
 
 
 def test_toolkit_visibility_nested_dependencies(capsys: pytest.CaptureFixture[str]) -> None:
@@ -263,7 +275,8 @@ def test_toolkit_visibility_nested_dependencies(capsys: pytest.CaptureFixture[st
     # `shared` is needed by `hidden` but also by `mid`, so it stays
     assert set(load_toolkits_index()) == {"app", "mid", "other-leaf", "shared"}
     assert "Skipping dependency hidden: not available for cortex" in out
-    assert "Skipping dependency leaf: not available for cortex" in out
+    # visible, but only the hidden toolkit needs it
+    assert "Skipping dependency leaf: only toolkits not available for cortex need it" in out
     assert "Skipping dependency shared" not in out
 
     # --see-all brings in the hidden branch
@@ -273,6 +286,66 @@ def test_toolkit_visibility_nested_dependencies(capsys: pytest.CaptureFixture[st
     index = load_toolkits_index()
     assert set(index) == {"app", "mid", "other-leaf", "shared", "hidden", "leaf"}
     assert index["hidden"]["see_all"] is True
+
+
+def _write_skill(base: Path, toolkit: str, skill: str, body: str) -> None:
+    skill_dir = base / toolkit / "skills" / skill
+    skill_dir.mkdir(parents=True, exist_ok=True)
+    (skill_dir / "SKILL.md").write_text(
+        "---\nname: %s\ndescription: d\n---\n%s\n" % (skill, body), encoding="utf-8"
+    )
+
+
+def test_upgrade_moves_skill_into_new_dependency(
+    auto_isolated_workspace: WorkspaceRunContext,
+) -> None:
+    """A new version of a toolkit moves a skill into a dependency it did not have. The upgrade with
+    --overwrite keeps the skill: the dependency takes it over, and the upgraded toolkit does not
+    remove it as stale. Without --overwrite nothing is taken over."""
+    project_root = Path(auto_isolated_workspace.run_dir)
+    skill_file = ".claude/skills/moved/SKILL.md"
+    base = make_mock_workbench()
+    _make_toolkit(base, "platform", [])
+    _write_skill(base, "platform", "moved", "v1")
+    ai_toolkit_install_command(name="platform", agent="claude", location=MOCK_WORKBENCH_LOCATION)
+    assert skill_file in load_toolkits_index()["platform"]["files"]
+
+    # the next version ships the skill in a new dependency
+    _make_toolkit(base, "destination", [])
+    shutil.rmtree(base / "platform" / "skills")
+    _write_skill(base, "destination", "moved", "v2")
+    _update_toolkit_json(base, "platform", dependencies=["destination"])
+
+    ai_toolkit_install_command(
+        name="platform", agent="claude", location=MOCK_WORKBENCH_LOCATION, overwrite=True
+    )
+
+    assert "v2" in (project_root / skill_file).read_text(encoding="utf-8")
+    index = load_toolkits_index()
+    assert skill_file in index["destination"]["files"]
+    assert skill_file not in index["platform"]["files"]
+
+
+def test_new_dependency_takes_over_nothing_without_overwrite(
+    auto_isolated_workspace: WorkspaceRunContext,
+) -> None:
+    """A dependency installed without --overwrite skips the files that exist, as before."""
+    project_root = Path(auto_isolated_workspace.run_dir)
+    skill_file = ".claude/skills/moved/SKILL.md"
+    base = make_mock_workbench()
+    _make_toolkit(base, "platform", [])
+    _write_skill(base, "platform", "moved", "v1")
+    ai_toolkit_install_command(name="platform", agent="claude", location=MOCK_WORKBENCH_LOCATION)
+    _make_toolkit(base, "destination", [])
+    _write_skill(base, "destination", "moved", "v2")
+    _update_toolkit_json(base, "platform", dependencies=["destination"])
+
+    ai_toolkit_install_command(name="platform", agent="claude", location=MOCK_WORKBENCH_LOCATION)
+
+    assert "v1" in (project_root / skill_file).read_text(encoding="utf-8")
+    index = load_toolkits_index()
+    assert skill_file in index["platform"]["files"]
+    assert skill_file not in index["destination"].get("files", {})
 
 
 def test_cortex_install(

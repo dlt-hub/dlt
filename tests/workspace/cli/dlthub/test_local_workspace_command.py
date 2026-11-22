@@ -7,6 +7,7 @@ from typing import Any, Dict, List
 
 import pytest
 
+import dlt
 from dlt._workspace._known_env import WORKSPACE__PROFILE
 from dlt._workspace._workspace_context import switch_context
 from dlt._workspace.cli.dlthub._local_workspace_command import _print_deployment_info
@@ -18,7 +19,12 @@ from dlt._workspace.exceptions import ProfileNotDeclared
 from dlt._workspace.settings_files import get_profile_pin_file, read_profile_pin
 
 from tests.workspace.cli.conftest import TParseDlthub, TRunDlthub
-from tests.workspace.utils import append_settings, declare_environment, isolated_workspace
+from tests.workspace.utils import (
+    append_settings,
+    declare_environment,
+    importable_workspace,
+    isolated_workspace,
+)
 
 
 def test_fetch_deployment_info_not_found(auto_isolated_workspace: Any) -> None:
@@ -51,6 +57,34 @@ def test_fetch_deployment_info_of_configured_module() -> None:
         info = fetch_deployment_info()
         assert (info["status"], info["deployment_module"]) == ("ok", "__prod__.py")
         assert "jobs.__prod__.batch_one" in {j["job_ref"] for j in info["jobs"]}
+
+
+DEPLOYMENT_PER_PROFILE = '''"""Deploys a job with the default write profile of `prod` only."""
+
+import dlt
+from dlt.hub.run import job
+
+
+@job
+def prod_only() -> str:
+    return "prod"
+
+
+__all__ = ["prod_only"] if dlt.current.workspace().profile == "prod" else []
+'''
+
+
+def test_fetch_deployment_info_imports_with_the_default_write_profile() -> None:
+    """With another profile of the environment active, the deployment module is imported with the
+    default write profile of the environment, as a deployment imports it. The active profile
+    stays."""
+    with importable_workspace("deployment_mixed", "__deployment__", profile="access") as ctx:
+        with open(os.path.join(ctx.run_dir, "__deployment__.py"), "w", encoding="utf-8") as f:
+            f.write(DEPLOYMENT_PER_PROFILE)
+        info = fetch_deployment_info()
+        assert dlt.current.workspace().profile == "access"
+    assert info["status"] == "ok"
+    assert "jobs.__deployment__.prod_only" in {j["job_ref"] for j in info["jobs"]}
 
 
 def test_fetch_deployment_info_ok_categorizes_and_lists_triggers() -> None:

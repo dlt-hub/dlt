@@ -1,15 +1,20 @@
 """Tests for module-level framework detectors."""
 
 from importlib import import_module
+from types import ModuleType
+from typing import Any
 
 import pytest
 
 from dlt.common.warnings import DltDeprecationWarning
 from dlt._workspace.deployment.detectors import (
+    _apply_module_dunders,
     detect_local_module,
     detect_module_job,
     is_local_module,
 )
+from dlt._workspace.deployment.exceptions import InvalidJobDefinition
+from dlt._workspace.deployment.typing import TJobDefinition
 
 CASES = "tests.workspace.deployment.cases.detectors"
 HTTP_TRIGGER = "http:"
@@ -223,3 +228,44 @@ def test_module_require_and_access() -> None:
         "instance": {"size": "gpu-a100"},
     }
     assert job_def["access"] == {"data": ["read", "write"]}
+
+
+@pytest.mark.parametrize(
+    "access,expected",
+    [
+        ({"data": "read"}, {"data": ["read"]}),
+        (
+            {"data": ["read", "write"], "local": "read"},
+            {"data": ["read", "write"], "local": ["read"]},
+        ),
+        ({}, {}),
+    ],
+    ids=["single-verb", "single-verb-of-another-axis", "empty"],
+)
+def test_module_access_takes_a_single_verb(access: Any, expected: Any) -> None:
+    """A verb of an axis may be written without the list, as in an agent spec."""
+    module = ModuleType("notebook")
+    module.__access__ = access  # type: ignore[attr-defined]
+    job_def: TJobDefinition = {"job_ref": "jobs.notebook"}  # type: ignore[typeddict-item]
+    _apply_module_dunders(module, job_def)
+    assert job_def["access"] == expected
+
+
+@pytest.mark.parametrize(
+    "access,reason",
+    [
+        ({"data": ["delete"]}, "__access__.data takes read, write, all. Got delete"),
+        ({"files": ["read"]}, "__access__ takes local, data, context. Got files"),
+        (["read"], "__access__ takes a mapping of local, data, context to verbs"),
+    ],
+    ids=["unknown-verb", "unknown-axis", "not-a-mapping"],
+)
+def test_module_access_is_validated(access: Any, reason: str) -> None:
+    """A wrong `__access__` fails with the job and the reason before the job gets a profile."""
+    module = ModuleType("notebook")
+    module.__access__ = access  # type: ignore[attr-defined]
+    job_def: TJobDefinition = {"job_ref": "jobs.notebook"}  # type: ignore[typeddict-item]
+    with pytest.raises(InvalidJobDefinition) as exc:
+        _apply_module_dunders(module, job_def)
+    assert exc.value.job_ref == "jobs.notebook"
+    assert reason in str(exc.value)

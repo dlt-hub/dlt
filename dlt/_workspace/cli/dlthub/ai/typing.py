@@ -86,7 +86,14 @@ class TToolkitIndexEntry(TToolkitInfo, total=False):
     mcp_servers: List[str]
     see_all: bool
     """Installed with `--see-all`: updates keep components hidden from the agent."""
-    location: str
-    """Harness location the toolkit was installed from, when not the default."""
-    branch: str
-    """Harness branch the toolkit was installed from, when not the default."""
+
+
+class TToolkitsIndex(TypedDict):
+    """The installed toolkits in `.dlt/.toolkits`, and the harness source given last."""
+
+    engine_version: int
+    toolkits: Dict[str, TToolkitIndexEntry]
+    location: NotRequired[str]
+    """Harness location given last to a command, when not the default."""
+    branch: NotRequired[str]
+    """Harness branch given last to a command, when not the default."""

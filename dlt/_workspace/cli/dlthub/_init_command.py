@@ -94,7 +94,7 @@ def init_dlthub_workspace(
                 create_built_in_workspace_definition(), workspace_file
             )
         ),
-        accept_existing=keep_existing,
+        accept_existing=True,
     )
 
     dependency_path = os.path.join(run_dir, plan["dependency_system"])
@@ -202,24 +202,28 @@ def _print_init_plan(plan: TInitPlan, agent_name: Optional[str] = None) -> None:
 
 
 def _print_init_merge_error(plan: TInitPlan) -> None:
+    file_name = plan["dependency_system"]
+    writes = ", ".join(change["spec"] for change in get_dependency_writes(plan))
     if plan["merge_error"] == "no_project_table":
         fmt.error(
             "%s has no [project] table, so dlthub init cannot add the dependencies to it. Add a"
             " [project] table or re-run with %s or %s."
-            % (
-                plan["dependency_system"],
-                fmt.bold("--dependencies requirements"),
-                fmt.bold("--skip"),
-            )
+            % (file_name, fmt.bold("--dependencies requirements"), fmt.bold("--skip"))
+        )
+    elif plan["merge_error"] == "hashed_requirements":
+        fmt.error(
+            "%s pins hashes, so dlthub init cannot add the dependencies to it. Add these to the"
+            " file it is compiled from and compile it again: %s" % (file_name, writes)
+        )
+    elif plan["merge_error"] == "included_requirements":
+        fmt.error(
+            "%s includes other files, so dlthub init cannot tell where the dependencies are"
+            " pinned. Add these dependencies yourself: %s" % (file_name, writes)
         )
     else:
         fmt.error(
             "uv is needed to add dependencies to %s but was not found on PATH. Install uv or add"
-            " these dependencies yourself: %s"
-            % (
-                plan["dependency_system"],
-                ", ".join(change["spec"] for change in get_dependency_writes(plan)),
-            )
+            " these dependencies yourself: %s" % (file_name, writes)
         )
 
 
@@ -230,6 +234,20 @@ def _print_init_changes(plan: TInitPlan) -> None:
         if f["status"] in ("merge", "overwrite"):
             _print_init_file(plan, f)
     _print_newer_dependencies(plan)
+
+
+def _print_init_workspace_exists(plan: TInitPlan) -> None:
+    fmt.error(
+        "%s is already a dlthub workspace (%s): nothing to init. To set up an AI coding agent,"
+        " run %s."
+        % (
+            fmt.bold(plan["run_dir"]),
+            format_display_path(
+                os.path.join(plan["run_dir"], ".dlt", WORKSPACE_FILE_NAME), plan["run_dir"]
+            ),
+            fmt.bold("dlthub ai init"),
+        )
+    )
 
 
 def _print_init_welcome(plan: TInitPlan, agent_configured: bool = False) -> None:

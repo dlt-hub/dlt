@@ -1,10 +1,10 @@
 import os
-from typing import ClassVar, Optional, Sequence
+from typing import ClassVar, Optional, Sequence, Tuple
 
 from dlt.common.configuration.container import Container
 from dlt.common.configuration.providers import CONFIG_TOML, SECRETS_TOML, EnvironProvider
-from dlt.common.configuration.providers.toml import GLOBAL_ORIGIN_PREFIX
-from dlt.common.configuration.resolve import resolve_configuration
+from dlt.common.configuration.providers.toml import GLOBAL_ORIGIN_PREFIX, SettingsTomlProvider
+from dlt.common.configuration.resolve import _resolve_configuration
 from dlt.common.configuration.specs import known_sections
 from dlt.common.configuration.specs.base_configuration import (
     BaseConfiguration,
@@ -15,6 +15,7 @@ from dlt.common.configuration.specs.pluggable_run_context import PluggableRunCon
 from dlt.common.configuration.specs.runtime_configuration import RuntimeConfiguration
 from dlt.common.typing import Annotated, Literal, TSecretStrValue
 
+from dlt._workspace.exceptions import WorkspaceIdConflict
 from dlt._workspace.typing import DEFAULT_DEPLOYMENT_MODULE
 
 ENVIRONMENT_SECTION = "environment"
@@ -65,10 +66,15 @@ class WorkspaceEnvironmentConfiguration(BaseConfiguration):
     the local workspace is connected to and the deployment module."""
 
     workspace_id: Optional[str] = None
-    workspace_name: Optional[str] = None
+    name: Optional[str] = None
+    """Name of the remote workspace, like `name` under `[workspace.settings]` names the local
+    one."""
     deployment_module: str = DEFAULT_DEPLOYMENT_MODULE
     """The deployment module that dlt imports to generate the deployment manifest of the
     environment: a module name or a `.py` path relative to the workspace."""
+    deploy_dashboard: bool = True
+    """Deploys the workspace dashboard with the deployment module. Only the default environment
+    deploys it."""
 
 
 def _get_environment_workspace_name(name: str, environment: str) -> str:
@@ -78,19 +84,24 @@ def _get_environment_workspace_name(name: str, environment: str) -> str:
 def resolve_environment_configuration(environment: str) -> WorkspaceEnvironmentConfiguration:
     """Resolves the configuration of `environment` with the active providers: its remote
     workspace connection and its deployment module."""
-    return resolve_configuration(
+    # embedded-config lookup: falls back to `[workspace.<env>]` and `[<env>]`, never to the root
+    return _resolve_configuration(
         WorkspaceEnvironmentConfiguration(),
-        sections=(known_sections.WORKSPACE, ENVIRONMENT_SECTION, environment),
+        (known_sections.WORKSPACE, ENVIRONMENT_SECTION),
+        (environment,),
+        None,
+        False,
     )
 
 
 TValueSource = Literal["environ", "profile", "shared"]
 
 
-def _get_value_source(key: str, section: str) -> Optional[TValueSource]:
+def _get_value_origin(key: str, section: str) -> Optional[Tuple[TValueSource, str]]:
     """Where the active providers resolve `key` of the workspace `section` from: the environment
-    variables, a settings file of the active profile, or a file that all profiles share. `None`
-    when no provider has the value."""
+    variables, a settings file of the active profile, or a source that all profiles share, with
+    the location of the value: a settings file or the name of another provider. `None` when no
+    provider has the value."""
     providers = Container()[PluggableRunContext].providers.providers
     for provider in providers:
         for sections in ((known_sections.WORKSPACE, section), (section,)):
@@ -98,10 +109,13 @@ def _get_value_source(key: str, section: str) -> Optional[TValueSource]:
             if value is None:
                 continue
             if isinstance(provider, EnvironProvider):
-                return "environ"
+                return "environ", provider.get_value_location(key, None, *sections)
+            if not isinstance(provider, SettingsTomlProvider):
+                # a vault or a plugin provider serves every profile
+                return "shared", provider.name
             location = provider.get_value_location(key, None, *sections)
             file_name = os.path.basename(location.removeprefix(GLOBAL_ORIGIN_PREFIX))
-            return "shared" if file_name in (CONFIG_TOML, SECRETS_TOML) else "profile"
+            return ("shared" if file_name in (CONFIG_TOML, SECRETS_TOML) else "profile"), location
     return None
 
 
@@ -120,6 +134,9 @@ class WorkspaceConfiguration(BaseConfiguration):
     default_environment: Annotated[Optional[str], NotResolved()] = None
     deployment_module: Annotated[Optional[str], NotResolved()] = None
     """Deployment module of the environment of the active profile, `None` for a local profile"""
+    deploy_dashboard: Annotated[Optional[bool], NotResolved()] = None
+    """Whether the environment of the active profile deploys the workspace dashboard, `None` for a
+    local profile"""
 
     __recommended_sections__: ClassVar[Sequence[str]] = (known_sections.WORKSPACE,)
 
@@ -128,28 +145,35 @@ class WorkspaceConfiguration(BaseConfiguration):
             return
         connection = resolve_environment_configuration(self.environment)
         self.deployment_module = connection.deployment_module
+        self.deploy_dashboard = connection.deploy_dashboard
         is_default = self.environment == self.default_environment
-        # the platform and CI name the remote workspace of the process with a variable
-        id_source = _get_value_source("workspace_id", WorkspaceRuntimeConfiguration.__section__)
-        process_id = id_source == "environ"
-        if process_id and connection.workspace_id not in (None, self.runtime.workspace_id):
-            # the section describes another remote workspace: neither its id nor its name apply
-            connection = WorkspaceEnvironmentConfiguration()
-        # a name or an id that the profile resolves from its own file or from the environment
-        # variables is its own. one from a shared file belongs to the default environment
+        id_origin = _get_value_origin("workspace_id", WorkspaceRuntimeConfiguration.__section__)
+        if id_origin and id_origin[0] == "environ":
+            # the platform and CI name the remote workspace of the process with a variable
+            if connection.workspace_id not in (None, self.runtime.workspace_id):
+                # the section describes another remote workspace: neither its id nor its name
+                # apply
+                connection = WorkspaceEnvironmentConfiguration()
+        elif is_default and id_origin and connection.workspace_id:
+            # `[runtime]` in a file, set before environments existed, connects the default
+            # environment: a second id in the section is refused, also an equal one
+            raise WorkspaceIdConflict(self.environment, id_origin[1])
+        elif connection.workspace_id:
+            self.runtime.workspace_id = connection.workspace_id
+        elif not is_default and id_origin and id_origin[0] == "shared":
+            # a shared `[runtime]` belongs to the default environment, one in the file of the
+            # profile connects its environment
+            self.runtime.workspace_id = None
+        # a name that the profile resolves from its own file or from the environment variables is
+        # its own. one from a shared file, or the folder name, belongs to the default environment
         name = self.settings.name or self.name
-        if connection.workspace_name:
-            self.settings.name = connection.workspace_name
+        if connection.name:
+            self.settings.name = connection.name
         elif name:
-            own_name = _get_value_source("name", "settings") in ("environ", "profile")
+            name_origin = _get_value_origin("name", "settings")
+            own_name = name_origin is not None and name_origin[0] in ("environ", "profile")
             self.settings.name = (
                 name
                 if is_default or own_name
                 else _get_environment_workspace_name(name, self.environment)
             )
-        if process_id:
-            return
-        if connection.workspace_id:
-            self.runtime.workspace_id = connection.workspace_id
-        elif id_source == "shared" and not is_default:
-            self.runtime.workspace_id = None

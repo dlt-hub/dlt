@@ -10,6 +10,7 @@ from typing import (
     Iterable,
     List,
     Literal,
+    Mapping,
     Optional,
     Protocol,
     Sequence,
@@ -140,6 +141,9 @@ class SupportsCliCommand(Protocol):
     - `extend`: first plugin's `configure_parser` runs; ALL plugins' `execute` fire in order.
     - `additive`: additional subparsers may be added to top level command
     """
+    profile_options: Optional[Mapping[str, Any]] = None
+    """Profile options of the command for the `dlthub` host. `None`: the command takes
+    `--profile`."""
 
     def configure_parser(self, parser: argparse.ArgumentParser) -> None:
         """Configures the parser for the given argument."""

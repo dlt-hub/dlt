@@ -704,7 +704,7 @@ class _CortexAgent(_AIAgent):
         return is_cortex()
 
     @staticmethod
-    def snowflake_home() -> Optional[Path]:
+    def get_snowflake_home() -> Optional[Path]:
         """Snowflake's config directory, `$SNOWFLAKE_HOME` or `~/.snowflake`."""
         if env_home := os.environ.get("SNOWFLAKE_HOME"):
             return Path(env_home)
@@ -713,7 +713,7 @@ class _CortexAgent(_AIAgent):
 
     @classmethod
     def _global_marker_path(cls) -> Optional[Path]:
-        sf_home = cls.snowflake_home()
+        sf_home = cls.get_snowflake_home()
         return sf_home / cls._GLOBAL_MARKER if sf_home is not None else None
 
     def cortex_md_path(self, project_root: Path) -> Path:
@@ -724,7 +724,7 @@ class _CortexAgent(_AIAgent):
         return strip_rule_frontmatter(content)
 
     @staticmethod
-    def _section_rule_body(rule_file: Path) -> str:
+    def _render_section_rule_body(rule_file: Path) -> str:
         """Rule body as it goes into the `CORTEX.md` section, under the section heading."""
         body = MarkdownDocument(read_rule_body(rule_file))
         # a body that ends inside a code fence would swallow the rest of CORTEX.md
@@ -736,7 +736,9 @@ class _CortexAgent(_AIAgent):
         """CORTEX.md with its `# dltHub rules` section built from the installed rule files,
         `None` if unchanged.
         """
-        bodies = [self._section_rule_body(f) for f in self.installed_rule_files(project_root)]
+        bodies = [
+            self._render_section_rule_body(f) for f in self.installed_rule_files(project_root)
+        ]
         cortex_md = self.cortex_md_path(project_root)
         existing = cortex_md.read_text(encoding="utf-8") if cortex_md.is_file() else ""
         doc = MarkdownDocument(existing)
@@ -803,7 +805,7 @@ class _CortexAgent(_AIAgent):
     def mcp_config_paths(self, project_root: Path) -> List[Path]:
         # Desktop reads the project config, the CLI only the user one
         paths = [project_root / ".cortex" / "mcp.json"]
-        if (sf_home := self.snowflake_home()) is not None:
+        if (sf_home := self.get_snowflake_home()) is not None:
             paths.append(sf_home / "cortex" / "mcp.json")
         return paths
 

@@ -28,6 +28,9 @@ TProfileLocation = Literal["local", "remote"]
 TProfileDataAccess = Union[Literal["none"], TWorkspaceDataVerb]
 """Data access of a profile: `none` or a data verb of job access. `write` and `all` include
 `read`."""
+TProfileOptionsTakes = Literal["profile", "environment", "both", "none"]
+"""What a command or an MCP tool takes to select the profile it runs with: a profile, an
+environment, both, or none of them."""
 
 
 DEFAULT_DEPLOYMENT_MODULE = "__deployment__"
@@ -35,7 +38,7 @@ DEFAULT_DEPLOYMENT_MODULE = "__deployment__"
 
 
 class TProfileStoredDefinition(TypedDict):
-    """A profile as `.dlt/.workspace` declares it: its data access."""
+    """A profile in its stored form: its data access."""
 
     data_access: TProfileDataAccess
     default: NotRequired[bool]
@@ -49,12 +52,12 @@ class TProfileDefinition(TProfileStoredDefinition):
     env: NotRequired[str]
     """Environment of a remote profile, the one it is declared in."""
     configured: NotRequired[bool]
-    """True when the profile has settings files, or has no data access and needs none. A profile
-    without the flag counts as configured."""
+    """True when the profile has settings files. A profile without the flag counts as
+    configured."""
 
 
 class TEnvironmentStoredDefinition(TypedDict):
-    """An environment as `.dlt/.workspace` declares it: what a deployment is made to, with the
+    """An environment in its stored form: what a deployment is made to, with the
     profiles deployed to it."""
 
     profiles: Dict[str, TProfileStoredDefinition]
@@ -75,10 +78,12 @@ class TEnvironmentDefinition(TEnvironmentStoredDefinition):
     profiles: Dict[str, TProfileDefinition]  # type: ignore[misc]
     deployment_module: NotRequired[str]
     """The deployment module of the environment, from its configuration."""
+    deploy_dashboard: NotRequired[bool]
+    """Whether the environment deploys the workspace dashboard, from its configuration."""
 
 
 class TWorkspaceStoredDefinition(TypedDict):
-    """The environments and the local profiles as `.dlt/.workspace` declares them."""
+    """The environments and the local profiles in their stored form."""
 
     engine_version: int
     environments: Dict[str, TEnvironmentStoredDefinition]

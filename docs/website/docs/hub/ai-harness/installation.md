@@ -53,7 +53,7 @@ You can also create the workspace with `dlthub init`. The command adds the depen
 uvx --from dlt@latest dlthub init --agent cortex
 ```
 
-Without a name, `--agent` detects the agent. Without `--agent`, `dlthub init` creates the workspace and installs no toolkit. Run `uv sync` afterwards to install the dependencies.
+Without a name, `--agent` detects the agent. Without `--agent`, `dlthub init` creates the workspace and installs no toolkit. Run `uv sync` afterwards to install the dependencies. In an existing workspace, `dlthub init` changes nothing: run `dlthub ai init` instead.
 
 ## What you get
 

@@ -67,7 +67,7 @@ def parse_dlthub(monkeypatch: pytest.MonkeyPatch) -> TParseDlthub:
     def _parse(argv: Sequence[str]) -> Tuple[argparse.Namespace, Dict[str, ComposedExecutable]]:
         monkeypatch.setattr(sys, "argv", ["dlthub", *argv])
         parser, pre_parser, installed = _create_parser("dlthub")
-        # the pre-parser takes the global options from any position
+        # the pre-parser takes `--debug`, `-y` and the other global flags from any position
         ns, remaining = pre_parser.parse_known_args(list(argv))
         return parser.parse_args(remaining, namespace=ns), installed
 
