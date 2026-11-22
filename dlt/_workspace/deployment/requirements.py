@@ -21,7 +21,7 @@ from packaging.requirements import InvalidRequirement, Requirement
 from packaging.utils import canonicalize_name
 from packaging.version import InvalidVersion, Version
 
-from dlt.common import json
+from dlt.common import json, logger
 from dlt.common.exceptions import DictValidationException
 from dlt.common.typing import DictStrAny
 from dlt.common.validation import validate_dict
@@ -445,14 +445,19 @@ def export_workspace_requirements(
     requirements_txt_path = workspace_root / REQUIREMENTS_TXT
     requirements_in_path = workspace_root / REQUIREMENTS_IN
 
+    dlt_version = get_pkg_install_spec(DLT_PKG_NAME)
     # detection order: pyproject -> requirements.txt -> requirements.in -> empty main
     resolved = False
     if pyproject_path.exists():
         groups, resolved = _export_from_pyproject(workspace_root, pyproject_path, uv_lock_path)
-    elif requirements_txt_path.exists():
-        groups = {MAIN_GROUP: _compile_requirements_file(workspace_root, requirements_txt_path)}
-    elif requirements_in_path.exists():
-        groups = {MAIN_GROUP: _compile_requirements_file(workspace_root, requirements_in_path)}
+    elif requirements_txt_path.exists() or requirements_in_path.exists():
+        file_path = (
+            requirements_txt_path if requirements_txt_path.exists() else requirements_in_path
+        )
+        main, compiled = _compile_requirements_file(workspace_root, file_path)
+        groups = {MAIN_GROUP: main}
+        if compiled:
+            dlt_version = _get_deployed_dlt_spec(main, dlt_version, workspace_root, file_path.name)
     else:
         groups = {MAIN_GROUP: []}
 
@@ -478,7 +483,7 @@ def export_workspace_requirements(
     return {
         "engine_version": REQUIREMENTS_ENGINE_VERSION,
         "python_version": python_version(),
-        "dlt_version": get_pkg_install_spec(DLT_PKG_NAME),
+        "dlt_version": dlt_version,
         "default_groups": resolved_default_groups,
         "groups": dict(sorted(groups.items())),
         "launcher_requirements": launcher_requirements,
@@ -663,8 +668,9 @@ def _check_no_workspace_member_dependencies(
         )
 
 
-def _compile_requirements_file(workspace_root: Path, file_path: Path) -> List[str]:
-    """Export a `requirements.txt` / `requirements.in` file as sorted PEP 508 specs."""
+def _compile_requirements_file(workspace_root: Path, file_path: Path) -> Tuple[List[str], bool]:
+    """A `requirements.txt` / `requirements.in` file as sorted PEP 508 specs, and whether uv
+    resolved them."""
     # with uv: `uv pip compile --universal` for a resolved, platform-independent
     # lockset. without uv: pure-Python parse, specs returned as authored
     if is_uv_available():
@@ -679,8 +685,65 @@ def _compile_requirements_file(workspace_root: Path, file_path: Path) -> List[st
             ],
             cwd=workspace_root,
         )
-        return _parse_uv_output(stdout)
-    return read_requirements_file(file_path)
+        return _parse_uv_output(stdout), True
+    return read_requirements_file(file_path), False
+
+
+def _get_deployed_dlt_spec(
+    main: Sequence[str], installed: TInstallSpec, workspace_root: Path, file_name: str
+) -> TInstallSpec:
+    """The dlt that the resolved `main` installs. Warns when it is not the installed dlt."""
+    for line in main:
+        # an editable line names its path only
+        if line.startswith("-e "):
+            if _is_installed_path(line[3:].strip(), installed, workspace_root):
+                return installed
+            continue
+        requirement = _parse_requirements_line(line)
+        if requirement is None or canonicalize_name(requirement.name) != DLT_PKG_NAME:
+            continue
+        if requirement.url:
+            if not _is_installed_source(requirement.url, installed, workspace_root):
+                logger.warning(
+                    f"`{file_name}` installs dlt from `{requirement.url}`, but dlt"
+                    f" {installed['version']} is installed. dlt cannot tell the version that the"
+                    " deployment runs. To deploy the installed dlt, pin it in"
+                    f" `{file_name}`."
+                )
+            return installed
+        pinned = next((s.version for s in requirement.specifier if s.operator == "=="), None)
+        if pinned is None:
+            return installed
+        if pinned != installed["version"]:
+            logger.warning(
+                f"`{file_name}` resolves dlt {pinned}, but dlt {installed['version']} is installed."
+                f" The deployment runs dlt {pinned}. To deploy the installed dlt, pin it in"
+                f" `{file_name}`."
+            )
+        return {"name": DLT_PKG_NAME, "extras": [], "version": pinned, "mode": "pypi"}
+    # without dlt in main, the launchers get the installed dlt
+    return installed
+
+
+def _is_installed_source(url: str, installed: TInstallSpec, workspace_root: Path) -> bool:
+    """Whether the direct reference `url` points at the source of the `installed` dlt."""
+    if url.startswith("file:"):
+        return _is_installed_path(get_file_url_path(url), installed, workspace_root)
+    if installed["mode"] == "archive":
+        return url == installed.get("archive_url")
+    if installed["mode"] == "git":
+        return url in (
+            f"git+{installed.get('git_url')}@{installed.get('git_rev')}",
+            f"git+{installed.get('git_url')}",
+        )
+    return False
+
+
+def _is_installed_path(path: str, installed: TInstallSpec, workspace_root: Path) -> bool:
+    if installed["mode"] not in ("path", "editable"):
+        return False
+    resolved = os.path.realpath(os.path.join(workspace_root, path))
+    return os.path.normcase(resolved) == os.path.normcase(os.path.realpath(installed["path"]))
 
 
 def read_pyproject_dependencies(pyproject_path: Path) -> List[str]:

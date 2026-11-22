@@ -53,7 +53,12 @@ from dlt._workspace.deployment.requirements import (
     _add_transitive_names,
     _collect_package_names,
 )
-from dlt._workspace.deployment.typing import DASHBOARD_JOB_REF, TWorkspaceRequirementsManifest
+from dlt._workspace.deployment.typing import (
+    DASHBOARD_JOB_REF,
+    TInstallMode,
+    TInstallSpec,
+    TWorkspaceRequirementsManifest,
+)
 
 from tests.workspace.utils import isolated_workspace
 
@@ -712,6 +717,80 @@ def _export_with_deps(specs: List[str], source: TDepsSource) -> TWorkspaceRequir
         # without uv on PATH the requirements file is taken as declared
         with patch(_SHUTIL_WHICH, return_value=None):
             return export_workspace_requirements(run_dir)
+
+
+@pytest.mark.parametrize(
+    "main_lines, installed_mode, expected_version, warns",
+    [
+        (["dlt==1.32.0", "requests==2.32.0"], "editable", "1.32.0", True),
+        (["dlt==1.33.0a3"], "editable", "1.33.0a3", False),
+        (["-e {path}"], "editable", None, False),
+        (["dlt @ {url}"], "path", None, False),
+        (["dlt @ git+https://github.com/dlt-hub/dlt@abc"], "editable", None, True),
+        (["dlt @ git+https://github.com/dlt-hub/dlt@abc"], "git", None, False),
+        (["requests==2.32.0"], "editable", None, False),
+    ],
+    ids=[
+        "other-pin",
+        "same-pin",
+        "editable-installed-path",
+        "direct-ref-installed-path",
+        "git-ref-elsewhere",
+        "git-ref-installed",
+        "no-dlt",
+    ],
+)
+def test_get_deployed_dlt_spec(
+    tmp_path: Path,
+    main_lines: List[str],
+    installed_mode: TInstallMode,
+    expected_version: str,
+    warns: bool,
+) -> None:
+    """A resolved requirements file decides the dlt that the deployment runs. `None` expects the
+    installed dlt."""
+    from dlt._workspace.deployment.requirements import _get_deployed_dlt_spec
+
+    dlt_path = tmp_path / "dlt"
+    installed: TInstallSpec = {
+        "name": "dlt",
+        "extras": [],
+        "version": "1.33.0a3",
+        "mode": installed_mode,
+        "path": str(dlt_path),
+        "git_url": "https://github.com/dlt-hub/dlt",
+        "git_rev": "abc",
+    }
+    main = [line.format(path=dlt_path, url=dlt_path.as_uri()) for line in main_lines]
+    with patch("dlt._workspace.deployment.requirements.logger.warning") as warning:
+        deployed = _get_deployed_dlt_spec(main, installed, tmp_path, "requirements.txt")
+    if expected_version is None:
+        assert deployed == installed
+    else:
+        assert deployed == {
+            "name": "dlt",
+            "extras": [],
+            "version": expected_version,
+            "mode": "pypi",
+        }
+    assert warning.called is warns
+
+
+def test_export_names_the_dlt_that_requirements_resolve() -> None:
+    """With uv, `dlt_version` is the dlt that `requirements.txt` resolves, not the installed one."""
+    with patch("dlt._workspace.deployment.requirements.logger.warning") as warning:
+        result = _export_with_deps(["dlt==1.32.0"], "requirements-resolved")
+    assert result["dlt_version"] == {
+        "name": "dlt",
+        "extras": [],
+        "version": "1.32.0",
+        "mode": "pypi",
+    }
+    assert "resolves dlt 1.32.0" in warning.call_args.args[0]
+    # declared as written, the installed dlt stays
+    assert _export_with_deps(["dlt==1.32.0"], "requirements-declared")[
+        "dlt_version"
+    ] == get_pkg_install_spec("dlt")
 
 
 def _collect_keys(specs: List[str]) -> Set[str]:
