@@ -95,7 +95,7 @@ A deployment is made to one environment and runs in the remote workspace of that
 
 Every environment has a default profile with write data access, its **default write profile**. `dlthub deploy` runs with it. The first profile of a data access that you add to an environment becomes the default for that data access.
 
-Only the settings files of the profiles of an environment deploy with it, together with the shared `config.toml`, `secrets.toml` and `.workspace`. The credentials of `prod` never reach `staging`. The workspace dashboard is deployed with the deployment module of the default environment only, see [Choose the deployment module of an environment](#choose-the-deployment-module-of-an-environment).
+Only the settings files of the profiles of an environment deploy with it, together with the shared `config.toml`, `secrets.toml` and `.workspace`. The credentials of `prod` never reach `staging`. By default, the workspace dashboard is deployed with the deployment module of the default environment only, see [Choose the deployment module of an environment](#choose-the-deployment-module-of-an-environment).
 
 ### How a job gets its profile
 
@@ -242,7 +242,7 @@ deployment_module = "__staging__.py"
 
 `dlthub deploy --environment staging` then imports `__staging__.py`. Give a `.py` path relative to the workspace, or a module name. A local profile uses the deployment module of the default environment, for example in `dlthub local run`. `dlthub profile list` shows the deployment module of each environment. `dlthub local info` shows the deployment module that it reads.
 
-The workspace dashboard is deployed with the deployment module of the default environment. A module that you name in `dlthub deploy` gets no dashboard, and neither does another environment. To deploy without the dashboard in the default environment too, set `deploy_dashboard = false` in its section. A strict environment deploys no dashboard unless its section sets `deploy_dashboard = true`.
+The workspace dashboard is deployed with the deployment module of the default environment, unless that environment is strict. A module that you name in `dlthub deploy` gets no dashboard. To decide for one environment, set `deploy_dashboard` in its section: `true` deploys the dashboard to any environment, also a strict one, and `false` deploys none.
 
 ## How to use profiles and environments
 

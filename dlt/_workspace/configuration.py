@@ -72,8 +72,8 @@ class WorkspaceEnvironmentConfiguration(BaseConfiguration):
     """The deployment module that dlt imports to generate the deployment manifest of the
     environment: a module name or a `.py` path relative to the workspace."""
     deploy_dashboard: Optional[bool] = None
-    """Deploys the workspace dashboard with the deployment module of the default environment.
-    Defaults to true, false for a strict environment."""
+    """Deploys the workspace dashboard with the deployment module of the environment. Defaults to
+    true for the default environment when it is not strict."""
 
 
 def _get_environment_workspace_name(name: str, environment: str) -> str:

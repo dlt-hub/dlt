@@ -460,7 +460,8 @@ def test_default_dashboard_job_shape() -> None:
 
 
 def test_dashboard_goes_with_the_deployment_module_of_the_default_environment() -> None:
-    """Only a local run and the deployment module of the default environment get the dashboard."""
+    """A local run gets the dashboard. So does the deployment module of an environment that sets
+    `deploy_dashboard`, by default the default environment when it is not strict."""
     # the workspace does not declare the environments: the manifest comes from the arguments alone
     mod = import_module(f"{WORKSPACE}.deployment_batch_only")
     qa: TEnvironmentDefinition = {
@@ -476,9 +477,14 @@ def test_dashboard_goes_with_the_deployment_module_of_the_default_environment() 
         # the module is not the deployment module of the environment
         ({**default_qa, "deployment_module": "__deployment__"}, True, False),
         ({**default_qa, "deploy_dashboard": False}, True, False),
+        # `None` is not set
+        ({**default_qa, "deploy_dashboard": None}, True, True),
         # a strict environment deploys it only when it sets `deploy_dashboard`
         ({**default_qa, "strict_access": True}, True, False),
         ({**default_qa, "strict_access": True, "deploy_dashboard": True}, True, True),
+        # so does another environment, also a strict one
+        ({**qa, "deploy_dashboard": True}, True, True),
+        ({**qa, "strict_access": True, "deploy_dashboard": True}, True, True),
         # ad-hoc: `dlthub local serve <file>` serves that file alone
         (None, False, False),
         (default_qa, False, False),
