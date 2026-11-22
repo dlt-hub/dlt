@@ -1,12 +1,13 @@
 import asyncio
 import os
-from typing import Any, Callable, List, Optional, Set
+from typing import Annotated, Any, Callable, List, Optional, Set
 from unittest.mock import Mock, patch
 
 import pytest
 from pytest_mock import MockerFixture
 from fastmcp.prompts import Prompt
 from fastmcp.tools import Tool
+from pydantic import Field
 
 import dlt
 from dlt.common.configuration import plugins
@@ -291,14 +292,16 @@ def test_server_runs_tool_with_its_environment() -> None:
         failed_with.append(dlt.current.workspace().profile)
         raise ValueError("the tool failed")
 
+    # pydantic describes the argument: fastmcp parses docstrings only when the installed `griffe`
+    # is the one it expects
     def restore_tool(
-        environment: TEnvironmentArgument = None, profile: TProfileArgument = None
+        environment: Annotated[
+            TEnvironmentArgument,
+            Field(description="The environment whose remote workspace has the run."),
+        ] = None,
+        profile: TProfileArgument = None,
     ) -> str:
-        """Names the profile of the call.
-
-        Args:
-            environment: The environment whose remote workspace has the run.
-        """
+        """Names the profile of the call."""
         return dlt.current.workspace().profile
 
     class _EnvironmentPlugin:
@@ -326,7 +329,7 @@ def test_server_runs_tool_with_its_environment() -> None:
             assert dlt.current.workspace().profile == active_profile
             result = asyncio.run(mcp.call_tool("deployment_tool", {}))
             assert result.content[0].text == "prod"
-            # the server describes the arguments that the docstring of the tool does not
+            # the server describes the arguments that the tool does not
             by_name = {tool.name: tool for tool in asyncio.run(mcp.list_tools())}
             deployment_params = by_name["deployment_tool"].parameters["properties"]
             assert deployment_params["environment"]["description"] == ENVIRONMENT_ARGUMENT_HELP
