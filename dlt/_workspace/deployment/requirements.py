@@ -345,10 +345,10 @@ def _build_pruned_launcher_requirements(
     default_names: Set[str], dlt_spec: str
 ) -> Dict[str, List[str]]:
     """Launcher specs without the packages in `default_names`, plus `dlt_spec` unless they name dlt."""
-    launcher_requirements = {
-        launcher: _prune_specs(specs, default_names)
-        for launcher, specs in build_launcher_requirements().items()
-    }
+    launcher_requirements = build_launcher_requirements()
+    for launcher, specs in launcher_requirements.items():
+        launcher_requirements[launcher] = _prune_specs(specs, default_names)
+    # inject dlt into every launcher entry unless a default group already names it
     if _normalize_name(DLT_PKG_NAME) not in default_names:
         _inject_dlt_into_launchers(launcher_requirements, dlt_spec)
     return launcher_requirements
