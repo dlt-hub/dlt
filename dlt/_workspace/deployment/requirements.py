@@ -539,47 +539,61 @@ def _compile_requirements_file(workspace_root: Path, file_path: Path) -> List[st
     # with uv: `uv pip compile --universal` for a resolved, platform-independent
     # lockset. without uv: pure-Python parse, specs returned as authored
     if is_uv_available():
-        compile_args = [
+        specs = _uv_pip_compile(workspace_root, file_path)
+        # a job installs main next to its launcher specs, so main is pinned with them in view
+        job_specs = _get_job_launcher_specs(specs)
+        if job_specs:
+            specs = _pin_with_job_specs(workspace_root, file_path, specs, job_specs)
+        return specs
+    return _parse_requirements_file(file_path)
+
+
+def _uv_pip_compile(
+    workspace_root: Path, file_path: Path, *args: str, stdin: Optional[str] = None
+) -> List[str]:
+    """Resolve `file_path` with `uv pip compile` into sorted PEP 508 specs."""
+    stdout = _run_uv(
+        [
             "pip",
             "compile",
             "--universal",
             "--no-header",
             "--no-annotate",
             file_path.name,
-        ]
-        stdout = _run_uv(compile_args, cwd=workspace_root)
-        alone = _parse_uv_output(stdout)
-        # main installs next to the job launcher entry, so its pins must come from a resolution
-        # that saw it. other launchers stay out: a workspace that never runs them must not fail on
-        # their floors
-        names = _collect_package_names(alone)
-        _add_transitive_names(names)
-        launchers = _build_pruned_launcher_requirements(
-            names, get_dlt_requirement_spec(from_source=True)
-        )
-        job_specs = launchers[LAUNCHER_JOB]
-        if not job_specs:
-            return alone
-        try:
-            stdout = _run_uv([*compile_args, "-"], cwd=workspace_root, stdin="\n".join(job_specs))
-        except WorkspaceRequirementsError as ex:
-            raise WorkspaceRequirementsError(
-                f"{file_path.name} does not resolve with the launcher specs"
-                f" {', '.join(job_specs)}:\n{ex}"
-            ) from ex
-        resolved = _parse_uv_output(stdout)
-        # the launcher entry moved no pin, so main resolved alone already installs next to it
-        if set(alone) <= set(resolved):
-            return alone
-        # the constraint keeps main to the workspace's own packages. unnamed paths and `-e` lines
-        # cannot be constraints
-        stdout = _run_uv(
-            [*compile_args, "--constraint", "-"],
-            cwd=workspace_root,
-            stdin="\n".join(_parse_dep_list(resolved)),
-        )
-        return _parse_uv_output(stdout)
-    return _parse_requirements_file(file_path)
+            *args,
+        ],
+        cwd=workspace_root,
+        stdin=stdin,
+    )
+    return _parse_uv_output(stdout)
+
+
+def _get_job_launcher_specs(main: List[str]) -> List[str]:
+    """Specs a job installs next to `main`. Other launchers may never run, so they stay out."""
+    names = _collect_package_names(main)
+    _add_transitive_names(names)
+    launchers = _build_pruned_launcher_requirements(
+        names, get_dlt_requirement_spec(from_source=True)
+    )
+    return launchers[LAUNCHER_JOB]
+
+
+def _pin_with_job_specs(
+    workspace_root: Path, file_path: Path, main: List[str], job_specs: List[str]
+) -> List[str]:
+    """Pins of `file_path` that install next to `job_specs`, without adding them to `main`."""
+    try:
+        resolved = _uv_pip_compile(workspace_root, file_path, "-", stdin="\n".join(job_specs))
+    except WorkspaceRequirementsError as ex:
+        raise WorkspaceRequirementsError(
+            f"{file_path.name} does not resolve with the launcher specs"
+            f" {', '.join(job_specs)}:\n{ex}"
+        ) from ex
+    if set(main) <= set(resolved):
+        return main
+    # unnamed paths and `-e` lines cannot be constraints
+    constraints = "\n".join(_parse_dep_list(resolved))
+    return _uv_pip_compile(workspace_root, file_path, "--constraint", "-", stdin=constraints)
 
 
 def _parse_requirements_file(file_path: Path) -> List[str]:
