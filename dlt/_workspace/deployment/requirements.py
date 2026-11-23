@@ -344,7 +344,7 @@ def _inject_dlt_into_launchers(launcher_requirements: Dict[str, List[str]], dlt_
 def _build_pruned_launcher_requirements(
     default_names: Set[str], dlt_spec: str
 ) -> Dict[str, List[str]]:
-    """Launcher specs without the packages in `default_names`, plus `dlt_spec` unless they name dlt."""
+    """Launcher specs pruned against `default_names`, with `dlt_spec` unless they name dlt."""
     launcher_requirements = build_launcher_requirements()
     for launcher, specs in launcher_requirements.items():
         launcher_requirements[launcher] = _prune_specs(specs, default_names)
@@ -538,39 +538,48 @@ def _compile_requirements_file(workspace_root: Path, file_path: Path) -> List[st
     """Export a `requirements.txt` / `requirements.in` file as sorted PEP 508 specs."""
     # with uv: `uv pip compile --universal` for a resolved, platform-independent
     # lockset. without uv: pure-Python parse, specs returned as authored
-    if not is_uv_available():
-        return _parse_requirements_file(file_path)
-    compile_args = ["pip", "compile", "--universal", "--no-header", "--no-annotate", file_path.name]
-    alone = _parse_uv_output(_run_uv(compile_args, cwd=workspace_root))
-    # main installs next to the job launcher entry, so its pins must come from a resolution that saw
-    # it. other launchers stay out: a workspace that never runs them must not fail on their floors
-    names = _collect_package_names(alone)
-    _add_transitive_names(names)
-    launchers = _build_pruned_launcher_requirements(
-        names, get_dlt_requirement_spec(from_source=True)
-    )
-    job_specs = launchers[LAUNCHER_JOB]
-    if not job_specs:
-        return alone
-    try:
-        stdout = _run_uv([*compile_args, "-"], cwd=workspace_root, stdin="\n".join(job_specs))
-    except WorkspaceRequirementsError as ex:
-        raise WorkspaceRequirementsError(
-            f"{file_path.name} does not resolve with the launcher specs"
-            f" {', '.join(job_specs)}:\n{ex}"
-        ) from ex
-    resolved = _parse_uv_output(stdout)
-    # the launcher entry moved no pin, so main resolved alone already installs next to it
-    if set(alone) <= set(resolved):
-        return alone
-    # the constraint keeps main to the workspace's own packages. unnamed paths and `-e` lines
-    # cannot be constraints
-    stdout = _run_uv(
-        [*compile_args, "--constraint", "-"],
-        cwd=workspace_root,
-        stdin="\n".join(_parse_dep_list(resolved)),
-    )
-    return _parse_uv_output(stdout)
+    if is_uv_available():
+        compile_args = [
+            "pip",
+            "compile",
+            "--universal",
+            "--no-header",
+            "--no-annotate",
+            file_path.name,
+        ]
+        stdout = _run_uv(compile_args, cwd=workspace_root)
+        alone = _parse_uv_output(stdout)
+        # main installs next to the job launcher entry, so its pins must come from a resolution
+        # that saw it. other launchers stay out: a workspace that never runs them must not fail on
+        # their floors
+        names = _collect_package_names(alone)
+        _add_transitive_names(names)
+        launchers = _build_pruned_launcher_requirements(
+            names, get_dlt_requirement_spec(from_source=True)
+        )
+        job_specs = launchers[LAUNCHER_JOB]
+        if not job_specs:
+            return alone
+        try:
+            stdout = _run_uv([*compile_args, "-"], cwd=workspace_root, stdin="\n".join(job_specs))
+        except WorkspaceRequirementsError as ex:
+            raise WorkspaceRequirementsError(
+                f"{file_path.name} does not resolve with the launcher specs"
+                f" {', '.join(job_specs)}:\n{ex}"
+            ) from ex
+        resolved = _parse_uv_output(stdout)
+        # the launcher entry moved no pin, so main resolved alone already installs next to it
+        if set(alone) <= set(resolved):
+            return alone
+        # the constraint keeps main to the workspace's own packages. unnamed paths and `-e` lines
+        # cannot be constraints
+        stdout = _run_uv(
+            [*compile_args, "--constraint", "-"],
+            cwd=workspace_root,
+            stdin="\n".join(_parse_dep_list(resolved)),
+        )
+        return _parse_uv_output(stdout)
+    return _parse_requirements_file(file_path)
 
 
 def _parse_requirements_file(file_path: Path) -> List[str]:
