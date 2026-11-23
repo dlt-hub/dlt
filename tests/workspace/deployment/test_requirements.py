@@ -3,9 +3,8 @@ import json
 import re
 import subprocess
 import sys
-from contextlib import nullcontext
 from pathlib import Path
-from typing import Dict, List, Literal, Optional, Set, get_args
+from typing import Dict, List, Literal, Set, get_args
 from unittest.mock import patch
 
 import pytest
@@ -55,7 +54,7 @@ from tests.workspace.utils import isolated_workspace
 
 
 _SHUTIL_WHICH = "dlt._workspace.deployment.requirements.shutil.which"
-_LAUNCHER_SPECS = "dlt._workspace.deployment.requirements._launcher_specs"
+_BUILD_LAUNCHERS = "dlt._workspace.deployment.requirements.build_launcher_requirements"
 _HUB = "dlt[hub]"
 _S3_NAMES = ["botocore", "s3fs"]
 
@@ -860,28 +859,64 @@ def test_export_fails_on_pins_below_floors(
 
 
 @pytest.mark.parametrize(
-    "main_specs, job_specs",
-    [(["dlt[hub]", "dlthub"], None), (["dlt[hub]", "requests"], ["urllib3<2"])],
-    ids=["s3-specs", "capped-spec"],
+    "main_specs, hub_kept, dlt_injected",
+    [
+        (["dlt[hub]"], False, False),
+        (["dlt"], True, False),
+        (["requests"], True, True),
+        (["dlthub"], False, True),
+    ],
+    ids=["names-dlt-hub", "names-dlt", "names-neither", "names-dlthub"],
 )
-def test_resolved_main_installs_with_launcher_specs(
-    main_specs: List[str], job_specs: Optional[List[str]], tmp_path: Path
+def test_resolved_main_installs_with_job_launcher(
+    main_specs: List[str], hub_kept: bool, dlt_injected: bool, tmp_path: Path
 ) -> None:
     """A resolved main pins every package, so a launcher spec it never saw can contradict it."""
-    # main names dlt, so the launcher does not get the installed dlt, which may not be on pypi
-    launchers = patch(_LAUNCHER_SPECS, return_value={LAUNCHER_JOB: job_specs})
-    with launchers if job_specs else nullcontext():
-        result = _export_with_deps(main_specs, "requirements-resolved")
-    launcher_specs = result["launcher_requirements"][LAUNCHER_JOB]
-    compiled = _run_uv_compile([*result["groups"][MAIN_GROUP], *launcher_specs], tmp_path)
+    result = _export_with_deps(main_specs, "requirements-resolved")
+    job = result["launcher_requirements"][LAUNCHER_JOB]
+    dlt_spec = get_dlt_requirement_spec()
+    assert set(_S3_NAMES) <= set(_get_names(job))
+    assert (_HUB in job) is hub_kept
+    assert (dlt_spec in job) is dlt_injected
+    # the installed dlt may not be on pypi, this checkout stands in for it
+    job = [_DLT_CHECKOUT_SPEC if s == dlt_spec else s for s in job]
+    compiled = _run_uv_compile([*result["groups"][MAIN_GROUP], *job], tmp_path)
     assert compiled.returncode == 0, compiled.stderr
+
+
+def test_resolved_main_follows_capped_launcher_spec(tmp_path: Path) -> None:
+    # botocore 1.34.0 caps python-dateutil<3 and urllib3<2.1, a main resolved alone takes newer
+    job_specs = ["botocore==1.34.0"]
+    with patch(_BUILD_LAUNCHERS, return_value={LAUNCHER_JOB: job_specs}):
+        result = _export_with_deps(["dlt[hub]", "requests"], "requirements-resolved")
+    assert result["launcher_requirements"][LAUNCHER_JOB] == job_specs
+    compiled = _run_uv_compile([*result["groups"][MAIN_GROUP], *job_specs], tmp_path)
+    assert compiled.returncode == 0, compiled.stderr
+
+
+@pytest.mark.parametrize(
+    "main_specs, blames_launcher",
+    [
+        (["requests==2.25.1"], True),
+        (["botocore==1.27.0"], True),
+        (["requests==2.25.1", "requests>=2.26"], False),
+    ],
+    ids=["pin-below-injected-dlt", "pin-below-s3fs-dependency", "broken-on-its-own"],
+)
+def test_resolved_main_failure_names_its_cause(
+    main_specs: List[str], blames_launcher: bool
+) -> None:
+    """A main the job launcher entry cannot install next to fails the export, not every run."""
+    with pytest.raises(WorkspaceRequirementsError) as exc_info:
+        _export_with_deps(main_specs, "requirements-resolved")
+    assert ("does not resolve with the launcher specs" in str(exc_info.value)) is blames_launcher
 
 
 @pytest.mark.parametrize(
     "pin", ["marimo==0.10.0", "protobuf==3.19.6"], ids=["below-floor", "below-streamlit-dependency"]
 )
 def test_resolved_main_keeps_pins_conflicting_with_other_launchers(pin: str) -> None:
-    """Only the job specs join the resolution: a workspace may never run the other launchers."""
+    """Only the job launcher entry joins the resolution: a workspace may never run the others."""
     result = _export_with_deps([pin], "requirements-resolved")
     assert pin in result["groups"][MAIN_GROUP]
 

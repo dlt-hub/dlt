@@ -279,9 +279,10 @@ def floored_spec(name: str, *, extras: Sequence[str] = ()) -> str:
     return f"{name}{extras_part}{_FLOORS[name]}"
 
 
-def _launcher_specs() -> Dict[str, List[str]]:
+def build_launcher_requirements() -> Dict[str, List[str]]:
+    """Per-launcher mandatory specs. dlt is injected separately at build time."""
     s3 = list(dlt_extra_specs("s3").values())
-    return {
+    per_launcher: Dict[str, List[str]] = {
         LAUNCHER_JOB: s3,
         LAUNCHER_MODULE: s3,
         # loop packages are per-job, so they live in `agent-loop-*` groups instead
@@ -291,11 +292,7 @@ def _launcher_specs() -> Dict[str, List[str]]:
         LAUNCHER_STREAMLIT: [floored_spec("streamlit")],
         LAUNCHER_DASHBOARD: [],
     }
-
-
-def build_launcher_requirements() -> Dict[str, List[str]]:
-    """Per-launcher mandatory specs. dlt is injected separately at build time."""
-    return {k: sorted(set(v + [_HUB_SPEC])) for k, v in _launcher_specs().items()}
+    return {k: sorted(set(v + [_HUB_SPEC])) for k, v in per_launcher.items()}
 
 
 def build_dashboard_group() -> List[str]:
@@ -331,16 +328,28 @@ def _add_agent_loop_groups(groups: Dict[str, List[str]], default_names: Set[str]
             groups[name] = _prune_specs(specs, default_names)
 
 
-def _inject_dlt_into_launchers(launcher_requirements: Dict[str, List[str]]) -> None:
-    dlt_spec = get_dlt_requirement_spec()
+def _inject_dlt_into_launchers(launcher_requirements: Dict[str, List[str]], dlt_spec: str) -> None:
     for launcher in launcher_requirements:
         launcher_requirements[launcher] = sorted(launcher_requirements[launcher] + [dlt_spec])
+
+
+def _build_pruned_launcher_requirements(
+    default_names: Set[str], dlt_spec: str
+) -> Dict[str, List[str]]:
+    """Launcher specs without the packages in `default_names`, plus `dlt_spec` unless they name dlt."""
+    launcher_requirements = {
+        launcher: _prune_specs(specs, default_names)
+        for launcher, specs in build_launcher_requirements().items()
+    }
+    if _normalize_name(DLT_PKG_NAME) not in default_names:
+        _inject_dlt_into_launchers(launcher_requirements, dlt_spec)
+    return launcher_requirements
 
 
 def default_requirements_manifest() -> TWorkspaceRequirementsManifest:
     """Minimal manifest: empty `main`, dashboard and agent loop groups, launcher specs with dlt."""
     launcher_requirements = build_launcher_requirements()
-    _inject_dlt_into_launchers(launcher_requirements)
+    _inject_dlt_into_launchers(launcher_requirements, get_dlt_requirement_spec())
     groups: Dict[str, List[str]] = {MAIN_GROUP: [], DASHBOARD_JOB_REF: build_dashboard_group()}
     groups.update(build_agent_loop_groups())
     return {
@@ -398,12 +407,9 @@ def export_workspace_requirements(
     groups[DASHBOARD_JOB_REF] = _prune_specs(build_dashboard_group(), default_names)
     _add_agent_loop_groups(groups, default_names)
 
-    launcher_requirements = build_launcher_requirements()
-    for launcher, specs in launcher_requirements.items():
-        launcher_requirements[launcher] = _prune_specs(specs, default_names)
-    # inject dlt into every launcher entry unless a default group already names it
-    if _normalize_name(DLT_PKG_NAME) not in default_names:
-        _inject_dlt_into_launchers(launcher_requirements)
+    launcher_requirements = _build_pruned_launcher_requirements(
+        default_names, get_dlt_requirement_spec()
+    )
 
     return {
         "engine_version": REQUIREMENTS_ENGINE_VERSION,
@@ -526,30 +532,44 @@ def _compile_requirements_file(workspace_root: Path, file_path: Path) -> List[st
     # lockset. without uv: pure-Python parse, specs returned as authored
     if not is_uv_available():
         return _parse_requirements_file(file_path)
-    compile_args = ["pip", "compile", "--universal", "--no-header", "--no-annotate"]
-    # the job specs install next to main, so its pins come from a resolution that saw them. other
-    # launchers stay out: a workspace that never runs them must not fail on their floors
-    job_specs = _launcher_specs()[LAUNCHER_JOB]
+    compile_args = ["pip", "compile", "--universal", "--no-header", "--no-annotate", file_path.name]
+    alone = _parse_uv_output(_run_uv(compile_args, cwd=workspace_root))
+    # main installs next to the job launcher entry, so its pins must come from a resolution that saw
+    # it. other launchers stay out: a workspace that never runs them must not fail on their floors
+    names = _collect_package_names(alone)
+    _add_transitive_names(names)
+    launchers = _build_pruned_launcher_requirements(names, _get_dlt_resolution_spec())
+    job_specs = launchers[LAUNCHER_JOB]
+    if not job_specs:
+        return alone
     try:
-        resolved = _run_uv(
-            [*compile_args, file_path.name, "-"],
-            cwd=workspace_root,
-            stdin="\n".join(job_specs),
-        )
+        stdout = _run_uv([*compile_args, "-"], cwd=workspace_root, stdin="\n".join(job_specs))
     except WorkspaceRequirementsError as ex:
         raise WorkspaceRequirementsError(
             f"{file_path.name} does not resolve with the launcher specs"
             f" {', '.join(job_specs)}:\n{ex}"
         ) from ex
+    resolved = _parse_uv_output(stdout)
+    # the launcher entry moved no pin, so main resolved alone already installs next to it
+    if set(alone) <= set(resolved):
+        return alone
     # the constraint keeps main to the workspace's own packages. unnamed paths and `-e` lines
     # cannot be constraints
-    constraints = _parse_dep_list(_parse_uv_output(resolved))
     stdout = _run_uv(
-        [*compile_args, file_path.name, "--constraint", "-"],
+        [*compile_args, "--constraint", "-"],
         cwd=workspace_root,
-        stdin="\n".join(constraints),
+        stdin="\n".join(_parse_dep_list(resolved)),
     )
     return _parse_uv_output(stdout)
+
+
+def _get_dlt_resolution_spec() -> str:
+    """PEP 508 spec that resolves like the installed dlt."""
+    spec = get_pkg_install_spec(DLT_PKG_NAME)
+    # an editable dlt resolves from its source, its version may not be on pypi
+    if spec["mode"] == "editable":
+        spec["mode"] = "path"
+    return render_pep508(spec, for_deployment=True)
 
 
 def _parse_requirements_file(file_path: Path) -> List[str]:
