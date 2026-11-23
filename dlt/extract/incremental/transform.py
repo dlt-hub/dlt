@@ -422,9 +422,6 @@ class ArrowIncremental(IncrementalTransform):
             for pk in unique_columns:
                 if pk not in tbl.schema.names:
                     raise IncrementalPrimaryKeyMissing(self.resource_name, pk, tbl)
-            # use primary key as unique index
-            if isinstance(primary_key, str):
-                self._dlt_index = primary_key
         elif primary_key is None:
             unique_columns = tbl.schema.names
 
@@ -516,26 +513,28 @@ class ArrowIncremental(IncrementalTransform):
             keep_filter = self.last_value_compare(tbl[cursor_path], start_value_scalar)
             start_out_of_range = bool(pa.compute.any(pa.compute.invert(keep_filter)).as_py())
             tbl = tbl.filter(keep_filter)
-            if self.boundary_deduplication:
-                # Deduplicate after filtering old values
-                tbl = self._add_unique_index(tbl)
-                # Remove already processed rows where the cursor is equal to the start value
-                eq_rows = tbl.filter(pa.compute.equal(tbl[cursor_path], start_value_scalar))
-                # compute index, unique hash mapping
-                unique_values_index = self.compute_unique_values_with_index(
-                    eq_rows, unique_columns, self.start_hashes_legacy
-                )
-                unique_values_index = [
-                    (i, uq_val)
-                    for i, uq_val in unique_values_index
-                    if uq_val in self.start_unique_hashes
-                ]
-                if len(unique_values_index) > 0:
-                    # find rows with unique ids that were stored from previous run
-                    remove_idx = pa.array(i for i, _ in unique_values_index)
-                    tbl = tbl.filter(
-                        pa.compute.invert(pa.compute.is_in(tbl[self._dlt_index], remove_idx))
+            if self.boundary_deduplication and self.start_unique_hashes:
+                # Only deduplicate rows at the start_value boundary using positional row
+                # indices so newer rows sharing a primary key are preserved.
+                eq_mask = pa.compute.equal(tbl[cursor_path], start_value_scalar)
+                if pa.compute.any(eq_mask).as_py():
+                    tbl = self._add_unique_index(tbl)
+                    eq_rows = tbl.filter(eq_mask)
+                    # compute index, unique hash mapping
+                    unique_values_index = self.compute_unique_values_with_index(
+                        eq_rows, unique_columns, self.start_hashes_legacy
                     )
+                    unique_values_index = [
+                        (i, uq_val)
+                        for i, uq_val in unique_values_index
+                        if uq_val in self.start_unique_hashes
+                    ]
+                    if len(unique_values_index) > 0:
+                        # find rows with unique ids that were stored from previous run
+                        remove_idx = pa.array(i for i, _ in unique_values_index)
+                        tbl = tbl.filter(
+                            pa.compute.invert(pa.compute.is_in(tbl[self._dlt_index], remove_idx))
+                        )
 
         if (
             self.last_value is None
