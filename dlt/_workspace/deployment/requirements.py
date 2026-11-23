@@ -569,7 +569,10 @@ def _uv_pip_compile(
 
 
 def _get_job_launcher_specs(main: List[str]) -> List[str]:
-    """Specs a job installs next to `main`. Other launchers may never run, so they stay out."""
+    """Specs a job installs next to `main`, for resolving: an editable dlt comes from its source.
+
+    Other launchers may never run, so they stay out.
+    """
     names = _collect_package_names(main)
     _add_transitive_names(names)
     launchers = _build_pruned_launcher_requirements(
