@@ -98,9 +98,17 @@ class WorkspaceRequirementsError(Exception):
     """Raised when a workspace's dependency files cannot be exported."""
 
 
-def get_dlt_requirement_spec() -> str:
-    """PEP 508 spec for the currently installed dlt distribution, deployment-mode."""
-    return render_pep508(get_pkg_install_spec(DLT_PKG_NAME), for_deployment=True)
+def get_dlt_requirement_spec(*, from_source: bool = False) -> str:
+    """PEP 508 spec for the currently installed dlt distribution, deployment-mode.
+
+    Args:
+        from_source (bool): Render an editable install as a direct reference to its source,
+            which resolves even when its version is not on PyPI.
+    """
+    spec = get_pkg_install_spec(DLT_PKG_NAME)
+    if from_source and spec["mode"] == "editable":
+        spec["mode"] = "path"
+    return render_pep508(spec, for_deployment=True)
 
 
 def get_pkg_install_spec(pkg_name: str, *, extras: Optional[List[str]] = None) -> TInstallSpec:
@@ -538,7 +546,9 @@ def _compile_requirements_file(workspace_root: Path, file_path: Path) -> List[st
     # it. other launchers stay out: a workspace that never runs them must not fail on their floors
     names = _collect_package_names(alone)
     _add_transitive_names(names)
-    launchers = _build_pruned_launcher_requirements(names, _get_dlt_resolution_spec())
+    launchers = _build_pruned_launcher_requirements(
+        names, get_dlt_requirement_spec(from_source=True)
+    )
     job_specs = launchers[LAUNCHER_JOB]
     if not job_specs:
         return alone
@@ -561,15 +571,6 @@ def _compile_requirements_file(workspace_root: Path, file_path: Path) -> List[st
         stdin="\n".join(_parse_dep_list(resolved)),
     )
     return _parse_uv_output(stdout)
-
-
-def _get_dlt_resolution_spec() -> str:
-    """PEP 508 spec that resolves like the installed dlt."""
-    spec = get_pkg_install_spec(DLT_PKG_NAME)
-    # an editable dlt resolves from its source, its version may not be on pypi
-    if spec["mode"] == "editable":
-        spec["mode"] = "path"
-    return render_pep508(spec, for_deployment=True)
 
 
 def _parse_requirements_file(file_path: Path) -> List[str]:
