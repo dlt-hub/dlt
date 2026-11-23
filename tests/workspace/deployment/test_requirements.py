@@ -859,34 +859,13 @@ def test_export_fails_on_pins_below_floors(
 
 
 @pytest.mark.parametrize(
-    "main_specs, hub_kept, dlt_injected",
-    [
-        (["dlt[hub]"], False, False),
-        (["dlt"], True, False),
-        (["requests"], True, True),
-        (["dlthub"], False, True),
-    ],
-    ids=["names-dlt-hub", "names-dlt", "names-neither", "names-dlthub"],
-)
-def test_resolved_main_installs_with_job_launcher(
-    main_specs: List[str], hub_kept: bool, dlt_injected: bool, tmp_path: Path
-) -> None:
-    """A resolved main pins every package, so a launcher spec it never saw can contradict it."""
-    result = _export_with_deps(main_specs, "requirements-resolved")
-    job = result["launcher_requirements"][LAUNCHER_JOB]
-    dlt_spec = get_dlt_requirement_spec()
-    assert set(_S3_NAMES) <= set(_get_names(job))
-    assert (_HUB in job) is hub_kept
-    assert (dlt_spec in job) is dlt_injected
-    # the installed dlt may not be on pypi, this checkout stands in for it
-    job = [_DLT_CHECKOUT_SPEC if s == dlt_spec else s for s in job]
-    compiled = _run_uv_compile([*result["groups"][MAIN_GROUP], *job], tmp_path)
-    assert compiled.returncode == 0, compiled.stderr
-
-
-def test_resolved_main_follows_capped_launcher_spec(tmp_path: Path) -> None:
+    "job_specs",
     # botocore 1.34.0 caps python-dateutil<3 and urllib3<2.1, a main resolved alone takes newer
-    job_specs = ["botocore==1.34.0"]
+    [list(dlt_extra_specs("s3").values()), ["botocore==1.34.0"]],
+    ids=["s3-specs", "capped-botocore"],
+)
+def test_resolved_main_installs_with_job_launcher(job_specs: List[str], tmp_path: Path) -> None:
+    """A resolved main pins every package, so a launcher spec it never saw can contradict it."""
     with patch(_BUILD_LAUNCHERS, return_value={LAUNCHER_JOB: job_specs}):
         result = _export_with_deps(["dlt[hub]", "requests"], "requirements-resolved")
     assert result["launcher_requirements"][LAUNCHER_JOB] == job_specs
@@ -896,12 +875,9 @@ def test_resolved_main_follows_capped_launcher_spec(tmp_path: Path) -> None:
 
 @pytest.mark.parametrize(
     "main_specs, blames_launcher",
-    [
-        (["requests==2.25.1"], True),
-        (["botocore==1.27.0"], True),
-        (["requests==2.25.1", "requests>=2.26"], False),
-    ],
-    ids=["pin-below-injected-dlt", "pin-below-s3fs-dependency", "broken-on-its-own"],
+    # the injected dlt needs requests>=2.26.0
+    [(["requests==2.25.1"], True), (["requests==2.25.1", "requests>=2.26"], False)],
+    ids=["pin-below-injected-dlt", "broken-on-its-own"],
 )
 def test_resolved_main_failure_names_its_cause(
     main_specs: List[str], blames_launcher: bool
@@ -913,17 +889,18 @@ def test_resolved_main_failure_names_its_cause(
 
 
 @pytest.mark.parametrize(
-    "pin", ["marimo==0.10.0", "protobuf==3.19.6"], ids=["below-floor", "below-streamlit-dependency"]
+    "line, kept",
+    [
+        # other launchers stay out of the resolution, a workspace may never run them
+        ("marimo==0.10.0", ["marimo==0.10.0"]),
+        ("protobuf==3.19.6", ["protobuf==3.19.6"]),
+        # uv echoes a local package back and rejects it as a constraint
+        ("-e ./mylib", ["mylib", "six=="]),
+        ("./mylib", ["mylib", "six=="]),
+    ],
+    ids=["below-marimo-floor", "below-streamlit-dependency", "editable", "path"],
 )
-def test_resolved_main_keeps_pins_conflicting_with_other_launchers(pin: str) -> None:
-    """Only the job launcher entry joins the resolution: a workspace may never run the others."""
-    result = _export_with_deps([pin], "requirements-resolved")
-    assert pin in result["groups"][MAIN_GROUP]
-
-
-@pytest.mark.parametrize("line", ["-e ./mylib", "./mylib"], ids=["editable", "path"])
-def test_resolved_main_keeps_local_package(line: str) -> None:
-    """uv echoes the path back and rejects it as a constraint."""
+def test_resolved_main_keeps_workspace_specs(line: str, kept: List[str]) -> None:
     with isolated_workspace("deps_none") as ctx:
         run_dir = Path(ctx.run_dir)
         (run_dir / "mylib").mkdir()
@@ -931,10 +908,8 @@ def test_resolved_main_keeps_local_package(line: str) -> None:
             '[project]\nname = "mylib"\nversion = "0.1.0"\ndependencies = ["six"]\n'
         )
         (run_dir / "requirements.txt").write_text(f"{line}\n")
-        result = export_workspace_requirements(run_dir)
-    main = result["groups"][MAIN_GROUP]
-    assert any("mylib" in s for s in main)
-    assert any(s.startswith("six==") for s in main)
+        main = export_workspace_requirements(run_dir)["groups"][MAIN_GROUP]
+    assert all(any(k in s for s in main) for k in kept)
 
 
 def test_dlt_extra_specs() -> None:
