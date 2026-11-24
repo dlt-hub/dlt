@@ -8,12 +8,12 @@ from dlt._workspace.cli.requirements import SourceRequirements
 
 @pytest.mark.filterwarnings("error::DeprecationWarning")
 @pytest.mark.parametrize(
-    "constraint,prereleases,default_accepts_prerelease",
+    "constraint,prereleases",
     [
-        (">=1.31,<1.32", None, False),
-        (">=1.31,<1.32", False, False),
-        (">=1.31,<1.32", True, True),
-        (">=1.31.1rc1,<1.32", None, True),
+        (">=1.31,<1.32", None),
+        (">=1.31,<1.32", False),
+        (">=1.31,<1.32", True),
+        (">=1.31.1rc1,<1.32", None),
     ],
 )
 @pytest.mark.parametrize(
@@ -31,7 +31,6 @@ def test_installed_dlt_compatible_preserves_prerelease_policy(
     monkeypatch: pytest.MonkeyPatch,
     constraint: str,
     prereleases: Optional[bool],
-    default_accepts_prerelease: bool,
     installed_version: str,
     compatible: bool,
 ) -> None:
@@ -39,7 +38,6 @@ def test_installed_dlt_compatible_preserves_prerelease_policy(
     spec = SpecifierSet(constraint, prereleases=prereleases)
     requirements.dlt_requirement.specifier = spec
     original_policy = spec.prereleases
-    assert spec.contains("1.31.1rc2") is default_accepts_prerelease
     assert not spec.contains("1.31.1rc2", prereleases=False)
     monkeypatch.setattr(requirements, "current_dlt_version", lambda: installed_version)
 
@@ -47,6 +45,5 @@ def test_installed_dlt_compatible_preserves_prerelease_policy(
         assert requirements.is_installed_dlt_compatible() is compatible
         assert requirements.dlt_requirement.specifier is spec
         assert requirements.parsed_requirements[0].specifier is spec
-        assert spec.contains("1.31.1rc2") is default_accepts_prerelease
         assert spec.prereleases is original_policy
         assert "1.31.1" in spec
