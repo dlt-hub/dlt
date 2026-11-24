@@ -42,13 +42,13 @@ def load():
     ...
 ```
 
-| Key             | Meaning                                                                 | Default |
-| --------------- | ----------------------------------------------------------------------- | ------- |
-| `max_retries`   | Retries after the first attempt. An integer from 0 to 10. Required.    | —       |
-| `initial_delay` | Seconds before the first retry.                                         | `30`    |
-| `backoff`       | Multiplier applied to the delay after each retry.                      | `2.0`   |
-| `max_delay`     | Longest delay, in seconds.                                              | `3600`  |
-| `jitter`        | Randomize each delay.                                                   | `true`  |
+| Key             | Meaning                                                             | Default |
+| --------------- | ------------------------------------------------------------------- | ------- |
+| `max_retries`   | Retries after the first attempt. An integer from 0 to 10. Required. | —       |
+| `initial_delay` | Seconds before the first retry.                                     | `30`    |
+| `backoff`       | Multiplier applied to the delay after each retry.                   | `2.0`   |
+| `max_delay`     | Longest delay, in seconds.                                          | `3600`  |
+| `jitter`        | Randomize each delay.                                               | `true`  |
 
 The decorator fills the defaults and stores the policy on the job definition as `execute.retry`, next to `timeout` and `concurrency`. The policy is fixed at decoration, so configuration files and environment variables leave it unchanged. `0` runs the job once.
 
