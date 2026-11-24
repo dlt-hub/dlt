@@ -317,7 +317,8 @@ def run_and_print_result(run_launcher: Callable[[], Any]) -> None:
 
     A failed run prints its traceback and exits `EXIT_TERMINAL_ERROR`, unless the
     failure is a connection or timeout error, in which case it exits
-    `EXIT_TRANSIENT_ERROR`.
+    `EXIT_TRANSIENT_ERROR`. `RetryableError` on the failure chain exits
+    `EXIT_TRANSIENT_ERROR`; the rest of that chain is not classified.
     An aborted job is re-raised.
 
     Args:

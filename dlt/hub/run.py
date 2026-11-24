@@ -6,7 +6,7 @@ from dlt._workspace.deployment.decorators import (
 )
 from dlt._workspace.deployment import TJobRunContext
 from dlt._workspace.deployment import trigger
-from dlt._workspace.deployment.exceptions import JobAbortedException
+from dlt._workspace.deployment.exceptions import JobAbortedException, RetryableError
 from dlt._workspace.deployment.job_result import job_result as result
 from dlt._workspace.deployment.reflection import Entity
 from dlt._workspace.deployment.agent.typing import TAgentJobResult, TAgentOutput, TAgentSpec
@@ -29,4 +29,5 @@ __all__ = [
     "TAgentOutput",
     "TAgentJobResult",
     "JobAbortedException",
+    "RetryableError",
 ]

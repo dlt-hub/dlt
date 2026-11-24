@@ -169,6 +169,14 @@ class JobAbortedException(DeploymentException):
         super().__init__(f"Job aborted: {summary}")
 
 
+class RetryableError(Exception):
+    """A job run failed for a reason that should be retried.
+
+    Raise it from the error you caught: `raise RetryableError("...") from e`.
+    The cause is not classified.
+    """
+
+
 class ManifestImportError(DeploymentException):
     """Deployment module cannot be loaded for manifest generation."""
 

@@ -23,6 +23,7 @@ from dlt.common import known_env
 from dlt._workspace._known_env import WORKSPACE__PROFILE
 from dlt._workspace.deployment._job_ref import parse_job_ref
 from dlt._workspace.deployment.configuration import JobConfiguration
+from dlt._workspace.deployment.exceptions import RetryableError
 from dlt._workspace.deployment.typing import TRuntimeEntryPoint, resolve_incremental_mode
 
 
@@ -31,7 +32,7 @@ EXIT_TERMINAL_ERROR = 1
 
 # matches EX_TEMPFAIL from sysexits.h; os.EX_TEMPFAIL is absent on Windows
 EXIT_TRANSIENT_ERROR = 75
-"""Failed run whose chain contains a connection or timeout error and no terminal failure."""
+"""Connection or timeout failure with no terminal error, or a `RetryableError`."""
 
 _RETRYABLE_EXCEPTION_TYPES: Tuple[Type[BaseException], ...] = (
     TimeoutError,
@@ -65,9 +66,12 @@ def _exception_chain(exc: BaseException) -> Iterator[BaseException]:
 def failure_exit_code(exc: BaseException) -> int:
     """Launcher status for a failed run.
 
-    A `TerminalException` or an SSL/certificate error on the reported chain selects
-    `EXIT_TERMINAL_ERROR`. `EXIT_TRANSIENT_ERROR` is returned only when that chain
-    contains a concrete connection or timeout failure and no terminal one. Every
+    `RetryableError` on the reported chain selects `EXIT_TRANSIENT_ERROR`.
+    The rest of that chain is left unclassified.
+
+    Otherwise a `TerminalException` or an SSL/certificate error selects
+    `EXIT_TERMINAL_ERROR`. `EXIT_TRANSIENT_ERROR` is returned when the chain
+    contains a connection or timeout failure and no terminal one. Every
     other failure returns `EXIT_TERMINAL_ERROR`.
 
     Args:
@@ -76,9 +80,13 @@ def failure_exit_code(exc: BaseException) -> int:
     Returns:
         int: `EXIT_TERMINAL_ERROR` or `EXIT_TRANSIENT_ERROR`.
     """
+    chain = tuple(_exception_chain(exc))
+    # the caller decided this run is retryable
+    if any(isinstance(item, RetryableError) for item in chain):
+        return EXIT_TRANSIENT_ERROR
     # SSLError subclasses ConnectionError; TransientException also wraps coding errors
     saw_retryable = False
-    for item in _exception_chain(exc):
+    for item in chain:
         if isinstance(item, (TerminalException, SSLError)):
             return EXIT_TERMINAL_ERROR
         if isinstance(item, _RETRYABLE_EXCEPTION_TYPES):

@@ -73,6 +73,23 @@ from dlt.load.utils import (
 )
 
 
+def _keep_terminal_over_transient(
+    kept: Optional[LoadClientJobException], candidate: Optional[LoadClientJobException]
+) -> Optional[LoadClientJobException]:
+    """Chooses the job failure to report when several jobs fail.
+
+    A terminal failure already kept stands. With nothing kept, the candidate
+    is reported whether or not it is terminal.
+    """
+    if isinstance(kept, TerminalException):
+        return kept
+    if kept is None:
+        return candidate
+    if isinstance(candidate, TerminalException):
+        return candidate
+    return kept
+
+
 class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
     pool: Executor
 
@@ -497,6 +514,7 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
                   draining the pool. Set when:
                     * a job failed and `raise_on_failed_jobs` is True -> LoadClientJobFailed
                     * a job hit the retry threshold and `raise_on_max_retries` is set -> LoadClientJobRetry
+                  A terminal failure is kept when a transient one is also pending.
                   Otherwise None.
 
         Side Effects:
@@ -539,11 +557,14 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
                     self.load_storage.normalized_packages.retry_job(
                         load_id, job.file_name(), failed_message, "terminal"
                     )
-                    pending_exception = LoadClientJobFailed(
-                        load_id,
-                        job.job_file_info().job_id(),
-                        failed_message,
-                        job.exception(),
+                    pending_exception = _keep_terminal_over_transient(
+                        pending_exception,
+                        LoadClientJobFailed(
+                            load_id,
+                            job.job_file_info().job_id(),
+                            failed_message,
+                            job.exception(),
+                        ),
                     )
                 elif not self.config.raise_on_failed_jobs:
                     # complete the package as loaded with the failed job recorded, no exception
@@ -554,11 +575,14 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
                     self.load_storage.normalized_packages.retry_job(
                         load_id, job.file_name(), failed_message, "terminal"
                     )
-                    pending_exception = LoadClientJobTerminalRetry(
-                        load_id,
-                        job.job_file_info().job_id(),
-                        failed_message,
-                        job.exception(),
+                    pending_exception = _keep_terminal_over_transient(
+                        pending_exception,
+                        LoadClientJobTerminalRetry(
+                            load_id,
+                            job.job_file_info().job_id(),
+                            failed_message,
+                            job.exception(),
+                        ),
                     )
                 # consume pending transition only after successful file move
                 self.load_storage.normalized_packages.clear_pending_transition(
@@ -582,13 +606,16 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
                 if self.config.raise_on_max_retries:
                     r_c = job.job_file_info().retry_count + 1
                     if r_c > 0 and r_c % self.config.raise_on_max_retries == 0:
-                        pending_exception = LoadClientJobRetry(
-                            load_id,
-                            job.job_id(),
-                            r_c,
-                            self.config.raise_on_max_retries,
-                            failed_message=retry_message,
-                            exception=job.exception(),
+                        pending_exception = _keep_terminal_over_transient(
+                            pending_exception,
+                            LoadClientJobRetry(
+                                load_id,
+                                job.job_id(),
+                                r_c,
+                                self.config.raise_on_max_retries,
+                                failed_message=retry_message,
+                                exception=job.exception(),
+                            ),
                         )
             elif state == "completed":
                 # create followup jobs
@@ -767,7 +794,9 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
             running_jobs, finalized_jobs, new_pending_exception = self.complete_jobs(
                 load_id, running_jobs, schema
             )
-            pending_exception = pending_exception or new_pending_exception
+            pending_exception = _keep_terminal_over_transient(
+                pending_exception, new_pending_exception
+            )
 
             # stop spooling new jobs on a signal or a pending exception; a terminal failure
             # without raise_on_failed_jobs sets no exception, so the package keeps loading

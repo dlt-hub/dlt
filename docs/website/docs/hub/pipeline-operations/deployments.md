@@ -1,7 +1,7 @@
 ---
 title: Deployments
 description: Deploy dlt pipelines, jobs, and interactive applications to the dltHub platform with ad-hoc runs or a versioned deployment manifest
-keywords: [dlthub platform, deploy, deployment, jobs, decorators, manifest, reconciliation]
+keywords: [dlthub platform, deploy, deployment, jobs, decorators, manifest, reconciliation, retries]
 ---
 # Deployments
 
@@ -113,6 +113,34 @@ def daily_report():
 - Outside a job run, `run.result()` returns the value and records nothing.
 
 An [agent job](../agents/index.md) delivers its job result itself, with the agent output and the agent trace in it.
+
+### Retries
+
+A failed job run is retried when its exception chain contains a connection or timeout error:
+
+- `TimeoutError`
+- `ConnectionError`, including `requests.ConnectionError`
+- `requests.Timeout`
+- `requests.exceptions.ChunkedEncodingError`
+
+The job exits with status 75. A `TerminalException` or an SSL error (`requests.exceptions.SSLError`) on that chain fails the job run with exit status 1. Any other exception fails the job run with exit status 1.
+
+Catch an error you know is retryable and raise `run.RetryableError` from it. The job exits with status 75. The cause is not classified: an SSL error, a terminal error, or any other cause leaves the retry in place.
+
+```py notype
+from dlt.hub import run
+
+@run.job
+def sync_vendor():
+    try:
+        fetch_vendor()
+    except VendorTimeout as e:
+        raise run.RetryableError("vendor timed out") from e
+```
+
+`run.RetryableError` takes an optional message. Raising it from the original error keeps that error on the chain.
+
+When one pipeline load fails several jobs together, a terminal job failure is the failure that is reported. The run exits with status 1 even when another job raised `run.RetryableError`.
 
 ### The deployment module
 

@@ -4,7 +4,7 @@ from time import sleep, monotonic
 from unittest import mock
 import pytest
 from unittest.mock import patch
-from typing import Any, List, Tuple, Type
+from typing import Any, Dict, List, Optional, Tuple, Type
 
 from dlt.common import pendulum
 from dlt.common.destination.exceptions import DestinationTerminalException
@@ -34,8 +34,10 @@ from dlt.destinations.impl.dummy import dummy as dummy_impl
 from dlt.destinations.impl.dummy.configuration import DummyClientConfiguration
 
 from dlt.load import Load
+from dlt.load.load import _keep_terminal_over_transient
 from dlt.load.configuration import LoaderConfiguration
 from dlt.load.exceptions import (
+    LoadClientJobException,
     LoadClientJobFailed,
     LoadClientJobRetry,
     LoadClientJobTerminalRetry,
@@ -75,6 +77,39 @@ def storage() -> FileStorage:
 @pytest.fixture(scope="module", autouse=True)
 def logger_autouse() -> None:
     init_test_logging()
+
+
+def _transient_job_failure() -> LoadClientJobRetry:
+    return LoadClientJobRetry("load", "job", 1, 1, "retry", RuntimeError("retry"))
+
+
+def _terminal_job_failure() -> LoadClientJobTerminalRetry:
+    return LoadClientJobTerminalRetry("load", "job", "stop", TerminalValueError("stop"))
+
+
+@pytest.mark.parametrize(
+    ("kept", "candidate", "expected"),
+    [
+        pytest.param("none", "transient", "candidate", id="nothing-kept-transient-candidate"),
+        pytest.param("none", "terminal", "candidate", id="nothing-kept-terminal-candidate"),
+        pytest.param("none", "none", "none", id="nothing-kept-no-candidate"),
+        pytest.param("terminal", "transient", "kept", id="terminal-kept-stands"),
+        pytest.param("terminal", "terminal", "kept", id="first-terminal-stands"),
+        pytest.param("transient", "terminal", "candidate", id="terminal-replaces-transient"),
+        pytest.param("transient", "transient", "kept", id="first-transient-stands"),
+        pytest.param("transient", "none", "kept", id="transient-kept-without-candidate"),
+    ],
+)
+def test_keep_terminal_over_transient(kept: str, candidate: str, expected: str) -> None:
+    made: Dict[str, Optional[LoadClientJobException]] = {
+        "none": None,
+        "transient": _transient_job_failure(),
+        "terminal": _terminal_job_failure(),
+    }
+    kept_failure = made[kept]
+    candidate_failure = made[candidate]
+    chosen = _keep_terminal_over_transient(kept_failure, candidate_failure)
+    assert chosen is (kept_failure if expected == "kept" else candidate_failure)
 
 
 def test_spool_job_started() -> None:
