@@ -275,7 +275,10 @@ def test_pipeline_parquet_filesystem_destination() -> None:
         assert table.column("value").to_pylist() == [1, 2, 3, 4, 5]
 
 
-def test_pipeline_writes_extensionless_table_file(tmp_path: Path) -> None:
+def test_pipeline_writes_extensionless_table_file(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("DATA_WRITER__DISABLE_COMPRESSION", "true")
     pipeline = dlt.pipeline(
         pipeline_name="export_test",
         pipelines_dir=str(tmp_path / "pipelines"),
@@ -286,8 +289,18 @@ def test_pipeline_writes_extensionless_table_file(tmp_path: Path) -> None:
             extra_placeholders={"ext": ""},
         ),
     )
-    pipeline.run([{"value": 1}], table_name="event", write_disposition="replace")
-    assert (tmp_path / "bucket" / "dataset" / "export" / "event").is_file()
+    export_dir = tmp_path / "bucket" / "dataset" / "export"
+    export_file = export_dir / "event"
+    for value in (1, 2):
+        pipeline.run(
+            [{"value": value}],
+            table_name="event",
+            write_disposition="replace",
+            loader_file_format="jsonl",
+        )
+        assert list(export_dir.iterdir()) == [export_file]
+        rows = export_file.read_text(encoding="utf-8").splitlines()
+        assert [json.loads(row)["value"] for row in rows] == [value]
 
 
 TEST_LAYOUTS = (
