@@ -94,7 +94,7 @@ def run_dq_checks():
         raise RuntimeError("Data quality checks failed")
 ```
 
-For the full catalog of `trigger=` options (cron, intervals, follow-ups, freshness, refresh cascade), see [Triggers and scheduling](triggers.md). For per-job options like `execute=`, `require=`, and `expose=`, see [Job configuration](job-configuration.md).
+For the full catalog of `trigger=` options (cron, intervals, follow-ups, freshness, refresh cascade), see [Triggers and scheduling](triggers.md). For per-job options like `execute=`, `retry=`, `require=`, and `expose=`, see [Job configuration](job-configuration.md).
 
 ### Job results
 
