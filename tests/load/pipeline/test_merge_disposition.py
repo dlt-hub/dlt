@@ -32,13 +32,17 @@ from dlt.common.time import ensure_datetime_in_tz
 from dlt.common.typing import StrAny
 from dlt.common.utils import digest128
 from dlt.common.destination import DestinationCapabilitiesContext
-from dlt.common.destination.exceptions import DestinationCapabilitiesException
+from dlt.common.destination.exceptions import (
+    DestinationCapabilitiesException,
+    DestinationTerminalException,
+)
 from dlt.common.libs.pyarrow import row_tuples_to_arrow
 
 from dlt.extract import DltResource, DltSource
 from dlt.extract.hints import TResourceHints
 from dlt.extract.utils import digest_dedup_value
 from dlt.sources.helpers.transform import skip_first, take_first
+from dlt.common.pipeline import LoadInfo
 from dlt.pipeline.exceptions import PipelineStepFailed
 from dlt.normalize.exceptions import NormalizeJobFailed
 
@@ -2598,6 +2602,44 @@ def test_merge_conditions(
             "`source_filter` or `destination_scope` with the `upsert`",
         ),
         (
+            "delta",
+            {"strategy": "delete-insert"},
+            {"id": 1, "bucket": "new"},
+            "`delete-insert` merge strategy without `destination_scope`",
+        ),
+        (
+            "delta",
+            {"strategy": "delete-insert", "destination_scope": NEW_BUCKET, "merge_key": "bucket"},
+            {"id": 1, "bucket": "new"},
+            "`merge_key` with the `delete-insert`",
+        ),
+        (
+            "delta",
+            {
+                "strategy": "delete-insert",
+                "destination_scope": NEW_BUCKET,
+                "source_filter": "{staging_table}.bucket = 'new'",
+            },
+            {"id": 1, "bucket": "new"},
+            "`source_filter` with the `delete-insert`",
+        ),
+        (
+            "delta",
+            {
+                "strategy": "delete-insert",
+                "destination_scope": NEW_BUCKET,
+                "columns": {"deleted": {"hard_delete": True, "data_type": "bool"}},
+            },
+            {"id": 1, "bucket": "new", "deleted": False},
+            "`hard_delete` hint with the `delete-insert`",
+        ),
+        (
+            "delta",
+            {"strategy": "delete-insert", "destination_scope": NEW_BUCKET},
+            {"id": 1, "bucket": "new", "children": [{"c": 1}]},
+            "nested tables with the `delete-insert`",
+        ),
+        (
             "iceberg",
             {"strategy": "upsert", "source_filter": NEW_BUCKET},
             {"id": 1, "bucket": "new"},
@@ -2619,6 +2661,11 @@ def test_merge_conditions(
         "delta_hard_delete_nested",
         "delta_upsert_hard_delete_nested",
         "delta_upsert_filter_nested",
+        "delta_delete_insert_no_scope",
+        "delta_delete_insert_merge_key",
+        "delta_delete_insert_filter",
+        "delta_delete_insert_hard_delete",
+        "delta_delete_insert_nested",
         "iceberg_upsert_filter",
         "iceberg_upsert_skip_unchanged",
     ],
@@ -2703,6 +2750,65 @@ def test_delta_merge_with_declared_nested_table(
     assert_load_info(p.run(items(), **destination_config.run_kwargs))
     assert "items__children" in p.default_schema.tables
     assert load_table_counts(p, "items") == {"items": 1}
+
+
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(
+        table_format_local_configs=True, supports_merge=True, with_table_format="delta"
+    ),
+    ids=lambda x: x.name,
+)
+@pytest.mark.parametrize(
+    "destination_scope", ["{table}.part = {part}", PARTITION], ids=["qualified", "bare"]
+)
+def test_delta_delete_insert_destination_scope(
+    destination_config: DestinationTestConfiguration, destination_scope: str
+) -> None:
+    """Replaces partitions of a Delta table with `delete-insert`. Checks that each load replaces
+    only the rows in the destination scope in one commit, and that a load with rows outside of
+    the destination scope fails without changing the table."""
+    from dlt.common.libs.deltalake import get_delta_tables
+
+    def load(rows: List[StrAny], part: str) -> LoadInfo:
+        return p.run(
+            merge_resource(
+                rows,
+                "delete-insert",
+                columns={"part": {"partition": True}},
+                table_format="delta",
+                destination_scope=destination_scope,
+                extra_placeholders=PARTITION_PLACEHOLDERS,
+                part=part,
+            ),
+            **destination_config.run_kwargs,
+        )
+
+    def stored() -> List[Tuple[int, str, str]]:
+        rows = load_tables_to_dicts(p, "items", exclude_system_cols=True)["items"]
+        return sorted((r["id"], r["v"], r["part"]) for r in rows)
+
+    p = destination_config.setup_pipeline("delta_delete_insert", dev_mode=True)
+    # the first load creates the table
+    assert_load_info(
+        load([{"id": 1, "v": "a", "part": "p15"}, {"id": 2, "v": "b", "part": "p15"}], "p15")
+    )
+    assert_load_info(load([{"id": 3, "v": "c", "part": "p16"}], "p16"))
+    version = get_delta_tables(p, "items")["items"].version()
+
+    # replace p15 and keep p16
+    assert_load_info(load([{"id": 1, "v": "a2", "part": "p15"}], "p15"))
+    assert stored() == [(1, "a2", "p15"), (3, "c", "p16")]
+    delta_table = get_delta_tables(p, "items")["items"]
+    assert delta_table.version() == version + 1
+    assert delta_table.history(1)[0]["operation"] == "WRITE"
+
+    # a row of p16 in a load of p15 fails the job terminally
+    with pytest.raises(PipelineStepFailed) as exc:
+        load([{"id": 4, "v": "d", "part": "p16"}], "p15")
+    assert isinstance(exc.value.__cause__, DestinationTerminalException)
+    assert "outside of the predicate `part = 'p15'`" in str(exc.value.__cause__)
+    assert stored() == [(1, "a2", "p15"), (3, "c", "p16")]
 
 
 @pytest.mark.parametrize(
@@ -3132,7 +3238,7 @@ def test_merge_condition_placeholders(destination_config: DestinationTestConfigu
     # keep the records of earlier loads in staging, only the source filter excludes them
     os.environ["LOAD__TRUNCATE_STAGING_MERGE_TABLES_BEFORE_LOAD"] = "false"
     p = destination_config.setup_pipeline("merge_placeholders", dev_mode=True)
-    # delta has no `delete-insert`. `cdc` deletes the absent records of the partition the same way
+    # delta `delete-insert` has no `source_filter`. `cdc` deletes the absent records of the partition
     strategy: TLoaderMergeStrategy = (
         "cdc" if destination_config.table_format == "delta" else "delete-insert"
     )

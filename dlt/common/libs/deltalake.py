@@ -16,6 +16,7 @@ from dlt.common.destination.utils import (
     get_merge_changed_cond,
     get_merge_placeholder_values,
 )
+from dlt.common.destination.exceptions import DestinationTerminalException
 from dlt.common.exceptions import MissingDependencyException, ValueErrorWithKnownValues
 from dlt.common.typing import DictStrAny
 from dlt.common.utils import assert_min_pkg_version
@@ -25,6 +26,7 @@ from dlt.common.configuration.specs.mixins import WithObjectStoreRsCredentials
 try:
     import deltalake
     from deltalake import write_deltalake, DeltaTable
+    from deltalake.exceptions import DeltaError
 
     deltalake_semver = Version(deltalake.__version__)
 except ModuleNotFoundError:
@@ -104,20 +106,33 @@ def write_delta_table(
     partition_by: Optional[Union[List[str], str]] = None,
     storage_options: Optional[Dict[str, str]] = None,
     configuration: Optional[Mapping[str, Optional[str]]] = None,
+    predicate: Optional[str] = None,
 ) -> None:
     """Writes in-memory Arrow data to on-disk Delta table.
 
-    Thin wrapper around `deltalake.write_deltalake`.
+    Thin wrapper around `deltalake.write_deltalake`. With `predicate`, replaces the rows that
+    `predicate` selects in one commit and raises `DestinationTerminalException` if `data` has
+    rows that `predicate` does not select.
     """
-    write_deltalake(  # type: ignore[call-overload]
-        table_or_uri=table_or_uri,
-        data=ensure_delta_compatible_arrow_data(data, partition_by),
-        partition_by=partition_by,
-        mode=get_delta_write_mode(write_disposition),
-        schema_mode="merge",  # enable schema evolution (adding new columns)
-        storage_options=storage_options,
-        configuration=configuration,
-    )
+    try:
+        write_deltalake(  # type: ignore[call-overload]
+            table_or_uri=table_or_uri,
+            data=ensure_delta_compatible_arrow_data(data, partition_by),
+            partition_by=partition_by,
+            mode="overwrite" if predicate else get_delta_write_mode(write_disposition),
+            predicate=predicate,
+            schema_mode="merge",  # enable schema evolution (adding new columns)
+            storage_options=storage_options,
+            configuration=configuration,
+        )
+    except DeltaError as ex:
+        # delta-rs reports rows outside of the predicate only in the message
+        if predicate and "failed validation check" in str(ex):
+            raise DestinationTerminalException(
+                f"The loaded data has rows outside of the predicate `{predicate}`. Delta replaces"
+                f" only the rows that the predicate selects. {ex}"
+            ) from ex
+        raise
 
 
 def merge_delta_table(
@@ -221,6 +236,19 @@ def _delta_merge_predicates(schema: TTableSchema) -> Tuple[Optional[str], Option
             if destination_scope
             else None
         ),
+    )
+
+
+def get_delta_destination_scope(schema: TTableSchema) -> str:
+    """Returns the `destination_scope` of `schema` as a Delta write predicate."""
+    # a write predicate has no table alias: `{table}.col` becomes `col`
+    destination_scope = cast(str, schema.get("x-merge-destination-scope"))
+    return expand_merge_condition(
+        "destination_scope",
+        destination_scope.replace("{table}.", ""),
+        {},
+        get_merge_placeholder_values(schema["name"]),
+        escape_ansi_literal,
     )
 
 

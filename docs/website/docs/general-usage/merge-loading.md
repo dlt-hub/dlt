@@ -1080,7 +1080,7 @@ Both conditions can also use [value placeholders](#fill-placeholders-with-values
 
 On the `delta` table format, the conditions are Delta merge predicates:
 
-- `destination_scope` can use only `{table}`. dlt deletes only the unmatched destination records that the destination scope selects.
+- `destination_scope` can use only `{table}`. With `cdc`, dlt deletes only the unmatched destination records that the destination scope selects. With `delete-insert`, dlt replaces the records that the destination scope selects. Read [Replacing a partition with `delete-insert`](#replacing-a-partition-with-delete-insert).
 - `source_filter` can use only `{staging_table}`.
 - A predicate cannot contain a subquery. Qualify every column, for example `{table}.bucket = 'new'` in `destination_scope` and `{staging_table}.bucket = 'new'` in `source_filter`.
 
@@ -1166,7 +1166,7 @@ WHERE day = '2026-08-01' AND id IN (SELECT id FROM "my_dataset_staging"."items")
 
 The outer `day` and `id` refer to the destination table. The `id` in the subquery refers to the staging table. The subquery is not correlated, so ClickHouse also accepts this form.
 
-The `delta` table format does not support `delete-insert`. With `cdc`, write the partition condition as `"{table}.day = {day}"`. dlt expands it to `target.day = '2026-08-01'`.
+On the `delta` table format, `delete-insert` requires a destination scope and writes the load with a Delta predicate overwrite. dlt replaces the records that the destination scope selects in one commit, without a merge. The destination scope can be `"day = {day}"` or `"{table}.day = {day}"`: dlt removes the `{table}.` qualifier, because a Delta write predicate has no table alias. The destination scope cannot contain a subquery, and the load fails if a loaded record is outside of the destination scope. dlt does not deduplicate the loaded records. For the other limitations, read [Delta known limitations](../dlt-ecosystem/destinations/delta-iceberg.md#known-limitations).
 
 ### Fill placeholders with values from the load
 
