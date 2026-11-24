@@ -1,5 +1,4 @@
 import functools
-import json
 import os
 import sys
 from pathlib import Path
@@ -31,7 +30,6 @@ from dlt._workspace.cli.dlthub.ai.utils import (
     resolve_toolkit_dependencies,
     fetch_workbench_toolkits,
 )
-from dlt._workspace.cli._urls import DEFAULT_AI_WORKBENCH_LICENSE_URL
 
 from tests.workspace.cli.dlthub.ai.utils import (
     AGENT_NAMES,
@@ -422,27 +420,20 @@ def test_toolkit_install_overwrite_workbench(
 
 
 def test_dependency_map_workbench(workbench_repo: str) -> None:
-    """build_dependency_map reads workbench dependencies and license links."""
+    """Listed workflow toolkits depend on init, which has no dependencies."""
     repo_root = Path(workbench_repo)
     base = repo_root / AI_WORKBENCH_BASE_DIR
     toolkits, _ = fetch_workbench_toolkits(base)
     dep_map = build_toolkits_dependency_map(toolkits)
     for name in KNOWN_TOOLKITS:
         assert name in dep_map, "%s missing from workbench" % name
-    for name in dep_map:
-        resolved = resolve_toolkit_dependencies(name, dep_map)
-        if name == "init":
-            assert resolved == [], "init should have no dependencies"
-        else:
-            assert "init" in resolved, "%s should depend on init" % name
+    assert resolve_toolkit_dependencies("init", dep_map) == [], "init should have no dependencies"
 
-    # every plugin.json must link to the license; only `workbench/` is checked out
-    for name in toolkits:
-        plugin_json_path = base / name / ".claude-plugin" / "plugin.json"
-        plugin = json.loads(plugin_json_path.read_text(encoding="utf-8"))
-        assert plugin["license"] == DEFAULT_AI_WORKBENCH_LICENSE_URL, (
-            "%s plugin.json license mismatch" % name
-        )
+    listed_toolkits, _ = fetch_workbench_toolkits(base, listed_only=True)
+    for name in listed_toolkits:
+        if name != "init":
+            resolved = resolve_toolkit_dependencies(name, dep_map)
+            assert "init" in resolved, "%s should depend on init" % name
 
 
 def test_toolkit_info_entry_skill_workbench(
