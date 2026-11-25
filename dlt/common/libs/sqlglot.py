@@ -5,6 +5,7 @@ from typing import (
     List,
     NamedTuple,
     Optional,
+    Sequence,
     Tuple,
     Union,
     Set,
@@ -687,25 +688,30 @@ def resolve_timestamp_cast(
             where `sqlglot_type` is `None` when no cast should be emitted
             (sqlite's numeric-affinity TIMESTAMP).
     """
+    sqlglot_type, (lower, upper) = _resolve_timestamp_values((lower, upper), caps)
+    return sqlglot_type, lower, upper
+
+
+def _resolve_timestamp_values(
+    values: Sequence[Any], caps: Optional["DestinationCapabilitiesContext"]
+) -> Tuple[Optional[sge.DataType], List[Any]]:
+    """Resolve one cast type for all `values` and format them, see `resolve_timestamp_cast`."""
     # lazy import — `dlt.common.data_writers` reaches back into
     # `dlt.common.destination`, which imports this module at load time
     from dlt.common.data_writers.escape import format_datetime_value
 
-    # coerce date / ISO-string bounds in the context timezone; real datetimes carry their own
-    if lower is not None and not isinstance(lower, datetime):
-        lower = ensure_datetime_in_tz(lower)
-    if upper is not None and not isinstance(upper, datetime):
-        upper = ensure_datetime_in_tz(upper)
+    # coerce date / ISO-string values in the context timezone; real datetimes carry their own
+    values = [
+        v if v is None or isinstance(v, datetime) else ensure_datetime_in_tz(v) for v in values
+    ]
 
     dialect = caps.sqlglot_dialect if caps is not None else None
     precision = caps.timestamp_precision if caps is not None else DEFAULT_TIMESTAMP_PRECISION
 
-    # tz-awareness comes from the actual bound value — needed so dialects that
+    # tz-awareness comes from the actual value — needed so dialects that
     # split timestamp/timestamptz (bigquery DATETIME vs TIMESTAMP) emit the
     # right cast and don't reject the comparison
-    tz_sample = (
-        lower if isinstance(lower, datetime) else (upper if isinstance(upper, datetime) else None)
-    )
+    tz_sample = next((v for v in values if isinstance(v, datetime)), None)
     timezone: Optional[bool] = None
     if tz_sample is not None:
         timezone = tz_sample.tzinfo is not None
@@ -732,41 +738,58 @@ def resolve_timestamp_cast(
     if dialect == "athena":
         cast_precision = DEFAULT_TIMESTAMP_PRECISION
         precision = DEFAULT_TIMESTAMP_PRECISION
+    # a destination with fixed timestamp precision may reject it in a type (databricks)
+    if caps is not None and not caps.supports_timestamp_precision_configuration:
+        cast_precision = None
 
     sqlglot_type = to_sqlglot_type(
         dlt_type="timestamp", timezone=timezone, precision=cast_precision
     )
 
     naive = timezone is False
-    if isinstance(lower, datetime):
-        lower = format_datetime_value(lower, precision, no_tz=naive)
-    if isinstance(upper, datetime):
-        upper = format_datetime_value(upper, precision, no_tz=naive)
+    values = [
+        format_datetime_value(v, precision, no_tz=naive) if isinstance(v, datetime) else v
+        for v in values
+    ]
 
     # sqlite's CAST AS TIMESTAMP/TIMESTAMPTZ goes through NUMERIC affinity and
     # parses only leading digits — drop the cast so text comparison works
     if dialect == "sqlite":
         sqlglot_type = None
 
-    return sqlglot_type, lower, upper
+    return sqlglot_type, values
 
 
-def resolve_date_cast(lower: Any, upper: Any) -> Tuple[Any, Any]:
-    """Coerce date bounds to stdlib dates so DATE literals render without a time component.
+def build_column_literal(
+    value: Any,
+    sqlglot_type: Optional[sge.DataType],
+    caps: Optional["DestinationCapabilitiesContext"] = None,
+) -> Union[sge.Expression, sge.Tuple]:
+    """Create a literal to compare with a column of `sqlglot_type` on a destination with `caps`.
+
+    Timestamp and date values (datetimes, dates and ISO strings) are coerced to the column type.
+    Timestamp literals keep the tz-awareness of the value and use a CAST the destination accepts,
+    see `resolve_timestamp_cast`. Other values are cast to `sqlglot_type` as given.
 
     Args:
-        lower (Any): Lower bound; a datetime / date / ISO-string is reduced to its calendar date,
-            `None` passes through.
-        upper (Any): Upper bound; same handling as `lower`.
+        value (Any): A value or an iterable of values, ie. for `IN`.
+        sqlglot_type (Optional[sge.DataType]): Type of the column, `None` emits literals
+            without CAST.
+        caps (Optional[DestinationCapabilitiesContext]): Capabilities of the destination that
+            runs the query.
 
     Returns:
-        Tuple[Any, Any]: `(lower, upper)` as stdlib `datetime.date` (or `None`).
+        Union[sge.Expression, sge.Tuple]: A literal, or a `Tuple` of literals for an iterable. All
+            values in an iterable share the same CAST.
     """
-    if lower is not None:
-        lower = ensure_date(lower)
-    if upper is not None:
-        upper = ensure_date(upper)
-    return lower, upper
+    is_iterable = isinstance(value, Iterable) and not isinstance(value, (str, bytes))
+    values = list(value) if is_iterable else [value]
+    dlt_type = SQLGLOT_TO_DLT_TYPE_MAP.get(sqlglot_type.this) if sqlglot_type is not None else None
+    if dlt_type == "timestamp":
+        sqlglot_type, values = _resolve_timestamp_values(values, caps)
+    elif dlt_type == "date":
+        values = [ensure_date(v) if v is not None else None for v in values]
+    return build_typed_literal(values if is_iterable else values[0], sqlglot_type)
 
 
 DLT_SUBQUERY_NAME = "_dlt_subquery"
