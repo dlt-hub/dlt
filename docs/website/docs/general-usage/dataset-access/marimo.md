@@ -15,11 +15,15 @@ This page shows how dlt + marimo + [ibis](../../dlt-ecosystem/transformations/py
 
 ## Prerequisites
 
-Install the required dependencies:
+Install marimo, the dlt widgets, and the Ibis DuckDB backend:
 
 ```cli
-pip install marimo ibis-framework mowidgets duckdb
+pip install marimo mowidgets "ibis-framework[duckdb]" "duckdb<2"
 ```
+
+:::note
+Ibis doesn't yet support DuckDB 2.
+:::
 
 ## Launch marimo
 

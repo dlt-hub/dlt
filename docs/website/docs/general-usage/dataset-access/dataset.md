@@ -181,6 +181,8 @@ The `Dataset` and `Relation` objects read no data when you create them. The read
 
 To handle large datasets efficiently, you can process data in smaller chunks.
 
+`chunk_size` is a target and not an exact size: depending on the destination, data frame and Arrow chunks may contain more or fewer rows.
+
 ### Iterate as Pandas DataFrames
 
 ```py notype
@@ -1115,8 +1117,12 @@ Not every destination that `dlt` supports has an equivalent Ibis backend. Native
 Install the `ibis-framework` package with the Ibis extra for your destination. This example installs the DuckDB backend:
 
 ```cli
-pip install ibis-framework[duckdb]
+pip install "ibis-framework[duckdb]" "duckdb<2"
 ```
+
+:::note
+Ibis doesn't yet support DuckDB 2.
+:::
 
 ### Get an Ibis connection from your dataset
 
@@ -1155,11 +1161,15 @@ This page shows how dlt, marimo, and [ibis](../../dlt-ecosystem/transformations/
 
 ### marimo Prerequisites
 
-To install marimo and ibis with the duckdb extras, run the following command:
+Install marimo with the Ibis DuckDB backend:
 
 ```cli
-pip install marimo "ibis-framework[duckdb]"
+pip install marimo "ibis-framework[duckdb]" "duckdb<2"
 ```
+
+:::note
+Ibis doesn't yet support DuckDB 2.
+:::
 
 ### Launch marimo
 

@@ -643,14 +643,16 @@ counts = reactions.sum(0).sort_values(0, ascending=False)  # ty: ignore
 - `fetchall()`: returns all rows as a list of tuples;
 - `fetchone()`: returns a single row as a tuple;
 - `fetchmany(size=None)`: returns a number of rows as a list of tuples; if no size is provided, all rows are returned;
-- `df(chunk_size=None, **kwargs)`: returns the data as a Pandas DataFrame; if `chunk_size` is provided, the data is retrieved in chunks of the given size;
-- `arrow(chunk_size=None, **kwargs)`: returns the data as an Arrow table; if `chunk_size` is provided, the data is retrieved in chunks of the given size;
+- `df(chunk_size=None, **kwargs)`: returns the data as a Pandas DataFrame; if `chunk_size` is provided, only the first chunk is returned;
+- `arrow(chunk_size=None, **kwargs)`: returns the data as an Arrow table; if `chunk_size` is provided, only the first chunk is returned;
 - `iter_fetch(chunk_size: int)`: iterates over the data in chunks of the given size as lists of tuples;
-- `iter_df(chunk_size: int)`: iterates over the data in chunks of the given size as Pandas DataFrames;
-- `iter_arrow(chunk_size: int)`: iterates over the data in chunks of the given size as Arrow tables.
+- `iter_df(chunk_size: int)`: iterates over the data in chunks of about the given size as Pandas DataFrames;
+- `iter_arrow(chunk_size: int)`: iterates over the data in chunks of about the given size as Arrow tables.
 
 :::info
 Which retrieval method you should use very much depends on your use case and the destination you are using. Some drivers for our destinations provided by their vendors natively support Arrow or Pandas DataFrames; in these cases, we will use that interface. If they do not, `dlt` will convert lists of tuples into these formats.
+
+With native readers, `chunk_size` is a target and not an exact size for data frames and Arrow tables: DuckDB-based destinations may return smaller chunks, and Snowflake returns chunks in the size its driver delivers. Do not rely on every chunk except the last being full.
 :::
 
 ### Filesystem SQL client

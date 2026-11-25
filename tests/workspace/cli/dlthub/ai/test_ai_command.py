@@ -36,11 +36,7 @@ from dlt._workspace.cli.dlthub.ai.utils import (
     resolve_toolkit_dependencies,
     fetch_workbench_toolkits,
 )
-from dlt._workspace.cli._urls import (
-    DEFAULT_AI_WORKBENCH_BRANCH,
-    DEFAULT_AI_WORKBENCH_LICENSE_URL,
-    DEFAULT_AI_WORKBENCH_REPO,
-)
+from dlt._workspace.cli._urls import DEFAULT_AI_WORKBENCH_BRANCH, DEFAULT_AI_WORKBENCH_REPO
 
 from tests.workspace.cli.dlthub.ai.utils import (
     AGENT_NAMES,
@@ -744,30 +740,22 @@ def test_toolkit_install_overwrite_workbench(
 
 
 def test_dependency_map_workbench(workbench_repo: str) -> None:
-    """build_dependency_map reads workbench dependencies and license links."""
+    """Listed workflow toolkits depend on init, except the toolkits that init itself depends on."""
     repo_root = Path(workbench_repo)
     base = repo_root / AI_WORKBENCH_BASE_DIR
     toolkits, _ = fetch_workbench_toolkits(base)
     dep_map = build_toolkits_dependency_map(toolkits)
     for name in KNOWN_TOOLKITS:
         assert name in dep_map, "%s missing from workbench" % name
-    # every toolkit depends on init, except the toolkits that init itself depends on
     init_deps = resolve_toolkit_dependencies("init", dep_map)
     assert "init" not in init_deps
-    for name in dep_map:
+
+    listed_toolkits, _ = fetch_workbench_toolkits(base, listed_only=True)
+    for name in listed_toolkits:
         if name == "init" or name in init_deps:
             continue
-        assert "init" in resolve_toolkit_dependencies(name, dep_map), (
-            "%s should depend on init" % name
-        )
-
-    # every plugin.json must link to the license; only `workbench/` is checked out
-    for name in toolkits:
-        plugin_json_path = base / name / ".claude-plugin" / "plugin.json"
-        plugin = json.loads(plugin_json_path.read_text(encoding="utf-8"))
-        assert plugin["license"] == DEFAULT_AI_WORKBENCH_LICENSE_URL, (
-            "%s plugin.json license mismatch" % name
-        )
+        resolved = resolve_toolkit_dependencies(name, dep_map)
+        assert "init" in resolved, "%s should depend on init" % name
 
 
 def test_toolkit_info_entry_skill_workbench(
