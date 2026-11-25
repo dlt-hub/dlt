@@ -4,6 +4,7 @@ import importlib
 import pytest
 import sqlglot
 import sqlglot.expressions as sge
+from sqlglot.errors import OptimizeError
 from sqlglot.optimizer.annotate_types import annotate_types
 from sqlglot.optimizer.qualify import qualify
 
@@ -894,12 +895,16 @@ def test_where_on_output(query: str, predicate: str, expected: str) -> None:
     filtered = where_on_output(source, sge.condition(predicate))
     assert filtered.sql() == expected
 
-    def _qualified(expression: sge.Expression, dialect: str) -> str:
+    def _qualified(expression: sge.Expression, dialect: str) -> Optional[str]:
         schema = {
             "t": {"a": "INT", "b": "INT", "c": "INT", "id": "INT"},
             "u": {"b": "INT", "id": "INT"},
         }
-        return qualify(expression.copy(), schema=schema, dialect=dialect).sql("duckdb")
+        try:
+            return qualify(expression.copy(), schema=schema, dialect=dialect).sql("duckdb")
+        except OptimizeError:
+            # clickhouse sees select aliases in the same select: `a AS b, b AS a` is a cycle there
+            return None
 
     # clickhouse binds WHERE names to select aliases first, the filter must mean the same there
     if _qualified(source, "clickhouse") == _qualified(source, "duckdb"):
