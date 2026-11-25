@@ -1,4 +1,5 @@
-from typing import List, Optional, Set, Tuple, cast
+from datetime import date, datetime, timedelta, timezone
+from typing import Any, List, Optional, Set, Tuple, cast
 import importlib
 import pytest
 import sqlglot
@@ -9,6 +10,7 @@ from sqlglot.optimizer.qualify import qualify
 from dlt.common.libs.sqlglot import (
     DLT_SUBQUERY_NAME,
     TSqlGlotDialect,
+    build_column_literal,
     build_typed_literal,
     filter_select_column_names,
     from_sqlglot_type,
@@ -24,6 +26,7 @@ from dlt.common.libs.sqlglot import (
     get_left_source_qualifier,
     where_on_output,
 )
+from dlt.common.destination import Destination
 from dlt.common.normalizers.naming.snake_case import NamingConvention as SnakeCaseNaming
 from dlt.common.schema.typing import TDataType, TColumnType, TTableSchemaColumns
 from dlt.common.schema.exceptions import CannotCoerceNullException
@@ -927,3 +930,84 @@ def test_build_typed_literal_bool_survives_type_annotation() -> None:
     annotated = annotate_types(select)
 
     assert "TRUE" in annotated.sql()
+
+
+_PLUS_2 = timezone(timedelta(hours=2))
+
+
+@pytest.mark.parametrize(
+    "dlt_type,value,expected_sql",
+    [
+        pytest.param(
+            "timestamp",
+            datetime(2024, 1, 1, 12, tzinfo=_PLUS_2),
+            "CAST('2024-01-01 12:00:00.000000+02:00' AS TIMESTAMPTZ)",
+            id="timestamp-aware-keeps-offset",
+        ),
+        pytest.param(
+            "timestamp",
+            datetime(2024, 1, 1, 12),
+            "CAST('2024-01-01 12:00:00.000000' AS TIMESTAMP(6))",
+            id="timestamp-naive",
+        ),
+        pytest.param(
+            "timestamp",
+            date(2024, 1, 1),
+            "CAST('2024-01-01 00:00:00.000000+00:00' AS TIMESTAMPTZ)",
+            id="timestamp-from-date",
+        ),
+        pytest.param(
+            "timestamp",
+            "2024-01-01T12:00:00+02:00",
+            "CAST('2024-01-01 10:00:00.000000+00:00' AS TIMESTAMPTZ)",
+            id="timestamp-from-iso-string",
+        ),
+        pytest.param(
+            "timestamp",
+            [datetime(2024, 1, 1, 12, tzinfo=_PLUS_2), datetime(2024, 1, 2, 12, tzinfo=_PLUS_2)],
+            "(CAST('2024-01-01 12:00:00.000000+02:00' AS TIMESTAMPTZ),"
+            " CAST('2024-01-02 12:00:00.000000+02:00' AS TIMESTAMPTZ))",
+            id="timestamp-iterable",
+        ),
+        pytest.param(
+            "date",
+            datetime(2024, 1, 1, 12, tzinfo=_PLUS_2),
+            "CAST('2024-01-01' AS DATE)",
+            id="date-from-aware-datetime",
+        ),
+        pytest.param("date", date(2024, 1, 1), "CAST('2024-01-01' AS DATE)", id="date"),
+        pytest.param("date", "2024-01-01", "CAST('2024-01-01' AS DATE)", id="date-from-iso-string"),
+        pytest.param("bigint", "5", "CAST('5' AS BIGINT)", id="bigint-from-string"),
+        pytest.param(
+            "text", ["a", "b"], "(CAST('a' AS TEXT), CAST('b' AS TEXT))", id="text-iterable"
+        ),
+        pytest.param(None, 10, "10", id="untyped"),
+    ],
+)
+def test_build_column_literal(dlt_type: Optional[TDataType], value: Any, expected_sql: str) -> None:
+    caps = Destination.from_reference("duckdb").capabilities()
+    sqlglot_type = to_sqlglot_type(dlt_type, nullable=True) if dlt_type else None
+
+    literal = build_column_literal(value, sqlglot_type, caps)
+
+    assert literal.sql(dialect="duckdb") == expected_sql
+
+
+@pytest.mark.parametrize(
+    "destination,expected_cast",
+    [("databricks", "TIMESTAMP"), ("snowflake", "TIMESTAMPTZ(6)")],
+    ids=["fixed-precision", "configurable-precision"],
+)
+def test_build_column_literal_timestamp_cast_precision(
+    destination: str, expected_cast: str
+) -> None:
+    """A destination without configurable timestamp precision gets a cast without precision."""
+    caps = Destination.from_reference(destination).capabilities()
+    sqlglot_type = to_sqlglot_type("timestamp", nullable=True)
+
+    literal = build_column_literal(datetime(2024, 1, 1, 12, tzinfo=_PLUS_2), sqlglot_type, caps)
+
+    assert isinstance(literal, sge.Cast)
+    # older sqlglot versions drop the precision for databricks when rendering
+    assert bool(literal.to.expressions) is caps.supports_timestamp_precision_configuration
+    assert literal.sql(dialect=caps.sqlglot_dialect).endswith(f"AS {expected_cast})")

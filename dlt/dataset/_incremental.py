@@ -9,14 +9,7 @@ from jsonpath_ng.exceptions import JSONPathError
 
 from dlt.common.incremental.typing import TIncrementalRange
 from dlt.common.jsonpath import extract_simple_field_name
-from dlt.common.libs.sqlglot import (
-    SQLGLOT_TO_DLT_TYPE_MAP,
-    build_typed_literal,
-    resolve_date_cast,
-    resolve_timestamp_cast,
-    to_sqlglot_type,
-    where_on_output,
-)
+from dlt.common.libs.sqlglot import build_column_literal, to_sqlglot_type, where_on_output
 from dlt.common.schema.typing import TTableSchemaColumns
 
 if TYPE_CHECKING:
@@ -156,23 +149,16 @@ def _build_incremental_condition(
             "`Relation.incremental()`. Expected one of: 'include', 'exclude', 'raise'."
         )
     start_value, end_value = incremental.get_current_range(apply_lag=True)
-
-    # coerce temporal range to the column type so literals render correctly
-    dlt_type = SQLGLOT_TO_DLT_TYPE_MAP.get(sqlglot_type.this) if sqlglot_type is not None else None
-    if dlt_type == "timestamp":
-        sqlglot_type, start_value, end_value = resolve_timestamp_cast(
-            start_value, end_value, destination_capabilities
-        )
-    elif dlt_type == "date":
-        start_value, end_value = resolve_date_cast(start_value, end_value)
+    # both bounds share one CAST
+    start_literal, end_literal = build_column_literal(
+        (start_value, end_value), sqlglot_type, destination_capabilities
+    ).expressions
 
     range_expr: Optional[sge.Expression] = None
     if start_value is not None:
-        start_literal = build_typed_literal(start_value, sqlglot_type)
         range_expr = start_op_cls(this=column_ref.copy(), expression=start_literal)
 
     if end_value is not None:
-        end_literal = build_typed_literal(end_value, sqlglot_type)
         end_condition: sge.Expression = end_op_cls(this=column_ref.copy(), expression=end_literal)
         range_expr = (
             end_condition
