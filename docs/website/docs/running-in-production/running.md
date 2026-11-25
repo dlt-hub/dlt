@@ -206,7 +206,7 @@ The Sentry client is configured after the first pipeline is created with `dlt.pi
 to use `sentry_sdk` init again to cover your specific needs.
 
 :::info
-`dlt` does not have Sentry client as a dependency. Remember to install it with `pip install sentry-sdk`.
+`dlt` does not have Sentry client as a dependency. Remember to install it with `pip install 'sentry-sdk<3'`.
 :::
 
 ### Disable all tracing

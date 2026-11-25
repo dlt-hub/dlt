@@ -52,8 +52,12 @@ Not all destinations supported by `dlt` have an equivalent Ibis backend. Nativel
 To use the Ibis backend, you will need to have the `ibis-framework` package with the correct Ibis extra installed. The following example will install the DuckDB backend:
 
 ```cli
-pip install ibis-framework[duckdb]
+pip install "ibis-framework[duckdb]" "duckdb<2"
 ```
+
+:::note
+Ibis doesn't yet support DuckDB 2.
+:::
 
 `dlt` datasets have a helper method to return an Ibis connection to the destination they live on:
 

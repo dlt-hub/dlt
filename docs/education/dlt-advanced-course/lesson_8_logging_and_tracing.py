@@ -5,7 +5,7 @@
 #     "numpy",
 #     "pandas",
 #     "pyarrow",
-#     "sentry-sdk",
+#     "sentry-sdk<3",
 #     "sqlalchemy",
 # ]
 # ///

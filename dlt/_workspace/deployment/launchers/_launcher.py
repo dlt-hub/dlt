@@ -4,15 +4,19 @@ import importlib.util
 import os
 import subprocess
 import sys
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, Iterator, List, Optional, Set, Tuple, Type
+
+from requests.exceptions import SSLError
 
 from dlt.common import json
 from dlt.common.configuration import resolve_configuration
 from dlt.common.configuration.specs import known_sections
 from dlt.common.configuration.specs.pluggable_run_context import ProfilesRunContext
 from dlt.common.configuration.utils import add_config_dict_to_env
+from dlt.common.exceptions import TerminalException
 from dlt.common.runtime.run_context import active
 from dlt.common.time import set_context_timezone
+from dlt.sources.helpers.requests.retry import DEFAULT_RETRY_EXCEPTIONS
 
 from dlt._workspace import known_sections as ws_known_sections
 from dlt.common import known_env
@@ -20,6 +24,68 @@ from dlt._workspace._known_env import WORKSPACE__PROFILE
 from dlt._workspace.deployment._job_ref import parse_job_ref
 from dlt._workspace.deployment.configuration import JobConfiguration
 from dlt._workspace.deployment.typing import TRuntimeEntryPoint, resolve_incremental_mode
+
+
+EXIT_TERMINAL_ERROR = 1
+"""Failed run that is terminal, or any failure not identified as transient. This is the default."""
+
+# matches EX_TEMPFAIL from sysexits.h; os.EX_TEMPFAIL is absent on Windows
+EXIT_TRANSIENT_ERROR = 75
+"""Failed run whose chain contains a connection or timeout error and no terminal failure."""
+
+_RETRYABLE_EXCEPTION_TYPES: Tuple[Type[BaseException], ...] = (
+    TimeoutError,
+    ConnectionError,
+    *DEFAULT_RETRY_EXCEPTIONS,
+)
+
+
+def _exception_chain(exc: BaseException) -> Iterator[BaseException]:
+    """Yields `exc` and the cause or context chain a traceback reports.
+
+    An explicit cause is followed. Otherwise the unsuppressed context is followed.
+    Each exception is yielded once, so a cyclic chain stops.
+    """
+    seen: Set[int] = set()
+    current: Optional[BaseException] = exc
+    while current is not None and id(current) not in seen:
+        seen.add(id(current))
+        yield current
+        cause = current.__cause__
+        if isinstance(cause, BaseException):
+            current = cause
+            continue
+        context = current.__context__
+        if not current.__suppress_context__ and isinstance(context, BaseException):
+            current = context
+            continue
+        current = None
+
+
+def failure_exit_code(exc: BaseException) -> int:
+    """Launcher status for a failed run.
+
+    A `TerminalException` or an SSL/certificate error on the reported chain selects
+    `EXIT_TERMINAL_ERROR`. `EXIT_TRANSIENT_ERROR` is returned only when that chain
+    contains a concrete connection or timeout failure and no terminal one. Every
+    other failure returns `EXIT_TERMINAL_ERROR`.
+
+    Args:
+        exc (BaseException): Failure raised by the run.
+
+    Returns:
+        int: `EXIT_TERMINAL_ERROR` or `EXIT_TRANSIENT_ERROR`.
+    """
+    # SSLError subclasses ConnectionError; TransientException also wraps coding errors
+    saw_retryable = False
+    for item in _exception_chain(exc):
+        if isinstance(item, (TerminalException, SSLError)):
+            return EXIT_TERMINAL_ERROR
+        if isinstance(item, _RETRYABLE_EXCEPTION_TYPES):
+            saw_retryable = True
+    if saw_retryable:
+        return EXIT_TRANSIENT_ERROR
+    return EXIT_TERMINAL_ERROR
 
 
 def use_utf8_output() -> None:

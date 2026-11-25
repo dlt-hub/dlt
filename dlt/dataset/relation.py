@@ -11,6 +11,7 @@ from typing import (
     NamedTuple,
     Optional,
     Set,
+    Tuple,
     Type,
     TYPE_CHECKING,
     Literal,
@@ -18,7 +19,7 @@ from typing import (
     get_args,
 )
 from textwrap import indent
-from contextlib import contextmanager
+from contextlib import closing, contextmanager
 from dlt.common.utils import simple_repr, without_none
 
 from sqlglot import maybe_parse
@@ -200,9 +201,9 @@ class Relation(WithSqlClient):
         with self._cursor() as cursor:
             return cursor.df(*args, **kwargs)
 
-    def arrow(self, *args: Any, **kwargs: Any) -> pa.Table | None:
-        with self._cursor() as cursor:
-            return cursor.arrow(*args, **kwargs)
+    def arrow(self, chunk_size: Optional[int] = None, **kwargs: Any) -> pa.Table | None:
+        with closing(self.iter_arrow(chunk_size)) as tables:
+            return next(tables, None)
 
     def fetchall(self, *args: Any, **kwargs: Any) -> list[tuple[Any, ...]]:
         with self._cursor() as cursor:
@@ -221,9 +222,9 @@ class Relation(WithSqlClient):
             yield from cursor.iter_df(*args, **kwargs)
 
     # TODO maybe it should return record batches
-    def iter_arrow(self, *args: Any, **kwargs: Any) -> Generator[pa.Table, None, None]:
-        with self._cursor() as cursor:
-            yield from cursor.iter_arrow(*args, **kwargs)
+    def iter_arrow(self, chunk_size: Optional[int] = None) -> Generator[pa.Table, None, None]:
+        with self._query_client() as (client, query, columns_schema):
+            yield from client.iter_arrow_query(query, chunk_size, columns_schema)
 
     def iter_fetch(self, *args: Any, **kwargs: Any) -> Generator[list[tuple[Any, ...]], None, None]:
         with self._cursor() as cursor:
@@ -302,8 +303,10 @@ class Relation(WithSqlClient):
         return self._dataset.sql_client_class
 
     @contextmanager
-    def _cursor(self) -> Generator[SupportsDataAccess, Any, Any]:
-        """Gets a DBApiCursor for the current relation"""
+    def _query_client(
+        self,
+    ) -> Generator[Tuple[SqlClientBase[Any], str, Optional[TTableSchemaColumns]], Any, Any]:
+        """Opens the sql client with foreign datasets attached, with the query and its columns"""
         try:
             client = self._opened_sql_client = self.sql_client
             # a raw query executes without lineage
@@ -315,22 +318,25 @@ class Relation(WithSqlClient):
             # case 1: client is already opened and managed from outside
             if client.native_connection:
                 self._attach_foreign_datasets(client)
-                with client.execute_query(query) as cursor:
-                    if columns_schema:
-                        cursor.columns_schema = columns_schema
-                    yield cursor
+                yield client, query, columns_schema
             # case 2: client is not opened, we need to manage it
             else:
                 with client:
                     # this relation attaches on the open connection, so the statements run here
                     # and any error appears here
                     self._attach_foreign_datasets(client)
-                    with client.execute_query(query) as cursor:
-                        if columns_schema:
-                            cursor.columns_schema = columns_schema
-                        yield cursor
+                    yield client, query, columns_schema
         finally:
             self._opened_sql_client = None
+
+    @contextmanager
+    def _cursor(self) -> Generator[SupportsDataAccess, Any, Any]:
+        """Gets a DBApiCursor for the current relation"""
+        with self._query_client() as (client, query, columns_schema):
+            with client.execute_query(query) as cursor:
+                if columns_schema:
+                    cursor.columns_schema = columns_schema
+                yield cursor
 
     def to_sql(self, pretty: bool = False, *, _raw_query: bool = False) -> str:
         """Get the query string in the destination dialect. `pretty` flattens subqueries and formats the SQL."""

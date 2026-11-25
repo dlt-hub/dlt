@@ -220,7 +220,7 @@ class DuckDbConnectionPool:
                     # load extensions in config
                     if self.credentials.extensions:
                         for extension in self.credentials.extensions:
-                            new_conn.sql(f"LOAD {extension}")
+                            new_conn.execute(f"LOAD {extension}")
 
                     self._apply_config(new_conn, "GLOBAL", global_config)
                     # before local config: a statement can create the schema that `search_path` names
@@ -316,7 +316,7 @@ class DuckDbConnectionPool:
         # set pragmas
         pragmas = [*(self.credentials.pragmas or {}), *(pragmas or {})]
         for pragma in pragmas:
-            conn.sql(f"PRAGMA {pragma}")
+            conn.execute(f"PRAGMA {pragma}")
         # calculate local config
         local_config = {**(self.credentials.local_config or {}), **(local_config or {})}
         self._apply_config(conn, "SESSION", local_config)

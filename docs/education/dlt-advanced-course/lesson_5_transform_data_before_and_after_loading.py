@@ -1,6 +1,7 @@
 # /// script
 # dependencies = [
 #     "dlt[sql_database,duckdb,parquet]",
+#     "duckdb<2",
 #     "ibis-framework[duckdb]",
 #     "numpy",
 #     "pandas",
@@ -60,6 +61,12 @@ def _(mo):
 
     Let's perform an initial load:
     """)
+    return
+
+
+@app.cell
+def _():
+    # Ibis doesn't yet support DuckDB 2.
     return
 
 

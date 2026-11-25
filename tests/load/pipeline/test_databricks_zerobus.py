@@ -7,6 +7,9 @@ import pytest
 from dlt.common import sleep
 from dlt.common.data_types import TDataType
 from dlt.common.typing import TLoaderFileFormat
+
+pytest.importorskip("databricks")
+
 from dlt.destinations.impl.databricks.databricks import DatabricksZerobusJsonlLoadJob
 from dlt.destinations.impl.databricks.factory import DatabricksTypeMapper
 from tests.cases import assert_all_data_types_row, table_update_and_row

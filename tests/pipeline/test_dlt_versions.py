@@ -96,6 +96,12 @@ skip_on_312 = pytest.mark.skipif(
     reason="Old dlt versions (<1.0) do not run on Python 3.12+",
 )
 GITHUB_DATASET = "github_3"
+DLT_030_DEPENDENCIES = [
+    "dlt[duckdb]==0.3.0",
+    "json-logging==1.4.1rc0",
+    "setuptools<80",
+    "sentry-sdk<3",  # dlt 0.3.0 imports Hub, which Sentry SDK 3 removed
+]
 
 
 @skip_on_312
@@ -111,9 +117,7 @@ def test_pipeline_with_dlt_update(test_storage: FileStorage) -> None:
         }
     ):
         # create virtual env with (0.3.0) before the current schema upgrade
-        with Venv.create(
-            tempfile.mkdtemp(), ["dlt[duckdb]==0.3.0", "json-logging==1.4.1rc0", "setuptools<80"]
-        ) as venv:
+        with Venv.create(tempfile.mkdtemp(), DLT_030_DEPENDENCIES) as venv:
             # NOTE: we force a newer duckdb into the 0.3.0 dlt version to get compatible duckdb storage
             venv.install_deps(venv.context, ["duckdb" + "==" + pkg_version("duckdb")])
             # load 20 issues
@@ -256,9 +260,7 @@ def test_dataset_on_schema_stored_by_old_dlt(test_storage: FileStorage) -> None:
 
     with test_workspace({"DESTINATION__DUCKDB__CREDENTIALS": "duckdb:///test_github_3.duckdb"}):
         # 0.3.0 stores an engine 5 schema in the destination
-        with Venv.create(
-            tempfile.mkdtemp(), ["dlt[duckdb]==0.3.0", "json-logging==1.4.1rc0", "setuptools<80"]
-        ) as venv:
+        with Venv.create(tempfile.mkdtemp(), DLT_030_DEPENDENCIES) as venv:
             venv.install_deps(venv.context, ["duckdb" + "==" + pkg_version("duckdb")])
             print(
                 venv.run_script(
@@ -462,9 +464,7 @@ def test_load_package_with_dlt_update(test_storage: FileStorage) -> None:
     # execute in test storage
     with test_workspace({"DESTINATION__DUCKDB__CREDENTIALS": "duckdb:///test_github_3.duckdb"}):
         # create virtual env with (0.3.0) before the current schema upgrade
-        with Venv.create(
-            tempfile.mkdtemp(), ["dlt[duckdb]==0.3.0", "json-logging==1.4.1rc0", "setuptools<80"]
-        ) as venv:
+        with Venv.create(tempfile.mkdtemp(), DLT_030_DEPENDENCIES) as venv:
             venv.install_deps(venv.context, ["duckdb" + "==" + pkg_version("duckdb")])
             # extract and normalize on old version but DO NOT LOAD
             print(
@@ -531,9 +531,7 @@ def test_normalize_package_with_dlt_update(test_storage: FileStorage) -> None:
     # execute in test storage
     with test_workspace({"DESTINATION__DUCKDB__CREDENTIALS": "duckdb:///test_github_3.duckdb"}):
         # create virtual env with (0.3.0) before the current schema upgrade
-        with Venv.create(
-            tempfile.mkdtemp(), ["dlt[duckdb]==0.3.0", "json-logging==1.4.1rc0", "setuptools<80"]
-        ) as venv:
+        with Venv.create(tempfile.mkdtemp(), DLT_030_DEPENDENCIES) as venv:
             venv.install_deps(venv.context, ["duckdb" + "==" + pkg_version("duckdb")])
             # extract only
             print(
@@ -645,9 +643,7 @@ def test_normalize_path_separator_legacy_behavior(test_storage: FileStorage) -> 
     with test_workspace({"DESTINATION__DUCKDB__CREDENTIALS": "duckdb:///test_github_3.duckdb"}):
         venv_dir = tempfile.mkdtemp()
         # create virtual env with (0.3.0) before the current schema upgrade
-        with Venv.create(
-            venv_dir, ["dlt[duckdb]==0.3.0", "json-logging==1.4.1rc0", "setuptools<80"]
-        ) as venv:
+        with Venv.create(venv_dir, DLT_030_DEPENDENCIES) as venv:
             venv.install_deps(venv.context, ["duckdb" + "==" + pkg_version("duckdb")])
             try:
                 print(venv.run_script("../tests/pipeline/cases/github_pipeline/github_rev.py"))
