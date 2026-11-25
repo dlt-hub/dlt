@@ -25,6 +25,7 @@ from typing import (
 from types import ModuleType
 
 from dlt.common import json
+from dlt.common.configuration import plugins
 from dlt.common.exceptions import DictValidationException
 from dlt.common.time import ensure_datetime_in_tz
 from dlt.common.typing import DictStrAny
@@ -1025,6 +1026,10 @@ def generate_manifest(
     if tags:
         manifest["tags"] = list(tags)
 
+    for plugin_warnings in plugins.manager().hook.plug_deployment_manifest_processor(
+        manifest=manifest, environment=environment
+    ):
+        warnings.extend(plugin_warnings or [])
     return manifest, warnings
 
 

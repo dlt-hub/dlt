@@ -59,7 +59,7 @@ def plugin_install():
 
     importlib.reload(importlib.metadata)
 
-    yield
+    yield temp_dir
 
     sys.path.remove(temp_dir)
     shutil.rmtree(temp_dir)
@@ -89,6 +89,36 @@ def test_config_providers_hook() -> None:
     providers = Container()[PluggableRunContext].providers
     assert "example_plugin" in providers
     assert dlt.secrets["example_plugin.api_key"] == "from-plugin"
+
+
+@pytest.mark.parametrize("isolated", [False, True], ids=["in-process", "isolated"])
+def test_deployment_manifest_processor_hook(
+    plugin_install: str, isolated: bool, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The example plugin processes the manifests that dlt generates, also in the isolated worker
+    that loads the plugin from its entry point. Its rejection reaches the caller."""
+    from dlt._workspace.deployment.manifest import manifest_from_module
+
+    # the isolated worker raises the rejection again in this process when its class is imported
+    from dlt_example_plugin.manifest_processor import (  # type: ignore[import-not-found]
+        PROCESSED_WARNING,
+        PROVIDER,
+        ExampleManifestRejected,
+    )
+
+    # the worker finds the plugin where the fixture installed it
+    monkeypatch.setenv(
+        "PYTHONPATH", os.pathsep.join(filter(None, [plugin_install, os.environ.get("PYTHONPATH")]))
+    )
+    manifest, warnings = manifest_from_module(
+        "dlt_example_plugin.deployment", None, isolated=isolated
+    )
+    job = next(j for j in manifest["jobs"] if j["job_ref"].endswith(".example_job"))
+    assert job["require"]["provider"] == PROVIDER
+    assert PROCESSED_WARNING in warnings
+
+    with pytest.raises(ExampleManifestRejected):
+        manifest_from_module("dlt_example_plugin.rejected_deployment", None, isolated=isolated)
 
 
 def test_run_context_passthrough() -> None:

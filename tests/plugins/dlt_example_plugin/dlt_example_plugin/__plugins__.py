@@ -1,6 +1,6 @@
 import os
 import argparse
-from typing import Any, ClassVar, Dict, Optional, Sequence, Type
+from typing import TYPE_CHECKING, Any, ClassVar, Dict, List, Optional, Sequence, Type
 
 from dlt.common.configuration import plugins
 from dlt.common.configuration.providers import ConfigProvider
@@ -9,6 +9,10 @@ from dlt._workspace.cli import SupportsCliCommand
 from dlt.common.runtime.run_context import RunContext, DOT_DLT
 
 from dlt._workspace.cli.exceptions import CliCommandException
+
+if TYPE_CHECKING:
+    from dlt._workspace.deployment.typing import TJobsDeploymentManifest
+    from dlt._workspace.typing import TEnvironmentDefinition
 
 
 class RunContextTest(RunContext):
@@ -239,6 +243,16 @@ def plug_cli_t_ai_status(host: str) -> Optional[Type[SupportsCliCommand]]:
     if host != "dlthub":
         return None
     return TAiStatusCheckCommand
+
+
+@plugins.hookimpl(specname="plug_deployment_manifest_processor")
+def plug_deployment_manifest_processor_impl(
+    manifest: "TJobsDeploymentManifest", environment: Optional["TEnvironmentDefinition"]
+) -> Optional[List[str]]:
+    # the deployment package is imported when dlt generates a manifest, not when it loads plugins
+    from dlt_example_plugin.manifest_processor import process_manifest  # type: ignore[import-not-found]
+
+    return process_manifest(manifest)
 
 
 @plugins.hookimpl(specname="plug_config_providers")

@@ -8,6 +8,7 @@ from typing import List, Optional, Tuple
 
 import pytest
 
+from dlt.common.configuration import plugins
 from dlt._workspace.deployment.decorators import job
 from dlt._workspace.deployment.exceptions import InvalidManifest, InvalidTrigger
 from dlt._workspace.deployment.manifest import (
@@ -24,6 +25,7 @@ from dlt._workspace.deployment.typing import (
     MANIFEST_ENGINE_VERSION,
     TJobDefinition,
     TJobRef,
+    TJobsDeploymentManifest,
     TTrigger,
 )
 from dlt._workspace.typing import TEnvironmentDefinition
@@ -512,6 +514,48 @@ def test_default_dashboard_manifest() -> None:
         assert [j["job_ref"] for j in default_dashboard_manifest(None)["jobs"]] == [
             DASHBOARD_JOB_REF
         ]
+
+
+def test_plugin_processes_manifest() -> None:
+    """A plugin processes every manifest that dlt generates, the dashboard-only one too, before
+    dlt validates it."""
+
+    class Processor:
+        def __init__(self) -> None:
+            self.environments: List[Optional[str]] = []
+            self.duplicate_job = False
+
+        @plugins.hookimpl(specname="plug_deployment_manifest_processor")
+        def process(
+            self, manifest: TJobsDeploymentManifest, environment: Optional[TEnvironmentDefinition]
+        ) -> Optional[List[str]]:
+            self.environments.append(environment["name"] if environment else None)
+            for job_def in manifest["jobs"]:
+                job_def.setdefault("require", {})["provider"] = "test"
+            if self.duplicate_job:
+                manifest["jobs"].append(manifest["jobs"][0])
+            return ["processed"]
+
+    processor = Processor()
+    manager = plugins.manager()
+    manager.register(processor, name="test-manifest-processor")
+    try:
+        manifest, warnings = manifest_from_module(f"{WORKSPACE}.deployment_batch_only", None)
+        assert {j["require"]["provider"] for j in manifest["jobs"]} == {"test"}
+        assert warnings == ["processed"]
+
+        qa: TEnvironmentDefinition = {**full_environment("qa"), "strict_access": False}
+        with isolated_workspace("default"):
+            dashboard = default_dashboard_manifest({**qa, "default": True})
+        assert [j["require"]["provider"] for j in dashboard["jobs"]] == ["test"]
+        assert processor.environments == [None, "qa"]
+
+        # dlt validates the manifest that the plugin made
+        processor.duplicate_job = True
+        with pytest.raises(InvalidManifest):
+            manifest_from_module(f"{WORKSPACE}.deployment_batch_only", None)
+    finally:
+        manager.unregister(name="test-manifest-processor")
 
 
 @pytest.mark.parametrize(

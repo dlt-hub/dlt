@@ -1,9 +1,72 @@
 import os
-from typing import Any, Dict, NamedTuple, Optional, Sequence, Set, Type
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    Dict,
+    List,
+    NamedTuple,
+    Optional,
+    Protocol,
+    Sequence,
+    Set,
+    Type,
+)
 
 from dlt.common.configuration import plugins as _plugins
 from dlt.common.configuration.specs.pluggable_run_context import RunContextBase
 from dlt.common.runtime.run_context import DOT_DLT, RunContext
+
+if TYPE_CHECKING:
+    from dlt._workspace.deployment.typing import TJobsDeploymentManifest
+    from dlt._workspace.typing import TEnvironmentDefinition
+
+
+class SupportsMcpFeatures(Protocol):
+    """Protocol for contributing MCP tools, prompts, and providers via plug_mcp hook"""
+
+    name: str
+    """unique name identifying this feature set"""
+    tools: Sequence[Any]
+    """tool functions or Tool objects to register"""
+    prompts: Sequence[Any]
+    """prompt functions or Prompt objects to register"""
+    providers: Sequence[Any]
+    """provider instances (e.g. SkillProvider) to register"""
+
+
+@_plugins.hookspec()
+def plug_mcp(features: Set[str]) -> Optional[SupportsMcpFeatures]:
+    """Spec for plugin hook that contributes MCP tools, prompts, and providers.
+
+    MCP server will broadcast `features` to all registered plugins that may
+    decide to return a MCP feature (combination of tools, skills and prompts)
+    or not. The server collects all non-None results and registers everything on the
+    FastMCP instance.
+
+    Args:
+        features: set of feature keywords the server requests
+    """
+
+
+@_plugins.hookspec()
+def plug_deployment_manifest_processor(
+    manifest: "TJobsDeploymentManifest", environment: Optional["TEnvironmentDefinition"]
+) -> Optional[List[str]]:
+    """Spec for plugin hook that processes a deployment manifest that dlt generates.
+
+    dlt calls it when the manifest is complete and before dlt validates it, on every path that
+    generates a manifest. A plugin changes `manifest` in place. To reject the manifest, a plugin
+    raises a `DeploymentValidationError`. An isolated generation raises it again in the caller when
+    the caller has imported its class.
+
+    Args:
+        manifest (TJobsDeploymentManifest): The generated manifest.
+        environment (Optional[TEnvironmentDefinition]): The environment of the deployment, `None`
+            for a local run.
+
+    Returns:
+        Optional[List[str]]: Warnings to report with the manifest, or `None`.
+    """
 
 
 class McpFeatures(NamedTuple):
@@ -158,6 +221,9 @@ def plug_agent_loop_claude_sdk(loop_type: str) -> Optional[Type[_plugins.Support
 
 
 __all__ = [
+    # hookspecs: dlt adds them when it loads `dlt.__plugins__`
+    "plug_mcp",
+    "plug_deployment_manifest_processor",
     "plug_workspace_context_impl",
     "plug_mcp_pipeline",
     "plug_mcp_workspace",
