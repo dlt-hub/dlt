@@ -420,20 +420,23 @@ def test_toolkit_install_overwrite_workbench(
 
 
 def test_dependency_map_workbench(workbench_repo: str) -> None:
-    """Listed workflow toolkits depend on init, which has no dependencies."""
+    """Listed workflow toolkits depend on init, except the toolkits that init itself depends on."""
     repo_root = Path(workbench_repo)
     base = repo_root / AI_WORKBENCH_BASE_DIR
     toolkits, _ = fetch_workbench_toolkits(base)
     dep_map = build_toolkits_dependency_map(toolkits)
     for name in KNOWN_TOOLKITS:
         assert name in dep_map, "%s missing from workbench" % name
-    assert resolve_toolkit_dependencies("init", dep_map) == [], "init should have no dependencies"
+    init_deps = resolve_toolkit_dependencies("init", dep_map)
+    assert "init" not in init_deps
 
     listed_toolkits, _ = fetch_workbench_toolkits(base, listed_only=True)
     for name in listed_toolkits:
-        if name != "init":
-            resolved = resolve_toolkit_dependencies(name, dep_map)
-            assert "init" in resolved, "%s should depend on init" % name
+        # dlthub-setup installs dlt[hub] that init requires, so it cannot depend on init
+        if name in ("init", "dlthub-setup") or name in init_deps:
+            continue
+        resolved = resolve_toolkit_dependencies(name, dep_map)
+        assert "init" in resolved, "%s should depend on init" % name
 
 
 def test_toolkit_info_entry_skill_workbench(
