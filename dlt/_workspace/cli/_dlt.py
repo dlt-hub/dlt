@@ -1,6 +1,18 @@
 import sys
 import warnings
-from typing import TYPE_CHECKING, Any, Optional, Sequence, Type, cast, List, Dict, Tuple
+from contextlib import nullcontext
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    ContextManager,
+    Optional,
+    Sequence,
+    Type,
+    cast,
+    List,
+    Dict,
+    Tuple,
+)
 
 if TYPE_CHECKING:
     from _typeshed import SupportsWrite
@@ -16,6 +28,7 @@ from dlt._workspace.cli._telemetry_command import (
     telemetry_change_status_command_wrapper,
 )
 from dlt._workspace.cli.echo import maybe_no_stdin
+from dlt._workspace.exceptions import WorkspaceException
 
 ACTION_EXECUTED = False
 
@@ -245,6 +258,8 @@ def _create_parser(
     top_groups, sub_groups = _compose.group_commands(results)
 
     installed_commands: Dict[str, _compose.ComposedExecutable] = {}
+    # the command whose `configure_parser` built each parser
+    configured: List[Tuple[argparse.ArgumentParser, SupportsCliCommand]] = []
 
     # install top level commands
     for name, group in top_groups.items():
@@ -254,6 +269,7 @@ def _create_parser(
             description=getattr(group[0], "description", None),
         )
         installed_commands[name] = _compose.configure_parser(command_parser, group)
+        configured.append((command_parser, installed_commands[name].primary))
 
     # attach sub commands to commands
     for (parent_name, sub_name), sub_group in sub_groups.items():
@@ -291,6 +307,7 @@ def _create_parser(
         )
         sub_node = _compose.configure_parser(sub_parser, sub_group)
         sub_parser.set_defaults(execute=sub_node.execute)
+        configured.append((sub_parser, sub_node.primary))
 
     # recursively add formatter class
     def add_formatter_class(parser: argparse.ArgumentParser) -> None:
@@ -307,14 +324,33 @@ def _create_parser(
 
     add_formatter_class(parser)
 
+    # in a workspace every dlthub command takes the profile options it declares
+    if host == "dlthub" and is_workspace_active():
+        from dlt._workspace.cli.dlthub._profile_options import add_profile_options
+
+        add_profile_options(parser, configured)
+
     return parser, pre_parser, installed_commands
+
+
+def _use_command_profile(
+    parser: argparse.ArgumentParser, args: argparse.Namespace, host: str
+) -> ContextManager[Any]:
+    """Returns the context that runs the command of `args` with the profile that its profile
+    options select. Only the `dlthub` host selects a profile. Exits when the options conflict."""
+    if host != "dlthub":
+        return nullcontext()
+    from dlt._workspace.cli.dlthub._profile_options import use_command_profile
+
+    return use_command_profile(parser, args)
 
 
 def main(host: str = "dlt") -> int:
     fmt.set_cli_host_name(host)
     try:
         parser, pre_parser, installed_commands = _create_parser(host)
-    except ValueError as ex:
+    except (ValueError, WorkspaceException) as ex:
+        # the workspace loads here: an invalid `.workspace` or an undeclared profile stops dlt
         fmt.secho(str(ex), err=True, fg="red")
         return -1
     # pre-pass extracts global flags at any argv position; main parse uses namespace=ns to keep them
@@ -326,6 +362,7 @@ def main(host: str = "dlt") -> int:
         if ex.code == 2 and host == "dlthub":
             _print_dlthub_workspace_hint()
         raise
+    profile_context = _use_command_profile(parser, args, host)
 
     if Venv.is_virtual_env() and not Venv.is_venv_activated():
         fmt.warning(
@@ -342,7 +379,8 @@ def main(host: str = "dlt") -> int:
                 if not args.no_pwd:
                     if "" not in sys.path:
                         sys.path.insert(0, "")
-                cmd.execute(args)
+                with profile_context:
+                    cmd.execute(args)
         except Exception as ex:
             docs_url = getattr(cmd, "docs_url", None)
             error_code = -1
@@ -392,7 +430,12 @@ def _main() -> None:
     """Entry point for the `dlt` console script."""
     # when workspace is active, dlt commands do not execute - the user is pointed to dlthub.
     # only `dlt --version` still dispatches
-    if is_workspace_active() and "--version" not in sys.argv[1:]:
+    try:
+        workspace_active = is_workspace_active()
+    except (ValueError, WorkspaceException) as ex:
+        fmt.secho(str(ex), err=True, fg="red")
+        exit(-1)
+    if workspace_active and "--version" not in sys.argv[1:]:
         command = next((a for a in sys.argv[1:] if not a.startswith("-")), None)
         _print_use_dlthub_note(command)
         exit(-1)

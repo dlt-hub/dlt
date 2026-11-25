@@ -13,28 +13,17 @@ from dlt.common import logger, validation
 from dlt.common.exceptions import DictValidationException
 from dlt.common.reflection.ref import import_folder_module
 
-from dlt._workspace.cli.dlthub.ai.agents import (
-    COMPONENT_MARKERS,
-    TComponentType,
-    resolve_installed_component,
-)
+from dlt._workspace.cli.dlthub.ai.agents import COMPONENT_MARKERS, TComponentType, _AIAgent
 from dlt._workspace.cli.dlthub.ai.utils import load_toolkits_index
-from dlt._workspace.cli.formatters import parse_frontmatter
+from dlt._workspace.cli.markdown import MarkdownDocument
 from dlt._workspace.deployment.agent.exceptions import (
     AgentComponentNotFound,
     InvalidAgentSpec,
 )
-from dlt._workspace.access import (
-    ACCESS_AXES,
-    ACCESS_AXIS_VERBS,
-    ACCESS_AXIS_VOCABULARY,
-    granted_verbs,
-    missing_access,
-)
+from dlt._workspace.access import granted_verbs, missing_access, normalize_access
 from dlt._workspace.deployment._trigger_helpers import normalize_execute
 from dlt._workspace.deployment.agent.typing import TAgentSpec
 from dlt._workspace.deployment.typing import AGENT_DEFINITION_ENGINE_VERSION, TAgentDefinition
-from dlt._workspace.typing import TWorkspaceAccess
 
 
 _PLACEHOLDER = re.compile(r"\{\{\s*([\w.]+)\s*\}\}")
@@ -80,7 +69,9 @@ def load_agent_spec(agent_dir: str) -> TAgentSpec:
     if not os.path.isfile(path):
         raise InvalidAgentSpec(path, "file does not exist")
     try:
-        frontmatter, body = parse_frontmatter(open(path, "r", encoding="utf-8").read())
+        frontmatter, body = MarkdownDocument(
+            Path(path).read_text(encoding="utf-8")
+        ).split_frontmatter()
     except yaml.YAMLError as ex:
         raise InvalidAgentSpec(path, f"frontmatter is not valid YAML: {ex}") from ex
     if not body.strip():
@@ -115,24 +106,12 @@ def validate_agent_spec(spec: TAgentSpec, source: str) -> TAgentSpec:
     spec["inputs"] = declared.get("inputs") or {}
     if "prompt" in spec["inputs"]:
         raise InvalidAgentSpec(source, "inputs must not declare 'prompt'. Put the task in the body")
-    access: Dict[str, Any] = dict(declared.get("access") or {})
-    if unknown := sorted(set(access) - set(ACCESS_AXES)):
-        raise InvalidAgentSpec(
-            source, f"access takes {', '.join(ACCESS_AXES)}. Got {', '.join(unknown)}"
-        )
-    for axis in ACCESS_AXES:
-        if isinstance(access.get(axis), str):
-            access[axis] = [access[axis]]
-        allowed = ACCESS_AXIS_VERBS[axis] + ("all",)
-        refused = sorted({verb for verb in access.get(axis) or [] if verb not in allowed})
-        if refused:
-            unserved = sorted(set(ACCESS_AXIS_VOCABULARY[axis]) - set(allowed))
-            reason = f"access.{axis} takes {', '.join(allowed)}"
-            if set(unserved) & set(refused):
-                reason += f", and no runtime serves {', '.join(unserved)} yet"
-            raise InvalidAgentSpec(source, f"{reason}. Got {', '.join(refused)}")
+    try:
+        access = normalize_access(declared.get("access") or {})
+    except ValueError as ex:
+        raise InvalidAgentSpec(source, str(ex)) from ex
     if access:
-        spec["access"] = cast(TWorkspaceAccess, access)
+        spec["access"] = access
     # a single component may be written without the list, as an access verb may
     fields = cast(Dict[str, Any], spec)
     for list_key in ("tools", "skills", "rules"):
@@ -257,7 +236,7 @@ def resolve_agent_dir(agent_ref: str, workspace_root: str) -> str:
         raise AgentComponentNotFound(agent_ref, "agent", [agent_manifest_path(candidate)])
 
     toolkit, _, name = agent_ref.rpartition(":")
-    path = resolve_installed_component(toolkit, name, "agent", Path(workspace_root))
+    path = _AIAgent.resolve_installed_component(toolkit, name, "agent", Path(workspace_root))
     if path is None:
         raise AgentComponentNotFound(
             agent_ref,
@@ -278,7 +257,7 @@ def resolve_component_ref(ref: str, kind: "TComponentType", workspace_root: str)
         raise AgentComponentNotFound(ref, kind, [candidate])
 
     toolkit, _, name = ref.rpartition(":")
-    path = resolve_installed_component(toolkit, name, kind, Path(workspace_root))
+    path = _AIAgent.resolve_installed_component(toolkit, name, kind, Path(workspace_root))
     if path is None:
         raise AgentComponentNotFound(
             ref,

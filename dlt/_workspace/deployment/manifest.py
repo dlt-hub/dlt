@@ -9,10 +9,23 @@ from datetime import datetime, timezone
 from contextlib import contextmanager
 from copy import copy
 from importlib import import_module
-from typing import Any, BinaryIO, Dict, Iterator, List, NamedTuple, Optional, Set, Tuple, Type
+from typing import (
+    Any,
+    BinaryIO,
+    Dict,
+    Iterator,
+    List,
+    NamedTuple,
+    Optional,
+    Sequence,
+    Set,
+    Tuple,
+    Type,
+)
 from types import ModuleType
 
 from dlt.common import json
+from dlt.common.configuration import plugins
 from dlt.common.exceptions import DictValidationException
 from dlt.common.time import ensure_datetime_in_tz
 from dlt.common.typing import DictStrAny
@@ -20,6 +33,12 @@ from dlt.common import validation
 from dlt.common.warnings import apply_deprecations
 from dlt.reflection.script_inspector import no_pipeline_execution
 
+from dlt._workspace.access import (
+    DATA_ACCESS_LEVELS,
+    format_data_access,
+    get_data_access_level,
+    get_data_access_verbs,
+)
 from dlt._workspace.deployment.decorators import AgentJobFactory, JobFactory
 from dlt._workspace.deployment.detectors import (
     detect_local_module,
@@ -35,10 +54,27 @@ from dlt._workspace.deployment.exceptions import (
     InvalidTrigger,
     ManifestEngineNoUpgradePath,
     JobValidationResult,
+    JobProfileAccessMismatch,
+    JobProfileNotInEnvironment,
     ManifestValidationResult,
+    ProfileDataAccessNotAvailable,
 )
 from dlt._workspace.deployment._job_ref import parse_job_ref
-from dlt._workspace.profile import LOCAL_PROFILES, is_local_profile
+from dlt._workspace.environment import get_deployment_module_for_env, get_profiles_for_env
+from dlt._workspace.typing import (
+    DEFAULT_DEPLOYMENT_MODULE,
+    TEnvironmentDefinition,
+    TProfileDataAccess,
+    TWorkspaceAccess,
+)
+from dlt._workspace.workspace_definition import (
+    create_built_in_workspace_definition,
+    find_default_profile_for_access,
+    get_default_profile_for_env,
+    get_profile_data_access,
+    is_profile_usable,
+    set_configured_profiles,
+)
 from dlt._workspace.deployment import trigger as _triggers
 from dlt._workspace.deployment._trigger_helpers import (
     is_selector,
@@ -49,8 +85,8 @@ from dlt._workspace.deployment._trigger_helpers import (
 from dlt._workspace.deployment.freshness import parse_freshness_constraint
 from dlt._workspace.deployment.launchers import LAUNCHER_DASHBOARD
 from dlt._workspace.deployment.typing import (
+    BACKGROUND_AGENT_CATEGORY,
     DASHBOARD_JOB_REF,
-    DEFAULT_DEPLOYMENT_MODULE,
     MANIFEST_ENGINE_VERSION,
     TEntryPoint,
     TExecuteSpec,
@@ -71,6 +107,8 @@ _JOB_EVENT_TRIGGERS = ("job.success", "job.fail")
 
 _HASH_EXCLUDE_KEYS = ("version", "version_hash", "previous_hashes", "created_at")
 _MAX_PREVIOUS_HASHES = 10
+MAX_LISTED_JOB_REFS = 5
+"""The number of job refs that a warning lists before it ends the list with `...`."""
 
 
 def generate_manifest_hash(manifest: TJobsDeploymentManifest) -> str:
@@ -302,6 +340,217 @@ NO_DEFAULT_TRIGGER_TYPES = ("manual", "deployment", "job.success", "job.fail")
 """Trigger types never picked as a job's default; job events need a real upstream run."""
 
 
+class TJobProfile(NamedTuple):
+    """The profile that a job runs with and the data access that it declares."""
+
+    profile: str
+    data_access: TProfileDataAccess
+    """`none`, `read` or `write`. The profile can give more in an environment that is not
+    strict."""
+    warning: Optional[str]
+    """Set when the profile gives another data access than the job declares, or has no settings
+    files."""
+
+
+def get_job_access(job_def: TJobDefinition) -> TWorkspaceAccess:
+    """Access that a job declares it needs to run. A job that declares none gets its data access
+    from its type: read for interactive jobs, none for agent jobs, write for the other batch and
+    stream jobs."""
+    if (access := job_def.get("access")) is not None:
+        return access
+    if job_def["entry_point"].get("job_type") == "interactive":
+        return {"data": get_data_access_verbs("read")}
+    if (job_def.get("expose") or {}).get("category") == BACKGROUND_AGENT_CATEGORY:
+        return {}
+    return {"data": get_data_access_verbs("write")}
+
+
+def get_declared_data_access(job_def: TJobDefinition) -> TProfileDataAccess:
+    """Data access that a job declares: `none`, `read` or `write`."""
+    return get_data_access_level(get_job_access(job_def))
+
+
+def resolve_job_profile(
+    job_def: TJobDefinition, environment: TEnvironmentDefinition
+) -> TJobProfile:
+    """The profile of `environment` that a job runs with, and the data access the job declares.
+
+    A job that declares no profile gets the default profile of the environment for the data
+    access that it declares. A profile without settings files does not count. In an environment
+    that is not strict, the job then gets the closest default profile with more data access. A
+    strict environment takes only a profile that gives exactly the declared data access. A job
+    that declares a profile and no `data` access needs the data access of that profile.
+
+    Raises:
+        JobProfileNotInEnvironment: The job declares a profile outside the environment.
+        JobProfileAccessMismatch: The environment is strict, and the profile that the job
+            declares gives another data access or has no settings files.
+        ProfileDataAccessNotAvailable: The environment has no profile for the job.
+    """
+    env = environment["name"]
+    definitions = environment["profiles"]
+    strict = bool(environment.get("strict_access"))
+    ref = job_def["job_ref"]
+    needed = get_declared_data_access(job_def)
+
+    if declared := (job_def.get("require") or {}).get("profile"):
+        if declared not in definitions:
+            raise JobProfileNotInEnvironment(
+                ref, declared, needed, env, get_profiles_for_env(environment)
+            )
+        given = get_profile_data_access(definitions[declared])
+        if "data" not in (job_def.get("access") or {}):
+            needed = given
+        configured = is_profile_usable(definitions[declared])
+        if strict and (given != needed or not configured):
+            raise JobProfileAccessMismatch(ref, declared, given, needed, env, configured)
+        warning: Optional[str] = None
+        if not configured:
+            warning = (
+                f"job `{ref}` declares profile `{declared}` ({format_data_access(given)}), which"
+                " has no settings files"
+            )
+        elif DATA_ACCESS_LEVELS.index(given) < DATA_ACCESS_LEVELS.index(needed):
+            warning = (
+                f"job `{ref}` declares profile `{declared}` ({format_data_access(given)}) and"
+                f" needs {format_data_access(needed)}"
+            )
+        return TJobProfile(declared, needed, warning)
+
+    if found := find_default_profile_for_access(environment, needed):
+        name, level = found
+        if level == needed:
+            return TJobProfile(name, needed, None)
+        default = get_default_profile_for_env(environment, needed)
+        reason = (
+            f"profile `{default}` has no settings files"
+            if default
+            else f"environment `{env}` has no such profile"
+        )
+        return TJobProfile(
+            name,
+            needed,
+            f"job `{ref}` declares {format_data_access(needed)} and {reason}: the job gets"
+            f" `{name}` ({format_data_access(level)})",
+        )
+    raise ProfileDataAccessNotAvailable(
+        ref,
+        env,
+        needed,
+        {
+            name: get_profile_data_access(definitions[name])
+            for name in get_profiles_for_env(environment)
+        },
+        get_default_profile_for_env(environment, needed),
+    )
+
+
+def get_legacy_job_profile(
+    job_def: TJobDefinition, configured_profiles: Optional[Sequence[str]] = None
+) -> TJobProfile:
+    """The profile and the data access of a job definition that carries no profile or no `access`,
+    as an older dlt wrote it. Such a job belongs to the built-in `prod` environment, which is
+    not strict.
+
+    Args:
+        job_def (TJobDefinition): The job definition.
+        configured_profiles (Optional[Sequence[str]]): The profiles with settings files. `None`
+            counts every profile as one with settings files.
+
+    Returns:
+        TJobProfile: The profile, the data access and a warning, see `resolve_job_profile`.
+    """
+    environment = create_built_in_workspace_definition()["environments"]["prod"]
+    # an older dlt had no profile without data access, so its jobs run with `access` or `prod`
+    for name, profile in list(environment["profiles"].items()):
+        if get_profile_data_access(profile) == "none":
+            del environment["profiles"][name]
+    declared = (job_def.get("require") or {}).get("profile")
+    if declared and declared not in environment["profiles"]:
+        # before profiles were declared, a profile of any other name had write data access
+        environment["profiles"][declared] = {
+            "location": "remote",
+            "data_access": "write",
+            "env": environment["name"],
+        }
+    if configured_profiles is not None:
+        set_configured_profiles(environment["profiles"], configured_profiles)
+    return resolve_job_profile(job_def, environment)
+
+
+def attach_job_access(jobs: List[TJobDefinition]) -> None:
+    """Sets the access of every job that declares none, see `get_job_access`. Changes `jobs` in
+    place."""
+    for job_def in jobs:
+        if job_def.get("access") is None:
+            job_def["access"] = get_job_access(job_def)
+
+
+def attach_job_profiles(
+    jobs: List[TJobDefinition], environment: TEnvironmentDefinition
+) -> List[str]:
+    """Gives every job its profile of `environment`, see `resolve_job_profile`. A job that
+    declares a profile and no `data` access gets the data access of that profile. Changes `jobs`
+    in place.
+
+    Returns:
+        List[str]: A warning for each job whose declared profile gives another data access or
+            has no settings files. One more warning for each profile that jobs without a
+            declared profile get in place of their default profile.
+    """
+    warnings: List[str] = []
+    fallbacks: Dict[Tuple[TProfileDataAccess, str], List[str]] = {}
+    for job_def in jobs:
+        declared = (job_def.get("require") or {}).get("profile")
+        resolved = resolve_job_profile(job_def, environment)
+        if resolved.warning and declared:
+            warnings.append(resolved.warning)
+        elif resolved.warning:
+            key = (resolved.data_access, resolved.profile)
+            fallbacks.setdefault(key, []).append(job_def["job_ref"])
+        access = job_def.get("access") or {}
+        if declared and "data" not in access:
+            job_def["access"] = {**access, "data": get_data_access_verbs(resolved.data_access)}
+        require: Dict[str, Any] = dict(job_def.get("require") or {})
+        require["profile"] = resolved.profile
+        job_def["require"] = require  # type: ignore[typeddict-item]
+    for (data_access, profile), job_refs in fallbacks.items():
+        warnings.append(
+            _format_profile_fallback_warning(environment, data_access, profile, job_refs)
+        )
+    return warnings
+
+
+def _format_profile_fallback_warning(
+    environment: TEnvironmentDefinition,
+    data_access: TProfileDataAccess,
+    profile: str,
+    job_refs: List[str],
+) -> str:
+    env = environment["name"]
+    needed = format_data_access(data_access)
+    given = format_data_access(get_profile_data_access(environment["profiles"][profile]))
+    listed = ", ".join(f"`{job_ref}`" for job_ref in job_refs[:MAX_LISTED_JOB_REFS])
+    if len(job_refs) > MAX_LISTED_JOB_REFS:
+        listed += ", ..."
+    if len(job_refs) == 1:
+        falls_back = f"1 job ({listed}) that declares {needed} runs with `{profile}` ({given})"
+    else:
+        falls_back = (
+            f"{len(job_refs)} jobs ({listed}) that declare {needed} run with `{profile}` ({given})"
+        )
+    if default := get_default_profile_for_env(environment, data_access):
+        return (
+            f"profile `{default}` has no settings files: {falls_back}. Create the settings files"
+            f" with `dlthub profile add {default}` to give them {needed}."
+        )
+    missing = "without data access" if data_access == "none" else f"with {needed}"
+    return (
+        f"environment `{env}` has no profile {missing}: {falls_back}. Add one with"
+        f" `dlthub profile add {env}-{data_access} --access {data_access} --environment {env}`."
+    )
+
+
 def compute_default_trigger(job_def: TJobDefinition) -> Optional[TTrigger]:
     """Pick the default trigger for a job: prefer schedule/every, else first eligible trigger."""
     default: Optional[TTrigger] = None
@@ -432,14 +681,6 @@ def validate_job_definition(
         )
 
     require = job_def.get("require") or {}
-    declared_profile = require.get("profile")
-    if declared_profile is not None and is_local_profile(declared_profile):
-        errors.append(
-            f"job {ref!r}: require.profile {declared_profile!r} is a local-only profile"
-            " and cannot be assumed by deployed jobs"
-            f" (local-only profiles: {', '.join(sorted(LOCAL_PROFILES))})"
-        )
-
     instance = require.get("instance")
     if instance is not None and not isinstance(instance, dict):
         errors.append(f"job {ref!r}: require.instance must be an object")
@@ -532,7 +773,10 @@ def validate_manifest(
 
     if unresolved:
         for job_ref, refs in unresolved.items():
-            errors.append(f"job {job_ref!r} has triggers referencing unknown jobs: {refs}")
+            errors.append(
+                f"job {job_ref!r} has triggers referencing unknown jobs: {refs}. Did you add"
+                " jobs to __all__?"
+            )
 
     # freshness upstream resolution (requires cross-job lookup)
     jobs_by_ref = {j["job_ref"]: j for j in jobs}
@@ -623,16 +867,35 @@ def default_dashboard_job() -> TJobDefinition:
     }
 
 
-def default_dashboard_manifest() -> TJobsDeploymentManifest:
-    """Build a manifest containing only the default workspace dashboard job."""
-    module = ModuleType(DEFAULT_DEPLOYMENT_MODULE)
+def should_deploy_dashboard(
+    module_name: str, environment: Optional[TEnvironmentDefinition]
+) -> bool:
+    """True when the manifest of module `module_name` for `environment` gets the workspace
+    dashboard. A local run always gets it."""
+    if environment is None:
+        return True
+    deploy = environment.get("deploy_dashboard")
+    if deploy is None:
+        # a strict environment may have no profile with read data access for the dashboard
+        deploy = bool(environment.get("default")) and not environment.get("strict_access", False)
+    deployment_module = environment.get("deployment_module", DEFAULT_DEPLOYMENT_MODULE)
+    return deploy and module_name == _resolve_module_name(deployment_module)
+
+
+def default_dashboard_manifest(
+    environment: Optional[TEnvironmentDefinition],
+) -> TJobsDeploymentManifest:
+    """A manifest with only the workspace dashboard job for `environment`. It has no jobs when the
+    environment deploys no dashboard, see `should_deploy_dashboard`."""
+    module = ModuleType(_resolve_module_name(get_deployment_module_for_env(environment)))
     module.__all__ = []  # type: ignore[attr-defined]
-    manifest, _ = generate_manifest(module)
+    manifest, _ = generate_manifest(module, environment)
     return manifest
 
 
 def generate_manifest(
     deployment_module: ModuleType,
+    environment: Optional[TEnvironmentDefinition],
     use_all: bool = True,
 ) -> Tuple[TJobsDeploymentManifest, List[str]]:
     """Generate a deployment manifest from a deployment module.
@@ -640,13 +903,29 @@ def generate_manifest(
     Discovers jobs by inspecting module-level objects: `JobFactory` instances
     and framework modules (marimo, FastMCP, streamlit).
 
+    With `environment`, the manifest is for a deployment to that environment. Every job that
+    declares no `require.profile` gets the default profile of the environment for the data access
+    that it declares (`attach_job_profiles`). The manifest records the environment. The caller
+    imports `deployment_module` with the default write profile of the environment active, see
+    `activate_environment`. Without an environment, the jobs keep their declared profiles: a
+    local run uses the active profile for every job. `should_deploy_dashboard` decides if the
+    manifest gets the workspace dashboard.
+
     Args:
         deployment_module (ModuleType): The imported deployment module.
+        environment (Optional[TEnvironmentDefinition]): The environment that the deployment is
+            made to, with its profiles. `None` is a local run.
         use_all (bool): If `True`, only names in `__all__` are discovered.
             If `False`, scans `__dir__()` directly (for ad-hoc deployments).
 
     Returns:
         Tuple of (manifest, warnings). Warnings include non-discoverable names.
+
+    Raises:
+        JobProfileNotInEnvironment: A job declares a profile outside the environment.
+        JobProfileAccessMismatch: The environment is strict about access, and the profile that
+            a job declares gives another data access or has no settings files.
+        ProfileDataAccessNotAvailable: The environment has no profile for a job.
     """
     warnings: List[str] = []
     jobs: List[TJobDefinition] = []
@@ -704,13 +983,17 @@ def generate_manifest(
             if self_local is not None:
                 jobs.append(self_local)
 
-    # auto-include workspace dashboard only when processing the canonical
-    # `__deployment__` module — ad-hoc / single-file deployments don't get one
-    is_workspace_deployment = (
-        deployment_module.__name__.rsplit(".", 1)[-1] == DEFAULT_DEPLOYMENT_MODULE
-    )
-    if is_workspace_deployment and not any(j["job_ref"] == DASHBOARD_JOB_REF for j in jobs):
+    # an ad-hoc deployment runs only the jobs that it names
+    if (
+        use_all
+        and should_deploy_dashboard(deployment_module.__name__, environment)
+        and not any(j["job_ref"] == DASHBOARD_JOB_REF for j in jobs)
+    ):
         jobs.append(default_dashboard_job())
+
+    if environment is not None:
+        warnings.extend(attach_job_profiles(jobs, environment))
+    attach_job_access(jobs)
 
     # a stored manifest holds only concrete triggers: expand before default_trigger and validation
     warnings.extend(expand_trigger_selectors(jobs))
@@ -730,6 +1013,8 @@ def generate_manifest(
         "deployment_module": deployment_module.__name__,
         "jobs": jobs,
     }
+    if environment is not None:
+        manifest["environment"] = environment["name"]
 
     # use only the first non-empty line of the module docstring as the workspace description
     raw_doc = getattr(deployment_module, "__doc__", None) or ""
@@ -741,6 +1026,10 @@ def generate_manifest(
     if tags:
         manifest["tags"] = list(tags)
 
+    for plugin_warnings in plugins.manager().hook.plug_deployment_manifest_processor(
+        manifest=manifest, environment=environment
+    ):
+        warnings.extend(plugin_warnings or [])
     return manifest, warnings
 
 
@@ -753,47 +1042,81 @@ def _resolve_module_name(name_or_path: str) -> str:
     return name_or_path.lstrip(".")
 
 
+def get_deployment_module_file(name_or_path: str) -> str:
+    """The file of the deployment module `name_or_path` as messages show it, like `pkg/mod.py`."""
+    return _resolve_module_name(name_or_path).replace(".", "/") + ".py"
+
+
+def is_module_missing(ex: ImportError, name_or_path: str) -> bool:
+    """True when `ex` says that module `name_or_path` or one of its packages does not exist, False
+    when an import inside the module failed."""
+    module_name = _resolve_module_name(name_or_path)
+    return (
+        isinstance(ex, ModuleNotFoundError)
+        and ex.name is not None
+        and (module_name == ex.name or module_name.startswith(ex.name + "."))
+    )
+
+
 def manifest_from_module(
-    name_or_path: str,
+    name_or_path: Optional[str],
+    environment: Optional[TEnvironmentDefinition],
     use_all: bool = True,
     isolated: bool = False,
 ) -> Tuple[TJobsDeploymentManifest, List[str]]:
-    """Import a module, generate a manifest, and validate it.
+    """Imports a module, generates a manifest for `environment` (see `generate_manifest`) and
+    validates it.
+
+    dlt imports the deployment module with the active profile. The module can declare jobs per
+    profile or per environment. The caller activates the default write profile of `environment`
+    first, see `activate_environment`. An imported module stays in `sys.modules`, so manifests
+    for several environments in one process need `isolated`.
 
     Args:
-        name_or_path: Python module name or file path.
+        name_or_path: Python module name or file path. `None` is the deployment module of
+            `environment`, see `get_deployment_module_for_env`.
+        environment: The environment that the deployment is made to, `None` for a local run.
         use_all: Use `__all__` for job discovery.
-        isolated: Run in a subprocess to avoid polluting the current interpreter.
+        isolated: Run in a subprocess to avoid polluting the current interpreter. The subprocess
+            imports with the default write profile of `environment`. Without an environment, it
+            imports with the profile that `WORKSPACE__PROFILE` or `.dlt/profile-name` names.
 
     Returns:
         Tuple of (manifest, warnings).
 
     Raises:
         InvalidManifest: If the generated manifest fails validation.
+        JobProfileNotInEnvironment: A job declares a profile outside the environment.
+        JobProfileAccessMismatch: The environment is strict about access, and the profile that
+            a job declares gives another data access or has no settings files.
+        ProfileDataAccessNotAvailable: The environment has no profile for a job.
     """
+    if name_or_path is None:
+        name_or_path = get_deployment_module_for_env(environment)
     if isolated:
-        return _manifest_from_module_isolated(name_or_path, use_all)
-    return _manifest_from_module_inprocess(name_or_path, use_all)
+        return _manifest_from_module_isolated(name_or_path, environment, use_all)
+    return _manifest_from_module_inprocess(name_or_path, environment, use_all)
 
 
 def _manifest_from_module_isolated(
-    name_or_path: str,
-    use_all: bool,
+    name_or_path: str, environment: Optional[TEnvironmentDefinition], use_all: bool
 ) -> Tuple[TJobsDeploymentManifest, List[str]]:
     worker = "dlt._workspace.deployment._manifest_worker"
     cmd = [sys.executable, "-m", worker, name_or_path]
     if not use_all:
         cmd.append("--no-use-all")
+    if environment is not None:
+        cmd += ["--environment", json.dumps(environment)]
     proc = subprocess.run(cmd, capture_output=True, text=True)
     return _parse_worker_result(proc.stdout, proc.stderr, proc.returncode)
 
 
-_WORKER_ERROR_TYPES: Dict[str, type] = {
+_WORKER_ERROR_TYPES: Dict[str, Type[Exception]] = {
     "ModuleNotFoundError": ModuleNotFoundError,
     "ImportError": ImportError,
     "SyntaxError": SyntaxError,
 }
-"""Import failures the worker reports, rebuilt from the message alone."""
+"""Import failures the worker reports, rebuilt from the message and the module name."""
 
 
 def _validation_error_types() -> Dict[str, Type[DeploymentValidationError]]:
@@ -815,6 +1138,9 @@ def _raise_from_worker_payload(payload: Dict[str, Any]) -> None:
     if validation_cls := _validation_error_types().get(error_type):
         raise validation_cls.from_message(msg)
     if exc_cls := _WORKER_ERROR_TYPES.get(error_type):
+        if issubclass(exc_cls, ImportError):
+            # `is_module_missing` tells a missing module from a failed import by the name
+            raise exc_cls(msg, name=payload.get("name"))
         raise exc_cls(msg)
     raise InvalidManifest.from_message(msg)
 
@@ -841,8 +1167,7 @@ def _parse_worker_result(
 
 
 def _manifest_from_module_inprocess(
-    name_or_path: str,
-    use_all: bool,
+    name_or_path: str, environment: Optional[TEnvironmentDefinition], use_all: bool
 ) -> Tuple[TJobsDeploymentManifest, List[str]]:
     module_name = _resolve_module_name(name_or_path)
 
@@ -855,6 +1180,6 @@ def _manifest_from_module_inprocess(
         if cwd not in sys.path:
             sys.path.insert(0, cwd)
         mod = import_deployment_module(module_name)
-    manifest, gen_warnings = generate_manifest(mod, use_all=use_all)
+    manifest, gen_warnings = generate_manifest(mod, environment, use_all=use_all)
     result = validate_manifest(manifest, raise_on_error=True)
     return manifest, gen_warnings + result.warnings

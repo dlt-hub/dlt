@@ -1,7 +1,8 @@
 import json
+import os
 import re
 from pathlib import Path
-from typing import Generator, List
+from typing import Generator, List, Optional, Set
 from unittest.mock import patch
 
 import pytest
@@ -10,13 +11,22 @@ from fastmcp.exceptions import ToolError
 import dlt
 from dlt.common.configuration.specs.pluggable_run_context import RunContextBase
 
+from dlt._workspace._known_env import WORKSPACE__PROFILE
+from dlt._workspace.cli.dlthub.ai.utils import save_harness_source, save_toolkit_entry
 from dlt._workspace.cli.exceptions import AiContextApiError
 from dlt._workspace.cli.utils import list_local_pipelines
+from dlt._workspace.profile import use_profile
+from dlt._workspace.mcp.context import (
+    TEnvironmentArgument,
+    TProfileArgument,
+    with_tool_run_context,
+)
 from dlt._workspace.mcp.tools.data_tools import TMcpSchemaFormat, TResultFormat
 from dlt._workspace.mcp.tools.context_tools import search_dlthub_sources
 from dlt._workspace.mcp.tools.toolkit_tools import list_toolkits, toolkit_info
 from dlt._workspace.mcp.tools.data_tools import (
     _ensure_read_only,
+    get_workspace_info,
     list_pipelines,
     list_profiles,
     list_tables,
@@ -29,29 +39,127 @@ from dlt._workspace.mcp.tools.data_tools import (
     get_local_pipeline_state,
 )
 
+from tests.workspace.cli.dlthub.ai.utils import make_mock_toolkit_info
 from tests.workspace.utils import (
+    declare_environment,
     isolated_workspace,
     pokemon_pipeline_context as pokemon_pipeline_context,
+    touch_settings,
 )
 
 
-def test_list_profiles(pokemon_pipeline_context: RunContextBase) -> None:
-    profiles = list_profiles()
-    by_name = {p["name"]: p for p in profiles}
-    # workspace context has profiles
-    assert "dev" in by_name or "tests" in by_name
-    # exactly one is current
-    current = [p for p in profiles if p["is_current"]]
-    assert len(current) == 1
-    # all have required keys
-    for p in profiles:
-        for key in ("name", "description", "is_current", "is_pinned", "is_configured"):
-            assert key in p
+def test_list_profiles() -> None:
+    with isolated_workspace("default") as ctx:
+        profiles = list_profiles()
+        assert [p["name"] for p in profiles] == ctx.available_profiles()
+        assert [p["name"] for p in profiles if p["is_current"]] == ["dev"]
+
+
+def test_tool_profile_argument() -> None:
+    """A tool runs with the profile named in the call. After the call, and in the next call that
+    names none, the active profile of the process is back."""
+    tool = with_tool_run_context(get_workspace_info)
+    with isolated_workspace("default"):
+        info = tool(profile="prod")
+        assert info["profile"]["name"] == "prod"
+        assert info["profile"]["data_dir"].endswith("prod")
+        assert dlt.current.workspace().profile == "dev"
+        assert WORKSPACE__PROFILE not in os.environ
+        assert tool()["profile"]["name"] == "dev"
+        with pytest.raises(ToolError, match="`no/such` is not a valid profile or environment name"):
+            tool(profile="no/such")
+        # a tool works only with declared profiles, an environment is not one
+        with pytest.raises(ToolError, match="`staging` is not a profile declared"):
+            tool(profile="staging")
+        declare_environment(dlt.current.workspace(), "ci")
+        with pytest.raises(ToolError, match="`ci` is an environment"):
+            tool(profile="ci")
+        assert tool(profile="ci-write")["profile"]["name"] == "ci-write"
+
+
+def test_tool_environment_argument(monkeypatch: pytest.MonkeyPatch) -> None:
+    @with_tool_run_context
+    def deployment_tool(environment: TEnvironmentArgument = None) -> str:
+        ctx = dlt.current.workspace()
+        return f"{ctx.environment}/{ctx.profile}/{os.environ[WORKSPACE__PROFILE]}"
+
+    monkeypatch.delenv(WORKSPACE__PROFILE, raising=False)
+    with isolated_workspace("default"):
+        # dev is active: the default environment is used with its default write profile, which
+        # `WORKSPACE__PROFILE` names to the processes that the tool starts
+        assert deployment_tool() == "prod/prod/prod"
+        assert deployment_tool(environment="prod") == "prod/prod/prod"
+        declare_environment(dlt.current.workspace(), "ci")
+        assert deployment_tool(environment="ci") == "ci/ci-write/ci-write"
+        # the variable is set for the call only
+        assert WORKSPACE__PROFILE not in os.environ
+        # a profile is not an environment: a profile of one, its default write profile or a
+        # local one
+        for profile in ("access", "ci-write", "dev"):
+            with pytest.raises(ToolError, match=f"`{profile}` is not an environment declared"):
+                deployment_tool(environment=profile)
+        with pytest.raises(ToolError, match="`ci/prod` is not a valid profile or environment name"):
+            deployment_tool(environment="ci/prod")
+
+
+def test_tool_environment_and_profile_arguments(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A tool that takes both arguments runs with the profile named in the call, which must belong
+    to the environment. Without one, it runs with the active profile when that profile belongs to
+    the environment. Else it runs with the default write profile of the environment."""
+
+    @with_tool_run_context
+    def restore_tool(
+        environment: TEnvironmentArgument = None, profile: TProfileArgument = None
+    ) -> str:
+        ctx = dlt.current.workspace()
+        return f"{ctx.environment}/{ctx.profile}/{os.environ[WORKSPACE__PROFILE]}"
+
+    monkeypatch.delenv(WORKSPACE__PROFILE, raising=False)
+    with isolated_workspace("default"):
+        # dev is local: the default write profile of the default environment
+        assert restore_tool() == "prod/prod/prod"
+        assert restore_tool(profile="access") == "prod/access/access"
+        declare_environment(dlt.current.workspace(), "ci")
+        # a profile without an environment names its own
+        assert restore_tool(profile="ci-write") == "ci/ci-write/ci-write"
+        assert restore_tool(environment="ci") == "ci/ci-write/ci-write"
+        with pytest.raises(ToolError, match="`access` is a profile of environment `prod`"):
+            restore_tool(environment="ci", profile="access")
+        with pytest.raises(ToolError, match="`dev` is a local profile"):
+            restore_tool(profile="dev")
+        # a job run has a profile of an environment active, it is kept in its environment
+        monkeypatch.setenv(WORKSPACE__PROFILE, "access")
+        assert restore_tool() == "prod/access/access"
+        assert restore_tool(environment="ci") == "ci/ci-write/ci-write"
+
+    with isolated_workspace("legacy", required=None):
+        with pytest.raises(ToolError, match="needs a dltHub workspace"):
+            restore_tool()
+
+
+def test_tool_profile_argument_outside_workspace() -> None:
+    tool = with_tool_run_context(get_workspace_info)
+    with isolated_workspace("legacy", required=None):
+        with pytest.raises(ToolError, match="needs a dltHub workspace"):
+            tool(profile="prod")
+        # without the argument the tool works in the run context outside a workspace
+        assert tool()["profile"] is None
 
 
 def test_list_pipelines(pokemon_pipeline_context: RunContextBase) -> None:
     pipelines = list_pipelines()
     assert "rest_api_pokemon" in pipelines
+
+
+def test_data_tools_read_the_pipelines_of_a_profile() -> None:
+    """A pipeline that ran under another profile, as a restore runs it, is read with `profile`."""
+    with isolated_workspace("default"):
+        with use_profile("prod"):
+            dlt.pipeline("prod_events", destination="duckdb").run([{"id": 1}], table_name="events")
+        assert "prod_events" not in with_tool_run_context(list_pipelines)()
+        assert "prod_events" in with_tool_run_context(list_pipelines)(profile="prod")
+        tables = with_tool_run_context(list_tables)("prod_events", profile="prod")
+        assert tables == {"tables": ["events"]}
 
 
 def test_list_pipelines_project_dir_filter(pokemon_pipeline_context: RunContextBase) -> None:
@@ -324,17 +432,58 @@ def test_export_schema_unified(
 
 
 def test_list_toolkits_returns_dict() -> None:
+    """The toolkits come from the harness source given last to a command."""
     mock_toolkits = {"init": {"name": "init", "version": "1.0"}}
     with (
+        isolated_workspace("default"),
         patch("dlt._workspace.mcp.tools.toolkit_tools.fetch_workbench_base") as mock_base,
         patch(
             "dlt._workspace.mcp.tools.toolkit_tools.fetch_workbench_toolkits",
             return_value=(mock_toolkits, []),
         ),
     ):
+        save_toolkit_entry(make_mock_toolkit_info("init"))
+        save_harness_source("https://example.com/fork.git", "dev")
         mock_base.return_value = Path("/fake")
         result = list_toolkits()
     assert result == mock_toolkits
+    mock_base.assert_called_once_with("https://example.com/fork.git", "dev")
+
+
+@pytest.mark.parametrize(
+    ("agent_name", "visible"),
+    [("cortex", {"everyone"}), (None, {"everyone", "not-cortex"})],
+    ids=["cortex", "no-agent"],
+)
+def test_toolkits_show_what_the_agent_sees(
+    tmp_path: Path, agent_name: Optional[str], visible: Set[str]
+) -> None:
+    """The MCP server runs inside the agent, so toolkits are filtered for that agent."""
+    for name, toolkit_json in (
+        ("everyone", {}),
+        ("not-cortex", {"agents": {"exclude": ["cortex"]}}),
+    ):
+        meta_dir = tmp_path / name / ".claude-plugin"
+        meta_dir.mkdir(parents=True)
+        (meta_dir / "plugin.json").write_text(
+            json.dumps({"name": name, "version": "1.0.0", "description": name}), encoding="utf-8"
+        )
+        (meta_dir / "toolkit.json").write_text(json.dumps(toolkit_json), encoding="utf-8")
+    with (
+        patch("dlt._workspace.mcp.tools.toolkit_tools.fetch_workbench_base", return_value=tmp_path),
+        patch("dlt._workspace.cli.dlthub.ai.utils.fetch_workbench_base", return_value=tmp_path),
+        patch(
+            "dlt._workspace.cli.dlthub.ai.agents._AIAgent.detect_agent_name",
+            return_value=agent_name,
+        ),
+    ):
+        assert set(list_toolkits()) == visible
+        assert toolkit_info("everyone")["name"] == "everyone"
+        if "not-cortex" in visible:
+            assert toolkit_info("not-cortex")["name"] == "not-cortex"
+        else:
+            with pytest.raises(ToolError, match="not available for cortex"):
+                toolkit_info("not-cortex")
 
 
 def test_list_toolkits_raises_tool_error_on_missing_repo() -> None:

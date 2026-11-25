@@ -19,6 +19,12 @@ Heresy: issues in code that not only must be **avoided** but actively **detected
 ## terms heresy
 * use of following words constitutes heresy: gate/gating, graft
 
+## naming heresy
+* functions named without a verb. use verb and object: `get_deployment_module_for_env()`, not
+  `deployment_module_of()` or `environment_profiles()`
+* private helpers named by a noun or an abbreviation, ie. `_deployment()`, `_ts()`
+* NOTE: properties and constants are named by what they hold
+
 ## comments heresy
 * block separator comments as below
 ```

@@ -94,30 +94,16 @@ The first three are documented in the [OSS internal tables](../../general-usage/
 
 ## Reading a dataset from another job or notebook
 
-A transformation, downstream job, or marimo notebook can read a dataset another pipeline produced — without re-extracting from source. In a workspace where the destination is configured in `.dlt/<profile>.config.toml`, this is enough:
+A transformation, downstream job, or marimo notebook can read a dataset another pipeline produced — without re-extracting from source. Import the pipeline from the module that creates it, or create the same pipeline. Then take its dataset:
 
 ```py
 import dlt
 
-pipeline = dlt.attach("orders_pipeline")
+pipeline = dlt.pipeline("orders_pipeline", destination="warehouse", dataset_name="orders")
 orders = pipeline.dataset()["orders"].df()
 ```
 
-`dlt.attach` reconstructs the pipeline from its persisted state, picking up the destination from the active profile.
-
-:::note Platform deploys
-When deploying a notebook to the Platform, pass `destination` and `dataset_name` explicitly:
-
-```py
-pipeline = dlt.attach(
-    pipeline_name="orders_pipeline",
-    destination="warehouse",
-    dataset_name="orders",
-)
-```
-
-Notebooks running on the Platform require these arguments explicitly; local scripts can rely on the workspace configuration alone.
-:::
+The same code runs locally and on the Platform. `warehouse` resolves through the active profile, and the dataset reads its schemas from the destination. If you do not know the pipeline of a dataset, or if `dlt.attach` fits better, see [Access a dataset from another script, job or notebook](../../general-usage/dataset-access/dataset.md#access-a-dataset-from-another-script-job-or-notebook).
 
 A quick sanity check that returns a frame of `(table_name, row_count)` across the whole dataset:
 

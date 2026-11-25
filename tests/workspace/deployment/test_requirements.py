@@ -1,13 +1,16 @@
 import io
 import json
+import os
 import re
 import subprocess
 import sys
+from contextlib import nullcontext
 from pathlib import Path
-from typing import Dict, List, Literal, Set, get_args
+from typing import Any, ContextManager, Dict, List, Literal, Set, Tuple, get_args
 from unittest.mock import patch
 
 import pytest
+import tomlkit
 from packaging.requirements import Requirement
 
 import dlt
@@ -39,22 +42,33 @@ from dlt._workspace.deployment.requirements import (
     build_launcher_requirements,
     default_requirements_manifest,
     export_workspace_requirements,
+    export_workspace_requirements_with_warnings,
     get_dlt_requirement_spec,
     get_pkg_install_spec,
     load_requirements,
     migrate_requirements,
+    plan_dependency_changes,
     python_version,
+    render_pyproject,
     save_requirements,
     _add_transitive_names,
     _collect_package_names,
 )
-from dlt._workspace.deployment.typing import DASHBOARD_JOB_REF, TWorkspaceRequirementsManifest
+from dlt._workspace.deployment.typing import (
+    DASHBOARD_JOB_REF,
+    TInstallMode,
+    TInstallSpec,
+    TWorkspaceRequirementsManifest,
+)
 
 from tests.workspace.utils import isolated_workspace
 
 
 _SHUTIL_WHICH = "dlt._workspace.deployment.requirements.shutil.which"
-_HUB = "dlt[hub]"
+_RUN_UV = "dlt._workspace.deployment.requirements.run_uv"
+UV_WORKSPACE_CASE = "deps_uv_workspace"
+"""A uv workspace whose member `workspace` is a dlt workspace, with the lock at the root."""
+_DLTHUB = dlt_extra_specs("hub")["dlthub"]
 _S3_NAMES = ["botocore", "s3fs"]
 
 TDepsSource = Literal[
@@ -67,7 +81,8 @@ TDepsSource = Literal[
 
 
 def _get_names(specs: List[str]) -> List[str]:
-    return sorted(Requirement(s).name for s in specs)
+    # a universal lock pins a package once per python version range, e.g. `packaging`
+    return sorted({Requirement(s).name for s in specs})
 
 
 def _run_uv_lock(run_dir: str) -> None:
@@ -175,6 +190,10 @@ def test_pyproject_with_lock_resolves_all_groups() -> None:
     gpu_names = {Requirement(s).name for s in groups["gpu"]}
     assert "numpy" in gpu_names
 
+    # the runtime installs a group on top of main: `packaging`, which pytest needs, is in main only
+    assert "packaging" not in dev_names
+    assert not (dev_names | gpu_names) & main_names
+
 
 def test_pyproject_lock_out_of_sync_raises() -> None:
     with isolated_workspace("deps_pyproject") as ctx:
@@ -182,6 +201,80 @@ def test_pyproject_lock_out_of_sync_raises() -> None:
         (Path(ctx.run_dir) / "uv.lock").write_text("")
         with pytest.raises(WorkspaceRequirementsError):
             export_workspace_requirements(Path(ctx.run_dir))
+
+
+def test_stale_lock_raises_with_uv_frozen() -> None:
+    """A lock that misses a dependency added after locking fails the export, also with
+    `UV_FROZEN`. CI and Docker images set `UV_FROZEN` to skip the lock check."""
+    with isolated_workspace("deps_pyproject") as ctx:
+        root = Path(ctx.run_dir)
+        _run_uv_lock(ctx.run_dir)
+        pyproject = root / "pyproject.toml"
+        doc = tomlkit.parse(pyproject.read_text(encoding="utf-8"))
+        doc["project"]["dependencies"].append("six")  # type: ignore[index, union-attr, call-arg]
+        pyproject.write_text(tomlkit.dumps(doc), encoding="utf-8")
+        with patch.dict(os.environ, {"UV_FROZEN": "1"}):
+            with pytest.raises(WorkspaceRequirementsError, match="lock --check"):
+                export_workspace_requirements(root)
+
+
+def _get_user_groups(groups: Dict[str, List[str]]) -> Dict[str, List[str]]:
+    return {
+        k: v
+        for k, v in groups.items()
+        if k != DASHBOARD_JOB_REF and not k.startswith(AGENT_LOOP_GROUP_PREFIX)
+    }
+
+
+def test_uv_workspace_member_exports_from_root_lock() -> None:
+    """A dlt workspace that is a member of a uv workspace exports its own dependencies from the
+    lock at the root, without the dependencies of the root project and of the other members."""
+    with isolated_workspace(UV_WORKSPACE_CASE, workspace_subdir="workspace") as ctx:
+        _run_uv_lock(os.path.dirname(ctx.run_dir))
+        groups = _get_user_groups(export_workspace_requirements(Path(ctx.run_dir))["groups"])
+
+    assert set(groups) == {MAIN_GROUP, "gpu", "all"}
+    for group, specs in groups.items():
+        assert specs and all("==" in spec for spec in specs), (group, specs)
+    assert _get_names(groups[MAIN_GROUP]) == ["tomlkit"]
+    assert _get_names(groups["gpu"]) == ["packaging"]
+    # the lock resolves `include-group`
+    assert _get_names(groups["all"]) == ["packaging", "six"]
+    exported = {name for specs in groups.values() for name in _get_names(specs)}
+    assert not exported & {"requests", "pytest", "shared"}
+
+
+@pytest.mark.parametrize("uv", ["no-root-lock", "uv-missing", "old-uv"])
+def test_uv_workspace_member_falls_back_to_declarations(uv: str) -> None:
+    """Without the lock at the root, without uv, or with a uv that cannot tell the workspace, the
+    member's dependencies are taken as declared."""
+    context: ContextManager[Any] = nullcontext()
+    if uv == "uv-missing":
+        context = patch(_SHUTIL_WHICH, return_value=None)
+    elif uv == "old-uv":
+        context = patch(_RUN_UV, side_effect=WorkspaceRequirementsError("unknown command"))
+    with isolated_workspace(UV_WORKSPACE_CASE, workspace_subdir="workspace") as ctx:
+        if uv != "no-root-lock":
+            _run_uv_lock(os.path.dirname(ctx.run_dir))
+        with context:
+            groups = _get_user_groups(export_workspace_requirements(Path(ctx.run_dir))["groups"])
+
+    assert groups == {
+        MAIN_GROUP: ["tomlkit>=0.12"],
+        "gpu": ["packaging>=23.0"],
+        # declarations do not resolve `include-group`
+        "all": ["six"],
+    }
+
+
+def test_uv_workspace_member_depending_on_another_member_raises() -> None:
+    """A dlt workspace that depends on a library member of its uv workspace cannot deploy: the
+    deployment ships the dlt workspace only."""
+    with isolated_workspace(UV_WORKSPACE_CASE, workspace_subdir="reporting") as ctx:
+        _run_uv_lock(os.path.dirname(ctx.run_dir))
+        with pytest.raises(WorkspaceRequirementsError, match="depends on other members") as exc:
+            export_workspace_requirements(Path(ctx.run_dir))
+    assert "shared" in str(exc.value)
 
 
 @pytest.mark.parametrize(
@@ -363,20 +456,22 @@ def test_launcher_requirements_shape() -> None:
         LAUNCHER_DASHBOARD,
         LAUNCHER_AGENT,
     }
-    # every launcher gets dlt's hub extra, so dlthub follows whichever dlt resolves
-    for specs in lreq.values():
-        assert _HUB in specs
-        assert not {"dlthub", "dlthub-client"} & set(_get_names(specs))
+    # every launcher but the agent gets dlthub within the bounds of dlt's hub extra
+    for launcher, specs in lreq.items():
+        assert (_DLTHUB in specs) is (launcher != LAUNCHER_AGENT)
+        assert not {"dlt", "dlthub-client"} & set(_get_names(specs))
         assert specs == sorted(specs)
     # dlt itself is NOT in the bare launcher dict — it's injected conditionally
     # by export_workspace_requirements / default_requirements_manifest
-    for launcher in (LAUNCHER_JOB, LAUNCHER_MODULE, LAUNCHER_AGENT):
-        # loop packages live in agent-loop-* groups, not here
-        assert lreq[launcher] == sorted([*dlt_extra_specs("s3").values(), _HUB])
-    assert _get_names(lreq[LAUNCHER_MARIMO]) == ["dlt", "marimo", "uvicorn"]
-    assert _get_names(lreq[LAUNCHER_MCP]) == ["dlt", "fastmcp", "uvicorn"]
-    assert _get_names(lreq[LAUNCHER_STREAMLIT]) == ["dlt", "streamlit"]
-    assert lreq[LAUNCHER_DASHBOARD] == [_HUB]
+    s3 = list(dlt_extra_specs("s3").values())
+    for launcher in (LAUNCHER_JOB, LAUNCHER_MODULE):
+        assert lreq[launcher] == sorted([*s3, _DLTHUB])
+    # loop packages live in agent-loop-* groups, not here
+    assert lreq[LAUNCHER_AGENT] == sorted(s3)
+    assert _get_names(lreq[LAUNCHER_MARIMO]) == ["dlthub", "marimo", "uvicorn"]
+    assert _get_names(lreq[LAUNCHER_MCP]) == ["dlthub", "fastmcp", "uvicorn"]
+    assert _get_names(lreq[LAUNCHER_STREAMLIT]) == ["dlthub", "streamlit"]
+    assert lreq[LAUNCHER_DASHBOARD] == [_DLTHUB]
 
 
 def test_interactive_launchers_omit_artifact_storage_deps() -> None:
@@ -447,14 +542,14 @@ def test_default_requirements_manifest_shape() -> None:
     for specs in lreq.values():
         assert dlt_spec in specs
         assert specs == sorted(specs)
-    for specs in lreq.values():
-        assert _HUB in specs
+    for launcher, specs in lreq.items():
+        assert (_DLTHUB in specs) is (launcher != LAUNCHER_AGENT)
     # batch launchers carry dlt's s3 extra; interactive don't
     s3 = set(dlt_extra_specs("s3").values())
     assert s3 <= set(lreq[LAUNCHER_JOB])
     assert not s3 & set(lreq[LAUNCHER_MARIMO])
-    # dashboard has dlt's hub extra + dlt (extras come from DASHBOARD_JOB_REF group)
-    assert lreq[LAUNCHER_DASHBOARD] == sorted([_HUB, dlt_spec])
+    # dashboard has dlthub + dlt (extras come from DASHBOARD_JOB_REF group)
+    assert lreq[LAUNCHER_DASHBOARD] == sorted([_DLTHUB, dlt_spec])
 
 
 def test_default_requirements_manifest_is_save_load_stable() -> None:
@@ -499,8 +594,6 @@ def test_collect_package_names_recognizes_dlt_in_every_form(spec: str) -> None:
         ("croniter", set(), True),
         ("", {"s3fs"}, True),
         ("# comment", {"s3fs"}, True),
-        ("dlt[hub]", {"dlt"}, True),
-        ("dlt[hub]", {"dlthub"}, False),
     ],
     ids=[
         "bare-name",
@@ -513,8 +606,6 @@ def test_collect_package_names_recognizes_dlt_in_every_form(spec: str) -> None:
         "empty-set",
         "empty-line",
         "comment-line",
-        "dlt-hub-kept-by-plain-dlt",
-        "dlt-hub-pruned-by-dlthub",
     ],
 )
 def test_prune_specs_normalization(spec: str, names: Set[str], kept: bool) -> None:
@@ -565,7 +656,7 @@ def test_export_prunes_dashboard_group_with_normalized_names() -> None:
     # launcher lists share none of these names — untouched except dlt injection
     dlt_spec = get_dlt_requirement_spec()
     assert result["launcher_requirements"][LAUNCHER_JOB] == sorted(
-        [*dlt_extra_specs("s3").values(), _HUB, dlt_spec]
+        [*dlt_extra_specs("s3").values(), _DLTHUB, dlt_spec]
     )
 
 
@@ -608,7 +699,9 @@ def test_collect_package_names_extras(spec: str, expected: Set[str]) -> None:
     assert _collect_package_names([spec]) == expected
 
 
-def _export_with_deps(specs: List[str], source: TDepsSource) -> TWorkspaceRequirementsManifest:
+def _export_with_deps(
+    specs: List[str], source: TDepsSource
+) -> Tuple[TWorkspaceRequirementsManifest, List[str]]:
     """Exports a workspace whose main dependencies are `specs`, read from `source`."""
     deps_file, resolve = source.split("-")
     with isolated_workspace("deps_none") as ctx:
@@ -621,13 +714,86 @@ def _export_with_deps(specs: List[str], source: TDepsSource) -> TWorkspaceRequir
             )
             if resolve == "resolved":
                 _run_uv_lock(ctx.run_dir)
-            return export_workspace_requirements(run_dir)
+            return export_workspace_requirements_with_warnings(run_dir)
         (run_dir / "requirements.txt").write_text("".join(f"{s}\n" for s in specs))
         if resolve == "resolved":
-            return export_workspace_requirements(run_dir)
+            return export_workspace_requirements_with_warnings(run_dir)
         # without uv on PATH the requirements file is taken as declared
         with patch(_SHUTIL_WHICH, return_value=None):
-            return export_workspace_requirements(run_dir)
+            return export_workspace_requirements_with_warnings(run_dir)
+
+
+@pytest.mark.parametrize(
+    "main_lines, installed_mode, expected_version, warns",
+    [
+        (["dlt==1.32.0", "requests==2.32.0"], "editable", "1.32.0", True),
+        (["dlt==1.33.0a3"], "editable", "1.33.0a3", False),
+        (["-e {path}"], "editable", None, False),
+        (["dlt @ {url}"], "path", None, False),
+        (["dlt @ git+https://github.com/dlt-hub/dlt@abc"], "editable", None, True),
+        (["dlt @ git+https://github.com/dlt-hub/dlt@abc"], "git", None, False),
+        (["requests==2.32.0"], "editable", None, False),
+    ],
+    ids=[
+        "other-pin",
+        "same-pin",
+        "editable-installed-path",
+        "direct-ref-installed-path",
+        "git-ref-elsewhere",
+        "git-ref-installed",
+        "no-dlt",
+    ],
+)
+def test_get_deployed_dlt_spec(
+    tmp_path: Path,
+    main_lines: List[str],
+    installed_mode: TInstallMode,
+    expected_version: str,
+    warns: bool,
+) -> None:
+    """A resolved requirements file decides the dlt that the deployment runs. `None` expects the
+    installed dlt."""
+    from dlt._workspace.deployment.requirements import _get_deployed_dlt_spec
+
+    dlt_path = tmp_path / "dlt"
+    installed: TInstallSpec = {
+        "name": "dlt",
+        "extras": [],
+        "version": "1.33.0a3",
+        "mode": installed_mode,
+        "path": str(dlt_path),
+        "git_url": "https://github.com/dlt-hub/dlt",
+        "git_rev": "abc",
+    }
+    main = [line.format(path=dlt_path, url=dlt_path.as_uri()) for line in main_lines]
+    deployed, warning = _get_deployed_dlt_spec(main, installed, tmp_path, "requirements.txt")
+    if expected_version is None:
+        assert deployed == installed
+    else:
+        assert deployed == {
+            "name": "dlt",
+            "extras": [],
+            "version": expected_version,
+            "mode": "pypi",
+        }
+    assert (warning is not None) is warns
+
+
+def test_export_names_the_dlt_that_requirements_resolve() -> None:
+    """With uv, `dlt_version` is the dlt that `requirements.txt` resolves, not the installed one."""
+    result, warnings = _export_with_deps(["dlt==1.32.0"], "requirements-resolved")
+    assert result["dlt_version"] == {
+        "name": "dlt",
+        "extras": [],
+        "version": "1.32.0",
+        "mode": "pypi",
+    }
+    assert len(warnings) == 1
+    assert "resolves dlt 1.32.0" in warnings[0]
+    # declared as written, the installed dlt stays
+    result, warnings = _export_with_deps(["dlt==1.32.0"], "requirements-declared")
+    assert result["dlt_version"] == get_pkg_install_spec("dlt")
+    assert warnings == []
 
 
 def _collect_keys(specs: List[str]) -> Set[str]:
@@ -652,14 +818,14 @@ def _get_spec_key(spec: str) -> str:
     [
         (["requests>=2.0"], set(), True),
         (["dlt>=1.0"], set(), False),
-        (["dlt[hub]>=1.0"], {_HUB}, False),
-        (["dlthub"], {_HUB}, True),
+        (["dlt[hub]>=1.0"], {"dlthub"}, False),
+        (["dlthub"], {"dlthub"}, True),
         (["dlthub-client"], set(), True),
         (["dlt[s3]>=1.0"], {"botocore", "s3fs"}, False),
         (["dlt[parquet]>=1.0"], {"pyarrow"}, False),
         (["botocore>=1.28"], {"botocore"}, True),
         (["s3fs>=2024.1"], {"botocore", "s3fs"}, True),
-        (["dlt[hub,s3]>=1.0"], {_HUB, "botocore", "s3fs"}, False),
+        (["dlt[hub,s3]>=1.0"], {"dlthub", "botocore", "s3fs"}, False),
         (["pydantic-ai>=2.45.0"], {"pydantic-ai-slim"}, True),
         (["marimo>=0.14.5"], {"marimo", "uvicorn"}, True),
         (
@@ -692,7 +858,7 @@ def _get_spec_key(spec: str) -> str:
 def test_export_skips_specs_the_workspace_declares(
     specs: List[str], skipped: Set[str], dlt_injected: bool, source: TDepsSource
 ) -> None:
-    result = _export_with_deps(specs, source)
+    result, _ = _export_with_deps(specs, source)
     main = result["groups"][MAIN_GROUP]
     # uv-resolved sources pin every spec and flatten extras, declared ones keep them unchanged
     declared = source.endswith("-declared")
@@ -795,7 +961,7 @@ def test_added_specs_allow_no_prereleases() -> None:
 def _resolve_export(main_specs: List[str], tmp_path: Path) -> subprocess.CompletedProcess[str]:
     """Resolves a workspace's main group together with every spec the export adds."""
     # the union is a superset of what any single run installs, this checkout stands in for dlt
-    result = _export_with_deps(main_specs, "requirements-declared")
+    result, _ = _export_with_deps(main_specs, "requirements-declared")
     dlt_spec = get_dlt_requirement_spec()
     added = {
         s
@@ -844,9 +1010,8 @@ def test_export_resolves_with_workspace_pins(main_specs: List[str], tmp_path: Pa
     [
         ([_DLT_CHECKOUT_SPEC, "anthropic==0.75.0"], "pydantic-ai-slim"),
         ([_DLT_CHECKOUT_SPEC, "botocore==1.27.0"], "s3fs"),
-        ([_DLT_CHECKOUT_SPEC, "dlthub-client==0.28.0"], "dlthub-client"),
     ],
-    ids=["anthropic-before-1", "botocore-before-1.28", "dlthub-client-before-0.28.3"],
+    ids=["anthropic-before-1", "botocore-before-1.28"],
 )
 def test_export_fails_on_pins_below_floors(
     main_specs: List[str], needs: str, tmp_path: Path
@@ -880,6 +1045,11 @@ def test_export_includes_python_version() -> None:
 def test_default_manifest_includes_python_version() -> None:
     manifest = default_requirements_manifest()
     assert manifest["python_version"] == python_version()
+
+
+# absolute on every platform, with a space that a file URL percent-encodes
+LOCAL_INSTALL_PATH = os.path.abspath("/abs/my path")
+LOCAL_INSTALL_URL = Path(LOCAL_INSTALL_PATH).as_uri()
 
 
 def _make_dist(direct_url_payload):
@@ -919,23 +1089,34 @@ def test_get_pkg_install_spec_editable(monkeypatch: pytest.MonkeyPatch) -> None:
 
     _patch_distribution(
         monkeypatch,
-        {"url": "file:///abs/path", "dir_info": {"editable": True}},
+        {"url": LOCAL_INSTALL_URL, "dir_info": {"editable": True}},
     )
     spec = get_pkg_install_spec("dlthub-client")
     assert spec["mode"] == "editable"
-    assert spec["path"] == "/abs/path"
+    assert spec["path"] == LOCAL_INSTALL_PATH
 
 
-def test_get_pkg_install_spec_path_non_editable(monkeypatch: pytest.MonkeyPatch) -> None:
+@pytest.mark.parametrize(
+    "url,path",
+    [
+        (LOCAL_INSTALL_URL, LOCAL_INSTALL_PATH),
+        # a UNC path keeps its host
+        (
+            "file://server/share/my%20pkg",
+            r"\\server\share\my pkg" if os.name == "nt" else "//server/share/my pkg",
+        ),
+    ],
+    ids=["local", "unc"],
+)
+def test_get_pkg_install_spec_path_non_editable(
+    monkeypatch: pytest.MonkeyPatch, url: str, path: str
+) -> None:
     from dlt._workspace.deployment.requirements import get_pkg_install_spec
 
-    _patch_distribution(
-        monkeypatch,
-        {"url": "file:///abs/path", "dir_info": {"editable": False}},
-    )
+    _patch_distribution(monkeypatch, {"url": url, "dir_info": {"editable": False}})
     spec = get_pkg_install_spec("dlthub")
     assert spec["mode"] == "path"
-    assert spec["path"] == "/abs/path"
+    assert spec["path"] == path
 
 
 def test_get_pkg_install_spec_git(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -992,7 +1173,11 @@ def _make_install_spec(name, mode, **extra):
         (_make_install_spec("dlt", "pypi", extras=["hub"]), True, "dlt[hub]==9.9.9"),
         (_make_install_spec("dlt", "editable", path="/abs"), True, "dlt==9.9.9"),
         (_make_install_spec("dlt", "editable", path="/abs"), False, "dlt==9.9.9"),
-        (_make_install_spec("dlt", "path", path="/abs"), True, "dlt @ file:///abs"),
+        (
+            _make_install_spec("dlt", "path", path=LOCAL_INSTALL_PATH),
+            True,
+            f"dlt @ {LOCAL_INSTALL_URL}",
+        ),
         (_make_install_spec("dlt", "path", path="/abs"), False, "dlt==9.9.9"),
         (
             _make_install_spec("dlt", "git", git_url="https://example.com/dlt.git", git_rev="abc"),
@@ -1074,7 +1259,10 @@ def test_render_uv_source(spec, expected) -> None:
         (_make_install_spec("dlt", "pypi"), ["dlt==9.9.9"]),
         (_make_install_spec("dlt", "pypi", extras=["hub"]), ["dlt[hub]==9.9.9"]),
         (_make_install_spec("dlt", "editable", path="/abs"), ["-e /abs"]),
-        (_make_install_spec("dlt", "path", path="/abs"), ["dlt @ file:///abs"]),
+        (
+            _make_install_spec("dlt", "path", path=LOCAL_INSTALL_PATH),
+            [f"dlt @ {LOCAL_INSTALL_URL}"],
+        ),
         (
             _make_install_spec("dlt", "git", git_url="https://x/dlt.git", git_rev="abc"),
             ["dlt @ git+https://x/dlt.git@abc"],
@@ -1097,6 +1285,91 @@ def test_render_requirements_lines(spec, expected) -> None:
     from dlt._workspace.deployment.requirements import render_requirements_lines
 
     assert render_requirements_lines(spec) == expected
+
+
+@pytest.mark.parametrize(
+    "uv_sources,expect_tool_section",
+    [
+        ({}, False),
+        ({"dlt": {"path": "/home/me/dlt", "editable": True}}, True),
+        ({"dlt": {"git": "https://example.com/dlt.git", "rev": "abc123"}}, True),
+    ],
+    ids=["empty-omits-tool", "editable-path", "git-with-rev"],
+)
+def test_render_pyproject_emits_uv_sources_when_present(
+    uv_sources: Dict[str, Dict[str, Any]], expect_tool_section: bool
+) -> None:
+    """Valid TOML with `[project]` always; `[tool.uv.sources]` iff the map is non-empty."""
+    deps: List[str] = ["dlt[hub]==1.26.0", "duckdb>=0.9"]
+    parsed = tomlkit.parse(render_pyproject("hello", deps, uv_sources))
+    assert parsed["project"]["name"] == "hello"  # type: ignore[index]
+    assert list(parsed["project"]["dependencies"]) == deps  # type: ignore[index, arg-type]
+    if not expect_tool_section:
+        assert "tool" not in parsed
+        return
+    rendered = parsed["tool"]["uv"]["sources"]  # type: ignore[index]
+    for pkg, src in uv_sources.items():
+        assert dict(rendered[pkg]) == src  # type: ignore[index, arg-type]
+
+
+@pytest.mark.parametrize(
+    "declared,desired,expected",
+    [
+        (["requests"], ["fastmcp>=3.1.0"], [("add", "fastmcp>=3.1.0")]),
+        (["fastmcp>=3.0"], ["fastmcp>=3.1.0"], []),
+        (["dlt[hub]>=1.30"], ["dlt[hub]==1.33.0a1"], []),
+        (["dlt[hub]==1.20.0"], ["dlt[hub]==1.33.0a1"], [("upgrade", "dlt[hub]==1.33.0a1")]),
+        (
+            ["dlt[snowflake]==1.20.0"],
+            ["dlt[hub]==1.33.0a1"],
+            [("upgrade", "dlt[hub,snowflake]==1.33.0a1")],
+        ),
+        (
+            ["DLT[snowflake]>=1.30"],
+            ["dlt[hub]==1.33.0a1"],
+            [("upgrade", "DLT[hub,snowflake]>=1.30")],
+        ),
+        (["fastmcp==4.0"], ["fastmcp>=3.1.0"], [("newer", "fastmcp>=3.1.0")]),
+        (["dlt==2.0"], ["dlt[hub]==1.33.0a1"], [("upgrade", "dlt[hub]==2.0")]),
+        (
+            ["mowidgets==0.1 ; python_version >= '3.11'"],
+            ["mowidgets>=0.2.1"],
+            [("upgrade", 'mowidgets>=0.2.1; python_version >= "3.11"')],
+        ),
+        (
+            ["dlt[hub]==1.20.0"],
+            ["dlt[hub] @ file:///home/me/dlt"],
+            [("upgrade", "dlt[hub]@ file:///home/me/dlt")],
+        ),
+        (["dlt @ git+https://example.com/dlt.git"], ["dlt[hub]==1.33.0a1"], []),
+    ],
+    ids=[
+        "missing-adds",
+        "admits-keeps",
+        "admits-prerelease-keeps",
+        "older-pin-upgrades",
+        "older-pin-keeps-other-extras",
+        "missing-extra-keeps-version",
+        "newer-pin-kept",
+        "newer-pin-gets-extra",
+        "marker-kept",
+        "direct-reference-replaces",
+        "own-source-kept",
+    ],
+)
+def test_plan_dependency_changes(
+    declared: List[str], desired: List[str], expected: List[Tuple[str, str]]
+) -> None:
+    changes = plan_dependency_changes(declared, desired)
+    # packaging versions render a direct reference with or without a space before `@`
+    assert [(change["op"], str(Requirement(change["spec"]))) for change in changes] == [
+        (op, str(Requirement(spec))) for op, spec in expected
+    ]
+    for change in changes:
+        if change["op"] == "add":
+            assert "declared" not in change
+        else:
+            assert change["declared"] in declared
 
 
 def test_get_workspace_install_specs_includes_dlt_with_hub_extra() -> None:

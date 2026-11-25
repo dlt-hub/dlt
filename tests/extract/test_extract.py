@@ -559,6 +559,35 @@ def test_nested_hints_table_name(extract_step: Extract) -> None:
     assert source.schema.tables["events_table__data_blob"]["columns"]["date"]["data_type"] == "date"
 
 
+class _ContextError(Exception):
+    def __init__(self, resource_name: Optional[str] = None) -> None:
+        super().__init__("boom")
+        self.resource_name = resource_name
+
+    @property
+    def table_name(self) -> Optional[str]:
+        # read only: the extractor must skip an attribute that it cannot set
+        return None
+
+
+@pytest.mark.parametrize("preset", [None, "other"], ids=["empty", "preset"])
+def test_extract_sets_resource_context_on_exception(
+    extract_step: Extract, preset: Optional[str]
+) -> None:
+    def raising_columns(item: Any) -> Any:
+        raise _ContextError(preset)
+
+    @dlt.resource(table_name=lambda item: "letters_table", columns=raising_columns)
+    def letters():
+        yield from "ABC"
+
+    source = DltSource(dlt.Schema("letters"), "module", [letters])
+    with pytest.raises(_ContextError) as ex:
+        extract_step.extract(source, 20, 1)
+    # the extractor sets an empty resource name and keeps a preset one
+    assert ex.value.resource_name == (preset or "letters")
+
+
 def test_extract_metrics_on_exception_no_flush(extract_step: Extract) -> None:
     @dlt.resource
     def letters():

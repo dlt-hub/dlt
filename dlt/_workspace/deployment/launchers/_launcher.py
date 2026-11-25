@@ -11,19 +11,17 @@ from requests.exceptions import SSLError
 from dlt.common import json
 from dlt.common.configuration import resolve_configuration
 from dlt.common.configuration.specs import known_sections
-from dlt.common.configuration.specs.pluggable_run_context import ProfilesRunContext
 from dlt.common.configuration.utils import add_config_dict_to_env
 from dlt.common.exceptions import TerminalException
-from dlt.common.runtime.run_context import active
 from dlt.common.time import set_context_timezone
 from dlt.sources.helpers.requests.retry import DEFAULT_RETRY_EXCEPTIONS
 
 from dlt._workspace import known_sections as ws_known_sections
 from dlt.common import known_env
-from dlt._workspace._known_env import WORKSPACE__PROFILE
 from dlt._workspace.deployment._job_ref import parse_job_ref
 from dlt._workspace.deployment.configuration import JobConfiguration
 from dlt._workspace.deployment.typing import TRuntimeEntryPoint, resolve_incremental_mode
+from dlt._workspace.profile import activate_profile as _activate_profile
 
 
 EXIT_TERMINAL_ERROR = 1
@@ -167,15 +165,8 @@ def set_config_env_vars(sections: Tuple[str, ...], config: Dict[str, Any]) -> No
 
 def activate_profile(entry_point: TRuntimeEntryPoint) -> None:
     """Activates the profile of `entry_point` in this process and in the processes it starts."""
-
-    profile = entry_point.get("profile")
-    if not profile:
-        return
-    os.environ[WORKSPACE__PROFILE] = profile
-    # a run context created before the env var was set keeps its profile until switched
-    ctx = active()
-    if isinstance(ctx, ProfilesRunContext) and ctx.profile != profile:
-        ctx.switch_profile(profile)
+    if profile := entry_point.get("profile"):
+        _activate_profile(profile)
 
 
 def apply_job_configuration(entry_point: TRuntimeEntryPoint) -> None:

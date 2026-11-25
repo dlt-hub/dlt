@@ -3,6 +3,17 @@ from typing import Any, Dict, List, Literal, Optional
 from dlt.common.typing import NotRequired, TypedDict
 
 
+TAIAgentName = Literal["claude", "cursor", "codex", "cortex"]
+"""Names of the AI coding agents a toolkit can be installed for."""
+
+
+class TAgentVisibility(TypedDict, total=False):
+    """AI coding agents that see a toolkit or a component: only `include`, or all but `exclude`."""
+
+    include: List[str]
+    exclude: List[str]
+
+
 TAiStatusWarning = Literal[
     "not_initialized",
     "no_init_toolkit",
@@ -46,6 +57,13 @@ class TToolkitInfo(TypedDict):
     tags: List[str]
     dependencies: NotRequired[List[str]]
     workflow_entry_skill: NotRequired[str]
+    agent_visibility: NotRequired[TAgentVisibility]
+    """AI coding agents that see the toolkit, from `agents` in `toolkit.json`."""
+    component_visibility: NotRequired[Dict[str, TAgentVisibility]]
+    """AI coding agents that see single components, keyed by folder and name (`skills/setup`)."""
+    mcp_features: NotRequired[Dict[str, List[str]]]
+    """Feature groups the toolkit adds to (`name`, `+name`) or removes from (`-name`) MCP servers
+    of other toolkits, keyed by server name, from `mcp_features` in `toolkit.json`."""
 
 
 class TWorkbenchToolkitInfo(TToolkitInfo):
@@ -66,3 +84,16 @@ class TToolkitIndexEntry(TToolkitInfo, total=False):
     agent: str
     files: Dict[str, Any]
     mcp_servers: List[str]
+    see_all: bool
+    """Installed with `--see-all`: an update also installs the components hidden from the agent."""
+
+
+class TToolkitsIndex(TypedDict):
+    """The installed toolkits in `.dlt/.toolkits`, and the harness source given last."""
+
+    engine_version: int
+    toolkits: Dict[str, TToolkitIndexEntry]
+    location: NotRequired[str]
+    """Harness location given last to a command, when not the default."""
+    branch: NotRequired[str]
+    """Harness branch given last to a command, when not the default."""

@@ -223,19 +223,24 @@ def test_fetch_workspace_info_installed_toolkits() -> None:
         toolkits_path = os.path.join(ctx.settings_dir, ".toolkits")
         os.makedirs(os.path.dirname(toolkits_path), exist_ok=True)
         entry = {
+            "init": {"version": "1.0.0", "dependencies": ["local-workspace"]},
+            "local-workspace": {"version": "1.0.0", "dependencies": ["base"]},
+            "base": {"version": "1.0.0"},
             "my-tk": {
                 "version": "1.0.0",
                 "installed_at": "2025-01-01T00:00:00+00:00",
                 "agent": "claude",
                 "description": "My toolkit",
                 "tags": ["test"],
-            }
+                "dependencies": ["base"],
+            },
         }
         with open(toolkits_path, "w", encoding="utf-8") as f:
             yaml.dump(entry, f)
 
         info = fetch_workspace_info()
-        assert "my-tk" in info["installed_toolkits"]
+        # init and its dependencies at any depth are hidden
+        assert set(info["installed_toolkits"]) == {"my-tk"}
         assert info["installed_toolkits"]["my-tk"]["version"] == "1.0.0"
         assert info["installed_toolkits"]["my-tk"]["description"] == "My toolkit"
         assert info["installed_toolkits"]["my-tk"]["tags"] == ["test"]

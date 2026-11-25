@@ -1,8 +1,9 @@
 import contextlib
 import functools
+import inspect
 import threading
 import time
-from typing import Any, Callable, Dict, Optional
+from typing import Any, Callable, ContextManager, Dict, Optional
 
 from dlt.common.configuration import resolve_configuration
 from dlt.common.configuration.container import Container
@@ -13,8 +14,24 @@ from dlt.common.runtime.telemetry import _TELEMETRY_STARTED, start_telemetry
 from dlt.common.typing import TFun
 from dlt.common.utils import digest128
 
-# serialize context reloads for concurrent MCP tool calls
+from dlt._workspace._workspace_context import WorkspaceRunContext
+from dlt._workspace.exceptions import ProfileException
+from dlt._workspace.environment import use_profile_options
+from dlt._workspace.typing import TProfileOptionsTakes
+
+# serialize context reloads and tool bodies: the run context is global
 _context_reload_lock = threading.Lock()
+
+TProfileArgument = Optional[str]
+"""The `profile` argument of a tool that works with a profile. The MCP server runs the call
+with this profile (`with_tool_run_context`). The server describes the argument unless the
+docstring of the tool does. Outside of a workspace, the server hides it from the tool schema."""
+
+TEnvironmentArgument = Optional[str]
+"""The `environment` argument of a tool that deploys or works with a deployment. The MCP server
+runs the call with the default write profile of that environment. When the tool also takes
+`profile`, `select_environment_profile` selects the profile. The server describes the argument
+unless the docstring of the tool does."""
 
 
 def _get_agent_info() -> Optional[Dict[str, str]]:
@@ -49,35 +66,103 @@ def _get_agent_info() -> Optional[Dict[str, str]]:
         return None
 
 
+def with_tool_run_context(fn: TFun) -> TFun:
+    """Runs each call of the MCP tool `fn` on a run context that dlt reloads from disk. Each call
+    runs with the profile that its arguments select:
+
+    * `profile` alone: that profile, else the active one.
+    * `environment` alone: the default write profile of the environment.
+    * both: the profile that `select_environment_profile` selects.
+
+    `DltMCP` wraps every tool that it serves. An argument that selects no profile raises
+    `ToolError` with the remedy. After the call, `use_profile` restores the reloaded run context.
+    """
+    from fastmcp.exceptions import ToolError
+
+    signature = inspect.signature(fn)
+    takes = _get_profile_options_takes(signature)
+
+    @functools.wraps(fn)
+    def wrapper(*args: Any, **kwargs: Any) -> Any:
+        arguments: Dict[str, Any] = {}
+        if takes != "none":
+            arguments = signature.bind_partial(*args, **kwargs).arguments
+        with _context_reload_lock, contextlib.ExitStack() as stack:
+            ctx_plug = Container()[PluggableRunContext]
+            ctx_plug.reload(ctx_plug.context.run_dir)
+            try:
+                stack.enter_context(
+                    _use_call_profile(
+                        ctx_plug, takes, arguments.get("environment"), arguments.get("profile")
+                    )
+                )
+            except ProfileException as ex:
+                raise ToolError(str(ex)) from ex
+            return fn(*args, **kwargs)
+
+    return wrapper  # type: ignore[return-value]
+
+
+def _get_profile_options_takes(signature: inspect.Signature) -> TProfileOptionsTakes:
+    """What a tool takes to select its profile: its `profile` and `environment` arguments."""
+    takes_profile = "profile" in signature.parameters
+    if "environment" in signature.parameters:
+        return "both" if takes_profile else "environment"
+    return "profile" if takes_profile else "none"
+
+
+def _use_call_profile(
+    ctx_plug: PluggableRunContext,
+    takes: TProfileOptionsTakes,
+    environment: Optional[str],
+    profile: Optional[str],
+) -> ContextManager[Any]:
+    """The context that runs a call with the profile that its arguments select, see
+    `use_profile_options`."""
+    if takes == "none" or (takes == "profile" and profile is None):
+        return contextlib.nullcontext()
+    _check_workspace_context(ctx_plug, "profile" if takes == "profile" else "environment")
+    return use_profile_options(takes, environment, profile)
+
+
+def _check_workspace_context(ctx_plug: PluggableRunContext, argument: str) -> None:
+    from fastmcp.exceptions import ToolError
+
+    if not isinstance(ctx_plug.context, WorkspaceRunContext):
+        raise ToolError(
+            f"The `{argument}` argument needs a dltHub workspace and this MCP server runs outside"
+            " of one. Run `dlthub init` in the project folder to create a workspace."
+        )
+
+
 def with_mcp_tool_telemetry(**extra_props: Any) -> Callable[[TFun], TFun]:
     """Telemetry decorator for MCP tool functions.
 
-    Emits an anonymous `mcp_tool_{name}` telemetry event after each tool
-    invocation.  Before executing the tool the decorator fully reloads the
-    runtime context from disk (workspace marker, profile pin, secrets /
-    config files) so that every MCP call sees the latest on-disk state.
-    Reload and execution are serialized under a module-level lock.
-
-    `agent_info` is `None` when the session metadata is not available
-    (e.g. during tests that call tool functions directly).
+    Emits an anonymous `mcp_tool_{name}` telemetry event after each tool call. For a
+    tool that takes a `profile` or an `environment` argument, the event carries the
+    profile of the call. `agent_info` is `None` outside of an MCP session.
 
     Args:
         **extra_props: literal key-value pairs added to the telemetry event
             properties.
 
     Returns:
-        A decorator that wraps the tool function with telemetry tracking and
-        context reload.
+        A decorator that wraps the tool function with telemetry tracking.
     """
 
     def decorator(fn: TFun) -> TFun:
         event_name = "tool_" + fn.__name__
+        parameters = inspect.signature(fn).parameters
+        tracks_profile = "profile" in parameters or "environment" in parameters
 
         @functools.wraps(fn)
         def wrapper(*args: Any, **kwargs: Any) -> Any:
             props: Dict[str, Any] = {"mcp_primitive": "tool"}
             props.update(extra_props)
             props["agent_info"] = _get_agent_info()
+            ctx = Container()[PluggableRunContext].context
+            if tracks_profile and isinstance(ctx, WorkspaceRunContext):
+                props["profile"] = ctx.profile
             start_ts = time.time()
 
             def _track(success: bool) -> None:
@@ -88,10 +173,6 @@ def with_mcp_tool_telemetry(**extra_props: Any) -> Callable[[TFun], TFun]:
                         c = resolve_configuration(RuntimeConfiguration())
                         start_telemetry(c)
                     track("mcp", event_name, props)
-
-            with _context_reload_lock:
-                ctx_plug = Container()[PluggableRunContext]
-                ctx_plug.reload(ctx_plug.context.run_dir)
 
             try:
                 rv = fn(*args, **kwargs)

@@ -74,6 +74,15 @@ def load_secret(name: str) -> str:
     return secret
 
 
+COMMIT_IDENTITY = {
+    "GIT_AUTHOR_NAME": "dlt tests",
+    "GIT_AUTHOR_EMAIL": "tests@example.com",
+    "GIT_COMMITTER_NAME": "dlt tests",
+    "GIT_COMMITTER_EMAIL": "tests@example.com",
+}
+"""Commit identity of test commits, so they do not need a configured git user."""
+
+
 def modify_and_commit_file(
     repo_path: str, file_name: str, content: str = "NEW README CONTENT"
 ) -> Tuple[str, Commit]:
@@ -82,12 +91,12 @@ def modify_and_commit_file(
     with open(file_path, "w", encoding="utf-8") as f:
         f.write(content)
 
+    git_path = Path(file_name).as_posix()
+    # the git command reads the index of a sparse checkout, which GitPython cannot
     with Repo(repo_path) as repo:
-        # one file modified
-        index = repo.index.entries
-        assert len(index) > 0
-        assert any(e for e in index.keys() if os.path.join(*Path(e[0]).parts) == file_name)
-        repo.index.add(file_name)
-        commit = repo.index.commit(f"mod {file_name}")
+        assert repo.git.ls_files(git_path), f"{file_name} is not tracked"
+        with repo.git.custom_environment(**COMMIT_IDENTITY):
+            repo.git.commit("-m", f"mod {file_name}", "--", git_path)
+        commit = repo.head.commit
 
     return file_path, commit

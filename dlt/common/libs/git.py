@@ -63,10 +63,24 @@ def is_dirty(repo: Repo) -> bool:
 
 
 def get_default_branch(repo: Repo) -> str:
+    """The default branch of `origin`.
+
+    Raises:
+        GitError: `origin/HEAD` is missing or does not point to a branch.
+    """
+    from git import GitError
+
     origin = repo.remotes.origin
-    # Get the remote's HEAD reference (default branch)
-    default_ref = origin.refs.HEAD  # symbolic ref like 'origin/main'
-    return default_ref.reference.name.split("/")[-1]  # extract branch
+    if "HEAD" not in origin.refs:
+        raise GitError(
+            f"dlt cannot determine the default branch of origin: {repo.working_dir} has no"
+            " `origin/HEAD`"
+        )
+    try:
+        # symbolic ref like 'origin/main'
+        return origin.refs.HEAD.reference.remote_head
+    except TypeError as ex:
+        raise GitError(f"origin/HEAD of {repo.working_dir} does not point to a branch") from ex
 
 
 def ensure_remote_head(
@@ -74,6 +88,7 @@ def ensure_remote_head(
     branch: Optional[str] = None,
     with_git_command: Optional[str] = None,
     path: Optional[str] = None,
+    origin_url: Optional[str] = None,
 ) -> None:
     """Updates repository from origin and ensures it's clean and synced.
 
@@ -86,22 +101,38 @@ def ensure_remote_head(
         with_git_command: Custom GIT_SSH_COMMAND for authentication.
         path: Directory path for sparse checkout. When set, only this path
             is checked out, reducing download size and time.
+        origin_url: Expected URL of `origin`. When set, a clone of another URL fails.
 
     Raises:
         RepositoryDirtyError: If repository has uncommitted changes or is
             not synced with origin.
-        GitError: If path is set and the repository was not cloned sparse.
+        GitError: If the repository has no `origin`, if `origin` is not `origin_url`, or if the
+            repository is sparse without `path` or full with `path`.
     """
-    from git import GitError, Repo, RepositoryDirtyError
+    from git import GitCommandError, GitError, Repo, RepositoryDirtyError
 
     # update remotes and check if heads are same. ignores locally modified files
     with Repo(repo_path) as repo:
         # use custom environment if specified
         with repo.git.custom_environment(GIT_SSH_COMMAND=with_git_command):
-            # if path is set, use sparse checkout
+            if "origin" not in repo.remotes:
+                raise GitError(f"{repo_path} has no origin remote")
+            if origin_url is not None and get_origin(repo) != origin_url:
+                raise GitError(f"{repo_path} is a clone of {get_origin(repo)}, not {origin_url}")
+            # git can keep the flag in config.worktree, which GitPython does not read
+            try:
+                is_sparse = (
+                    repo.git.config("--worktree", "--get", "--bool", "core.sparseCheckout")
+                    == "true"
+                )
+            except GitCommandError:
+                is_sparse = False
+            if path is None and is_sparse:
+                raise GitError(
+                    f"{repo_path} is a sparse checkout, but the caller requested a full clone"
+                )
             if path is not None:
-                # a full clone keeps its whole history: fail so the caller clones it sparse
-                if not repo.config_reader().get_value("core", "sparseCheckout", False):
+                if not is_sparse:
                     raise GitError(f"{repo_path} is not a sparse checkout")
                 repo.git.sparse_checkout("set", path)
             # checkout branch before fetching
@@ -133,9 +164,9 @@ def clone_repo(
         "--config=fetch.writeCommitGraph=false",
     ]
     if path is not None:
-        # set of options that prevents downloading all blobs
+        # set of options that prevents downloading all blobs. the full history of commits and
+        # trees stays, so any branch, tag or commit can be checked out
         multi_options = [
-            "--depth=1",
             "--filter=blob:none",
             "--no-checkout",
             *disable_bg_writes,
@@ -182,7 +213,7 @@ def force_clone_repo(
         branch: Branch to checkout after cloning.
         with_git_command: Custom GIT_SSH_COMMAND for authentication.
         path: Directory path for sparse checkout. When set, only this path
-            is cloned using --filter=blob:none and --depth=1.
+            is cloned using --filter=blob:none.
     """
     try:
         # delete repo folder
@@ -238,7 +269,11 @@ def get_fresh_repo_files(
         repo_path = os.path.join(working_dir, repo_name)
         try:
             ensure_remote_head(
-                repo_path, branch=branch, with_git_command=with_git_command, path=path
+                repo_path,
+                branch=branch,
+                with_git_command=with_git_command,
+                path=path,
+                origin_url=repo_location,
             )
         except GitError:
             force_clone_repo(

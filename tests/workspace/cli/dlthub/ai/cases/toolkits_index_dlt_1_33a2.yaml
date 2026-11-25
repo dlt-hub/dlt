@@ -1,0 +1,18 @@
+# `.dlt/.toolkits` written by dlt 1.33.0a2: a flat map of toolkits, with the harness location and
+# branch on each toolkit installed from a source other than the default
+init:
+  version: 0.1.3
+  description: Shared rules, secrets handling and the workspace MCP server.
+  installed_at: '2026-11-18T10:00:00+00:00'
+  agent: claude
+  location: /home/me/harness
+  branch: feat
+rest-api-pipeline:
+  version: 0.2.0
+  description: Build REST API pipelines.
+  installed_at: '2026-11-18T10:01:00+00:00'
+  agent: claude
+  dependencies:
+  - init
+  location: /home/me/harness
+  branch: feat

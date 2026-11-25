@@ -2,6 +2,7 @@ import functools
 import os
 import warnings
 from typing import (
+    TYPE_CHECKING,
     Any,
     Callable,
     ClassVar,
@@ -9,6 +10,7 @@ from typing import (
     Iterable,
     List,
     Literal,
+    Mapping,
     Optional,
     Protocol,
     Sequence,
@@ -23,6 +25,9 @@ import importlib.metadata
 from dlt.common.configuration.specs.base_configuration import ContainerInjectableContext
 from dlt.common.configuration.specs.pluggable_run_context import RunContextBase
 from dlt.common.known_env import DLT_DISABLE_PLUGINS
+
+if TYPE_CHECKING:
+    from dlt.common.configuration.providers.provider import ConfigProvider
 
 hookspec = pluggy.HookspecMarker("dlt")
 hookimpl = pluggy.HookimplMarker("dlt")
@@ -93,11 +98,23 @@ def load_setuptools_entrypoints(m: pluggy.PluginManager) -> List[str]:
                 continue
             m.register(plugin, name=ep.name)
             m._plugin_distinfo.append((plugin, pluggy._manager.DistFacade(dist)))
+            # a plugin may declare hooks of its own, like the workspace hooks of dlt
+            if _declares_new_hookspecs(m, plugin):
+                m.add_hookspecs(plugin)
             top_module = ep.module.split(".")[0]
             if top_module not in plugin_modules:
                 plugin_modules.append(top_module)
 
     return plugin_modules
+
+
+def _declares_new_hookspecs(m: pluggy.PluginManager, plugin: Any) -> bool:
+    marker = f"{m.project_name}_spec"
+    names = [name for name in dir(plugin) if hasattr(getattr(plugin, name, None), marker)]
+    # a module that imports the hookspecs of another plugin declares none of its own
+    return bool(names) and all(
+        getattr(m.hook, name, None) is None or getattr(m.hook, name).spec is None for name in names
+    )
 
 
 @hookspec(firstresult=True)
@@ -136,6 +153,9 @@ class SupportsCliCommand(Protocol):
     - `extend`: first plugin's `configure_parser` runs; ALL plugins' `execute` fire in order.
     - `additive`: additional subparsers may be added to top level command
     """
+    profile_options: Optional[Mapping[str, Any]] = None
+    """Profile options that the `dlthub` CLI host reads from the command. With `None`, the command
+    takes `--profile`."""
 
     def configure_parser(self, parser: argparse.ArgumentParser) -> None:
         """Configures the parser for the given argument."""
@@ -176,33 +196,6 @@ def plug_cli(host: str) -> Optional[Type[SupportsCliCommand]]:
     Returns:
         Optional[Type[SupportsCliCommand]]: Command class to register, or `None` when
         the plugin does not contribute to the requested host.
-    """
-
-
-class SupportsMcpFeatures(Protocol):
-    """Protocol for contributing MCP tools, prompts, and providers via plug_mcp hook"""
-
-    name: str
-    """unique name identifying this feature set"""
-    tools: Sequence[Any]
-    """tool functions or Tool objects to register"""
-    prompts: Sequence[Any]
-    """prompt functions or Prompt objects to register"""
-    providers: Sequence[Any]
-    """provider instances (e.g. SkillProvider) to register"""
-
-
-@hookspec()
-def plug_mcp(features: Set[str]) -> Optional[SupportsMcpFeatures]:
-    """Spec for plugin hook that contributes MCP tools, prompts, and providers.
-
-    MCP server will broadcast `features` to all registered plugins that may
-    decide to return a MCP feature (combination of tools, skills and prompts)
-    or not. The server collects all non-None results and registers everything on the
-    FastMCP instance.
-
-    Args:
-        features: set of feature keywords the server requests
     """
 
 
@@ -248,4 +241,17 @@ def plug_agent_loop(loop_type: str) -> Optional[Type[SupportsAgentLoop]]:
     Returns:
         Optional[Type[SupportsAgentLoop]]: Loop class to instantiate, or `None` when the
         plugin does not implement the requested loop.
+    """
+
+
+@hookspec()
+def plug_config_providers() -> Optional[Sequence["ConfigProvider"]]:
+    """Spec for plugin hook that contributes config providers to the run context.
+
+    A run context calls it when it adds its extra providers, in every process that uses dlt.
+    Providers that need settings must resolve them from the initial providers: environment
+    variables and toml files.
+
+    Returns:
+        Optional[Sequence[ConfigProvider]]: Providers to add, or `None` to add none.
     """

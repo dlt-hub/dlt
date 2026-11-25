@@ -2,6 +2,7 @@ from dlt._workspace.deployment.decorators import job, interactive, pipeline_run,
 from dlt._workspace.deployment.manifest import (
     default_dashboard_job,
     default_dashboard_manifest,
+    get_deployment_module_file,
     generate_manifest,
     manifest_from_module,
     validate_manifest,
@@ -14,6 +15,10 @@ from dlt._workspace.deployment.manifest import (
     save_manifest,
     load_manifest,
     import_deployment_module,
+    resolve_job_profile,
+    get_legacy_job_profile,
+    get_job_access,
+    TJobProfile,
 )
 from dlt._workspace.deployment.package_builder import compute_package_content_hash
 from dlt._workspace.deployment.requirements import (
@@ -26,6 +31,7 @@ from dlt._workspace.deployment.requirements import (
     build_launcher_requirements,
     default_requirements_manifest,
     export_workspace_requirements,
+    export_workspace_requirements_with_warnings,
     get_dlt_requirement_spec,
     get_pkg_install_spec,
     get_workspace_install_specs,

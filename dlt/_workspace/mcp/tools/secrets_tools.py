@@ -10,11 +10,13 @@ from dlt._workspace.cli.dlthub.ai.utils import (
     fetch_secrets_view_redacted,
 )
 from dlt._workspace.access import RequiresAccess
-from dlt._workspace.mcp.context import with_mcp_tool_telemetry
+from dlt._workspace.mcp.context import TProfileArgument, with_mcp_tool_telemetry
 
 
 @with_mcp_tool_telemetry()
-def secrets_list() -> Annotated[List[Dict[str, Any]], RequiresAccess(local=["read"])]:
+def secrets_list(
+    profile: TProfileArgument = None,
+) -> Annotated[List[Dict[str, Any]], RequiresAccess(local=["read"])]:
     """List secret file paths, profiles, and whether each file exists."""
 
     return fetch_secrets_list()  # type: ignore[return-value]
@@ -31,6 +33,7 @@ def secrets_view_redacted(
             )
         ),
     ] = None,
+    profile: TProfileArgument = None,
 ) -> Annotated[str, RequiresAccess(local=["read"])]:
     """Show secrets TOML with every value replaced by '***'.
 
@@ -56,6 +59,7 @@ def secrets_update_fragment(
         str,
         Field(description="Absolute path to the secrets file to update (from secrets_list)."),
     ],
+    profile: TProfileArgument = None,
 ) -> Annotated[str, RequiresAccess(local=["write"])]:
     """Deep-merge a TOML fragment into a secrets file; returns the redacted result. The file is created if it does not exist."""
     try:

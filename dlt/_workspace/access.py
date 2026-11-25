@@ -1,10 +1,11 @@
 import dataclasses
 import typing
-from typing import Any, Dict, List, Optional, Sequence, Set, Tuple
+from typing import Any, Dict, List, Mapping, Optional, Sequence, Set, Tuple
 
 from dlt.common.typing import AnyFun, annotation_metadata, get_args
 
 from dlt._workspace.typing import (
+    TProfileDataAccess,
     TWorkspaceAccess,
     TWorkspaceContextVerb,
     TWorkspaceDataVerb,
@@ -31,6 +32,11 @@ FULL_ACCESS: TWorkspaceAccess = typing.cast(
     TWorkspaceAccess, {axis: list(verbs) for axis, verbs in ACCESS_AXIS_VERBS.items()}
 )
 """Everything there is to grant."""
+
+DATA_ACCESS_LEVELS = typing.cast(
+    Tuple[TProfileDataAccess, ...], ("none",) + ACCESS_AXIS_VERBS["data"]
+)
+"""Data access levels, the lowest first: `none`, then the data verbs of job access."""
 
 
 @dataclasses.dataclass(frozen=True)
@@ -66,11 +72,61 @@ def required_access(f: AnyFun) -> TWorkspaceAccess:
     return FULL_ACCESS
 
 
+def normalize_access(declared: Any, name: str = "access") -> TWorkspaceAccess:
+    """Validates an access declaration and returns it with a single verb of an axis as a list.
+
+    Args:
+        declared (Any): The declaration, a mapping of axes to verbs.
+        name (str): How messages name the declaration, for example `access` or `__access__`.
+
+    Raises:
+        ValueError: The declaration is not a mapping, names an unknown axis, or a verb that its
+            axis does not take.
+    """
+    if not isinstance(declared, Mapping):
+        raise ValueError(f"{name} takes a mapping of {', '.join(ACCESS_AXES)} to verbs")
+    access: Dict[str, Any] = dict(declared)
+    if unknown := sorted(set(access) - set(ACCESS_AXES)):
+        raise ValueError(f"{name} takes {', '.join(ACCESS_AXES)}. Got {', '.join(unknown)}")
+    for axis in ACCESS_AXES:
+        if isinstance(access.get(axis), str):
+            access[axis] = [access[axis]]
+        allowed = ACCESS_AXIS_VERBS[axis] + ("all",)
+        refused = sorted({verb for verb in access.get(axis) or [] if verb not in allowed})
+        if refused:
+            unserved = sorted(set(ACCESS_AXIS_VOCABULARY[axis]) - set(allowed))
+            reason = f"{name}.{axis} takes {', '.join(allowed)}"
+            if set(unserved) & set(refused):
+                reason += f", and no runtime serves {', '.join(unserved)} yet"
+            raise ValueError(f"{reason}. Got {', '.join(refused)}")
+    return typing.cast(TWorkspaceAccess, access)
+
+
 def granted_verbs(access: Optional[TWorkspaceAccess], axis: str) -> Set[str]:
     """Verbs granted on one axis, with `all` expanded."""
     declared: Dict[str, Any] = dict(access or {})
     verbs = set(declared.get(axis) or [])
     return set(ACCESS_AXIS_VERBS[axis]) if "all" in verbs else verbs
+
+
+def get_data_access_level(access: Optional[TWorkspaceAccess]) -> TProfileDataAccess:
+    """Data access that `access` declares: `write` when it declares `write`, else `read`, else
+    `none`."""
+    verbs = granted_verbs(access, "data")
+    if "write" in verbs:
+        return "write"
+    return "read" if "read" in verbs else "none"
+
+
+def get_data_access_verbs(data_access: str) -> List[TWorkspaceDataVerb]:
+    """Data verbs that `data_access` includes. `write` and `all` include `read`."""
+    if data_access in ("write", "all"):
+        return ["read", "write"]
+    return ["read"] if data_access == "read" else []
+
+
+def format_data_access(data_access: str) -> str:
+    return "no data access" if data_access == "none" else f"{data_access} data access"
 
 
 def format_access(access: TWorkspaceAccess) -> str:
@@ -124,7 +180,11 @@ __all__ = [
     "parse_access",
     "ACCESS_AXIS_VERBS",
     "ACCESS_AXIS_VOCABULARY",
+    "DATA_ACCESS_LEVELS",
     "RequiresAccess",
+    "get_data_access_level",
+    "get_data_access_verbs",
+    "format_data_access",
     "granted_verbs",
     "missing_access",
     "required_access",

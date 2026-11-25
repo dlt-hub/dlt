@@ -7,6 +7,7 @@ import shutil
 import importlib
 from typing import Any, Dict, List, Optional, Set, Type
 
+import dlt
 from dlt.common.configuration.container import Container
 from dlt.common.configuration.specs.pluggable_run_context import PluggableRunContext
 from dlt.common.destination import DestinationReference
@@ -58,7 +59,7 @@ def plugin_install():
 
     importlib.reload(importlib.metadata)
 
-    yield
+    yield temp_dir
 
     sys.path.remove(temp_dir)
     shutil.rmtree(temp_dir)
@@ -81,6 +82,43 @@ def test_example_plugin() -> None:
     assert run_context.get_plugin_modules() == ["dlt_example_plugin", "dlt"]
     assert context.local_dir.startswith(context.data_dir)
     assert context.local_dir.endswith("tmp")
+
+
+def test_config_providers_hook() -> None:
+    # the run context adds the plugin provider together with its extra providers
+    providers = Container()[PluggableRunContext].providers
+    assert "example_plugin" in providers
+    assert dlt.secrets["example_plugin.api_key"] == "from-plugin"
+
+
+@pytest.mark.parametrize("isolated", [False, True], ids=["in-process", "isolated"])
+def test_deployment_manifest_processor_hook(
+    plugin_install: str, isolated: bool, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The example plugin processes the manifests that dlt generates, also in the isolated worker
+    that loads the plugin from its entry point. Its rejection reaches the caller."""
+    from dlt._workspace.deployment.manifest import manifest_from_module
+
+    # the isolated worker raises the rejection again in this process when its class is imported
+    from dlt_example_plugin.manifest_processor import (  # type: ignore[import-not-found]
+        PROCESSED_WARNING,
+        PROVIDER,
+        ExampleManifestRejected,
+    )
+
+    # the worker finds the plugin where the fixture installed it
+    monkeypatch.setenv(
+        "PYTHONPATH", os.pathsep.join(filter(None, [plugin_install, os.environ.get("PYTHONPATH")]))
+    )
+    manifest, warnings = manifest_from_module(
+        "dlt_example_plugin.deployment", None, isolated=isolated
+    )
+    job = next(j for j in manifest["jobs"] if j["job_ref"].endswith(".example_job"))
+    assert job["require"]["provider"] == PROVIDER
+    assert PROCESSED_WARNING in warnings
+
+    with pytest.raises(ExampleManifestRejected):
+        manifest_from_module("dlt_example_plugin.rejected_deployment", None, isolated=isolated)
 
 
 def test_run_context_passthrough() -> None:
@@ -230,8 +268,17 @@ def test_compose_extend_runs_all_executes(
 ) -> None:
     _build_and_run(monkeypatch, "dlthub", ["t_info", "--detailed"])
     out = capsys.readouterr().out
-    assert "t_info A: detailed=True" in out
-    assert "t_info B: detailed=True" in out
+    # `tryfirst` plugin configures the parser and executes first
+    assert out.index("t_info A: detailed=True") < out.index("t_info B: detailed=True")
+
+
+def test_compose_extend_ai_status(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    _build_and_run(monkeypatch, "dlthub", ["ai", "status"])
+    out = capsys.readouterr().out
+    # dlt status prints first, plugin checks follow
+    assert out.index("dlt ") < out.index("t_ai_status check: ok")
 
 
 def test_compose_additive_adds_subcommand(

@@ -1,6 +1,7 @@
 import contextlib
 import json
 import os
+import shutil
 from pathlib import Path
 from typing import Any, Callable, Dict, Iterator
 from unittest.mock import patch
@@ -11,9 +12,17 @@ import yaml
 
 from dlt.common.configuration.const import TYPE_EXAMPLES
 from dlt._workspace.cli.dlthub.ai.utils import (
+    DEFAULT_AI_WORKBENCH_REPO,
+    TOOLKITS_INDEX_ENGINE_VERSION,
     ensure_cursor_rule_frontmatter,
     extract_toolkit_info,
     fetch_ai_status,
+    is_component_visible,
+    is_toolkit_visible,
+    load_toolkits_index,
+    resolve_harness_source,
+    resolve_toolkit_dependencies,
+    save_toolkit_entry,
     merge_json_mcp_servers,
     merge_toml_mcp_servers,
     parse_json_mcp,
@@ -26,7 +35,10 @@ from dlt._workspace.cli.dlthub.ai.utils import (
     wrap_as_skill,
     MIN_REDACT_STARS,
 )
-from dlt._workspace.cli.formatters import parse_frontmatter
+from dlt._workspace.cli.markdown import MarkdownDocument
+from dlt._workspace.exceptions import ToolkitsIndexEngineNoUpgradePath
+
+from tests.workspace.cli.dlthub.ai.utils import AI_CASES_DIR
 
 
 @pytest.mark.parametrize(
@@ -91,6 +103,36 @@ def test_merge_toml_mcp_servers() -> None:
     assert doc["other"]["key"] == "value"  # type: ignore[index]
     assert doc["mcp_servers"]["srv"]["command"] == "uv"  # type: ignore[index]
 
+    # defaults land at the top level, a value the user set stays
+    defaults = {"grace": 5000}
+    doc = tomlkit.parse(merge_toml_mcp_servers(existing, new, "mcp_servers", defaults=defaults))
+    assert doc["grace"] == 5000
+    assert doc["other"]["key"] == "value"  # type: ignore[index]
+    user_set = "grace = 100\n\n" + existing
+    doc = tomlkit.parse(merge_toml_mcp_servers(user_set, new, "mcp_servers", defaults=defaults))
+    assert doc["grace"] == 100
+
+    # an existing server is updated in place, so comments stay and dotted keys stay valid
+    user_servers = (
+        'mcp_servers.dotted.command = "uv"\n'
+        'mcp_servers.dotted.args = ["run"]\n'
+        "\n"
+        "[mcp_servers.srv]\n"
+        'command = "uv"  # user note\n'
+        'args = ["run"]\n'
+        "startup_timeout_sec = 20\n"
+    )
+    updated = {
+        "dotted": {"command": "uv", "args": ["run", "--features=x"]},
+        "srv": {"command": "uv", "args": ["run", "--features=x"], "startup_timeout_sec": 20},
+    }
+    merged = merge_toml_mcp_servers(user_servers, updated, "mcp_servers")
+    assert 'command = "uv"  # user note' in merged
+    assert tomlkit.parse(merged).unwrap()["mcp_servers"] == updated
+    # keys the new config does not have are dropped, as when the table is replaced
+    replaced = merge_toml_mcp_servers(user_servers, {"srv": {"command": "dlt"}}, "mcp_servers")
+    assert tomlkit.parse(replaced).unwrap()["mcp_servers"]["srv"] == {"command": "dlt"}
+
 
 def test_strip_rule_frontmatter() -> None:
     content = "---\nalwaysApply: true\nname: keep\ndescription: also keep\n---\n# Body"
@@ -113,19 +155,20 @@ def test_strip_rule_frontmatter() -> None:
 
 
 def test_ensure_cursor_rule_frontmatter() -> None:
-    content = "---\nname: test\n---\n# Heading\nBody"
-    fm, _ = parse_frontmatter(ensure_cursor_rule_frontmatter(content))
+    def _fm(content: str) -> Dict[str, Any]:
+        return MarkdownDocument(ensure_cursor_rule_frontmatter(content)).split_frontmatter()[0]
+
+    fm = _fm("---\nname: test\n---\n# Heading\nBody")
     assert fm["alwaysApply"] is True
     assert fm["description"] == "Heading"
 
     # preserves existing description
-    content2 = "---\ndescription: Custom\n---\n# Heading\nBody"
-    fm2, _ = parse_frontmatter(ensure_cursor_rule_frontmatter(content2))
+    fm2 = _fm("---\ndescription: Custom\n---\n# Heading\nBody")
     assert fm2["description"] == "Custom"
     assert fm2["alwaysApply"] is True
 
     # no heading → no description key
-    fm3, _ = parse_frontmatter(ensure_cursor_rule_frontmatter("Just text, no heading"))
+    fm3 = _fm("Just text, no heading")
     assert fm3["alwaysApply"] is True
     assert "description" not in fm3
 
@@ -133,23 +176,24 @@ def test_ensure_cursor_rule_frontmatter() -> None:
 def test_wrap_as_skill() -> None:
     # with frontmatter: preserves name/description
     content = "---\nname: Custom\ndescription: A desc\n---\n# Body\nText"
-    fm, body = parse_frontmatter(wrap_as_skill(content, "fallback-name"))
+    fm, body = MarkdownDocument(wrap_as_skill(content, "fallback-name")).split_frontmatter()
     assert fm["name"] == "Custom"
     assert fm["description"] == "A desc"
     assert "# Body" in body
 
     # without frontmatter: derives from args and heading
-    fm2, _ = parse_frontmatter(wrap_as_skill("# Heading\nBody text", "my-skill"))
+    fm2, _ = MarkdownDocument(wrap_as_skill("# Heading\nBody text", "my-skill")).split_frontmatter()
     assert fm2["name"] == "my-skill"
     assert fm2["description"] == "Heading"
 
     # no heading: falls back to skill name for description
-    fm3, _ = parse_frontmatter(wrap_as_skill("Just text", "my-skill"))
+    fm3, _ = MarkdownDocument(wrap_as_skill("Just text", "my-skill")).split_frontmatter()
     assert fm3["name"] == "my-skill"
     assert fm3["description"] == "my-skill"
 
     # always_apply prefixes description
-    fm4, _ = parse_frontmatter(wrap_as_skill("# Heading\nBody", "s", always_apply=True))
+    always = wrap_as_skill("# Heading\nBody", "s", always_apply=True)
+    fm4, _ = MarkdownDocument(always).split_frontmatter()
     assert fm4["description"].startswith("ALWAYS read and follow")
     assert fm4["description"].endswith("Heading")
 
@@ -287,6 +331,67 @@ def test_extract_toolkit_info() -> None:
     assert info["tags"] == ["tag1"]
 
 
+def test_extract_toolkit_info_visibility() -> None:
+    """`agents` and `components` from toolkit.json say which agents see what."""
+    meta: Dict[str, Any] = {
+        "name": "tk",
+        "description": "A toolkit",
+        "version": "1.0.0",
+        "agents": {"exclude": ["cortex"]},
+        "components": {"skills/deploy": {"agents": {"include": ["claude"]}}},
+    }
+    info = extract_toolkit_info(meta, "tk")
+    assert not is_toolkit_visible(info, "cortex")
+    assert is_toolkit_visible(info, "claude")
+    # without an agent everything is visible
+    assert is_toolkit_visible(info, None)
+    assert is_component_visible(info, "skills/deploy", "claude")
+    assert not is_component_visible(info, "skills/deploy", "codex")
+    assert is_component_visible(info, "skills/other", "codex")
+
+    # include or exclude, not both, and always a list
+    for bad in ({"include": ["a"], "exclude": ["b"]}, {"include": "claude"}, {"only": ["x"]}):
+        with pytest.raises(ValueError, match="agent visibility"):
+            extract_toolkit_info({**meta, "agents": bad}, "tk")
+    with pytest.raises(ValueError, match="component skills/deploy"):
+        extract_toolkit_info({**meta, "components": {"skills/deploy": {"agents": []}}}, "tk")
+
+
+def test_extract_toolkit_info_mcp_features() -> None:
+    """`mcp_features` from toolkit.json maps server names to the feature groups a toolkit adds."""
+    meta: Dict[str, Any] = {"name": "tk", "description": "A toolkit", "version": "1.0.0"}
+    features = {"dlt-workspace-mcp": ["dlthub.jobs", "dlthub.logs"]}
+    assert (
+        extract_toolkit_info({**meta, "mcp_features": features}, "tk")["mcp_features"] == features
+    )
+    assert "mcp_features" not in extract_toolkit_info(meta, "tk")
+    # a toolkit can add a feature group with or without `+`, and remove one with `-`
+    prefixed = {"dlt-workspace-mcp": ["+snowflake", "-secrets", "dlthub.jobs"]}
+    assert (
+        extract_toolkit_info({**meta, "mcp_features": prefixed}, "tk")["mcp_features"] == prefixed
+    )
+    bad: Any
+    for bad in (
+        ["dlthub.jobs"],
+        {"dlt-workspace-mcp": "dlthub.jobs"},
+        {"s": [1]},
+        {"s": []},
+        {"s": ["a,b"]},
+        {"s": ["+"]},
+        {"s": ["+-secrets"]},
+        {"s": [""]},
+    ):
+        with pytest.raises(ValueError, match="mcp_features"):
+            extract_toolkit_info({**meta, "mcp_features": bad}, "tk")
+
+
+def test_resolve_toolkit_dependencies_skip() -> None:
+    """A skipped toolkit is left out together with what only it depends on."""
+    dep_map = {"app": ["base", "platform"], "platform": ["runtime"], "runtime": [], "base": []}
+    assert resolve_toolkit_dependencies("app", dep_map) == ["base", "runtime", "platform"]
+    assert resolve_toolkit_dependencies("app", dep_map, skip={"platform"}) == ["base"]
+
+
 def test_extract_toolkit_info_missing_fields() -> None:
     with pytest.raises(ValueError, match="name, description, version"):
         extract_toolkit_info({}, "bad-toolkit")
@@ -361,6 +466,87 @@ def _write_toolkits_index(project_root: Path, data: Dict[str, Any]) -> None:
         yaml.dump(data, f)
 
 
+@pytest.mark.parametrize(
+    "case_file,source",
+    [
+        ("toolkits_index_dlt_1_32.yaml", {}),
+        ("toolkits_index_dlt_1_33a2.yaml", {"location": "/home/me/harness", "branch": "feat"}),
+    ],
+    ids=["dlt-1.32", "dlt-1.33a2"],
+)
+def test_toolkits_index_written_by_older_dlt(case_file: str, source: Dict[str, str]) -> None:
+    """dlt migrates and saves the flat index of an older dlt on load. Its toolkits stay as they
+    are. The harness source that 1.33.0a2 recorded on `init` becomes the global one."""
+    project_root = Path("project")
+    index_path = project_root / ".dlt" / ".toolkits"
+    index_path.parent.mkdir(parents=True)
+    shutil.copy(os.path.join(AI_CASES_DIR, case_file), index_path)
+    original = yaml.safe_load(index_path.read_text(encoding="utf-8"))
+
+    with _patch_settings_paths(project_root):
+        index = load_toolkits_index()
+        assert set(index) == {"init", "rest-api-pipeline"}
+        assert index["init"]["agent"] == "claude"
+        assert "see_all" not in index["init"]
+        migrated = yaml.safe_load(index_path.read_text(encoding="utf-8"))
+        assert migrated["engine_version"] == TOOLKITS_INDEX_ENGINE_VERSION
+        assert {k: v for k, v in migrated.items() if k in ("location", "branch")} == source
+        assert resolve_harness_source()[0] == source.get("location", DEFAULT_AI_WORKBENCH_REPO)
+
+        save_toolkit_entry(
+            extract_toolkit_info(
+                {
+                    "name": "sql",
+                    "description": "SQL",
+                    "version": "1.0.0",
+                    "agents": {"include": ["claude"]},
+                },
+                "sql",
+            ),
+            agent="claude",
+            see_all=True,
+        )
+        index = load_toolkits_index()
+
+    saved = yaml.safe_load(index_path.read_text(encoding="utf-8"))
+    assert {k: v for k, v in saved.items() if k in ("location", "branch")} == source
+    saved = saved["toolkits"]
+    # the old entries are written back without the `name` key and the source, the new one adds
+    # see_all
+    for name in ("init", "rest-api-pipeline"):
+        assert saved[name] == {
+            k: v for k, v in original[name].items() if k not in ("name", "location", "branch")
+        }
+    assert saved["sql"]["see_all"] is True
+    # visibility is metadata of the harness, it is not recorded
+    assert "agent_visibility" not in saved["sql"]
+    assert index["sql"]["name"] == "sql"
+
+
+def test_toolkits_index_file_keys_written_on_windows() -> None:
+    """The file keys of an index that dlt wrote on Windows load with `/`."""
+    project_root = Path("project")
+    files = {".claude\\rules\\init.md": {"sha3_256": "a"}, ".claudeignore": {"sha3_256": "b"}}
+    entry = {"version": "1.0.0", "agent": "claude", "files": files}
+    _write_toolkits_index(
+        project_root,
+        {"engine_version": TOOLKITS_INDEX_ENGINE_VERSION, "toolkits": {"init": entry}},
+    )
+    with _patch_settings_paths(project_root):
+        assert set(load_toolkits_index()["init"]["files"]) == {
+            ".claude/rules/init.md",
+            ".claudeignore",
+        }
+
+
+def test_toolkits_index_written_by_newer_dlt() -> None:
+    project_root = Path("project")
+    _write_toolkits_index(project_root, {"engine_version": 2, "toolkits": {}})
+    with _patch_settings_paths(project_root):
+        with pytest.raises(ToolkitsIndexEngineNoUpgradePath):
+            load_toolkits_index()
+
+
 def test_fetch_ai_status_empty_workspace(environment: Any) -> None:
     """Empty workspace: all warnings present, no agent, no toolkits."""
     project_root = Path("project")
@@ -384,13 +570,26 @@ def test_fetch_ai_status_empty_workspace(environment: Any) -> None:
 
 
 def test_fetch_ai_status_initialized_with_init_toolkit() -> None:
-    """Workspace with config.toml and init toolkit: only no_toolkits warning."""
+    """Workspace with config.toml, init toolkit and its dependencies: only no_toolkits warning."""
     project_root = Path("project")
     project_root.mkdir()
     _make_settings(project_root, with_config=True)
     _write_toolkits_index(
         project_root,
-        {"init": {"version": "1.0.0", "agent": "claude", "description": "Init"}},
+        {
+            "init": {
+                "version": "1.0.0",
+                "agent": "claude",
+                "description": "Init",
+                "dependencies": ["local-workspace"],
+            },
+            "local-workspace": {
+                "version": "1.0.0",
+                "description": "Local workspace",
+                "dependencies": ["base"],
+            },
+            "base": {"version": "1.0.0", "description": "Base"},
+        },
     )
 
     with _patch_settings_paths(project_root):
@@ -399,6 +598,8 @@ def test_fetch_ai_status_initialized_with_init_toolkit() -> None:
     assert status["initialized"] is True
     assert status["has_init_toolkit"] is True
     assert status["agent_name"] == "claude"
+    # the dependencies of init, at any depth, are not toolkits
+    assert status["toolkits"] == {}
     assert "not_initialized" not in status["warnings"]
     assert "no_init_toolkit" not in status["warnings"]
     assert "no_toolkits" in status["warnings"]

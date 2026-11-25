@@ -676,12 +676,16 @@ def utils_discover_pipelines(
     ):
         switch_profile(dlt_profile_select.value)
 
+    _pipelines_dir = utils.pipeline.get_dashboard_pipelines_dir(
+        mo_cli_arg_pipelines_dir, _tmp_config.sync_from_runtime
+    )
+
     # discover pipelines and build selector
     dlt_pipelines_dir: str = ""
     dlt_all_pipelines: List[TPipelineListItem] = []
     dlt_local_pipeline_names: List[str] = []
     dlt_pipelines_dir, dlt_all_pipelines, dlt_local_pipeline_names = list_local_pipelines(
-        mo_cli_arg_pipelines_dir,
+        _pipelines_dir,
         additional_pipelines=[mo_cli_arg_pipeline, mo_query_var_pipeline_name],
     )
 
@@ -717,7 +721,7 @@ def utils_discover_profiles(mo_query_var_profile: str, mo_cli_arg_profile: str):
     selected_profile = None
 
     if isinstance(run_context, ProfilesRunContext):
-        options = run_context.configured_profiles() or []
+        options = run_context.available_profiles() or []
         current = run_context.profile if options and run_context.profile in options else None
 
         selected_profile = current

@@ -35,6 +35,13 @@ def get_installed_requirement_string(
     return package_requirement
 
 
+def get_requires_python(package: str = DLT_PKG_NAME) -> Optional[str]:
+    """Returns the `Requires-Python` specifier of `package` from its metadata, or `None` when it
+    has none."""
+    metadata = pkg_distribution(package).metadata
+    return metadata["Requires-Python"] if "Requires-Python" in metadata else None
+
+
 def get_dependency_requirement(
     dependency_name: str, package: str = DLT_PKG_NAME
 ) -> Optional[Requirement]:

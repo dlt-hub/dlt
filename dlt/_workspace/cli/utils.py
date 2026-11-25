@@ -220,12 +220,11 @@ def open_url(url: str) -> None:
 def display_run_context_info() -> None:
     run_context = dlt.current.run_context()
     if isinstance(run_context, ProfilesRunContext):
-        # warn when active profile is not local-only — such profiles map to
-        # data synced with dltHub, so a local destructive command can affect it
+        # a profile of an environment reaches production data, also from a local command
         if not is_local_profile(run_context.profile):
             fmt.echo(
                 "Profile `%s` is active and is not a local-only profile — "
-                "this command may read or write data synced to dltHub."
+                "this command may read or write production data."
                 % fmt.style(run_context.profile, fg="yellow", reset=True),
                 err=True,
             )
@@ -319,9 +318,54 @@ def mcp_stdio_args(
         resolved = resolve_features(features, set())
         return args + ["--features", *sorted(resolved)] if resolved else args
     resolved = resolve_features(features)
-    if resolved != DEFAULT_MCP_FEATURES:
-        args.extend(["--features"] + sorted(resolved))
-    return args
+    if resolved == DEFAULT_MCP_FEATURES:
+        return args
+    # the server adds the default feature groups, so removing one needs `--no-default-features`
+    if not DEFAULT_MCP_FEATURES <= resolved:
+        args.append("--no-default-features")
+    return args + ["--features", *sorted(resolved)]
+
+
+def split_mcp_features(args: Sequence[str]) -> Tuple[List[str], List[str]]:
+    """Splits MCP server `args` into the other args and the tokens given to `--features`."""
+    other: List[str] = []
+    tokens: List[str] = []
+    in_features = False
+    for arg in args:
+        # like argparse, the last `--features` wins
+        if arg == "--features":
+            in_features = True
+            tokens = []
+        elif arg.startswith("--features="):
+            in_features = False
+            tokens = [token for token in arg.split("=", 1)[1].split(",") if token]
+        # like argparse, `--features` takes values up to the next flag
+        elif in_features and not arg.startswith("-"):
+            tokens.extend(token for token in arg.split(",") if token)
+        else:
+            in_features = False
+            other.append(arg)
+    return other, tokens
+
+
+def add_mcp_features(args: Sequence[str], features: Sequence[str]) -> List[str]:
+    """Adds the `features` tokens (`name`, `+name`, `-name`) to the `--features` of MCP server
+    `args`. Returns `args` unchanged when every feature group is already named.
+
+    A feature group that `args` already names in any form stays as it is, so the choice of the
+    user or of another toolkit wins.
+    """
+    other, tokens = split_mcp_features(args)
+    named = {token.lstrip("+-") for token in tokens}
+    added: List[str] = []
+    for feature in features:
+        if feature.lstrip("+-") not in named:
+            named.add(feature.lstrip("+-"))
+            added.append(feature)
+    if not added:
+        return list(args)
+    # the comma form also carries `-name` tokens that argparse reads as flags
+    return other + ["--features=" + ",".join(tokens + added)]
 
 
 def cli_host_command() -> str:

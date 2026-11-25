@@ -1,7 +1,8 @@
 """dlthub init — workspace scaffold writer and views."""
 
 import os
-from typing import Any, Dict, List
+from pathlib import Path
+from typing import Dict, List, Optional
 
 import tomlkit
 
@@ -13,17 +14,31 @@ from dlt._workspace.cli._pipeline_files import (
     get_single_file_templates_storage,
 )
 from dlt._workspace.cli._write_state import WorkspaceWriteState
-from dlt._workspace.cli.dlthub.typing import TInitPlan
+from dlt._workspace.cli.dlthub.typing import TInitFileEntry, TInitPlan
+from dlt._workspace.cli.dlthub.utils import GITIGNORE_FILE
+from dlt._workspace.deployment.requirements import (
+    add_pyproject_dependencies,
+    append_lines,
+    merge_requirements_txt,
+    render_pyproject,
+)
+from dlt._workspace.deployment.typing import TDependencyChange
+from dlt._workspace.run_context import format_display_path
+from dlt._workspace.settings_files import dump_yaml
+from dlt._workspace.workspace_definition import create_built_in_workspace_definition
+from dlt._workspace.workspace_file import WORKSPACE_FILE_NAME, build_stored_workspace_definition
+
+MERGE_MARKER = "# added by dlthub init"
 
 
 def init_dlthub_workspace(
-    plan: TInitPlan, *, dry_run: bool = False, force: bool = False
+    plan: TInitPlan, *, dry_run: bool = False, overwrite: bool = False
 ) -> Dict[str, str]:
     """Scaffold a dlthub workspace from the plan."""
     run_dir = plan["run_dir"]
-    # default keeps user files; --force overwrites the dlthub-managed scaffold but
-    # NEVER touches secrets.toml or config.toml (user-owned: creds + workspace settings)
-    keep_existing = not force
+    # by default user files stay. --overwrite replaces the scaffold that dlthub manages, but it
+    # NEVER touches the user-owned secrets.toml or config.toml (credentials, workspace settings)
+    keep_existing = not overwrite
     state = WorkspaceWriteState(
         FileStorage(run_dir, makedirs=True),
         os.path.join(run_dir, ".dlt"),
@@ -48,8 +63,14 @@ def init_dlthub_workspace(
                 + "add_dlt_load_id = true\n"
                 + f"\n[workspace.settings]\nname = {workspace_name_literal}\n"
             )
-            # always preserve existing config.toml — even with --force
+            # always preserve existing config.toml, even with --overwrite
             state.add_new_file(dest_path, body, accept_existing=True)
+        elif file_name == ".gitignore" and plan["gitignore_additions"]:
+            with open(dest_path, encoding="utf-8") as f:
+                existing = f.read()
+            state.add_new_file(
+                dest_path, append_lines(existing, plan["gitignore_additions"], MERGE_MARKER)
+            )
         else:
             state.add_file_copy(
                 templates.make_full_path(file_name),
@@ -64,69 +85,101 @@ def init_dlthub_workspace(
         accept_existing=True,
     )
 
-    # marker that flips this directory into an active dlthub workspace
+    # marks an active dlthub workspace and declares the built-in profiles and environments
+    workspace_file = os.path.join(run_dir, ".dlt", WORKSPACE_FILE_NAME)
     state.add_new_file(
-        os.path.join(run_dir, ".dlt", ".workspace"),
-        "",
-        accept_existing=keep_existing,
+        workspace_file,
+        dump_yaml(
+            build_stored_workspace_definition(
+                create_built_in_workspace_definition(), workspace_file
+            )
+        ),
+        accept_existing=True,
     )
 
+    dependency_path = os.path.join(run_dir, plan["dependency_system"])
+    dependency_writes = get_dependency_writes(plan)
     if plan["dependency_system"] == "pyproject.toml":
+        # uv merges into an existing pyproject.toml after `state.commit()`
+        if not dependency_writes:
+            state.add_new_file(
+                dependency_path,
+                render_pyproject(
+                    plan["project_name"],
+                    plan["dependency_specs"],
+                    plan["uv_sources"],
+                    plan["requires_python"],
+                ),
+                accept_existing=keep_existing,
+            )
+    elif dependency_writes:
+        with open(dependency_path, encoding="utf-8") as f:
+            existing = f.read()
         state.add_new_file(
-            os.path.join(run_dir, "pyproject.toml"),
-            _render_pyproject(plan["project_name"], plan["dependency_specs"], plan["uv_sources"]),
-            accept_existing=keep_existing,
+            dependency_path, merge_requirements_txt(existing, dependency_writes, MERGE_MARKER)
         )
     else:
         state.add_new_file(
-            os.path.join(run_dir, "requirements.txt"),
+            dependency_path,
             "\n".join(plan["requirements_lines"]) + "\n",
             accept_existing=keep_existing,
         )
 
     if dry_run:
         return state.preview()
-    # the controller has gated on `workspace_exists` + `--force`; skip the in-state check
-    return state.commit(allow_overwrite=True)
+    # existing files are replaced only when staged without `accept_existing`
+    written = state.commit(allow_overwrite=True)
+    if plan["dependency_system"] == "pyproject.toml":
+        add_pyproject_dependencies(dependency_writes, plan["uv_sources"], Path(run_dir))
+    return written
 
 
-def _render_pyproject(name: str, deps: List[str], uv_sources: Dict[str, Dict[str, Any]]) -> str:
-    """Build a `pyproject.toml` for a dlthub workspace."""
-    # `[tool.uv.sources]` is emitted only when at least one of dlt/dlthub/dlthub-client
-    # is non-PyPI, so the new workspace reproduces the developer's local install
-    doc = tomlkit.document()
-    project = tomlkit.table()
-    project["name"] = name
-    project["version"] = "0.0.1"
-    project["description"] = "A dlthub workspace"
-    deps_array = tomlkit.array()
-    for d in deps:
-        deps_array.append(d)
-    deps_array.multiline(True)
-    project["dependencies"] = deps_array
-    doc["project"] = project
-
-    if uv_sources:
-        sources_table = tomlkit.table()
-        for pkg, src in uv_sources.items():
-            entry = tomlkit.inline_table()
-            for k, v in src.items():
-                entry[k] = v
-            sources_table[pkg] = entry
-        uv_table = tomlkit.table()
-        uv_table["sources"] = sources_table
-        tool_table = tomlkit.table()
-        tool_table["uv"] = uv_table
-        doc["tool"] = tool_table
-
-    return tomlkit.dumps(doc)
+def get_dependency_writes(plan: TInitPlan) -> List[TDependencyChange]:
+    """Returns the dependency changes that a merge writes. It leaves out declared versions that
+    are newer, which the merge keeps."""
+    return [change for change in plan["dependency_changes"] if change["op"] != "newer"]
 
 
-def _print_init_plan(plan: TInitPlan) -> None:
-    """Show the user what `dlthub init` will create."""
+def _print_init_file(plan: TInitPlan, entry: TInitFileEntry) -> None:
+    labels = {
+        "create": "[CREATE]",
+        "skip": "[SKIP]",
+        "merge": "[MERGE]",
+        "overwrite": "[OVERWRITE]",
+    }
+    fmt.echo(
+        "    %-12s%s"
+        % (labels[entry["status"]], format_display_path(entry["path"], plan["run_dir"]))
+    )
+    if entry["status"] != "merge":
+        return
+    if os.path.basename(entry["path"]) == GITIGNORE_FILE:
+        for pattern in plan["gitignore_additions"]:
+            fmt.echo("      + %s" % pattern)
+        return
+    for change in get_dependency_writes(plan):
+        if change["op"] == "add":
+            fmt.echo("      + %s" % change["spec"])
+        else:
+            fmt.echo("      ~ %s -> %s" % (change["declared"], change["spec"]))
+
+
+def _print_newer_dependencies(plan: TInitPlan) -> None:
+    for change in plan["dependency_changes"]:
+        if change["op"] == "newer":
+            fmt.warning(
+                "%s in %s is newer than %s. dlthub init keeps the newer version."
+                % (change["declared"], plan["dependency_system"], change["spec"])
+            )
+
+
+def _print_init_plan(plan: TInitPlan, agent_name: Optional[str] = None) -> None:
+    """Shows the user what `dlthub init` will write."""
     fmt.echo()
     fmt.echo("Creating dlthub workspace at %s" % fmt.bold(plan["run_dir"]))
     fmt.echo("  project name: %s" % fmt.bold(plan["project_name"]))
+    if agent_name:
+        fmt.echo("  AI coding agent: %s" % fmt.bold(agent_name))
     fmt.echo(
         "  dependency system: %s%s"
         % (
@@ -136,17 +189,70 @@ def _print_init_plan(plan: TInitPlan) -> None:
     )
     fmt.echo("  files:")
     for f in plan["files"]:
-        if f["status"] == "create":
-            label = "[CREATE]   "
-        elif f["status"] == "skip":
-            label = "[KEEP]     "
-        else:
-            label = "[CONFLICT] "
-        fmt.echo("    %s%s" % (label, f["path"]))
+        _print_init_file(plan, f)
+    dependency_file = os.path.join(plan["run_dir"], plan["dependency_system"])
+    if any(
+        f["path"] == dependency_file and f["status"] in ("create", "overwrite")
+        for f in plan["files"]
+    ):
+        fmt.echo("  dependencies:")
+        for spec in plan["dependency_specs"]:
+            fmt.echo("    %s" % spec)
     fmt.echo()
+    _print_newer_dependencies(plan)
 
 
-def _print_init_welcome(plan: TInitPlan) -> None:
+def _print_init_merge_error(plan: TInitPlan) -> None:
+    file_name = plan["dependency_system"]
+    writes = ", ".join(change["spec"] for change in get_dependency_writes(plan))
+    if plan["merge_error"] == "no_project_table":
+        fmt.error(
+            "%s has no [project] table, so dlthub init cannot add the dependencies to it. Add a"
+            " [project] table or re-run with %s or %s."
+            % (file_name, fmt.bold("--dependencies requirements"), fmt.bold("--skip"))
+        )
+    elif plan["merge_error"] == "hashed_requirements":
+        fmt.error(
+            "%s pins hashes, so dlthub init cannot add the dependencies to it. Add these"
+            " dependencies to the file that you compile it from, then compile again: %s"
+            % (file_name, writes)
+        )
+    elif plan["merge_error"] == "included_requirements":
+        fmt.error(
+            "%s includes other files, so dlthub init cannot determine where the dependencies are"
+            " pinned. Add these dependencies yourself: %s" % (file_name, writes)
+        )
+    else:
+        fmt.error(
+            "dlthub init needs uv to add dependencies to %s, but uv is not on PATH. Install uv or"
+            " add these dependencies yourself: %s" % (file_name, writes)
+        )
+
+
+def _print_init_changes(plan: TInitPlan) -> None:
+    """Shows the existing files that `dlthub init` will merge into or overwrite."""
+    fmt.echo("dlthub init will change these existing files:")
+    for f in plan["files"]:
+        if f["status"] in ("merge", "overwrite"):
+            _print_init_file(plan, f)
+    _print_newer_dependencies(plan)
+
+
+def _print_init_workspace_exists(plan: TInitPlan) -> None:
+    fmt.error(
+        "%s is already a dlthub workspace (%s), so dlthub init has nothing to do. To configure an"
+        " AI coding agent, run %s."
+        % (
+            fmt.bold(plan["run_dir"]),
+            format_display_path(
+                os.path.join(plan["run_dir"], ".dlt", WORKSPACE_FILE_NAME), plan["run_dir"]
+            ),
+            fmt.bold("dlthub ai init"),
+        )
+    )
+
+
+def _print_init_welcome(plan: TInitPlan, agent_configured: bool = False) -> None:
     """Print next-steps after a successful init."""
     # the install hint follows the file that was actually written, not uv presence:
     # `uv sync` only resolves pyproject.toml; requirements.txt always uses pip
@@ -158,5 +264,6 @@ def _print_init_welcome(plan: TInitPlan) -> None:
         fmt.echo("* Install dependencies: %s" % fmt.bold("pip install -r requirements.txt"))
     fmt.echo("* Add credentials in %s." % fmt.bold(".dlt/secrets.toml"))
     fmt.echo("* Run %s to verify." % fmt.bold("dlthub local info"))
-    fmt.echo("* Configure your AI coding agent: %s." % fmt.bold("dlthub ai init"))
+    if not agent_configured:
+        fmt.echo("* Configure your AI coding agent: %s." % fmt.bold("dlthub ai init"))
     fmt.echo()

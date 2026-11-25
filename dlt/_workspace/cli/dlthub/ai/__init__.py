@@ -7,12 +7,12 @@ from dlt._workspace.cli.dlthub.ai.commands import (
     ai_init_command,
     ai_mcp_run_command,
     ai_mcp_install_command,
+    ai_rules_command,
     ai_secrets_list_command,
     ai_secrets_update_fragment_command,
     ai_secrets_view_redacted_command,
     ai_toolkit_info_command,
     ai_toolkit_install_command,
-    ai_toolkit_update_command,
     ai_toolkit_list_command,
 )
 
@@ -23,11 +23,11 @@ __all__ = [
     "ai_init_command",
     "ai_mcp_run_command",
     "ai_mcp_install_command",
+    "ai_rules_command",
     "ai_secrets_list_command",
     "ai_secrets_update_fragment_command",
     "ai_secrets_view_redacted_command",
     "ai_toolkit_info_command",
     "ai_toolkit_install_command",
-    "ai_toolkit_update_command",
     "ai_toolkit_list_command",
 ]

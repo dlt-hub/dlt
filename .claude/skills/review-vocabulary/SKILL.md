@@ -69,6 +69,11 @@ Get this right first; every other rule depends on it.
 | Docs — how-to, steps, install | procedural | 20 words | imperative, condition before command (Rule 5.4) |
 | Docs — concept, reference, architecture | descriptive | 25 words | no imperative |
 
+**Concept pages may stretch the rules.** When the 25-word limit or one-fact-per-sentence would split
+a concept apart or drop a qualifier, write the longer, natural sentence: a subordinate clause, a
+connective (*so*, *in turn*, *as long as*), an em-dash aside. The fixed vocabulary still applies,
+and procedural text keeps its limits.
+
 **Messages keep their remedies.** Many errors end in an instruction — "Materialize the dataset…",
 "Set a permanent `pipeline_salt`…". Improve the wording: make it imperative, condition first,
 under 20 words, one instruction per sentence. **Never delete a remedy. Never invent one** where
@@ -135,6 +140,10 @@ Groups defined so far:
 | [G7 — Jobs, triggers and the deployment manifest](references/vocabulary/g7-jobs-triggers-and-the-deployment-manifest.md) | jobs, job runs, launchers, triggers, selectors | `dlt/_workspace/deployment/` outside `agent/`, `dlt/hub/run.py`, `__deployment__.py` files, `dlthub local run` |
 | [G8 — Agents, loops and prompts](references/vocabulary/g8-agents-loops-and-prompts.md) | agent definitions, agent jobs, agent runs, loops, system prompts, user turns, traces | `dlt/_workspace/deployment/agent/`, `launchers/agent.py`, `AGENT.md` files, `run.agent` |
 | [G9 — Workspace access and tools](references/vocabulary/g9-workspace-access-and-tools.md) | the `access` declaration, axes, verbs, tools, feature groups | `access` blocks, `TWorkspaceAccess`, `dlt/_workspace/mcp/`, the tools a loop wires |
+| [G10 — Profiles and environments](references/vocabulary/g10-profiles-and-environments.md) | profiles, local and remote profiles, data access, environments, default profiles, active profile, strict environments, the remote workspace of an environment | `dlt/_workspace/profile.py`, `environment.py`, `workspace_definition.py`, `dlthub profile` and `dlthub local profile`, `attach_job_profiles`, `profiles.md` and the pages that link to it |
+| [G11 — Runtime, tenancy and members](references/vocabulary/g11-runtime-tenancy-and-members.md) | the dltHub Runtime, organizations, workspaces, members, roles, API keys, regions, the web app; the rulings for every runtime group | the `dlt-hub/runtime` repo: `clients/cli/`, the services, the web app; the hub docs about the runtime |
+| [G12 — Runtime deployments and configuration](references/vocabulary/g12-runtime-deployments-and-configuration.md) | deployments, requirements, configuration, the connected organization, job files, variables, read and write profile aliases | `dlthub deploy`, `dlthub workspace connect`, `dlthub variable`, `dlthub_dlt_shim`, the runtime's vault and profiles code |
+| [G13 — Runtime job runs, statuses and usage](references/vocabulary/g13-runtime-job-runs-statuses-and-usage.md) | job runs, pipeline runs, statuses, follow-up runs, data apps, public links, credits | `dlthub run`, `serve`, `job` and `job runs`, the runtime MCP tools, the SDK jobs and telemetry, the scheduler and executor |
 
 Read every group the diff touches before you audit, and give each subagent only the groups its
 files map to. G1 to G5 are short: when the mapping is unclear, read them all.
@@ -156,6 +165,9 @@ access, access axis, agent, agent definition, agent definition reference, agent 
 agent output, agent run, agent trace, default trigger, feature group, instructions, job, job definition, job ref, job result,
 job run, launcher, loop, placeholder, runner, runtime, selector, skill, system prompt, tool, toolkit,
 trigger, turn, user turn, verb.
+
+active profile, data access, default environment, default profile, default write profile,
+environment, local profile, profile, remote profile, remote workspace, strict environment.
 
 ## Rules this codebase breaks most
 

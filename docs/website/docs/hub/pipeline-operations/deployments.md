@@ -20,13 +20,13 @@ The fastest way to run an existing script on the dltHub platform is to point `ru
 # run the batch script locally first to catch missing dependencies or broken config
 dlthub local run fruitshop_pipeline.py
 
-# Deploy and run a batch script (uses `prod` profile)
+# Deploy and run a batch script (runs with the `prod` profile)
 dlthub run fruitshop_pipeline.py
 
 # Stream logs in your terminal until the run completes
 dlthub run fruitshop_pipeline.py -f
 
-# Deploy and serve an interactive app (notebook, dashboard, MCP — uses `access` profile)
+# Serve an interactive app (notebook, dashboard, MCP). On the platform it runs with `access`, the default profile with read data access
 dlthub local serve fruitshop_notebook.py    # local
 dlthub serve fruitshop_notebook.py          # remote
 ```
@@ -116,7 +116,7 @@ An [agent job](../agents/index.md) delivers its job result itself, with the agen
 
 ### The deployment module
 
-`__deployment__.py` is a Python module that declares everything deployable in the workspace. The dltHub platform discovers jobs by inspecting it.
+`__deployment__.py` is a Python module that declares everything deployable in the workspace. The dltHub platform discovers jobs by inspecting it. It is the default deployment module: an environment can name another module, see [Choose the deployment module of an environment](profiles.md#choose-the-deployment-module-of-an-environment).
 
 ```py
 """GitHub ingest workspace -- loads and monitors GitHub API data"""
@@ -140,7 +140,7 @@ __all__ = [
 Rules:
 
 - **Function imports** (`from github_pipeline import load_commits`) produce one job per function. The function must be decorated with `@run.pipeline`, `@run.job`, or `@run.interactive`.
-- **Module imports** (`import github_report_notebook`) produce one job per module. The framework is auto-detected — marimo notebooks become interactive notebook jobs, FastMCP modules become MCP servers, Streamlit modules become dashboards.
+- **Module imports** (`import github_report_notebook`) produce one job per module. The framework is auto-detected — marimo notebooks become interactive notebook jobs, FastMCP modules become MCP servers, Streamlit modules become dashboards. Set the options of such a job with `__require__` and `__access__` in the module, see [Options of module jobs](job-configuration.md#options-of-module-jobs).
 - **`__all__`** lists exactly the names to deploy. Without it, the manifest generator scans `__dict__` and warns.
 - **`__doc__`** (the module docstring) becomes the workspace description in the dltHub platform dashboard.
 
@@ -148,15 +148,21 @@ You can also define decorated jobs **inline** in `__deployment__.py` — useful 
 
 ### Deploying with `dlthub deploy`
 
-This is the central command for manifest-based deployment. It reads `__deployment__.py`, generates a manifest, and syncs it to the dltHub platform:
+This is the central command for manifest-based deployment. It reads the deployment module of the environment, `__deployment__.py` by default, generates a manifest, and syncs it to the dltHub platform:
 
 ```cli
 dlthub deploy
 ```
 
+A deployment is made to the [environment](profiles.md#how-environments-work) of the active profile, else to the default environment, `prod` in a new workspace. `dlthub deploy` runs with the default write profile of that environment. Name another environment with `--environment`:
+
+```cli
+dlthub deploy --environment staging
+```
+
 The deploy command:
 
-1. Imports `__deployment__.py` and collects every job
+1. Imports the deployment module and collects every job
 2. Generates a deployment manifest (a JSON document describing every job's triggers, entry point, and metadata)
 3. Syncs your code and configuration to the dltHub platform
 4. Sends the manifest for **reconciliation**

@@ -16,7 +16,7 @@ from dlt._workspace.cli import formatters
 from dlt._workspace.cli.dlthub.utils import fetch_profiles_list, fetch_workspace_info
 from dlt._workspace.cli.utils import fetch_schema_export, list_local_pipelines
 from dlt._workspace.access import RequiresAccess
-from dlt._workspace.mcp.context import with_mcp_tool_telemetry
+from dlt._workspace.mcp.context import TProfileArgument, with_mcp_tool_telemetry
 
 TResultFormat = Literal["markdown", "jsonl"]
 
@@ -88,7 +88,9 @@ def _ensure_read_only(sql_query: str, dialect: Optional[str]) -> None:
 
 
 @with_mcp_tool_telemetry()
-def list_pipelines() -> Annotated[List[str], RequiresAccess(data=["read"])]:
+def list_pipelines(
+    profile: TProfileArgument = None,
+) -> Annotated[List[str], RequiresAccess(data=["read"])]:
     """List all dlt pipelines available in this workspace"""
     ctx = active_run_context()
     # in OSS context (no profiles), filter to pipelines created in this project
@@ -98,8 +100,11 @@ def list_pipelines() -> Annotated[List[str], RequiresAccess(data=["read"])]:
 
 
 @with_mcp_tool_telemetry()
-def get_workspace_info() -> Annotated[Dict[str, Any], RequiresAccess(local=["read"])]:
-    """Get workspace info: name, directories, active profile, and config providers."""
+def get_workspace_info(
+    profile: TProfileArgument = None,
+) -> Annotated[Dict[str, Any], RequiresAccess(local=["read"])]:
+    """Get workspace info: name, directories, the active profile and config providers. With
+    `profile`, the call runs with that profile as the active profile."""
 
     info = fetch_workspace_info()
     # prune bulky file-tracking data from toolkit entries
@@ -110,13 +115,17 @@ def get_workspace_info() -> Annotated[Dict[str, Any], RequiresAccess(local=["rea
 
 @with_mcp_tool_telemetry()
 def list_profiles() -> Annotated[List[Dict[str, Any]], RequiresAccess(local=["read"])]:
-    """List all available workspace profiles with status flags (current, pinned, configured)."""
+    """List all workspace profiles with location (local or remote), data access, environment
+    (`env`), the other profiles of the environment (`also_in_env`) and status flags (`is_current`:
+    active, `is_pinned`: recorded in `.dlt/profile-name`, `default`, `configured`: has settings
+    files)."""
     return fetch_profiles_list()
 
 
 @with_mcp_tool_telemetry()
 def list_tables(
     pipeline_name: str,
+    profile: TProfileArgument = None,
 ) -> Annotated[Dict[str, Any], RequiresAccess(data=["read"])]:
     """List all data tables for a pipeline."""
     pipeline = _attach(pipeline_name)
@@ -128,6 +137,7 @@ def list_tables(
 def get_table_schema(
     pipeline_name: str,
     table_name: str,
+    profile: TProfileArgument = None,
 ) -> Annotated[Dict[str, Any], RequiresAccess(data=["read"])]:
     """Get table schema with column names, data types, and escaped sql_identifier fields."""
     try:
@@ -160,6 +170,7 @@ def get_table_schema(
 def get_table_create_sql(
     pipeline_name: str,
     table_name: str,
+    profile: TProfileArgument = None,
 ) -> Annotated[str, RequiresAccess(data=["read"])]:
     """Get CREATE TABLE DDL for the table in the destination's SQL dialect."""
     from dlt.common.libs.sqlglot import to_sqlglot_type
@@ -228,6 +239,7 @@ def preview_table(
         TResultFormat,
         Field(description="Output format: 'markdown' or 'jsonl'"),
     ] = "markdown",
+    profile: TProfileArgument = None,
 ) -> Annotated[str, RequiresAccess(data=["read"])]:
     """Get the first 10 rows from a table."""
     try:
@@ -255,6 +267,7 @@ def execute_sql_query(
         TResultFormat,
         Field(description="Output format: 'markdown' or 'jsonl'"),
     ] = "markdown",
+    profile: TProfileArgument = None,
 ) -> Annotated[str, RequiresAccess(data=["read"])]:
     """Execute a read-only SQL query against the pipeline's destination dataset."""
     dataset = _get_dataset(pipeline_name)
@@ -274,6 +287,7 @@ def get_row_counts(
         TResultFormat,
         Field(description="Output format: 'markdown' or 'jsonl'"),
     ] = "markdown",
+    profile: TProfileArgument = None,
 ) -> Annotated[str, RequiresAccess(data=["read"])]:
     """Get row counts for all data tables in a pipeline."""
     try:
@@ -315,6 +329,7 @@ def export_schema(
             )
         ),
     ] = None,
+    profile: TProfileArgument = None,
 ) -> Annotated[str, RequiresAccess(data=["read"], local=["write"])]:
     """Export the pipeline schema as a diagram or structured dump."""
     try:
@@ -337,6 +352,7 @@ def export_schema(
 @with_mcp_tool_telemetry()
 def get_local_pipeline_state(
     pipeline_name: str,
+    profile: TProfileArgument = None,
 ) -> Annotated[Dict[str, Any], RequiresAccess(data=["read"])]:
     """Get pipeline state: incremental cursors, resource state, and source state."""
     try:
@@ -352,6 +368,7 @@ def get_local_pipeline_state(
 @with_mcp_tool_telemetry()
 def pipeline_trace(
     pipeline_name: str,
+    profile: TProfileArgument = None,
 ) -> Dict[str, Any]:
     """Get the trace of the last pipeline run: timing, step outcomes, and errors."""
     pipeline = _attach(pipeline_name)

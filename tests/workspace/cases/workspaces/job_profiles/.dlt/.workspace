@@ -1,0 +1,32 @@
+engine_version: 1
+environments:
+  prod:
+    default: true
+    strict_access: false
+    profiles:
+      prod:
+        data_access: write
+        default: true
+      access:
+        data_access: read
+        default: true
+      analytics:
+        data_access: write
+  ci:
+    strict_access: true
+    profiles:
+      ci-write:
+        data_access: write
+        default: true
+      ci-read:
+        data_access: read
+        default: true
+      ci-none:
+        data_access: none
+        default: true
+local_profiles:
+  dev:
+    data_access: write
+    default: true
+  tests:
+    data_access: write

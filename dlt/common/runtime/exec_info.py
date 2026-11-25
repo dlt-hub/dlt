@@ -74,6 +74,12 @@ def exec_info_names() -> List[TExecInfoNames]:
         names.append("cursor")
     if is_codex():
         names.append("codex")
+    if is_cortex():
+        names.append("cortex")
+    if is_cortex_cli():
+        names.append("cortex_cli")
+    if is_cortex_desktop():
+        names.append("cortex_desktop")
     return names
 
 
@@ -128,6 +134,22 @@ def is_codex() -> bool:
         or os.environ.get("CODEX_THREAD_ID") is not None
         or os.environ.get("CODEX_SANDBOX") is not None
     )
+
+
+def is_cortex() -> bool:
+    """Return True if running in Snowflake Cortex Code (CLI or Desktop)."""
+    # Cortex Code sets this undocumented variable in every process it starts (seen in 1.2.41)
+    return bool(os.environ.get("CORTEX_CODE_CLIENT_SURFACE"))
+
+
+def is_cortex_cli() -> bool:
+    """Return True if running in the Cortex Code CLI (surface `coco_cli`)."""
+    return os.environ.get("CORTEX_CODE_CLIENT_SURFACE") == "coco_cli"
+
+
+def is_cortex_desktop() -> bool:
+    """Return True if running in Cortex Code Desktop (surface `coco_desktop`)."""
+    return os.environ.get("CORTEX_CODE_CLIENT_SURFACE") == "coco_desktop"
 
 
 def is_notebook() -> bool:

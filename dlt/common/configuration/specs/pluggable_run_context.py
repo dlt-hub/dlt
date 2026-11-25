@@ -1,6 +1,8 @@
+import contextlib
 import os
+import threading
 from types import ModuleType
-from typing import Any, ClassVar, Dict, List, Optional, Union
+from typing import Any, ClassVar, Dict, Iterator, List, Optional, Union
 from abc import ABC, abstractmethod
 
 from dlt.common.configuration.providers.provider import ConfigProvider
@@ -174,12 +176,12 @@ class PluggableRunContext(ContainerInjectableContext):
     global_affinity: ClassVar[bool] = True
 
     context: RunContextBase = None
-    providers: ConfigProvidersContainer
 
     _context_stack: List[Any] = []
 
     def __init__(self, init_context: RunContextBase = None) -> None:
         super().__init__()
+        self._thread_providers = threading.local()
 
         if init_context:
             self.context = init_context
@@ -187,6 +189,32 @@ class PluggableRunContext(ContainerInjectableContext):
             # autodetect run dir
             self._plug(run_dir=None)
         self.providers = ConfigProvidersContainer(self.context.initial_providers())
+
+    @property
+    def providers(self) -> ConfigProvidersContainer:
+        """Config providers of the context, or the ones `use_providers` sets for the current
+        thread."""
+        override: Optional[ConfigProvidersContainer] = getattr(
+            self._thread_providers, "providers", None
+        )
+        return self._providers if override is None else override
+
+    @providers.setter
+    def providers(self, providers: ConfigProvidersContainer) -> None:
+        self._providers = providers
+
+    @contextlib.contextmanager
+    def use_providers(
+        self, providers: ConfigProvidersContainer
+    ) -> Iterator[ConfigProvidersContainer]:
+        """Makes `providers` the config providers of the current thread until the block ends. The
+        other threads keep the providers of the context."""
+        previous = getattr(self._thread_providers, "providers", None)
+        self._thread_providers.providers = providers
+        try:
+            yield providers
+        finally:
+            self._thread_providers.providers = previous
 
     def reload(
         self,

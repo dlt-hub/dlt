@@ -9,6 +9,9 @@ from dlt.common.runtime.exec_info import (
     is_claude_code_cli,
     is_codespaces,
     is_codex,
+    is_cortex,
+    is_cortex_cli,
+    is_cortex_desktop,
     is_cursor,
     is_gcp_cloud_function,
     is_github_actions,
@@ -106,6 +109,21 @@ def test_is_codex(environment: DictStrStr) -> None:
     assert is_codex() is True
 
 
+def test_is_cortex(environment: DictStrStr) -> None:
+    assert is_cortex() is False
+
+    environment["CORTEX_CODE_CLIENT_SURFACE"] = ""
+    assert is_cortex() is False
+
+    # every surface counts as cortex, and the CLI and Desktop have their own names
+    environment["CORTEX_CODE_CLIENT_SURFACE"] = "coco_cli"
+    assert (is_cortex(), is_cortex_cli(), is_cortex_desktop()) == (True, True, False)
+    environment["CORTEX_CODE_CLIENT_SURFACE"] = "coco_desktop"
+    assert (is_cortex(), is_cortex_cli(), is_cortex_desktop()) == (True, False, True)
+    environment["CORTEX_CODE_CLIENT_SURFACE"] = "coco_snowsight"
+    assert (is_cortex(), is_cortex_cli(), is_cortex_desktop()) == (True, False, False)
+
+
 @pytest.mark.parametrize(
     "env_vars,expected_names",
     [
@@ -117,6 +135,8 @@ def test_is_codex(environment: DictStrStr) -> None:
         ({"CURSOR_AGENT": "1"}, ["cursor"]),
         ({"CODEX_CI": "1"}, ["codex"]),
         ({"CODEX_THREAD_ID": "t-1"}, ["codex"]),
+        ({"CORTEX_CODE_CLIENT_SURFACE": "coco_cli"}, ["cortex", "cortex_cli"]),
+        ({"CORTEX_CODE_CLIENT_SURFACE": "coco_desktop"}, ["cortex", "cortex_desktop"]),
         (
             {"CLAUDECODE": "1", "CURSOR_AGENT": "1", "CODEX_CI": "1"},
             ["claude_code", "cursor", "codex"],
@@ -128,6 +148,8 @@ def test_is_codex(environment: DictStrStr) -> None:
         "cursor",
         "codex-ci",
         "codex-thread-id",
+        "cortex-cli",
+        "cortex-desktop",
         "all-agents",
     ],
 )

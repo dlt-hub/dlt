@@ -5,12 +5,15 @@ from datetime import datetime, timezone
 from typing import Any, Iterator, List, Dict
 from functools import partial
 from typing import Tuple
+from unittest.mock import patch
+
 import pytest
 
 import dlt
 from dlt.common import json
 from dlt.common.configuration import resolve_configuration
 from dlt.common.configuration.container import Container
+from dlt.common.configuration.exceptions import ConfigurationValueError
 from dlt.common.configuration.specs import GcpServiceAccountCredentials, CredentialsWithDefault
 from dlt.common.storages.file_storage import FileStorage
 from dlt.common.storages.load_package import create_load_id
@@ -42,6 +45,7 @@ from tests.helpers.dbt_tests.utils import (
 
 from tests.utils import test_storage, preserve_environ
 from tests.load.utils import yield_client_with_storage, cm_yield_client_with_storage
+from tests.load.snowflake.conftest import snowflake_home
 
 
 @pytest.fixture(scope="function")
@@ -103,6 +107,146 @@ def test_default_profile_name() -> None:
     # force them to be present
     bigquery_config.credentials._set_default_credentials({})
     assert _default_profile_name(bigquery_config) == "bigquery_default"
+
+
+SNOWFLAKE_PKEY_PEM_PATH = "./tests/common/cases/secrets/encrypted-private-key"
+
+
+@pytest.mark.parametrize(
+    "connection,profile_name,expected_env",
+    [
+        pytest.param(
+            '[dev]\naccount = "acc1"\nuser = "user1"\npassword = "pass1"\ndatabase = "db1"\n',
+            "snowflake",
+            {"HOST": "acc1", "USERNAME": "user1", "PASSWORD": "pass1", "DATABASE": "db1"},
+            id="password",
+        ),
+        pytest.param(
+            '[dev]\naccount = "acc1"\nuser = "user1"\ndatabase = "db1"\nauthenticator ='
+            ' "SNOWFLAKE_JWT"\nprivate_key_file ='
+            f' "{SNOWFLAKE_PKEY_PEM_PATH}"\nprivate_key_file_pwd = "12345"\n',
+            "snowflake_pkey",
+            {"PRIVATE_KEY_PASSPHRASE": "12345"},
+            id="key_pair",
+        ),
+        pytest.param(
+            '[dev]\naccount = "acc1"\ndatabase = "db1"\nauthenticator = "oauth"\ntoken = "TOK"\n',
+            "snowflake_oauth",
+            {"HOST": "acc1", "TOKEN": "TOK", "DATABASE": "db1"},
+            id="oauth_token",
+        ),
+        pytest.param(
+            '[dev]\naccount = "acc1"\ndatabase = "db1"\nauthenticator = "OAUTH"\ntoken = "TOK"\n',
+            "snowflake_oauth",
+            {"TOKEN": "TOK"},
+            id="oauth_upper_case",
+        ),
+        pytest.param(
+            '[dev]\naccount = "acc1"\nuser = "user1"\ndatabase = "db1"\nauthenticator ='
+            ' "PROGRAMMATIC_ACCESS_TOKEN"\ntoken = "PAT1"\n',
+            "snowflake_pat",
+            {"USERNAME": "user1", "TOKEN": "PAT1"},
+            id="programmatic_access_token",
+        ),
+    ],
+)
+def test_snowflake_dbt_profile_from_connection(
+    preserve_environ: Any,
+    snowflake_home: Any,
+    connection: str,
+    profile_name: str,
+    expected_env: Dict[str, str],
+) -> None:
+    """A connection from `connections.toml` selects the matching dbt profile."""
+    pytest.importorskip("snowflake.connector")
+    from dlt.common.configuration.utils import add_config_to_env
+    from dlt.destinations.impl.snowflake.configuration import (
+        SnowflakeClientConfiguration,
+        SnowflakeCredentials,
+    )
+
+    snowflake_home(connection)
+    credentials = resolve_configuration(
+        SnowflakeCredentials(), explicit_value={"connection_name": "dev"}
+    )
+    config = SnowflakeClientConfiguration(credentials=credentials)._bind_dataset_name("ds")
+    assert _default_profile_name(config) == profile_name
+    add_config_to_env(credentials, ("dlt",))
+    for key, value in expected_env.items():
+        assert os.environ[f"DLT__CREDENTIALS__{key}"] == value
+    output = _render_profile(profile_name)
+    assert output["account"] == "acc1"
+    if profile_name == "snowflake_pkey":
+        assert output["private_key"] == open(SNOWFLAKE_PKEY_PEM_PATH, encoding="ascii").read()
+    if profile_name == "snowflake_oauth":
+        assert output["authenticator"] == "oauth"
+        assert output["token"] == "TOK"
+    if profile_name == "snowflake_pat":
+        # Snowflake takes the token as the password
+        assert output["password"] == "PAT1"
+
+
+def test_snowflake_dbt_profile_refuses_authenticator(snowflake_home: Any) -> None:
+    pytest.importorskip("snowflake.connector")
+    from dlt.destinations.impl.snowflake.configuration import (
+        SnowflakeClientConfiguration,
+        SnowflakeCredentials,
+    )
+
+    snowflake_home(
+        '[dev]\naccount = "acc1"\ndatabase = "db1"\nauthenticator = "WORKLOAD_IDENTITY"\n'
+        'workload_identity_provider = "AWS"\n'
+    )
+    credentials = resolve_configuration(
+        SnowflakeCredentials(), explicit_value={"connection_name": "dev"}
+    )
+    config = SnowflakeClientConfiguration(credentials=credentials)._bind_dataset_name("ds")
+    with pytest.raises(ConfigurationValueError, match="workload_identity"):
+        _default_profile_name(config)
+
+
+@pytest.mark.parametrize("credentials_from", ["mounted_connection", "session_token"])
+def test_snowflake_dbt_profile_in_snowpark_container(
+    preserve_environ: Any, snowflake_home: Any, credentials_from: str
+) -> None:
+    """In a Snowpark container, dbt gets the session token and the host of the container.
+    They come from the mounted connection or from `authenticator = "oauth"` alone."""
+    pytest.importorskip("snowflake.connector")
+    from dlt.common.configuration.utils import add_config_to_env
+    from dlt.destinations.impl.snowflake import utils as snowflake_utils
+    from dlt.destinations.impl.snowflake.configuration import (
+        SnowflakeClientConfiguration,
+        SnowflakeCredentials,
+    )
+
+    home = snowflake_home("")
+    token_path = home / "token"
+    token_path.write_text("SNOW_TOK", encoding="utf-8")
+    container_env = {"SNOWFLAKE_ACCOUNT": "acc1", "SNOWFLAKE_HOST": "acc1.spcs.internal"}
+    with patch.object(snowflake_utils, "SNOWFLAKE_SESSION_TOKEN_PATH", str(token_path)):
+        with patch.dict(os.environ, container_env):
+            if credentials_from == "mounted_connection":
+                snowflake_home(
+                    '[default]\naccount = "acc1"\nhost = "acc1.spcs.internal"\nauthenticator ='
+                    f' "oauth"\ntoken_file_path = "{token_path.as_posix()}"\n'
+                )
+                credentials = resolve_configuration(
+                    SnowflakeCredentials(), explicit_value={"database": "db1"}
+                )
+            else:
+                credentials = resolve_configuration(
+                    SnowflakeCredentials(), explicit_value="snowflake:///db1?authenticator=oauth"
+                )
+    config = SnowflakeClientConfiguration(credentials=credentials)._bind_dataset_name("ds")
+    assert _default_profile_name(config) == "snowflake_oauth"
+    add_config_to_env(credentials, ("dlt",))
+    assert os.environ["DLT__CREDENTIALS__TOKEN"] == "SNOW_TOK"
+    output = _render_profile("snowflake_oauth")
+    assert (output["account"], output["host"], output["token"]) == (
+        "acc1",
+        "acc1.spcs.internal",
+        "SNOW_TOK",
+    )
 
 
 def _render_profile(profile_name: str) -> Dict[str, Any]:

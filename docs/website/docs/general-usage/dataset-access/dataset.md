@@ -99,6 +99,52 @@ WHERE purchases.quantity > 1
 joined_relation = dataset(query)
 ```
 
+## Access a dataset from another script, job or notebook
+
+Notebooks, transformations and data quality checks often read a dataset that another script loaded. Pick the first option that applies.
+
+1. **From the pipeline.** `pipeline.dataset()` knows every schema of the pipeline. If a module creates the pipeline, import the pipeline from that module:
+
+```py notype
+from orders_pipeline import pipeline
+
+dataset = pipeline.dataset()
+```
+
+If the pipeline instance is not available, create a pipeline with the same name, destination and dataset name:
+
+```py
+dataset = dlt.pipeline(
+    "orders_pipeline", destination="warehouse", dataset_name="orders_data"
+).dataset()
+```
+
+2. **Without a pipeline**, pass the destination and the dataset name to `dlt.dataset()`:
+
+```py
+dataset = dlt.dataset("warehouse", "orders_data")
+```
+
+`dlt.dataset()` loads only the schema stored last. When several pipelines or sources load into the same dataset, select the schema that holds your table:
+
+```py
+dataset = dlt.dataset("warehouse", "orders_data", schema="orders")
+```
+
+dlt checks SQL queries against that schema too. A query fails when it uses the columns of a table outside that schema. The experimental `_execute_raw_query=True` runs any SQL as written, without that check and without the column schema of the result, for example `dataset("SELECT * FROM customers", _execute_raw_query=True)`. A dataset that another tool loaded has no dlt schema, so its SQL queries need `_execute_raw_query=True`.
+
+:::note
+On DuckDB, `dlt.dataset()` needs a named destination or the path of the database file, for example `dlt.dataset(dlt.destinations.duckdb("orders_pipeline.duckdb"), "orders_data")`. The plain `duckdb` destination names the file after the pipeline, so without a pipeline it opens `duckdb.duckdb`. See [Destination config](../../dlt-ecosystem/destinations/duckdb.md#destination-config) for how `dlt` names the file.
+:::
+
+3. **`dlt.attach()`** restores a pipeline from its local working folder in the active profile:
+
+```py
+pipeline = dlt.attach("orders_pipeline")
+```
+
+Use `dlt.attach()` only if the pipeline already ran on this machine with the active profile. For example, the pipeline ran earlier in the same job run. On a runner, on another machine or with another profile, the working folder does not exist. Then `dlt.attach()` fails. If you pass `destination` and `dataset_name`, `dlt.attach()` restores the state from the destination instead.
+
 ## Reading data
 
 Once you have a `Relation`, you can read data in various formats and sizes.

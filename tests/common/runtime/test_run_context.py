@@ -1,11 +1,14 @@
 import os
-from typing import Iterator
+import threading
+from typing import Dict, Iterator
 import pytest
 import pickle
 
 from dlt.common import logger
 from dlt.common.configuration.container import Container
+from dlt.common.configuration.providers import EnvironProvider
 from dlt.common.configuration.specs import RuntimeConfiguration, PluggableRunContext
+from dlt.common.configuration.specs.config_providers_context import ConfigProvidersContainer
 from dlt.common.runtime.init import restore_run_context
 from dlt.common.runtime.run_context import (
     DOT_DLT,
@@ -123,6 +126,29 @@ def test_run_context_handover(disable_temporary_telemetry) -> None:
         assert ctx.context.runtime_config is mock._runtime_config
     finally:
         container[PluggableRunContext] = old_ctx
+
+
+def test_use_providers_serves_the_current_thread() -> None:
+    """Config providers set with `use_providers` serve the current thread until the block ends,
+    also when it raises. The other threads keep the providers of the context."""
+    plug = Container()[PluggableRunContext]
+    own_providers = plug.providers
+    override = ConfigProvidersContainer([EnvironProvider()])
+    seen: Dict[str, ConfigProvidersContainer] = {}
+
+    def _read_providers() -> None:
+        seen["thread"] = plug.providers
+
+    with pytest.raises(KeyError):
+        with plug.use_providers(override) as providers:
+            assert providers is override
+            assert plug.providers is override
+            thread = threading.Thread(target=_read_providers)
+            thread.start()
+            thread.join()
+            raise KeyError("block fails")
+    assert seen["thread"] is own_providers
+    assert plug.providers is own_providers
 
 
 def test_context_switch_restores_logger() -> None:

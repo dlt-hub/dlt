@@ -63,9 +63,11 @@ cli-check: ## Checks CLI reference docs are up to date (CI)
 HUB_RUN = uv --quiet run --isolated --no-project --with "$(abspath ..)[cli,hub]" \
 	--with "dlthub-client>=0.28.8a3" --with griffe --with pyyaml
 
-# runs in tools/dlthub_cli because workspace commands need a workspace context
+# runs in tools/dlthub_cli because workspace commands need a workspace context. its `.workspace`
+# is created here and ignored by git, because dlt rewrites it into the current layout on load
 HUB_CLI_DOCS ?= website/docs_processed/hub/command-line-interface.md
 cli-generate-hub: ## Generates the dlthub CLI reference into `website/docs_processed`
+	mkdir -p tools/dlthub_cli/.dlt && touch tools/dlthub_cli/.dlt/.workspace
 	cd tools/dlthub_cli && $(HUB_RUN) python ../generate_cli_docs.py $(abspath $(HUB_CLI_DOCS)) \
 		--executable-name dlthub --title "CLI reference" --sort-commands \
 		--show-versions dlthub dlthub-client

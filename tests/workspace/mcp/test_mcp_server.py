@@ -1,13 +1,15 @@
 import asyncio
 import os
-from typing import Any, Callable, List, Optional, Set
+from typing import Annotated, Any, Callable, List, Optional, Set
 from unittest.mock import Mock, patch
 
 import pytest
 from pytest_mock import MockerFixture
 from fastmcp.prompts import Prompt
 from fastmcp.tools import Tool
+from pydantic import Field
 
+import dlt
 from dlt.common.configuration import plugins
 from dlt.common.configuration.container import Container
 from dlt.common.configuration.providers.toml import SecretsTomlProvider
@@ -17,7 +19,13 @@ from dlt.common.runtime.anon_tracker import disable_anon_tracker
 from dlt.common.typing import DictStrAny
 
 from dlt._workspace.mcp import PipelineMCP, WorkspaceMCP
-from dlt._workspace.cli.utils import resolve_features
+from dlt._workspace.cli.utils import (
+    DEFAULT_MCP_FEATURES,
+    add_mcp_features,
+    make_mcp_run_flags,
+    mcp_stdio_args,
+    resolve_features,
+)
 from dlt._workspace._plugins import (
     McpFeatures,
     plug_mcp_context,
@@ -27,7 +35,17 @@ from dlt._workspace._plugins import (
     plug_mcp_workspace,
 )
 from dlt._workspace.configuration import WorkspaceRuntimeConfiguration
+from dlt._workspace.environment import (
+    ENVIRONMENT_ARGUMENT_HELP,
+    ENVIRONMENT_PROFILE_ARGUMENT_HELP,
+)
+from dlt._workspace.mcp.context import (
+    TEnvironmentArgument,
+    TProfileArgument,
+    with_tool_run_context,
+)
 from dlt._workspace.mcp.tools import secrets_tools
+from dlt._workspace.profile import PROFILE_ARGUMENT_HELP
 
 from tests.common.runtime.utils import mock_github_env, mock_pod_env
 from tests.utils import (
@@ -35,6 +53,7 @@ from tests.utils import (
     start_test_telemetry,
 )
 from tests.workspace.utils import (
+    declare_environment,
     isolated_workspace,
     pokemon_pipeline_context as pokemon_pipeline_context,
 )
@@ -124,6 +143,21 @@ def test_workspace_mcp_server(pokemon_pipeline_context: RunContextBase) -> None:
             assert (
                 "pipeline_name" in param_names
             ), f"Tool {tool.name} should expose pipeline_name parameter"
+    # in a workspace the profile tools take a profile with the default help, the tools that
+    # manage profiles take none
+    by_name = {tool.name: tool for tool in tools}
+    profile_param = by_name["get_workspace_info"].parameters["properties"]["profile"]
+    assert profile_param["description"] == PROFILE_ARGUMENT_HELP
+    assert "profile" not in by_name["list_profiles"].parameters.get("properties", {})
+
+
+def test_workspace_mcp_server_outside_workspace() -> None:
+    """Outside a workspace there is no profile to run with, so the server hides the argument."""
+    with isolated_workspace("legacy", required=None):
+        mcp = WorkspaceMCP("dlt")
+        by_name = {tool.name: tool for tool in asyncio.run(mcp.list_tools())}
+        assert "profile" not in by_name["get_workspace_info"].parameters.get("properties", {})
+        assert "profile" not in by_name["list_pipelines"].parameters.get("properties", {})
 
 
 @pytest.mark.parametrize(
@@ -244,6 +278,71 @@ def test_register_tool_and_prompt_objects(pokemon_pipeline_context: RunContextBa
         m.unregister(name="test-obj-plugin")
 
 
+def test_server_runs_tool_with_its_environment() -> None:
+    """The server runs a plugin tool with the profile that its `environment` argument selects,
+    without any decorator on the tool. A tool that fails gives the run context back as well."""
+    failed_with: List[str] = []
+
+    def deployment_tool(environment: TEnvironmentArgument = None) -> str:
+        """Names the profile of the call."""
+        return dlt.current.workspace().profile
+
+    def failing_tool(environment: TEnvironmentArgument = None) -> str:
+        """Fails after it records the profile of the call."""
+        failed_with.append(dlt.current.workspace().profile)
+        raise ValueError("the tool failed")
+
+    # pydantic describes the argument: fastmcp parses docstrings only when the installed `griffe`
+    # is the one it expects
+    def restore_tool(
+        environment: Annotated[
+            TEnvironmentArgument,
+            Field(description="The environment whose remote workspace has the run."),
+        ] = None,
+        profile: TProfileArgument = None,
+    ) -> str:
+        """Names the profile of the call."""
+        return dlt.current.workspace().profile
+
+    class _EnvironmentPlugin:
+        @plugins.hookimpl(specname="plug_mcp")
+        def plug_mcp_environment(self, features: Set[str]) -> Optional[McpFeatures]:
+            if "workspace" not in features:
+                return None
+            return McpFeatures(
+                name="environment-plugin", tools=[deployment_tool, restore_tool, failing_tool]
+            )
+
+    m = get_manager()
+    m.register(_EnvironmentPlugin(), name="test-environment-plugin")
+    try:
+        with isolated_workspace("default") as ctx:
+            declare_environment(ctx, "ci")
+            mcp = WorkspaceMCP("test")
+            for arguments, profile in (({}, "prod"), ({"environment": "ci"}, "ci-write")):
+                result = asyncio.run(mcp.call_tool("deployment_tool", arguments))
+                assert result.content[0].text == profile
+            active_profile = dlt.current.workspace().profile
+            with pytest.raises(Exception):
+                asyncio.run(mcp.call_tool("failing_tool", {"environment": "ci"}))
+            assert failed_with == ["ci-write"]
+            assert dlt.current.workspace().profile == active_profile
+            result = asyncio.run(mcp.call_tool("deployment_tool", {}))
+            assert result.content[0].text == "prod"
+            # the server describes the arguments that the tool does not
+            by_name = {tool.name: tool for tool in asyncio.run(mcp.list_tools())}
+            deployment_params = by_name["deployment_tool"].parameters["properties"]
+            assert deployment_params["environment"]["description"] == ENVIRONMENT_ARGUMENT_HELP
+            restore_params = by_name["restore_tool"].parameters["properties"]
+            assert (
+                restore_params["environment"]["description"]
+                == "The environment whose remote workspace has the run."
+            )
+            assert restore_params["profile"]["description"] == ENVIRONMENT_PROFILE_ARGUMENT_HELP
+    finally:
+        m.unregister(name="test-environment-plugin")
+
+
 @pytest.mark.parametrize(
     "tokens,expected_in,expected_not_in",
     [
@@ -299,14 +398,16 @@ def test_secrets_update_then_merged_view_reflects_change(
     required: str,
 ) -> None:
     """After secrets_update_fragment writes a key, the merged view (no path)
-    must include that key. Calls MCP tool functions which use with_reload_context."""
+    must include that key. Calls MCP tool functions as the server runs them, on a run context
+    reloaded for each call."""
+    view_redacted = with_tool_run_context(secrets_tools.secrets_view_redacted)
 
     with isolated_workspace(workspace_name, profile=profile, required=required):
         os.makedirs(".dlt", exist_ok=True)
 
         # 1) merged view before update — should be empty or raise ToolError
         try:
-            before = secrets_tools.secrets_view_redacted()
+            before = view_redacted()
         except Exception:
             before = None
         if before is not None:
@@ -331,7 +432,7 @@ def test_secrets_update_then_merged_view_reflects_change(
         assert "sk-test-12345" not in result
 
         # 4) merged view after update — must see the new section
-        after = secrets_tools.secrets_view_redacted()
+        after = view_redacted()
         assert after is not None, "Merged view returned None after update"
         assert "[sources.my_source]" in after
         assert "api_key" in after
@@ -385,8 +486,6 @@ def test_mcp_tool_telemetry_emits_event(
 
 def test_no_default_features_serves_only_what_was_asked() -> None:
     """A background agent gets its declared feature groups, not the interactive defaults."""
-    from dlt._workspace.cli.utils import make_mcp_run_flags, mcp_stdio_args
-
     assert resolve_features(["telemetry"], set()) == {"telemetry"}
     assert resolve_features(None, set()) == set()
 
@@ -404,3 +503,101 @@ def test_no_default_features_serves_only_what_was_asked() -> None:
     parsed = make_mcp_run_flags().parse_args(args[3:])
     assert parsed.no_default_features is True
     assert resolve_features(parsed.features, set()) == {"telemetry"}
+
+
+@pytest.mark.parametrize(
+    "tokens,expected",
+    [
+        (None, set(DEFAULT_MCP_FEATURES)),
+        (["+dlthub.jobs"], set(DEFAULT_MCP_FEATURES) | {"dlthub.jobs"}),
+        (["-secrets"], set(DEFAULT_MCP_FEATURES) - {"secrets"}),
+        (["-workspace,-pipeline,-toolkit,-secrets"], {"context"}),
+        (["-secrets,+dlthub.jobs"], set(DEFAULT_MCP_FEATURES) - {"secrets"} | {"dlthub.jobs"}),
+    ],
+    ids=["defaults", "add-feature", "remove-default", "only-context", "add-and-remove"],
+)
+def test_installed_server_serves_the_requested_features(
+    tokens: Optional[List[str]], expected: Set[str]
+) -> None:
+    """The arguments that `ai mcp install` writes resolve to the requested feature groups in the
+    server."""
+    parsed = make_mcp_run_flags().parse_args(mcp_stdio_args(tokens)[3:])
+    defaults: Optional[Set[str]] = set() if parsed.no_default_features else None
+    assert resolve_features(parsed.features, defaults) == expected
+
+
+@pytest.mark.parametrize(
+    "args,features,expected,unchanged",
+    [
+        (["--stdio"], ["jobs"], DEFAULT_MCP_FEATURES | {"jobs"}, False),
+        (
+            ["--stdio", "--features", "context", "pipeline"],
+            ["jobs"],
+            DEFAULT_MCP_FEATURES | {"jobs"},
+            False,
+        ),
+        (
+            ["--stdio", "--features=-secrets", "--access", "data:read"],
+            ["jobs"],
+            DEFAULT_MCP_FEATURES - {"secrets"} | {"jobs"},
+            False,
+        ),
+        (
+            ["--stdio", "--no-default-features", "--features", "context"],
+            ["jobs"],
+            {"context", "jobs"},
+            False,
+        ),
+        (["--stdio", "--features", "+jobs"], ["jobs"], DEFAULT_MCP_FEATURES | {"jobs"}, True),
+        # a feature group that the user removed stays removed
+        (["--stdio", "--features=-jobs"], ["jobs"], DEFAULT_MCP_FEATURES, True),
+        (["--stdio"], ["+jobs", "-secrets"], DEFAULT_MCP_FEATURES - {"secrets"} | {"jobs"}, False),
+        (["--stdio"], ["+jobs", "jobs"], DEFAULT_MCP_FEATURES | {"jobs"}, False),
+        (["--stdio", "--features="], ["jobs"], DEFAULT_MCP_FEATURES | {"jobs"}, False),
+        (["--stdio", "--features"], ["jobs"], DEFAULT_MCP_FEATURES | {"jobs"}, False),
+        (
+            ["--stdio", "--features", "context", "context"],
+            ["jobs"],
+            DEFAULT_MCP_FEATURES | {"jobs"},
+            False,
+        ),
+        # argparse keeps only the last `--features`
+        (
+            ["--stdio", "--no-default-features", "--features", "pipeline", "--features=context"],
+            ["jobs"],
+            {"context", "jobs"},
+            False,
+        ),
+    ],
+    ids=[
+        "no-features",
+        "space-form",
+        "removed-default",
+        "no-defaults",
+        "plus-already-there",
+        "removed-by-user",
+        "add-and-remove",
+        "same-feature-twice",
+        "empty-features",
+        "features-last",
+        "duplicate-tokens",
+        "last-features-wins",
+    ],
+)
+def test_add_mcp_features(
+    args: List[str], features: List[str], expected: Set[str], unchanged: bool
+) -> None:
+    """Feature groups added to the args of an installed server reach the server. Other args
+    stay."""
+    prefix = ["run", "dlthub", "ai", "mcp"]
+    added = add_mcp_features(prefix + args, features)
+    assert (added == prefix + args) is unchanged
+    assert added[:4] == prefix
+    parsed, rest = make_mcp_run_flags().parse_known_args(added)
+    assert rest == prefix
+    defaults: Optional[Set[str]] = set() if parsed.no_default_features else None
+    assert resolve_features(parsed.features, defaults) == expected
+    if "--access" in args:
+        assert parsed.access == "data:read"
+    # the feature groups are there, nothing to add
+    assert add_mcp_features(added, features) == added

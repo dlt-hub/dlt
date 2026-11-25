@@ -1,3 +1,4 @@
+import os
 from typing import Set
 
 import pytest
@@ -6,7 +7,9 @@ import dlt
 
 from dlt._workspace.helpers.dashboard.config import DashboardConfiguration
 from dlt._workspace.helpers.dashboard.utils.pipeline import (
+    get_dashboard_pipelines_dir,
     get_pipeline,
+    get_runtime_pipelines_profile,
     pipeline_details,
     exception_section,
     get_local_data_path,
@@ -31,6 +34,25 @@ from tests.workspace.helpers.dashboard.example_pipelines import (
     SUCCESS_PIPELINE_DUCKDB,
     SYNC_EXCEPTION_PIPELINE,
 )
+from tests.workspace.utils import declare_environment, isolated_workspace
+
+
+def test_get_dashboard_pipelines_dir() -> None:
+    """Every profile of an environment reads the synced runs of its default write profile."""
+    with isolated_workspace("pipelines") as ctx:
+        declare_environment(ctx, "staging")
+        write_dir = os.path.join(ctx.settings_dir, "state", "staging-write", "pipelines")
+        for profile in ("staging-read", "staging-write", "staging-none"):
+            ctx.switch_profile(profile)
+            assert get_runtime_pipelines_profile() == "staging-write"
+            assert get_dashboard_pipelines_dir(None, True) == write_dir
+        # without the sync, or with an explicit dir, the dashboard does not read the synced runs
+        assert get_dashboard_pipelines_dir(None, False) is None
+        assert get_dashboard_pipelines_dir("other", True) == "other"
+        # a local profile keeps its own pipelines dir
+        ctx.switch_profile("dev")
+        assert get_runtime_pipelines_profile() is None
+        assert get_dashboard_pipelines_dir(None, True) is None
 
 
 @pytest.mark.parametrize("pipeline", ALL_PIPELINES, indirect=True)

@@ -1,6 +1,8 @@
 import argparse
+import contextlib
 import sys
 import webbrowser
+from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from dlt.common import json
@@ -18,8 +20,13 @@ from dlt._workspace.cli.dlthub.utils import (
     delete_local_data,
     fetch_deployment_info,
     fetch_workspace_info,
+    generate_deployment_manifest,
+    get_deployment_target,
 )
+from dlt._workspace.deployment.requirements import export_workspace_requirements_with_warnings
+from dlt._workspace.settings_files import dump_yaml
 from dlt._workspace.typing import TLocationInfo, TProviderInfo
+from dlt._workspace.access import format_data_access
 
 
 def _format_location_tag(loc: TLocationInfo) -> str:
@@ -36,19 +43,51 @@ def _format_location_tag(loc: TLocationInfo) -> str:
     return ""
 
 
+def format_remote_workspace(workspace_name: str, workspace_id: Optional[str]) -> str:
+    """The remote workspace of an environment as name and id, or as name and `not connected`
+    while the local workspace is not connected in the environment."""
+    if workspace_id:
+        return "%s, id %s" % (fmt.bold(workspace_name), workspace_id)
+    return "%s, not connected" % fmt.bold(workspace_name)
+
+
 def print_profile_section(
     profile: TCurrentProfileInfo, configured_profiles: Optional[List[str]] = None
 ) -> None:
-    """Renders the active-profile block: name, paths, pinned status, configured profiles."""
+    """Renders the section of the active profile: name, location, data access, environment, paths,
+    the recorded and default markers, and the profiles with settings files."""
     fmt.echo("Settings for profile %s:" % fmt.bold(profile["name"]))
+    fmt.echo(
+        "  %s profile with %s"
+        % (
+            profile["location"].capitalize(),
+            fmt.bold(format_data_access(profile["data_access"])),
+        )
+    )
+    if env := profile.get("env"):
+        fmt.echo("  Environment %s" % fmt.bold(env))
+        if workspace_name := profile.get("workspace_name"):
+            fmt.echo(
+                "  Remote workspace %s"
+                % format_remote_workspace(workspace_name, profile.get("workspace_id"))
+            )
+        if deployment_module := profile.get("deployment_module"):
+            fmt.echo("  Deployment module %s" % fmt.bold(deployment_module))
+    if profile["also_in_env"]:
+        fmt.echo(
+            "  Other profiles of the environment: %s" % fmt.bold(", ".join(profile["also_in_env"]))
+        )
     fmt.echo("  Pipelines and other working data: %s" % fmt.bold(profile["data_dir"]))
     fmt.echo("  Locally loaded data: %s" % fmt.bold(profile["local_dir"]))
-    if profile["is_pinned"]:
-        fmt.echo("  Profile is %s" % fmt.bold("pinned"))
+    flags = (
+        ("recorded in .dlt/profile-name", profile["is_pinned"]),
+        ("default", profile.get("default")),
+    )
+    markers = [m for m, on in flags if on]
+    if markers:
+        fmt.echo("  Profile is %s" % fmt.bold(" and ".join(markers)))
     if configured_profiles:
-        fmt.echo(
-            "Profiles with configs or pipelines: %s" % fmt.bold(", ".join(configured_profiles))
-        )
+        fmt.echo("Profiles with settings files: %s" % fmt.bold(", ".join(configured_profiles)))
 
 
 def print_providers(providers: List[TProviderInfo], verbosity: int) -> None:
@@ -77,7 +116,16 @@ def print_providers(providers: List[TProviderInfo], verbosity: int) -> None:
 
 
 @utils.track_command("local", track_before=False, operation="info")
-def print_workspace_info(run_context: WorkspaceRunContext, verbosity: int = 0) -> None:
+def print_workspace_info(
+    run_context: WorkspaceRunContext,
+    verbosity: int = 0,
+    show_manifest: bool = False,
+    show_requirements: bool = False,
+) -> None:
+    # the manifests print alone, so their output can be piped
+    if show_manifest or show_requirements:
+        _print_deployment_manifests(run_context, show_manifest, show_requirements)
+        return
     info = fetch_workspace_info()
 
     if info["name"]:
@@ -109,13 +157,39 @@ def print_workspace_info(run_context: WorkspaceRunContext, verbosity: int = 0) -
     _print_deployment_info(fetch_deployment_info(), verbosity)
 
 
+def _print_deployment_manifests(
+    run_context: WorkspaceRunContext, show_manifest: bool, show_requirements: bool
+) -> None:
+    """Prints the deployment manifest as YAML and the requirements manifest as JSON."""
+    if show_manifest:
+        # the deployment module may print while it is imported
+        with contextlib.redirect_stdout(sys.stderr):
+            manifest, warnings = generate_deployment_manifest(*get_deployment_target())
+        fmt.echo(dump_yaml(dict(manifest)))
+        _print_warnings(warnings)
+    if show_requirements:
+        requirements, warnings = export_workspace_requirements_with_warnings(
+            Path(run_context.run_dir)
+        )
+        fmt.echo(json.dumps(requirements, pretty=True))
+        _print_warnings(warnings)
+
+
+def _print_warnings(warnings: List[str]) -> None:
+    # stdout holds the manifest alone
+    for warning in warnings:
+        fmt.echo(fmt.warning_style("WARNING: " + warning), err=True)
+
+
 def _print_deployment_info(info: TDeploymentManifestInfo, verbosity: int) -> None:
     status = info["status"]
+    module = info.get("deployment_module")
+    from_module = " from %s" % fmt.bold(module) if module else ""
     if status == "not_found":
-        fmt.echo("Deployment: no manifest found (create __deployment__.py)")
+        fmt.echo("Deployment: no deployment module found (create %s)" % fmt.bold(module or "one"))
         return
     if status == "generation_failed":
-        fmt.warning("Deployment: manifest generation failed")
+        fmt.warning("Deployment: dlt failed to generate the manifest%s" % from_module)
         if verbosity > 0 and info.get("error"):
             fmt.echo(info["error"])
         return
@@ -127,7 +201,12 @@ def _print_deployment_info(info: TDeploymentManifestInfo, verbosity: int) -> Non
         "%d %s(s)" % (n, cat) for cat, n in sorted(counts.items(), key=lambda kv: (-kv[1], kv[0]))
     ]
     breakdown = ", ".join(parts)
-    fmt.echo("Deployment: %s job(s): %s" % (fmt.bold(str(total)), breakdown))
+    for_env = (
+        " to environment %s" % fmt.bold(info["environment"]) if info.get("environment") else ""
+    )
+    fmt.echo(
+        "Deployment%s%s: %s job(s): %s" % (for_env, from_module, fmt.bold(str(total)), breakdown)
+    )
 
     if verbosity == 0:
         return
@@ -143,7 +222,10 @@ def _print_deployment_info(info: TDeploymentManifestInfo, verbosity: int) -> Non
                 triggers = ["(interactive)"]
             else:
                 triggers = ["(manual only)"]
-        fmt.echo("  %s  %s" % (job["display_label"].ljust(max_name), ", ".join(triggers)))
+        profile = "  profile %s" % job["profile"] if job.get("profile") else ""
+        fmt.echo(
+            "  %s  %s%s" % (job["display_label"].ljust(max_name), ", ".join(triggers), profile)
+        )
 
 
 @utils.track_command("local", track_before=False, operation="clean")

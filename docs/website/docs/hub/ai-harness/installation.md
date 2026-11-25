@@ -2,21 +2,25 @@
 title: Install the AI harness
 sidebar_label: Installation
 description: Install the dltHub AI Harness in a new or existing workspace, and add feature toolkits by intent or by command.
-keywords: [ai harness, install, dlthub-init, dlthub-start, dlthub ai init, toolkit install]
+keywords: [ai harness, install, dlthub-init, dlthub init, dlthub ai init, toolkit install, mcp server, cortex code, codex]
 ---
 # Installation
 
-To install the [AI Harness](https://dlthub.com/features/ai-harness), you need Python 3.10 or later, [uv](https://docs.astral.sh/uv/) on your PATH, and one of the supported coding agents (Claude Code, Cursor, or Codex) already installed.
+To install the [AI Harness](https://dlthub.com/features/ai-harness), you need:
+
+- Python 3.10 or later
+- [uv](https://docs.astral.sh/uv/) on your PATH
+- one of the supported coding agents: Claude Code, Cursor, Codex, or Snowflake Cortex Code
 
 ## Add the AI Harness to a project
 
-Run the following command in the directory where you want the workspace:
+Run this command in the directory of the workspace:
 
 ```cli
 uvx dlthub-init@latest
 ```
 
-This scaffolds a dltHub workspace, then wires the base `init` toolkit for Claude Code (default):
+The command creates a dltHub workspace and installs the base `init` toolkit for Claude Code:
 
 ```tree
 your-project/
@@ -24,88 +28,129 @@ your-project/
 │   ├── .workspace              # marks this directory as a dltHub workspace
 │   ├── config.toml             # workspace-wide config
 │   └── secrets.toml            # workspace-wide secrets (gitignored)
-├── .agents/
-│   └── skills/                 # vendored source of the `init` toolkit
-│       ├── dlthub-router/
-│       ├── setup-secrets/
-│       └── improve-skills/
 ├── .claude/
-│   └── skills/                 # symlinks to .agents/skills/*
+│   ├── rules/                  # rules of the `init` toolkit
+│   └── skills/                 # skills of the `init` toolkit
 ├── .mcp.json                   # registers `dlt-workspace-mcp`
-├── __deployment__.py           # empty; jobs get declared here
 └── pyproject.toml
 ```
 
-To wire up Cursor or Codex instead, run:
+The other agents get the skills, rules, and MCP server in their own folders. See [The MCP server](#the-mcp-server).
+
+To use Cursor, Codex, or Cortex Code in an existing workspace, run:
 
 ```cli
 uv run dlthub ai init --agent cursor
 ```
 
-Swap `cursor` for `codex` as needed.
+Replace `cursor` with `codex` or `cortex`.
+
+### Create the workspace with `dlthub init`
+
+You can also create the workspace with `dlthub init`. The command adds the dependencies that your agent needs, then installs the `init` toolkit for this agent:
+
+```cli
+uvx --from dlt@latest dlthub init --agent cortex
+```
+
+If you pass `--agent` without a name, dlt detects the agent. Without `--agent`, `dlthub init` creates the workspace and installs no toolkit. Run `uv sync` afterwards to install the dependencies. In an existing workspace, `dlthub init` changes nothing. Run `dlthub ai init` instead.
 
 ## What you get
 
-Your workspace now contains the base `init` toolkit, which ships an MCP server (`dlt-workspace-mcp`), a workspace-setup rule, and three skills:
+The base `init` toolkit has an MCP server (`dlt-workspace-mcp`), a rule for the workspace, and three skills:
 
-- `dlthub-router`: routes user intent to the right toolkit and installs it if missing.
-- `setup-secrets`: safely manages `.dlt/secrets.toml` without exposing values to the agent.
-- `improve-skills`: captures new patterns learned in a session so skills stay lean.
+- `dlthub-router`: matches your intent to a toolkit, and installs the toolkit when it is missing.
+- `setup-secrets`: manages `.dlt/secrets.toml` and does not show the secret values to the agent.
+- `improve-skills`: adds the patterns that a session found to the skills, and keeps the skills short.
 
-Feature toolkits (REST API pipelines, SQL database, transformations, deployment, and so on) are **not** installed by default. `dlthub-router` installs them automatically when it matches your intent to one, or you can install them manually from the CLI.
+Feature toolkits for REST API pipelines, SQL databases, transformations, deployment, and more are not installed by default. `dlthub-router` installs them when it matches your intent to one. You can also install them with the CLI.
+
+The toolkits write what they produce, such as schemas, data models and exploration plans, into `.dlthub/` in your workspace. See [Artifact locations](artifact-locations.md).
+
+### The MCP server
+
+dlt installs one MCP server, `dlt-workspace-mcp`. Your agent starts it with `uv run dlthub ai mcp --stdio` and uses the stdio transport. A feature toolkit does not add a second server. It can add feature groups to the `--features` argument of `dlt-workspace-mcp` or remove them from it. Each feature group gives more tools.
+
+Each agent reads the server from its own config file:
+
+| Agent       | Config file                                                                   |
+| ----------- | ----------------------------------------------------------------------------- |
+| Claude Code | `.mcp.json`                                                                   |
+| Cursor      | `.cursor/mcp.json`                                                            |
+| Codex       | `.codex/config.toml`                                                          |
+| Cortex Code | `.cortex/mcp.json` for Desktop, `$SNOWFLAKE_HOME/cortex/mcp.json` for the CLI |
+
+The Cortex Code CLI reads MCP servers only from your user config. `$SNOWFLAKE_HOME` is `~/.snowflake` by default. For Codex, dlt also sets `mcp_optional_startup_grace_ms = 5000` when your config does not set it. Codex then waits up to 5 seconds for the server before the first turn of a session.
+
+If your agent does not show the tools of `dlt-workspace-mcp`:
+
+1. Run `uv run dlthub ai status`. The output tells you when the MCP server cannot start, and why.
+2. If a toolkit install changed the server, reconnect the server in your agent, or start a new session.
+3. In Cursor, enable the server in Cursor Settings > MCP.
+4. In Codex, trust the project. Codex reads `.codex/config.toml` only in a trusted project.
+5. In Cortex Code, run `cortex mcp list` to see the state of the server. Then run `cortex mcp reconnect dlt-workspace-mcp`.
+6. In Cortex Code Desktop, trust the Cortex Code workspace of this project. Desktop loads project MCP servers only from a trusted Cortex Code workspace.
 
 ## Adding feature toolkits
 
-Most of the time you don't install feature toolkits manually. You talk to your agent about what you want to build, and `dlthub-router` picks the right toolkit and installs it for you.
-
-For example, if you tell the agent:
+Usually, your agent installs feature toolkits for you. When you tell the agent what you want to build, `dlthub-router` picks the toolkit and installs it. For example, you tell the agent:
 
 > I want to ingest pull requests and issues from the GitHub REST API.
 
-`dlthub-router` matches that intent to the `rest-api-pipeline` toolkit, runs `dlthub ai toolkit install rest-api-pipeline` under the hood, and hands off to that toolkit's entry skill (`find-source`).
+`dlthub-router` matches this intent to the `rest-api-pipeline` toolkit. It runs `dlthub ai toolkit install rest-api-pipeline`, then starts the entry skill of the toolkit (`find-source`).
 
-If you prefer explicit installs, the same three CLI commands are always available. List everything:
+You can also use the CLI. List the toolkits:
 
 ```cli
 uv run dlthub ai toolkit list
 ```
 
-Inspect a specific toolkit before installing:
+Show the contents of a toolkit:
 
 ```cli
 uv run dlthub ai toolkit info rest-api-pipeline
 ```
 
-Install it:
+Install the toolkit:
 
 ```cli
 uv run dlthub ai toolkit install rest-api-pipeline
 ```
 
-By default `dlthub ai toolkit install` installs for the agent already wired up in the workspace. Pass `--agent claude|cursor|codex` to install for a different one, or use the update command below for an installed toolkit. A fresh install skips existing files and component folders. `install --overwrite` replaces installed files with the toolkit's version, including ones you edited or deleted, and removes unmodified files the toolkit no longer ships. Files from other toolkits are not touched.
+`toolkit install` installs for the AI coding agent of the workspace. To install for a different coding agent, pass `--agent claude|cursor|codex|cortex`. To update an installed toolkit, pass `--overwrite`. The update replaces the files that the toolkit ships, and removes the files that the new version does not ship. The update also replaces and removes the files that you edited. The files that you added stay.
 
-A toolkit that ships agent definitions installs each one to `.claude/dlthub/agents/<toolkit>/<agent>/` (`.cursor/dlthub/agents/` for Cursor, `.agents/dlthub/agents/` for Codex), where `run.agent("<toolkit>:<agent>")` finds it. See [Background agents](../agents/index.md).
+dlt installs each agent definition of a toolkit to `.claude/dlthub/agents/<toolkit>/<agent>/`. For Cursor, Codex, and Cortex Code, the folder starts with `.cursor/`, `.agents/`, or `.cortex/`. There, `run.agent("<toolkit>:<agent>")` finds it. See [Background agents](../agents/index.md).
 
-## Updating toolkits
+### Toolkits for specific agents
 
-Update one installed toolkit, or omit its name to update all installed toolkits:
+The `toolkit.json` file of a toolkit can name the AI coding agents that see the toolkit, or that see one of its components, such as a skill, a rule, or an MCP server. Your agent sees and installs only what is made for it. To see and install everything, pass `--see-all` to `toolkit list`, `toolkit info`, or `toolkit install`.
 
-```sh
-uv run dlthub ai toolkit update rest-api-pipeline
-uv run dlthub ai toolkit update
+For example, the `snowflake-platform` toolkit is made for Cortex Code. To install it for Claude Code, run:
+
+```cli
+uv run dlthub ai toolkit install snowflake-platform --agent claude --see-all
 ```
+
+A toolkit that you installed with `--see-all` keeps all its components when you update it.
+
+### Rules for Codex and Cortex Code
+
+Codex and Cortex Code do not read a folder of rules, so dlt gives them the rules in a different way:
+
+- **Codex**: dlt installs each rule as a skill in `.agents/skills/`. A session start hook in `.codex/hooks.json` runs `uv run dlthub ai rules --agent codex`. This command prints a link to each rule skill and tells Codex to obey these skills. Codex runs the hook only in a trusted project, after you approve it once with `/hooks`. You can delete the skill list that older dlt versions wrote to `AGENTS.md`.
+- **Cortex Code**: dlt installs each rule to `.cortex/rules/`. After each toolkit install, dlt writes all the rules into the `# dltHub rules` section of `CORTEX.md`. To change a rule, edit its file, because dlt replaces the section. The text outside the section stays. Cortex Code reads skills and `CORTEX.md` only when a session starts. Start a new session after an install.
 
 ## Verify
 
-Check that the workspace is fully wired:
+Make sure that the workspace is ready:
 
 ```cli
 uv run dlthub ai status
 ```
 
-Output includes the dlt version, the configured agent, the installed toolkits, and warnings when the MCP server or any dependency is missing. Fix the warnings before you start working with your agent.
+The output shows the dlt version, the configured agent, the installed toolkits, and a warning for each missing MCP server or dependency. Fix the warnings before you start to work with your agent.
 
 ## What's next
 
-- [Toolkits](toolkits.md) walks through the full catalog and where each fits in the development cycle.
-- [Deploy with the dltHub AI Harness](../pipeline-operations/deployments.md#deploy-with-the-dlthub-ai-harness) shows how to use the `dlthub-platform` toolkit end-to-end.
+- [Toolkits](toolkits.md) shows all the toolkits and where each one fits in the development cycle.
+- [Deploy with the dltHub AI Harness](../pipeline-operations/deployments.md#deploy-with-the-dlthub-ai-harness) shows the `dlthub-platform` toolkit from start to end.

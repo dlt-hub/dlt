@@ -23,6 +23,7 @@ import cryptography.hazmat.bindings._rust
 import dlt
 from dlt.common.libs import git
 from dlt.common.configuration.providers import CONFIG_TOML, SECRETS_TOML, SecretsTomlProvider
+from dlt.common.pipeline import get_dlt_repos_dir
 from dlt.common.runners import Venv
 from dlt.common.storages.file_storage import FileStorage
 from dlt.common.utils import uniq_id
@@ -174,6 +175,38 @@ def test_init_command_new_pipeline_same_name(repo_dir: str, workspace_files: Fil
     assert "already exists, exiting" in _out
 
 
+def test_init_command_reuses_recorded_repo_location(
+    repo_dir: str, workspace_files: FileStorage
+) -> None:
+    """The repo given last to `dlt init` or `dlt init --list-sources` is recorded in `.sources`
+    and the next commands without `--location` reuse it. An empty value resets it. A `.sources`
+    that an older dlt wrote still loads and keeps its sources."""
+    legacy_source = files_ops.load_verified_sources_local_index("legacy")
+    files_ops._save_dot_sources(
+        {
+            "engine_version": files_ops.SOURCES_INIT_INFO_ENGINE_VERSION,
+            "sources": {"legacy": legacy_source},
+        }
+    )
+    assert files_ops.resolve_verified_sources_repo() == (DEFAULT_VERIFIED_SOURCES_REPO, None)
+
+    _init_command.init_command_wrapper("chess", "duckdb", repo_dir, None)
+    index = files_ops._load_dot_sources()
+    assert index["location"] == os.path.abspath(repo_dir)
+    assert "branch" not in index
+    assert set(index["sources"]) == {"legacy", "chess"}
+
+    assert files_ops.resolve_verified_sources_repo() == (os.path.abspath(repo_dir), None)
+    _init_command.init_command_wrapper("pipedrive", "duckdb", None, None)
+    assert "pipedrive" in files_ops._load_dot_sources()["sources"]
+
+    # a list of the sources records too, here a reset (the default repo is not cloned)
+    with mock.patch.object(_init_command, "list_sources_command"):
+        _init_command.list_sources_command_wrapper("", None)
+    assert "location" not in files_ops._load_dot_sources()
+    assert files_ops.resolve_verified_sources_repo() == (DEFAULT_VERIFIED_SOURCES_REPO, None)
+
+
 def test_init_command_chess_verified_source(
     repo_dir: str, workspace_files: FileStorage, monkeypatch: MonkeyPatch
 ) -> None:
@@ -221,6 +254,12 @@ def test_list_sources(repo_dir: str) -> None:
     assert set(SOME_KNOWN_VERIFIED_SOURCES).issubset(verified_sources.keys())
     check_results(verified_sources)
     assert len(verified_sources.keys()) > 10
+    # only the sources folder of the verified sources repo is cloned
+    clone_storage = FileStorage(os.path.join(get_dlt_repos_dir(), "verified-sources"))
+    assert sorted(os.path.basename(d) for d in clone_storage.list_folder_dirs(".")) == [
+        ".git",
+        SOURCES_MODULE_NAME,
+    ]
 
     templates = _list_template_sources()
     assert set(templates) == set(TEMPLATES)

@@ -1,0 +1,48 @@
+# `.dlt/.toolkits` written by dlt 1.32: entries have no `see_all`, and entries saved before the
+# last install got a `name` key. `init` comes from a real workspace. `rest-api-pipeline` has the
+# layout dlt 1.32 writes for codex
+init:
+  name: init
+  version: 0.1.3
+  description: Shared rules, secrets handling, background agent authoring and the
+    workspace MCP server used by the other dlthub toolkits. Requires dlt[hub].
+  tags:
+  - dlthub
+  - init
+  - rules
+  - secrets
+  - mcp
+  - agents
+  installed_at: '2026-11-11T15:27:14.817406+00:00'
+  agent: claude
+  files:
+    .claude/skills/create-background-agent/SKILL.md:
+      sha3_256: 750584955eee7c849ee5de12447c41bd3abbbf3a786423f843dd789a776420ca
+    .claude/skills/create-background-agent/agent-md-reference.md:
+      sha3_256: e047072fd5ab2f724cf8361ef98dbe4c967670e03dc3a935eb83b4947e2020a8
+    .claude/skills/create-background-agent/check_agent.py:
+      sha3_256: d3aea7284fae1ceaacc77a2941cb96e98e2fcf571fa43891f024899e33018188
+    .claude/skills/create-background-agent/deployment.md:
+      sha3_256: 0e2d81481d8ccbebf075fee5cbac8f79ab6f400ca681a3a6f9ce4e3a5b74e41c
+    .claude/skills/create-background-agent/summary-format.md:
+      sha3_256: ba8d86e6fa8c08cfeb924387f38bfebf66082b76b073968f7c4dda9b390ce825
+    .claudeignore:
+      sha3_256: 1aa4dc9286dd219dcb55399f388c5ee1f940ab5e399a42b644d488cba57a9ec0
+    .claude/rules/init-dlthub-workspace.md:
+      sha3_256: 9026b2d8e74555eaaacb395e7aa2af9ae165153496029bc7d99b0438dcbe0c78
+rest-api-pipeline:
+  version: 0.1.1
+  description: REST API source pipeline toolkit
+  tags: []
+  dependencies:
+  - init
+  workflow_entry_skill: find-source
+  installed_at: '2026-11-11T15:30:02.101112+00:00'
+  agent: codex
+  files:
+    .agents/skills/find-source/SKILL.md:
+      sha3_256: 1f0c2f1b8e5a4d6c7b9a0e3f2d1c4b5a6978e0d1c2b3a4f5e6d7c8b9a0f1e2d3
+    .agents/skills/rest-api-pipeline-workflow/SKILL.md:
+      sha3_256: 2a1b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d5e6f708192a3b4c5d6e7f809
+  mcp_servers:
+  - dlt-workspace-mcp
