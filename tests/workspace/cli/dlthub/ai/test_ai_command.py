@@ -752,7 +752,8 @@ def test_dependency_map_workbench(workbench_repo: str) -> None:
 
     listed_toolkits, _ = fetch_workbench_toolkits(base, listed_only=True)
     for name in listed_toolkits:
-        if name == "init" or name in init_deps:
+        # dlthub-setup installs dlt[hub] that init requires, so it cannot depend on init
+        if name in ("init", "dlthub-setup") or name in init_deps:
             continue
         resolved = resolve_toolkit_dependencies(name, dep_map)
         assert "init" in resolved, "%s should depend on init" % name

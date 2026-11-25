@@ -1,5 +1,6 @@
 import pathlib
 import sys
+from datetime import date, datetime, timedelta, timezone
 from typing import Any, List, Tuple
 from unittest.mock import ANY
 
@@ -48,9 +49,18 @@ def dataset(module_tmp_path: pathlib.Path) -> dlt.Dataset:
     @dlt.resource(name="purchases")
     def purchases_data():
         yield from (
-            {"id": 1, "name": "alice", "city": "berlin"},
-            {"id": 2, "name": "bob", "city": "paris"},
-            {"id": 3, "name": "charlie", "city": "barcelona"},
+            {
+                "id": i,
+                "name": name,
+                "city": city,
+                "created_at": datetime(2024, 1, i, 10, tzinfo=timezone.utc),
+                "day": date(2024, 1, i),
+            }
+            for i, name, city in (
+                (1, "alice", "berlin"),
+                (2, "bob", "paris"),
+                (3, "charlie", "barcelona"),
+            )
         )
 
     # each xdist worker gets its own database file, a shared one fails on the duckdb file lock
@@ -146,6 +156,76 @@ def test_where_filters_relation_output(
     expected_rows: List[Tuple[Any, ...]],
 ) -> None:
     assert sorted(dataset(query).where(*where_args).fetchall()) == expected_rows
+
+
+_PLUS_2 = timezone(timedelta(hours=2))
+
+
+@pytest.mark.parametrize(
+    "column,operator,value,expected_ids",
+    [
+        pytest.param(
+            "created_at",
+            "eq",
+            datetime(2024, 1, 2, 12, tzinfo=_PLUS_2),
+            [2],
+            id="timestamp-aware-non-utc",
+        ),
+        pytest.param(
+            "created_at",
+            "in",
+            [datetime(2024, 1, 1, 12, tzinfo=_PLUS_2), datetime(2024, 1, 3, 12, tzinfo=_PLUS_2)],
+            [1, 3],
+            id="timestamp-aware-in",
+        ),
+        pytest.param(
+            "created_at",
+            "not_in",
+            [datetime(2024, 1, 2, 12, tzinfo=_PLUS_2)],
+            [1, 3],
+            id="timestamp-aware-not-in",
+        ),
+        pytest.param(
+            "created_at", "eq", datetime(2024, 1, 2, 10), [2], id="timestamp-naive-utc-wall-clock"
+        ),
+        pytest.param(
+            "created_at", "eq", "2024-01-02T12:00:00+02:00", [2], id="timestamp-iso-string"
+        ),
+        pytest.param("created_at", "gte", date(2024, 1, 2), [2, 3], id="timestamp-from-date"),
+        pytest.param("day", "eq", date(2024, 1, 2), [2], id="date"),
+        pytest.param(
+            "day",
+            "eq",
+            datetime(2024, 1, 2, 12, tzinfo=_PLUS_2),
+            [2],
+            id="date-from-aware-datetime",
+        ),
+        pytest.param("day", "in", ["2024-01-01", "2024-01-03"], [1, 3], id="date-iso-string-in"),
+        pytest.param("id", "lte", "2", [1, 2], id="bigint-from-string"),
+    ],
+)
+def test_where_temporal_literals(
+    dataset: dlt.Dataset, column: str, operator: Any, value: Any, expected_ids: List[int]
+) -> None:
+    """Values compare to a column as instances of its type, tz-aware values keep their offset."""
+    rows = dataset.table("purchases").where(column, operator, value).select("id").fetchall()
+    assert sorted(row[0] for row in rows) == expected_ids
+
+
+def test_aggregate_does_not_mutate_relation(dataset: dlt.Dataset) -> None:
+    query = sge.select(sge.column("id")).from_("purchases")
+    query_sql = query.sql()
+    relation = dataset(query)
+    ids = relation.select("id")
+
+    assert ids.max().fetchscalar() == 3
+    assert ids.min().fetchscalar() == 1
+    # the source relations and the caller's expression keep their projection
+    assert sorted(row[0] for row in ids.fetchall()) == [1, 2, 3]
+    assert sorted(row[0] for row in relation.fetchall()) == [1, 2, 3]
+    relation.max()
+    assert query.sql() == query_sql
+    assert len(relation.fetchall()) == 3
 
 
 def test_relation_from_loads_rejects_non_table_relations(dataset: dlt.Dataset) -> None:

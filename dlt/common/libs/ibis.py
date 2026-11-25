@@ -44,8 +44,13 @@ class DltType(TypeMapper):
         raise NotImplementedError
 
     @classmethod
-    def to_ibis(cls, typ: TDataType, nullable: Optional[bool] = None) -> dt.DataType:
+    def to_ibis(
+        cls, typ: TDataType, nullable: Optional[bool] = None, timezone: Optional[bool] = None
+    ) -> dt.DataType:
         nullable = True if nullable is None else bool(nullable)
+        # dlt timestamps are tz-aware unless `timezone` is False, cursors return them in UTC
+        if typ == "timestamp" and timezone is not False:
+            return dt.Timestamp(timezone="UTC", nullable=nullable)
         return ibis.dtype(DATA_TYPE_MAP[typ], nullable=nullable)
 
 
@@ -316,7 +321,9 @@ class _DltBackend(SQLBackend, NoUrl, NoExampleLoader):
 def _to_ibis_schema(table_schema: TTableSchema) -> sch.Schema:
     return sch.Schema(
         {
-            name: DltType.to_ibis(column["data_type"], column.get("nullable"))
+            name: DltType.to_ibis(
+                column["data_type"], column.get("nullable"), column.get("timezone")
+            )
             for name, column in table_schema["columns"].items()
         }
     )

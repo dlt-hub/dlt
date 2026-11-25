@@ -37,7 +37,7 @@ from dlt.common.destination.client import (
 )
 from dlt.common.destination.dataset import TFilterOperation
 from dlt.common.libs.sqlglot import (
-    build_typed_literal,
+    build_column_literal,
     migrate_order_and_limit,
     bind_query,
     IdentifiersBinding,
@@ -890,10 +890,13 @@ class Relation(WithSqlClient):
                 f"{agg_cls.__name__.lower()}() requires a query with exactly one select expression."
                 " Consider selecting the column you want to aggregate."
             )
-        selected_col = self.sqlglot_expression.selects[0]
+        # `__copy__` shares the expression, aggregate a copy to leave this relation intact
+        query = self.sqlglot_expression.copy()
+        selected_col = query.selects[0]
         expr = agg_cls(this=selected_col.this if hasattr(selected_col, "this") else selected_col)
+        query.set("expressions", [expr])
         rel = self.__copy__()
-        rel.sqlglot_expression.set("expressions", [expr])
+        rel._sqlglot_expression = query
         return rel
 
     def max(self) -> Self:  # noqa: A003
@@ -972,8 +975,10 @@ class Relation(WithSqlClient):
                 f" {list(columns_schema)}"
             )
         # a column without data type (ie. unknown function result) compares to an uncast literal
-        value_expr = build_typed_literal(
-            value, _sqlglot_type_for_column(columns_schema, column_name)
+        value_expr = build_column_literal(
+            value,
+            _sqlglot_type_for_column(columns_schema, column_name),
+            self.sql_client.capabilities,
         )
 
         column = sge.Column(this=sge.to_identifier(column_name, quoted=True))
