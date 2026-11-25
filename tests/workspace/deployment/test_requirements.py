@@ -81,7 +81,8 @@ TDepsSource = Literal[
 
 
 def _get_names(specs: List[str]) -> List[str]:
-    return sorted(Requirement(s).name for s in specs)
+    # a universal lock pins a package once per python version range, e.g. `packaging`
+    return sorted({Requirement(s).name for s in specs})
 
 
 def _run_uv_lock(run_dir: str) -> None:
