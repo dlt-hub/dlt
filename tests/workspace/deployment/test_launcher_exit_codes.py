@@ -1,14 +1,16 @@
 """Exit status of a failed job or agent launcher run.
 
-Code 1 is the default. Code 75 is only for a connection or timeout failure.
+Code 1 is the default. Code 75 is a connection or timeout failure, or `RetryableError`.
 """
 
-from typing import Any, Callable, List
+import os
+from typing import Any, Callable, List, Tuple
 
 import pytest
 import requests
 
 import dlt
+import dlt.hub.run
 from dlt.common.destination.exceptions import DestinationTransientException
 from dlt.common.exceptions import (
     SignalReceivedException,
@@ -17,7 +19,12 @@ from dlt.common.exceptions import (
     TransientException,
 )
 from dlt.common.utils import uniq_id
-from dlt._workspace.deployment.exceptions import JobAbortedException
+from dlt.hub import run
+from dlt.hub.run import RetryableError
+from dlt._workspace.deployment.exceptions import (
+    JobAbortedException,
+    RetryableError as DefinedRetryableError,
+)
 from dlt._workspace.deployment.launchers._launcher import (
     EXIT_TERMINAL_ERROR,
     EXIT_TRANSIENT_ERROR,
@@ -139,6 +146,59 @@ def _raise_connection_reset() -> None:
     dlt.pipeline(uniq_id(), destination="duckdb", dev_mode=True).run(api())
 
 
+@_expect_exit(EXIT_TRANSIENT_ERROR, expect_stderr="RetryableError")
+def _raise_retryable_error() -> None:
+    raise RetryableError("vendor timed out")
+
+
+@_expect_exit(EXIT_TRANSIENT_ERROR, expect_stderr="RetryableError")
+def _raise_retryable_error_cause() -> None:
+    try:
+        raise RetryableError("vendor timed out")
+    except RetryableError as exc:
+        raise RuntimeError("during extract") from exc
+
+
+@_expect_exit(EXIT_TRANSIENT_ERROR, expect_stderr="RetryableError")
+def _raise_retryable_error_from_unknown() -> None:
+    try:
+        raise ValueError("unknown")
+    except ValueError as exc:
+        raise RetryableError("vendor timed out") from exc
+
+
+@_expect_exit(EXIT_TRANSIENT_ERROR, expect_stderr="TerminalValueError")
+def _raise_terminal_over_retryable() -> None:
+    try:
+        raise RetryableError("vendor timed out")
+    except RetryableError as exc:
+        raise TerminalValueError("stop") from exc
+
+
+@_expect_exit(EXIT_TRANSIENT_ERROR, expect_stderr="TerminalValueError")
+def _raise_retryable_over_terminal() -> None:
+    try:
+        raise TerminalValueError("stop")
+    except TerminalValueError as exc:
+        raise RetryableError("vendor timed out") from exc
+
+
+@_expect_exit(EXIT_TRANSIENT_ERROR, expect_stderr="SSLError")
+def _raise_retryable_over_ssl() -> None:
+    try:
+        raise requests.exceptions.SSLError("certificate verify failed")
+    except requests.exceptions.SSLError as exc:
+        raise RetryableError("vendor timed out") from exc
+
+
+@_expect_exit(EXIT_TRANSIENT_ERROR, expect_stderr="SSLError")
+def _raise_ssl_over_retryable() -> None:
+    try:
+        raise RetryableError("vendor timed out")
+    except RetryableError as exc:
+        raise requests.exceptions.SSLError("certificate verify failed") from exc
+
+
 @_expect_exit(EXIT_TRANSIENT_ERROR, expect_stderr="TimeoutError")
 def _raise_read_timeout() -> None:
     @dlt.resource
@@ -151,6 +211,75 @@ def _raise_read_timeout() -> None:
 
 def test_transient_exit_matches_ex_tempfail() -> None:
     assert EXIT_TRANSIENT_ERROR == 75
+
+
+@pytest.mark.parametrize(
+    ("job_names", "exit_code", "stderr_text"),
+    [
+        pytest.param(
+            ("retryable",), EXIT_TRANSIENT_ERROR, "RetryableError", id="retryable-load-job"
+        ),
+        pytest.param(
+            ("terminal",), EXIT_TERMINAL_ERROR, "TerminalValueError", id="terminal-load-job"
+        ),
+        pytest.param(
+            ("retryable", "terminal"),
+            EXIT_TERMINAL_ERROR,
+            "TerminalValueError",
+            id="retryable-and-terminal-load-jobs",
+        ),
+        pytest.param(
+            ("terminal", "retryable"),
+            EXIT_TERMINAL_ERROR,
+            "TerminalValueError",
+            id="terminal-and-retryable-load-jobs",
+        ),
+    ],
+)
+def test_failed_load_jobs_keep_terminal_precedence(
+    job_names: Tuple[str, ...],
+    exit_code: int,
+    stderr_text: str,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    # one retry is enough for the retryable job to raise in the same pass as a terminal job
+    os.environ["LOAD__RAISE_ON_MAX_RETRIES"] = "1"
+
+    @dlt.destination(name="sink")
+    def sink(items, table):
+        if table["name"] == "retryable":
+            raise RetryableError("please retry")
+        raise TerminalValueError("stop")
+
+    def _resource(name: str) -> Any:
+        @dlt.resource(name=name)
+        def _items() -> Any:
+            yield {"a": 1}
+
+        return _items()
+
+    def _run() -> None:
+        dlt.pipeline(uniq_id(), destination=sink, dev_mode=True).run(
+            [_resource(name) for name in job_names]
+        )
+
+    with pytest.raises(SystemExit) as caught:
+        run_and_print_result(_run)
+
+    assert caught.value.code == exit_code
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert "Traceback (most recent call last):" in captured.err
+    assert stderr_text in captured.err
+
+
+def test_retryable_error_import_path() -> None:
+    assert (
+        dlt.hub.run.RetryableError is run.RetryableError is RetryableError is DefinedRetryableError
+    )
+    assert "RetryableError" in dlt.hub.run.__all__
+    assert str(RetryableError("vendor timed out")) == "vendor timed out"
+    assert RetryableError().args == ()
 
 
 @pytest.mark.parametrize(("run", "exit_code", "stderr_text"), _FAILURE_CASES)
