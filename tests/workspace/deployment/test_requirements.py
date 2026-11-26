@@ -29,6 +29,7 @@ from dlt._workspace.cli.dlthub._init_command import init_dlthub_workspace
 from dlt._workspace.cli.dlthub.utils import fetch_init_plan
 from dlt._workspace.deployment.manifest import default_dashboard_job
 from dlt._workspace.deployment.requirements import (
+    INDEX_URL_MARKER,
     MAIN_GROUP,
     PRE_TRACKING_DLT_INSTALL_SPEC,
     REQUIREMENTS_ENGINE_VERSION,
@@ -46,7 +47,9 @@ from dlt._workspace.deployment.requirements import (
     python_version,
     save_requirements,
     _add_transitive_names,
+    _annotate_index_urls,
     _collect_package_names,
+    _parse_pylock_index_urls,
 )
 from dlt._workspace.deployment.typing import DASHBOARD_JOB_REF, TWorkspaceRequirementsManifest
 
@@ -157,13 +160,15 @@ def test_pyproject_with_lock_resolves_all_groups() -> None:
     }
     assert set(user_groups.keys()) == {"main", "dev", "gpu"}
 
-    # every user spec must be pinned, and free of hashes / local paths
+    # every user spec must be pinned, and free of hashes / local paths. all packages come
+    # from PyPI so no spec carries an index annotation
     for group, specs in user_groups.items():
         assert specs, f"group {group!r} is empty"
         for spec in specs:
             assert "==" in spec, f"unpinned spec in {group!r}: {spec}"
             assert "file://" not in spec, f"local path in {group!r}: {spec}"
             assert "sha256:" not in spec, f"hash leaked into {group!r}: {spec}"
+            assert INDEX_URL_MARKER not in spec, f"index annotation in {group!r}: {spec}"
 
     # named packages landed in the right groups
     main_names = {Requirement(s).name for s in groups["main"]}
@@ -174,6 +179,104 @@ def test_pyproject_with_lock_resolves_all_groups() -> None:
 
     gpu_names = {Requirement(s).name for s in groups["gpu"]}
     assert "numpy" in gpu_names
+
+
+_PYTORCH_INDEX = "https://download.pytorch.org/whl/cpu"
+_INDEX_URL_SUFFIX_RE = re.compile(r"\s*;\s*index-url:\s*(?P<url>\S+)\s*$")
+"""Strips the annotation the way the backend does, leaving a PEP 508 spec."""
+
+
+def test_pyproject_with_lock_annotates_alternative_index() -> None:
+    with isolated_workspace("deps_pyproject_index") as ctx:
+        _run_uv_lock(ctx.run_dir)
+        result = export_workspace_requirements(Path(ctx.run_dir))
+
+    main = result["groups"][MAIN_GROUP]
+    # mpmath is split by marker: the linux entry is pinned to the pytorch index, the
+    # other one comes from PyPI and stays a plain spec
+    linux = [s for s in main if s.startswith("mpmath==") and "== 'linux'" in s]
+    other = [s for s in main if s.startswith("mpmath==") and "!= 'linux'" in s]
+    assert len(linux) == 1 and len(other) == 1
+    assert linux[0].endswith(f" ; sys_platform == 'linux' ; {INDEX_URL_MARKER} {_PYTORCH_INDEX}")
+    assert other[0].endswith(" ; sys_platform != 'linux'")
+    assert INDEX_URL_MARKER not in other[0]
+    # PyPI packages are untouched
+    assert not any(INDEX_URL_MARKER in s for s in main if s.startswith("six=="))
+
+    # the group is exported on its own, every sympy entry comes from the pytorch index
+    tools = [s for s in result["groups"]["tools"] if s.startswith("sympy==")]
+    assert tools
+    for spec in tools:
+        assert spec.endswith(f" ; {INDEX_URL_MARKER} {_PYTORCH_INDEX}"), spec
+
+    # every annotated spec is a valid PEP 508 spec once the suffix is stripped
+    for spec in main + tools:
+        stripped = _INDEX_URL_SUFFIX_RE.sub("", spec)
+        assert INDEX_URL_MARKER not in stripped
+        Requirement(stripped)
+
+
+def test_annotate_index_urls() -> None:
+    index_urls = {
+        ("mpmath", "1.4.1", "sys_platform == 'linux'"): _PYTORCH_INDEX,
+        ("sympy", "1.12", ""): _PYTORCH_INDEX,
+        ("sympy-fork", "1.12", ""): _PYTORCH_INDEX,
+    }
+    specs = [
+        "six==1.17.0",
+        "mpmath==1.4.1 ; sys_platform == 'linux'",
+        "mpmath==1.3.0 ; sys_platform != 'linux'",
+        "sympy==1.12",
+        "Sympy_Fork==1.12",
+        "attrs @ git+https://github.com/python-attrs/attrs@9e443b1",
+    ]
+    # pypi, marker mismatch and git specs stay untouched, names are normalized before lookup
+    assert _annotate_index_urls(specs, index_urls) == [
+        "six==1.17.0",
+        f"mpmath==1.4.1 ; sys_platform == 'linux' ; {INDEX_URL_MARKER} {_PYTORCH_INDEX}",
+        "mpmath==1.3.0 ; sys_platform != 'linux'",
+        f"sympy==1.12 ; {INDEX_URL_MARKER} {_PYTORCH_INDEX}",
+        f"Sympy_Fork==1.12 ; {INDEX_URL_MARKER} {_PYTORCH_INDEX}",
+        "attrs @ git+https://github.com/python-attrs/attrs@9e443b1",
+    ]
+    # an entry no spec consumes would silently install from PyPI at run time
+    with pytest.raises(WorkspaceRequirementsError, match="sympy==1.12"):
+        _annotate_index_urls(["sympy==1.13"], {("sympy", "1.12", ""): _PYTORCH_INDEX})
+
+
+def test_parse_pylock_index_urls() -> None:
+    pylock = f"""
+lock-version = "1.0"
+created-by = "uv"
+
+[[packages]]
+name = "six"
+version = "1.17.0"
+index = "https://pypi.org/simple"
+
+[[packages]]
+name = "mpmath"
+version = "1.4.1"
+marker = "sys_platform == 'linux'"
+index = "{_PYTORCH_INDEX}"
+
+[[packages]]
+name = "Sympy"
+version = "1.12"
+index = "{_PYTORCH_INDEX}"
+
+[[packages]]
+name = "attrs"
+version = "23.2.0"
+vcs = {{ type = "git", url = "https://github.com/python-attrs/attrs", commit-id = "9e443b1" }}
+"""
+    # default index and non-registry sources are not in the map
+    assert _parse_pylock_index_urls(pylock) == {
+        ("mpmath", "1.4.1", "sys_platform == 'linux'"): _PYTORCH_INDEX,
+        ("sympy", "1.12", ""): _PYTORCH_INDEX,
+    }
+    with pytest.raises(WorkspaceRequirementsError):
+        _parse_pylock_index_urls("[[packages]\nname = ")
 
 
 def test_pyproject_lock_out_of_sync_raises() -> None:

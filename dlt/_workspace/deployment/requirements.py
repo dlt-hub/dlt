@@ -1,5 +1,6 @@
 """Export, save, load, and migrate `TWorkspaceRequirementsManifest` — the wire format for workspace dependencies shipped to the runtime.
 Supports requirements.txt and requirements.in. If uv installed - supports pyproject with dependency groups and uv/PEP lock files.
+Specs locked to an index other than PyPI carry it as a trailing `; index-url: <url>` clause.
 poetry/PDM support can be easily added.
 """
 
@@ -9,7 +10,7 @@ import shutil
 import subprocess
 import sys
 from pathlib import Path
-from typing import Any, BinaryIO, Dict, Final, List, Optional, Sequence, Set
+from typing import Any, BinaryIO, Dict, Final, List, Optional, Sequence, Set, Tuple
 
 import tomlkit
 from packaging.requirements import Requirement
@@ -50,10 +51,16 @@ PYPROJECT_TOML = "pyproject.toml"
 REQUIREMENTS_TXT = "requirements.txt"
 REQUIREMENTS_IN = "requirements.in"
 UV_LOCK = "uv.lock"
+PYPI_INDEX_URL = "https://pypi.org/simple"
+INDEX_URL_MARKER = "index-url:"
+"""Leads the non PEP 508 clause appended to a spec locked to an index other than PyPI.
+An annotated spec is not a valid PEP 508 string: strip the clause before parsing it with `Requirement()`.
+"""
 
 __all__ = [
     "DLTHUB_CLIENT_PKG_NAME",
     "DLTHUB_PKG_NAME",
+    "INDEX_URL_MARKER",
     "MAIN_GROUP",
     "REQUIREMENTS_ENGINE_VERSION",
     "TInstallSpec",
@@ -474,36 +481,9 @@ def _export_from_pyproject(
         _require_uv()
         # verify the lock is in sync — non-mutating
         _run_uv(["lock", "--check"], cwd=workspace_root)
-        result: Dict[str, List[str]] = {}
-        result[MAIN_GROUP] = _parse_uv_output(
-            _run_uv(
-                [
-                    "export",
-                    "--no-hashes",
-                    "--no-emit-project",
-                    "--no-default-groups",
-                    "--format",
-                    "requirements.txt",
-                ],
-                cwd=workspace_root,
-            )
-        )
+        result: Dict[str, List[str]] = {MAIN_GROUP: _export_lock_group(workspace_root, None)}
         for name in group_names:
-            result[name] = _parse_uv_output(
-                _run_uv(
-                    [
-                        "export",
-                        "--no-hashes",
-                        "--no-emit-project",
-                        "--no-default-groups",
-                        "--only-group",
-                        name,
-                        "--format",
-                        "requirements.txt",
-                    ],
-                    cwd=workspace_root,
-                )
-            )
+            result[name] = _export_lock_group(workspace_root, name)
         return dict(sorted(result.items()))
 
     # no lock — parse declarations directly
@@ -515,6 +495,88 @@ def _export_from_pyproject(
     for name in group_names:
         result[name] = _parse_dep_list(list(groups.get(name, []) or []))
     return dict(sorted(result.items()))
+
+
+def _export_lock_group(workspace_root: Path, group: Optional[str]) -> List[str]:
+    """Export one dependency group from `uv.lock` as sorted pinned specs, annotated with the
+    index url of every package not locked to PyPI."""
+    scope = ["--no-emit-project", "--no-default-groups"]
+    if group is not None:
+        scope += ["--only-group", group]
+    specs = _parse_uv_output(
+        _run_uv(
+            ["export", "--no-hashes", *scope, "--format", "requirements.txt"], cwd=workspace_root
+        )
+    )
+    # pylock is exported with the same scope so its markers match the specs verbatim
+    index_urls = _parse_pylock_index_urls(
+        _run_uv(["export", *scope, "--format", "pylock.toml"], cwd=workspace_root)
+    )
+    return _annotate_index_urls(specs, index_urls)
+
+
+TIndexUrls = Dict[Tuple[str, str, str], str]
+"""(normalized name, version, marker or "") of a locked package to the index url it comes from."""
+
+
+def _parse_pylock_index_urls(text: str) -> TIndexUrls:
+    """Map the packages of a pylock.toml blob that are not locked to PyPI to their index url.
+
+    Packages locked to a vcs, url or directory source carry that source in the spec itself and
+    are skipped.
+    """
+    try:
+        doc = tomlkit.parse(text)
+    except Exception as ex:
+        raise WorkspaceRequirementsError(f"Failed to parse pylock.toml export: {ex}") from ex
+    index_urls: TIndexUrls = {}
+    for package in doc.get("packages", []) or []:
+        index = package.get("index")
+        if not index or index == PYPI_INDEX_URL:
+            continue
+        key = (
+            _normalize_name(str(package["name"])),
+            str(package["version"]),
+            str(package.get("marker", "")),
+        )
+        index_urls[key] = str(index)
+    return index_urls
+
+
+_PINNED_SPEC_RE = re.compile(
+    r"^(?P<name>[A-Za-z0-9][A-Za-z0-9_.\-]*)(?:\[[^\]]*\])?==(?P<version>[^\s;]+)"
+    r"(?:\s*;\s*(?P<marker>.+?))?\s*$"
+)
+
+
+def _annotate_index_urls(specs: Sequence[str], index_urls: TIndexUrls) -> List[str]:
+    """Append `; index-url: <url>` to every pinned spec found in `index_urls`.
+
+    Raises:
+        WorkspaceRequirementsError: an entry of `index_urls` matches no spec. A silent miss
+            would make the runtime install that package from PyPI.
+    """
+    if not index_urls:
+        return list(specs)
+    unmatched = dict(index_urls)
+    annotated: List[str] = []
+    for spec in specs:
+        m = _PINNED_SPEC_RE.match(spec)
+        if m:
+            key = (_normalize_name(m.group("name")), m.group("version"), m.group("marker") or "")
+            if index := index_urls.get(key):
+                spec = f"{spec} ; {INDEX_URL_MARKER} {index}"
+                unmatched.pop(key, None)
+        annotated.append(spec)
+    if unmatched:
+        entries = ", ".join(
+            f"{name}=={version} ; {marker}".rstrip(" ;") for name, version, marker in unmatched
+        )
+        raise WorkspaceRequirementsError(
+            f"Locked packages {entries} come from an index other than PyPI but match no exported"
+            " spec"
+        )
+    return annotated
 
 
 def _compile_requirements_file(workspace_root: Path, file_path: Path) -> List[str]:
