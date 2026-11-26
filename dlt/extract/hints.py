@@ -291,7 +291,8 @@ class DltResourceHints:
 
         # resolve a copy of a held template
         root_table_template = self._clone_hints(root_table_template)
-        if "table_name" not in root_table_template:
+        # a `with_table_name` mark names the table over the `table_name` hint of the resource
+        if isinstance(meta, TableNameMeta) or "table_name" not in root_table_template:
             root_table_template["table_name"] = default_table_name
 
         # if table template present and has dynamic hints, the data item must be provided.
