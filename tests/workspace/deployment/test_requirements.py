@@ -54,6 +54,7 @@ from tests.workspace.utils import isolated_workspace
 
 
 _SHUTIL_WHICH = "dlt._workspace.deployment.requirements.shutil.which"
+_BUILD_LAUNCHERS = "dlt._workspace.deployment.requirements.build_launcher_requirements"
 _HUB = "dlt[hub]"
 _S3_NAMES = ["botocore", "s3fs"]
 
@@ -855,6 +856,60 @@ def test_export_fails_on_pins_below_floors(
     result = _resolve_export(main_specs, tmp_path)
     assert result.returncode != 0
     assert needs in result.stderr
+
+
+@pytest.mark.parametrize(
+    "job_specs",
+    # botocore 1.34.0 caps python-dateutil<3 and urllib3<2.1, a main resolved alone takes newer
+    [list(dlt_extra_specs("s3").values()), ["botocore==1.34.0"]],
+    ids=["s3-specs", "capped-botocore"],
+)
+def test_resolved_main_installs_with_job_launcher(job_specs: List[str], tmp_path: Path) -> None:
+    """A resolved main pins every package, so a launcher spec it never saw can contradict it."""
+    with patch(_BUILD_LAUNCHERS, return_value={LAUNCHER_JOB: job_specs}):
+        result = _export_with_deps(["dlt[hub]", "requests"], "requirements-resolved")
+    assert result["launcher_requirements"][LAUNCHER_JOB] == job_specs
+    compiled = _run_uv_compile([*result["groups"][MAIN_GROUP], *job_specs], tmp_path)
+    assert compiled.returncode == 0, compiled.stderr
+
+
+@pytest.mark.parametrize(
+    "main_specs, blames_launcher",
+    # the injected dlt needs requests>=2.26.0
+    [(["requests==2.25.1"], True), (["requests==2.25.1", "requests>=2.26"], False)],
+    ids=["pin-below-injected-dlt", "broken-on-its-own"],
+)
+def test_resolved_main_failure_names_its_cause(
+    main_specs: List[str], blames_launcher: bool
+) -> None:
+    """A main the job launcher entry cannot install next to fails the export, not every run."""
+    with pytest.raises(WorkspaceRequirementsError) as exc_info:
+        _export_with_deps(main_specs, "requirements-resolved")
+    assert ("does not resolve with the launcher specs" in str(exc_info.value)) is blames_launcher
+
+
+@pytest.mark.parametrize(
+    "line, kept",
+    [
+        # other launchers stay out of the resolution, a workspace may never run them
+        ("marimo==0.10.0", ["marimo==0.10.0"]),
+        ("protobuf==3.19.6", ["protobuf==3.19.6"]),
+        # uv echoes a local package back and rejects it as a constraint
+        ("-e ./mylib", ["mylib", "six=="]),
+        ("./mylib", ["mylib", "six=="]),
+    ],
+    ids=["below-marimo-floor", "below-streamlit-dependency", "editable", "path"],
+)
+def test_resolved_main_keeps_workspace_specs(line: str, kept: List[str]) -> None:
+    with isolated_workspace("deps_none") as ctx:
+        run_dir = Path(ctx.run_dir)
+        (run_dir / "mylib").mkdir()
+        (run_dir / "mylib" / "pyproject.toml").write_text(
+            '[project]\nname = "mylib"\nversion = "0.1.0"\ndependencies = ["six"]\n'
+        )
+        (run_dir / "requirements.txt").write_text(f"{line}\n")
+        main = export_workspace_requirements(run_dir)["groups"][MAIN_GROUP]
+    assert all(any(k in s for s in main) for k in kept)
 
 
 def test_dlt_extra_specs() -> None:

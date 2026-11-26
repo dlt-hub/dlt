@@ -98,9 +98,17 @@ class WorkspaceRequirementsError(Exception):
     """Raised when a workspace's dependency files cannot be exported."""
 
 
-def get_dlt_requirement_spec() -> str:
-    """PEP 508 spec for the currently installed dlt distribution, deployment-mode."""
-    return render_pep508(get_pkg_install_spec(DLT_PKG_NAME), for_deployment=True)
+def get_dlt_requirement_spec(*, from_source: bool = False) -> str:
+    """PEP 508 spec for the currently installed dlt distribution, deployment-mode.
+
+    Args:
+        from_source (bool): Render an editable install as a direct reference to its source,
+            which resolves even when its version is not on PyPI.
+    """
+    spec = get_pkg_install_spec(DLT_PKG_NAME)
+    if from_source and spec["mode"] == "editable":
+        spec["mode"] = "path"
+    return render_pep508(spec, for_deployment=True)
 
 
 def get_pkg_install_spec(pkg_name: str, *, extras: Optional[List[str]] = None) -> TInstallSpec:
@@ -328,16 +336,28 @@ def _add_agent_loop_groups(groups: Dict[str, List[str]], default_names: Set[str]
             groups[name] = _prune_specs(specs, default_names)
 
 
-def _inject_dlt_into_launchers(launcher_requirements: Dict[str, List[str]]) -> None:
-    dlt_spec = get_dlt_requirement_spec()
+def _inject_dlt_into_launchers(launcher_requirements: Dict[str, List[str]], dlt_spec: str) -> None:
     for launcher in launcher_requirements:
         launcher_requirements[launcher] = sorted(launcher_requirements[launcher] + [dlt_spec])
+
+
+def _build_pruned_launcher_requirements(
+    default_names: Set[str], dlt_spec: str
+) -> Dict[str, List[str]]:
+    """Launcher specs pruned against `default_names`, with `dlt_spec` unless they name dlt."""
+    launcher_requirements = build_launcher_requirements()
+    for launcher, specs in launcher_requirements.items():
+        launcher_requirements[launcher] = _prune_specs(specs, default_names)
+    # inject dlt into every launcher entry unless a default group already names it
+    if _normalize_name(DLT_PKG_NAME) not in default_names:
+        _inject_dlt_into_launchers(launcher_requirements, dlt_spec)
+    return launcher_requirements
 
 
 def default_requirements_manifest() -> TWorkspaceRequirementsManifest:
     """Minimal manifest: empty `main`, dashboard and agent loop groups, launcher specs with dlt."""
     launcher_requirements = build_launcher_requirements()
-    _inject_dlt_into_launchers(launcher_requirements)
+    _inject_dlt_into_launchers(launcher_requirements, get_dlt_requirement_spec())
     groups: Dict[str, List[str]] = {MAIN_GROUP: [], DASHBOARD_JOB_REF: build_dashboard_group()}
     groups.update(build_agent_loop_groups())
     return {
@@ -395,12 +415,9 @@ def export_workspace_requirements(
     groups[DASHBOARD_JOB_REF] = _prune_specs(build_dashboard_group(), default_names)
     _add_agent_loop_groups(groups, default_names)
 
-    launcher_requirements = build_launcher_requirements()
-    for launcher, specs in launcher_requirements.items():
-        launcher_requirements[launcher] = _prune_specs(specs, default_names)
-    # inject dlt into every launcher entry unless a default group already names it
-    if _normalize_name(DLT_PKG_NAME) not in default_names:
-        _inject_dlt_into_launchers(launcher_requirements)
+    launcher_requirements = _build_pruned_launcher_requirements(
+        default_names, get_dlt_requirement_spec()
+    )
 
     return {
         "engine_version": REQUIREMENTS_ENGINE_VERSION,
@@ -522,19 +539,64 @@ def _compile_requirements_file(workspace_root: Path, file_path: Path) -> List[st
     # with uv: `uv pip compile --universal` for a resolved, platform-independent
     # lockset. without uv: pure-Python parse, specs returned as authored
     if is_uv_available():
-        stdout = _run_uv(
-            [
-                "pip",
-                "compile",
-                "--universal",
-                "--no-header",
-                "--no-annotate",
-                file_path.name,
-            ],
-            cwd=workspace_root,
-        )
-        return _parse_uv_output(stdout)
+        specs = _uv_pip_compile(workspace_root, file_path)
+        # a job installs main next to its launcher specs, so main is pinned with them in view
+        job_specs = _get_job_launcher_specs(specs)
+        if job_specs:
+            specs = _pin_with_job_specs(workspace_root, file_path, specs, job_specs)
+        return specs
     return _parse_requirements_file(file_path)
+
+
+def _uv_pip_compile(
+    workspace_root: Path, file_path: Path, *args: str, stdin: Optional[str] = None
+) -> List[str]:
+    """Resolve `file_path` with `uv pip compile` into sorted PEP 508 specs."""
+    stdout = _run_uv(
+        [
+            "pip",
+            "compile",
+            "--universal",
+            "--no-header",
+            "--no-annotate",
+            file_path.name,
+            *args,
+        ],
+        cwd=workspace_root,
+        stdin=stdin,
+    )
+    return _parse_uv_output(stdout)
+
+
+def _get_job_launcher_specs(main: List[str]) -> List[str]:
+    """Specs a job installs next to `main`, for resolving: an editable dlt comes from its source.
+
+    Other launchers may never run, so they stay out.
+    """
+    names = _collect_package_names(main)
+    _add_transitive_names(names)
+    launchers = _build_pruned_launcher_requirements(
+        names, get_dlt_requirement_spec(from_source=True)
+    )
+    return launchers[LAUNCHER_JOB]
+
+
+def _pin_with_job_specs(
+    workspace_root: Path, file_path: Path, main: List[str], job_specs: List[str]
+) -> List[str]:
+    """Pins of `file_path` that install next to `job_specs`, without adding them to `main`."""
+    try:
+        resolved = _uv_pip_compile(workspace_root, file_path, "-", stdin="\n".join(job_specs))
+    except WorkspaceRequirementsError as ex:
+        raise WorkspaceRequirementsError(
+            f"{file_path.name} does not resolve with the launcher specs"
+            f" {', '.join(job_specs)}:\n{ex}"
+        ) from ex
+    if set(main) <= set(resolved):
+        return main
+    # unnamed paths and `-e` lines cannot be constraints
+    constraints = "\n".join(_parse_dep_list(resolved))
+    return _uv_pip_compile(workspace_root, file_path, "--constraint", "-", stdin=constraints)
 
 
 def _parse_requirements_file(file_path: Path) -> List[str]:
@@ -678,12 +740,13 @@ def _require_uv() -> None:
         raise WorkspaceRequirementsError(_UV_MISSING_MESSAGE)
 
 
-def _run_uv(args: List[str], cwd: Path) -> str:
+def _run_uv(args: List[str], cwd: Path, stdin: Optional[str] = None) -> str:
     """Invoke `uv` with the given args, returning stdout on success."""
     try:
         proc = subprocess.run(
             ["uv", *args],
             cwd=str(cwd),
+            input=stdin,
             capture_output=True,
             text=True,
             check=False,
