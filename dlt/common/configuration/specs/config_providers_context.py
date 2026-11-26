@@ -150,22 +150,26 @@ def _airflow_providers(settings: VaultProviderConfiguration) -> List[ConfigProvi
         # hide stdio. airflow typically dumps tons of warnings and deprecations to stdout and stderr
         with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
             # try to get dlt secrets variable. many broken Airflow installations break here. in that case do not create
-            from airflow.models import Variable, TaskInstance  # noqa
-            from dlt.common.configuration.providers.airflow import AirflowSecretsTomlProvider
+            from airflow.models import TaskInstance  # noqa
+            from dlt.common.configuration.providers.airflow import (
+                AirflowSecretsTomlProvider,
+                get_airflow_variable,
+            )
 
             # probe if Airflow variable containing all secrets is present
             from dlt.common.configuration.providers.vault import SECRETS_TOML_KEY
 
-            secrets_toml_var = Variable.get(SECRETS_TOML_KEY, default_var=None)
+            secrets_toml_var = get_airflow_variable(SECRETS_TOML_KEY)
 
             # providers can be returned - mind that AirflowSecretsTomlProvider() requests the variable above immediately
             providers = [AirflowSecretsTomlProvider(**dict(settings))]
 
             # check if we are in task context and provide more info
+            # prefer Task SDK (Airflow 3.x): the old path still imports on 3.x but is deprecated
             try:
-                from airflow.operators.python import get_current_context  # noqa
+                from airflow.sdk import get_current_context  # noqa
             except ImportError:
-                from airflow.sdk import get_current_context  # type: ignore[no-redef,unused-ignore]
+                from airflow.operators.python import get_current_context  # type: ignore[no-redef,unused-ignore]
 
             ti: TaskInstance = get_current_context()["ti"]  # type: ignore[assignment,unused-ignore]
 

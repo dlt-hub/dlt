@@ -1,8 +1,24 @@
 import io
 import contextlib
-from typing import Set
+from typing import Optional, Set
 
 from .vault import VaultDocProvider
+
+
+def get_airflow_variable(key: str) -> Optional[str]:
+    """Get Airflow Variable `key` or None if not found.
+
+    Uses the Task SDK (`airflow.sdk.Variable`) on Airflow 3.x and falls back to
+    `airflow.models.Variable` on Airflow 2.x. The `airflow.models` path still works on
+    3.x but emits a DeprecationWarning on every call.
+    """
+    try:
+        from airflow.sdk import Variable
+    except ImportError:
+        from airflow.models import Variable
+
+        return Variable.get(key, default_var=None)  # type: ignore[no-any-return,unused-ignore]
+    return Variable.get(key, default=None)  # type: ignore[no-any-return,unused-ignore]
 
 
 class AirflowSecretsTomlProvider(VaultDocProvider):
@@ -20,10 +36,8 @@ class AirflowSecretsTomlProvider(VaultDocProvider):
 
     def _look_vault(self, full_key: str, hint: type) -> str:
         """Get Airflow Variable with given `full_key`, return None if not found"""
-        from airflow.models import Variable
-
         with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
-            return Variable.get(full_key, default_var=None)  # type: ignore
+            return get_airflow_variable(full_key)
 
     def _list_vault(self) -> Set[str]:
         """Lists all available variables in Airflow
