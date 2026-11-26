@@ -210,9 +210,9 @@ def jira_issues(
 ```
 
 - `jql`, `start_date`: As in the [`jira` source](#source-jira).
-- `incremental`: The default incremental on `updated` if not passed. An incremental without
+- `incremental`: An incremental on `updated` by default. An incremental without
   `cursor_path`, for example `dlt.sources.incremental(initial_value=..., end_value=...)`, sets the
-  values of the default one, `start_date` wins over its `initial_value`. Your own
+  values of the default incremental. `start_date` wins over its `initial_value`. Your own
   `dlt.sources.incremental` replaces it. Its cursor must be a
   date or datetime field, for example `created` or the id of a custom date field. `dlt` adds the
   `initial_value` and `end_value` of the incremental to the JQL query. You can use them to
@@ -224,9 +224,9 @@ def jira_issues(
 - `bulk_fetch_size`: Issues fetched in a single request, at most 1000.
 - `search_page_size`: Issue ids listed in a single search request, at most 5000.
 - `included_columns`: Field ids to load, all fields if not set.
-- `excluded_columns`: Field ids to skip when `included_columns` is not set. `attachment`,
-  `issuelinks`, `votes` and `watches` by default: they hold records of their own and limit a request
-  to 100 issues. Pass `[]` to load them.
+- `excluded_columns`: Field ids to skip when `included_columns` is not set. By default, dlt skips
+  `attachment`, `issuelinks`, `votes` and `watches`. These fields hold records of their own and
+  limit a request to 100 issues. To load them, pass `[]`.
 - `write_disposition`, `primary_key`, `merge_key`: `merge` on `id` by default.
 - `name`: The name of the resource, of its table and of its config section `sources.jira.<name>`.
 
@@ -399,8 +399,8 @@ If you wish to create your own pipelines, you can leverage source and resource m
    load_info = pipeline.run([jira_issues(name="bugs"), jira_issues(name="epics")])
    ```
 
-   To load several queries into one table, add a column that names the query and add it to the
-   primary key. An issue that two queries find loads once for each:
+   To load several queries into one table, add a column that names the query. Then add this
+   column to the primary key. An issue that two queries find loads once for each:
 
    ```py notype
    queries = {"bugs": "issuetype = Bug", "epics": "issuetype = Epic"}
@@ -489,7 +489,8 @@ with the issues updated since the previous run.
 You can set the arguments of `jira` and `jira_issues` in `.dlt/config.toml`. The `sources.jira`
 section holds the arguments of `jira` and of all `jira_issues`. The section named like the resource,
 `sources.jira.issues` by default, holds the arguments of one `jira_issues`. The `jira` source reads
-it for the arguments it does not take, for example `chunk_size`, `bulk_fetch_size` and `lag`:
+this section for the arguments that it does not take, for example `chunk_size`, `bulk_fetch_size`
+and `lag`:
 
 ```toml
 [sources.jira]
@@ -531,12 +532,12 @@ the pipeline. To load the changelogs of older issues, reset the state of `issues
 - `add_limit(n)` on the source or on `issues` loads at most `n` pages of `chunk_size` issues, 1000
   by default, with their comments and changelogs.
 
-## Upgrade from previous versions
+## Upgrade from an earlier version
 
-Versions 1.0.0 and 2.0.0 have breaking changes. Version 2.0.0 removes `jira_search`: load each JQL
-query with its own [`jira_issues`](#create-your-own-pipeline) instead. It also stops loading
-`attachment`, `issuelinks`, `votes` and `watches` by default, and `incremental=None` loads issues
-without incremental. It requires `dlt` 1.32.0 or later. The
+Versions 1.0.0 and 2.0.0 have breaking changes. Version 2.0.0 removes `jira_search`. Load each JQL
+query with its own [`jira_issues`](#create-your-own-pipeline) instead. By default, it no longer
+loads `attachment`, `issuelinks`, `votes` and `watches`. With `incremental=None`, each run loads
+all issues, without incremental state. It requires `dlt` 1.32.0 or later. The
 [changelog](https://github.com/dlt-hub/verified-sources/blob/master/sources/jira/README.md#changelog)
 in the README of the source lists the changes with the upgrade steps.
 

@@ -341,9 +341,9 @@ def sharepoint_files(
 - `incremental`: your own `dlt.sources.incremental` on `modification_date` instead of the default
   one, for example with an `end_value`. An `incremental` with an `end_value` stores no state, so
   you can backfill with it. Pass `start_date` or your own incremental, not both. An incremental
-  without `cursor_path`, for example with only an `end_value`, sets the values of the default one,
-  `start_date` wins over its `initial_value`. With
-  `incremental=None`, each run loads all files.
+  without `cursor_path`, for example with only an `end_value`, sets the values of the default
+  incremental. `start_date` wins over its `initial_value`. With `incremental=None`, each run loads
+  all files.
 
 ### Resource `sharepoint_folder`
 
@@ -533,7 +533,7 @@ one hour, and dlt renews it before that time. All resources of a pipeline share 
 
 ## Upgrade from an earlier version
 
-In version 1.2.0, `incremental=None` loads all files on each run, without incremental. Remove it
-to keep the default incremental. The
+In version 1.2.0, `incremental=None` loads all files on each run, without incremental state. To
+keep the default incremental, remove it. The
 [changelog](https://github.com/dlt-hub/verified-sources/blob/master/sources/sharepoint/README.md#changelog)
 in the README of the source lists the changes with the upgrade steps.

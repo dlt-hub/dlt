@@ -361,7 +361,7 @@ dlt reads the config of a table from `sources.servicenow.<table>`, for example
     cursor value. Later runs do not read them again. With `"exclude"`, dlt does not read them.
   - Pass `start_date` or your own incremental, not both.
   - An incremental without `cursor_path`, for example `dlt.sources.incremental(lag=60)`, sets the
-    values of the default one. `start_date` wins over its `initial_value`.
+    values of the default incremental. `start_date` wins over its `initial_value`.
   - With `incremental=None`, each run loads all records and replaces the table.
 - `lag`: the seconds before the last cursor value that the default incremental loads again on each
   run, 600 for `merge`. With `lag`, dlt also loads records that the ServiceNow instance saved with
@@ -549,7 +549,7 @@ error names.
 
 ## Upgrade from an earlier version
 
-In version 1.1.0, `incremental=None` loads all records on each run, without incremental. Remove it
-to keep the default incremental. The
+In version 1.1.0, `incremental=None` loads all records on each run and replaces the table. To keep
+the default incremental, remove it. The
 [changelog](https://github.com/dlt-hub/verified-sources/blob/master/sources/servicenow/README.md#changelog)
 in the README of the source lists the changes with the upgrade steps.
