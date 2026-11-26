@@ -3,6 +3,7 @@ import socket
 from datetime import datetime, time, timezone
 from decimal import Decimal
 from pathlib import Path
+from typing import Any, Dict
 
 import yaml
 import pytest
@@ -691,3 +692,279 @@ def test_catalog_from_yaml_parametrized(catalog_config, tmp_path, monkeypatch):
     namespaces = catalog.list_namespaces()
     namespace_list = [ns[0] if isinstance(ns, tuple) else ns for ns in namespaces]
     assert test_namespace in namespace_list
+
+
+def _set_home_dir(monkeypatch: pytest.MonkeyPatch, home_dir: Path) -> None:
+    monkeypatch.setenv("HOME", str(home_dir))
+    monkeypatch.setenv("USERPROFILE", str(home_dir))
+
+
+def _write_pyiceberg_yaml(path: Path, catalog_name: str, config: Dict[str, Any]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with open(path, "w", encoding="utf-8") as f:
+        yaml.dump({"catalog": {catalog_name: config}}, f)
+
+
+def test_get_catalog_loads_home_pyiceberg_yaml(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """get_catalog discovers and loads ~/.pyiceberg.yaml when PYICEBERG_HOME is unset."""
+    home_dir = tmp_path / "home"
+    project_dir = tmp_path / "project"
+    home_dir.mkdir()
+    project_dir.mkdir()
+
+    db_path = tmp_path / "home_catalog.db"
+    catalog_uri = f"sqlite:///{db_path}"
+    _write_pyiceberg_yaml(
+        home_dir / ".pyiceberg.yaml",
+        "default",
+        {"type": "sql", "uri": catalog_uri, "warehouse": str(tmp_path / "home_wh")},
+    )
+
+    monkeypatch.delenv("PYICEBERG_HOME", raising=False)
+    _set_home_dir(monkeypatch, home_dir)
+    monkeypatch.chdir(project_dir)
+
+    with mock.patch("dlt.current.run_context") as mock_ctx:
+        mock_ctx.return_value.run_dir = str(project_dir)
+        mock_ctx.return_value.get_setting.return_value = str(
+            project_dir / ".dlt" / ".pyiceberg.yaml"
+        )
+
+        catalog = get_catalog("default")
+
+    assert catalog.name == "default"
+    assert catalog.properties["uri"] == catalog_uri
+    assert not is_ephemeral_catalog(catalog)
+    catalog.create_namespace("home_ns")
+    assert db_path.exists()
+
+
+def test_get_catalog_loads_dot_dlt_pyiceberg_yaml(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """get_catalog loads .dlt/.pyiceberg.yaml even though pyiceberg does not search .dlt/."""
+    home_dir = tmp_path / "home"
+    project_dir = tmp_path / "project"
+    home_dir.mkdir()
+    project_dir.mkdir()
+
+    db_path = tmp_path / "dlt_catalog.db"
+    catalog_uri = f"sqlite:///{db_path}"
+    dot_dlt_yaml = project_dir / ".dlt" / ".pyiceberg.yaml"
+    _write_pyiceberg_yaml(
+        dot_dlt_yaml,
+        "default",
+        {"type": "sql", "uri": catalog_uri, "warehouse": str(tmp_path / "dlt_wh")},
+    )
+
+    monkeypatch.delenv("PYICEBERG_HOME", raising=False)
+    _set_home_dir(monkeypatch, home_dir)
+    monkeypatch.chdir(project_dir)
+
+    with mock.patch("dlt.current.run_context") as mock_ctx:
+        mock_ctx.return_value.run_dir = str(project_dir)
+        mock_ctx.return_value.get_setting.return_value = str(dot_dlt_yaml)
+
+        catalog = get_catalog("default")
+
+    assert catalog.name == "default"
+    assert catalog.properties["uri"] == catalog_uri
+    assert not is_ephemeral_catalog(catalog)
+    catalog.create_namespace("dlt_ns")
+    assert db_path.exists()
+
+
+def test_get_catalog_dot_dlt_takes_precedence_over_home_yaml(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Project .dlt/.pyiceberg.yaml overrides ~/.pyiceberg.yaml without leaking home properties."""
+    import pyiceberg.catalog as pyiceberg_catalog
+    from pyiceberg.utils.config import Config
+
+    home_dir = tmp_path / "home"
+    project_dir = tmp_path / "project"
+    home_dir.mkdir()
+    project_dir.mkdir()
+
+    home_db = tmp_path / "home.db"
+    dlt_db = tmp_path / "dlt.db"
+    home_uri = f"sqlite:///{home_db}"
+    dlt_uri = f"sqlite:///{dlt_db}"
+
+    _write_pyiceberg_yaml(
+        home_dir / ".pyiceberg.yaml",
+        "default",
+        {
+            "type": "rest",
+            "uri": home_uri,
+            "warehouse": str(tmp_path / "home_wh"),
+            "s3.region": "home-only-region",
+        },
+    )
+    dot_dlt_yaml = project_dir / ".dlt" / ".pyiceberg.yaml"
+    _write_pyiceberg_yaml(
+        dot_dlt_yaml,
+        "default",
+        {"uri": dlt_uri, "warehouse": str(tmp_path / "dlt_wh")},
+    )
+
+    monkeypatch.delenv("PYICEBERG_HOME", raising=False)
+    _set_home_dir(monkeypatch, home_dir)
+    monkeypatch.chdir(project_dir)
+
+    # Simulate pyiceberg caching ~/.pyiceberg.yaml at import time
+    cached_home_config = Config()
+    monkeypatch.setattr(pyiceberg_catalog, "_ENV_CONFIG", cached_home_config)
+
+    with mock.patch("dlt.current.run_context") as mock_ctx:
+        mock_ctx.return_value.run_dir = str(project_dir)
+        mock_ctx.return_value.get_setting.return_value = str(dot_dlt_yaml)
+
+        catalog = get_catalog("default")
+
+    assert catalog.properties["uri"] == dlt_uri
+    assert "s3.region" not in catalog.properties
+    assert pyiceberg_catalog._ENV_CONFIG is cached_home_config
+    catalog.create_namespace("precedence_ns")
+    assert dlt_db.exists()
+    assert not home_db.exists()
+
+
+def test_get_catalog_pyiceberg_home_takes_precedence_over_dot_dlt(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """PYICEBERG_HOME/.pyiceberg.yaml takes precedence over .dlt/.pyiceberg.yaml and ~."""
+    env_dir = tmp_path / "pyiceberg_home"
+    home_dir = tmp_path / "home"
+    project_dir = tmp_path / "project"
+    env_dir.mkdir()
+    home_dir.mkdir()
+    project_dir.mkdir()
+
+    env_uri = f"sqlite:///{tmp_path / 'env_home.db'}"
+    dlt_uri = f"sqlite:///{tmp_path / 'dlt.db'}"
+    home_uri = f"sqlite:///{tmp_path / 'home.db'}"
+
+    _write_pyiceberg_yaml(
+        env_dir / ".pyiceberg.yaml",
+        "default",
+        {"type": "sql", "uri": env_uri, "warehouse": str(tmp_path / "env_wh")},
+    )
+    dot_dlt_yaml = project_dir / ".dlt" / ".pyiceberg.yaml"
+    _write_pyiceberg_yaml(
+        dot_dlt_yaml,
+        "default",
+        {"type": "sql", "uri": dlt_uri, "warehouse": str(tmp_path / "dlt_wh")},
+    )
+    _write_pyiceberg_yaml(
+        home_dir / ".pyiceberg.yaml",
+        "default",
+        {"type": "sql", "uri": home_uri, "warehouse": str(tmp_path / "home_wh")},
+    )
+
+    monkeypatch.setenv("PYICEBERG_HOME", str(env_dir))
+    _set_home_dir(monkeypatch, home_dir)
+    monkeypatch.chdir(project_dir)
+
+    with mock.patch("dlt.current.run_context") as mock_ctx:
+        mock_ctx.return_value.run_dir = str(project_dir)
+        mock_ctx.return_value.get_setting.return_value = str(dot_dlt_yaml)
+
+        catalog = get_catalog("default")
+
+    assert catalog.properties["uri"] == env_uri
+
+
+def test_get_catalog_env_vars_override_yaml_and_work_without_yaml(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """PYICEBERG_CATALOG__* env vars override .dlt/.pyiceberg.yaml and work with no YAML file."""
+    home_dir = tmp_path / "home"
+    project_dir = tmp_path / "project"
+    home_dir.mkdir()
+    project_dir.mkdir()
+
+    yaml_uri = f"sqlite:///{tmp_path / 'yaml.db'}"
+    env_uri = f"sqlite:///{tmp_path / 'env.db'}"
+    yaml_wh = str(tmp_path / "yaml_wh")
+    dot_dlt_yaml = project_dir / ".dlt" / ".pyiceberg.yaml"
+    _write_pyiceberg_yaml(
+        dot_dlt_yaml,
+        "default",
+        {"type": "sql", "uri": yaml_uri, "warehouse": yaml_wh},
+    )
+
+    monkeypatch.delenv("PYICEBERG_HOME", raising=False)
+    _set_home_dir(monkeypatch, home_dir)
+    monkeypatch.chdir(project_dir)
+    monkeypatch.setenv("PYICEBERG_CATALOG__DEFAULT__URI", env_uri)
+
+    with mock.patch("dlt.current.run_context") as mock_ctx:
+        mock_ctx.return_value.run_dir = str(project_dir)
+        mock_ctx.return_value.get_setting.return_value = str(dot_dlt_yaml)
+
+        catalog = get_catalog("default")
+
+    assert catalog.properties["uri"] == env_uri
+    assert catalog.properties["warehouse"] == yaml_wh
+
+    # Remove YAML file and confirm env-var-only configuration still works without patching _ENV_CONFIG
+    dot_dlt_yaml.unlink()
+    env_wh = str(tmp_path / "env_wh")
+    monkeypatch.setenv("PYICEBERG_CATALOG__DEFAULT__WAREHOUSE", env_wh)
+
+    with mock.patch("dlt.current.run_context") as mock_ctx:
+        mock_ctx.return_value.run_dir = str(project_dir)
+        mock_ctx.return_value.get_setting.return_value = str(dot_dlt_yaml)
+
+        catalog_env_only = get_catalog("default")
+
+    assert catalog_env_only.properties["uri"] == env_uri
+    assert catalog_env_only.properties["warehouse"] == env_wh
+
+
+def test_get_catalog_explicit_config_overrides_dot_dlt_and_home_yaml(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Explicit iceberg_catalog_config takes precedence over both .dlt/ and ~/.pyiceberg.yaml."""
+    home_dir = tmp_path / "home"
+    project_dir = tmp_path / "project"
+    home_dir.mkdir()
+    project_dir.mkdir()
+
+    home_uri = f"sqlite:///{tmp_path / 'home.db'}"
+    dlt_uri = f"sqlite:///{tmp_path / 'dlt.db'}"
+    explicit_uri = f"sqlite:///{tmp_path / 'explicit.db'}"
+
+    _write_pyiceberg_yaml(
+        home_dir / ".pyiceberg.yaml",
+        "default",
+        {"type": "sql", "uri": home_uri, "warehouse": str(tmp_path / "home_wh")},
+    )
+    dot_dlt_yaml = project_dir / ".dlt" / ".pyiceberg.yaml"
+    _write_pyiceberg_yaml(
+        dot_dlt_yaml,
+        "default",
+        {"type": "sql", "uri": dlt_uri, "warehouse": str(tmp_path / "dlt_wh")},
+    )
+
+    monkeypatch.delenv("PYICEBERG_HOME", raising=False)
+    _set_home_dir(monkeypatch, home_dir)
+    monkeypatch.chdir(project_dir)
+
+    with mock.patch("dlt.current.run_context") as mock_ctx:
+        mock_ctx.return_value.run_dir = str(project_dir)
+        mock_ctx.return_value.get_setting.return_value = str(dot_dlt_yaml)
+
+        catalog = get_catalog(
+            "default",
+            iceberg_catalog_config={
+                "type": "sql",
+                "uri": explicit_uri,
+                "warehouse": str(tmp_path / "explicit_wh"),
+            },
+        )
+
+    assert catalog.properties["uri"] == explicit_uri
