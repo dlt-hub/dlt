@@ -25,3 +25,8 @@ class FabricSqlClient(SynapseSqlClient):
         # FabricCredentials has all required attributes: database, to_odbc_dsn(), connect_timeout
         super().__init__(dataset_name, staging_dataset_name, credentials, capabilities)  # type: ignore[arg-type]
         self.credentials: "FabricCredentials" = credentials  # type: ignore[assignment]
+
+    def drop_tables(self, *tables: str) -> None:
+        # Synapse drops one by one and swallows missing tables, but inside a Fabric DDL transaction
+        # that error rolls back the drops before it; Fabric supports IF EXISTS instead
+        super(SynapseSqlClient, self).drop_tables(*tables)
