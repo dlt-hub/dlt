@@ -2,12 +2,14 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from dlt.common.utils import custom_environ
+from dlt.common.configuration.specs.azure_credentials import AzureCredentialsWithoutDefaults
 from dlt.destinations import filesystem
 from dlt.destinations.impl.filesystem.configuration import (
     FilesystemDestinationClientConfiguration,
     HfFilesystemDestinationClientConfiguration,
 )
 from dlt.destinations.impl.filesystem.filesystem import FilesystemClient, HfFilesystemClient
+from dlt.destinations.impl.filesystem.onelake import OneLakeFilesystemClient
 from tests.load.utils import AWS_BUCKET, FILE_BUCKET, HF_BUCKET, MEMORY_BUCKET
 
 
@@ -62,6 +64,36 @@ def test_filesystem_factory_is_hf():
     assert non_hf_filesystem.client_class == FilesystemClient
     assert non_hf_filesystem.capabilities().preferred_loader_file_format == "jsonl"
     assert non_hf_filesystem.capabilities().parquet_format is None
+
+
+def test_filesystem_factory_is_onelake() -> None:
+    onelake_url = "abfss://workspace@onelake.dfs.fabric.microsoft.com/lakehouse/Files/bucket"
+    onelake_filesystem = filesystem(onelake_url)
+    assert onelake_filesystem.is_onelake
+    assert onelake_filesystem.client_class == OneLakeFilesystemClient
+
+    regular_azure_filesystem = filesystem("abfss://container@account.dfs.core.windows.net/bucket")
+    assert not regular_azure_filesystem.is_onelake
+    assert regular_azure_filesystem.client_class == FilesystemClient
+
+    onelake_credentials = AzureCredentialsWithoutDefaults(
+        azure_account_host="onelake.blob.fabric.microsoft.com"
+    )
+    onelake_filesystem = filesystem("az://container/bucket", credentials=onelake_credentials)
+    assert onelake_filesystem.is_onelake
+    assert onelake_filesystem.client_class == OneLakeFilesystemClient
+
+    with custom_environ(
+        {
+            "DESTINATION__FILESYSTEM__BUCKET_URL": "az://container/bucket",
+            "DESTINATION__FILESYSTEM__CREDENTIALS__AZURE_ACCOUNT_HOST": (
+                "onelake.blob.fabric.microsoft.com"
+            ),
+        }
+    ):
+        onelake_filesystem = filesystem()
+        assert onelake_filesystem.is_onelake
+        assert onelake_filesystem.client_class == OneLakeFilesystemClient
 
 
 def test_resolve_bucket_url_ignores_foreign_credentials():
