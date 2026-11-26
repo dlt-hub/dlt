@@ -234,6 +234,7 @@ class DeltaLoadFilesystemJob(TableFormatLoadFilesystemJob):
             merge_delta_table,
             DeltaTable,
             deltalake_storage_options,
+            get_delta_destination_scope,
         )
 
         logger.info(
@@ -251,8 +252,14 @@ class DeltaLoadFilesystemJob(TableFormatLoadFilesystemJob):
         except DestinationUndefinedEntity:
             delta_table = None
 
+        is_merge = self._load_table["write_disposition"] == "merge"
+        predicate = None
+        if is_merge and self._load_table.get("x-merge-strategy") == "delete-insert":
+            # replaces the destination scope, also on the first load
+            predicate = get_delta_destination_scope(self._load_table)
+
         with get_local_dataset_reader(self.file_paths) as arrow_rbr:  # RecordBatchReader
-            if self._load_table["write_disposition"] == "merge" and delta_table is not None:
+            if is_merge and predicate is None and delta_table is not None:
                 merge_delta_table(
                     table=delta_table,
                     data=arrow_rbr,
@@ -269,6 +276,7 @@ class DeltaLoadFilesystemJob(TableFormatLoadFilesystemJob):
                     partition_by=self._partition_columns,
                     storage_options=storage_options,
                     configuration=self._job_client.config.deltalake_configuration,
+                    predicate=predicate,
                 )
         # release memory ASAP by deleting objects explicitly
         del delta_table
@@ -927,6 +935,8 @@ class FilesystemClient(
                                 " instead.",
                             )
                         )
+                elif merge_strategy == "delete-insert":
+                    exception_log.extend(self._verify_delta_delete_insert(table, has_nested_tables))
                 # upsert has no destination scope
                 has_merge_conditions = "x-merge-source-filter" in table or (
                     merge_strategy == "cdc" and "x-merge-destination-scope" in table
@@ -972,6 +982,37 @@ class FilesystemClient(
                     )
                 )
         return exception_log
+
+    def _verify_delta_delete_insert(
+        self, table: PreparedTableSchema, has_nested_tables: bool
+    ) -> List[Exception]:
+        """Verifies a Delta table that replaces its `destination_scope` with `delete-insert`."""
+        unsupported: List[str] = []
+        if "x-merge-destination-scope" not in table:
+            return [
+                SchemaCorruptedException(
+                    self.schema.name,
+                    f"Delta table `{table['name']}` uses the `delete-insert` merge strategy without"
+                    " `destination_scope`. Set `destination_scope` to the rows that the load"
+                    " replaces, or use the `upsert` merge strategy to merge by primary key.",
+                )
+            ]
+        if has_nested_tables:
+            unsupported.append("nested tables")
+        if get_columns_names_with_prop(table, "merge_key"):
+            unsupported.append("`merge_key`")
+        if get_columns_names_with_prop(table, "hard_delete"):
+            unsupported.append("the `hard_delete` hint")
+        if "x-merge-source-filter" in table:
+            unsupported.append("`source_filter`")
+        return [
+            SchemaCorruptedException(
+                self.schema.name,
+                f"dlt does not support {item} with the `delete-insert` merge strategy on Delta"
+                f" table `{table['name']}`.",
+            )
+            for item in unsupported
+        ]
 
     def update_stored_schema(
         self,

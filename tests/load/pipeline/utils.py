@@ -116,6 +116,9 @@ def skip_if_unsupported_merge_strategy(
             f"`{merge_strategy}` merge strategy not supported for `{destination_config.name}`"
             " destination."
         )
+    if merge_strategy == "delete-insert" and destination_config.table_format == "delta":
+        # see `test_delta_delete_insert_destination_scope`
+        pytest.skip("Delta `delete-insert` replaces only a destination scope, it has no key match.")
 
 
 def simple_nested_source() -> DltSource:

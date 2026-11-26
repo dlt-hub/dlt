@@ -44,8 +44,9 @@ def filesystem_merge_strategies_selector(
     if table_format == "delta":
         return supported_merge_strategies
     elif table_format == "iceberg":
-        # pyiceberg `upsert` cannot delete rows absent from the loaded data
-        return [s for s in supported_merge_strategies if s != "cdc"]
+        # pyiceberg `upsert` cannot delete rows absent from the loaded data and pyiceberg cannot
+        # apply the `destination_scope` of `delete-insert`
+        return [s for s in supported_merge_strategies if s not in ("cdc", "delete-insert")]
     else:
         return []
 
@@ -102,7 +103,8 @@ class filesystem(Destination[FilesystemDestinationClientConfiguration, Filesyste
             preferred_loader_file_format="jsonl",
             loader_file_format_selector=filesystem_loader_file_format_selector,
             supported_table_formats=["delta", "iceberg"],
-            supported_merge_strategies=["upsert", "insert-only", "cdc"],
+            # `upsert` comes first so it stays the default strategy
+            supported_merge_strategies=["upsert", "insert-only", "cdc", "delete-insert"],
             merge_strategies_selector=filesystem_merge_strategies_selector,
         )
         caps.supported_loader_file_formats = list(caps.supported_loader_file_formats) + [

@@ -97,7 +97,7 @@ Note that not all authentication methods are supported when using Delta table fo
 
 ## Table format `merge` support
 
-dlt supports the [`upsert`](../../general-usage/merge-loading.md#upsert-strategy), [`insert-only`](../../general-usage/merge-loading.md#insert-only-strategy), and [`cdc`](../../general-usage/merge-loading.md#cdc-strategy) merge strategies for `delta`.
+dlt supports the [`upsert`](../../general-usage/merge-loading.md#upsert-strategy), [`insert-only`](../../general-usage/merge-loading.md#insert-only-strategy), [`cdc`](../../general-usage/merge-loading.md#cdc-strategy), and [`delete-insert`](../../general-usage/merge-loading.md#replacing-a-partition-with-delete-insert) merge strategies for `delta`. `upsert` is the default.
 
 ```py
 @dlt.resource(
@@ -114,6 +114,7 @@ def my_upsert_resource():
 - dlt merges each Delta table on its own. The merge of a nested table does not use the rows of its parent table.
 - `upsert` and `cdc` support the [`hard_delete`](../../general-usage/merge-loading.md#delete-records) hint only for tables without nested tables. With nested tables, dlt stops before the load starts. `insert-only` ignores the `hard_delete` hint.
 - `cdc` supports the [merge conditions](../../general-usage/merge-loading.md#merge-conditions), and `upsert` supports `source_filter`, only for tables without nested tables. `cdc` does not support `merge_key`.
+- `delete-insert` requires a [`destination_scope`](../../general-usage/merge-loading.md#replacing-a-partition-with-delete-insert). dlt replaces the records that the destination scope selects with the loaded records, in one commit. If a loaded record is outside of the destination scope, the load fails. `delete-insert` does not deduplicate the loaded records and does not support nested tables, `merge_key`, `source_filter`, or the `hard_delete` hint.
 - `upsert` does not delete records from nested tables.
   - This means updates to JSON columns that involve element removals are not propagated. For example, if you first load `{"key": 1, "nested": [1, 2]}` and then load `{"key": 1, "nested": [1]}`, then the record for element `2` will not be deleted from the nested table.
   - `cdc` deletes these records, because it treats the load as a complete snapshot.
