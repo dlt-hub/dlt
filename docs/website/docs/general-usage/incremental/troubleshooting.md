@@ -64,6 +64,31 @@ sources:
 
 Verify that the `last_value` is updated between pipeline runs.
 
+## Growing pipeline state from boundary deduplication
+
+With a closed start range, dlt stores a deduplication hash in `unique_hashes` for each distinct record at the current boundary cursor value. The boundary is the maximum for the default `max` cursor, or the minimum when using `min`. Low-resolution cursors and backfills that assign the same timestamp to many rows can produce a large list, which is persisted in pipeline state.
+
+dlt logs a warning when the boundary hash count crosses `Incremental.duplicate_cursor_warning_threshold` (200 by default). To reduce the state size:
+
+- Use a cursor column with higher resolution so fewer records share the boundary value.
+- When a destination `primary_key` merge handles replayed rows, keep the start range closed and disable only extractor deduplication with `primary_key=()` on the incremental object. Keep the resource's primary key and merge disposition. Boundary rows will be extracted and merged again, including late arrivals with the same cursor value:
+
+```py
+@dlt.resource(primary_key="id", write_disposition="merge")
+def events(updated_at=dlt.sources.incremental("updated_at", primary_key=())):
+    ...
+```
+
+Do not disable extractor deduplication for append loads unless replayed rows are acceptable. An open start range excludes all rows equal to the saved cursor value, including late arrivals; use it only when the source guarantees those rows cannot arrive later. Destination merging cannot recover rows excluded during extraction.
+
+To stop extraction when the boundary hash count exceeds an application-wide limit, set `Incremental.duplicate_cursor_error_threshold` before running the pipeline:
+
+```py
+dlt.sources.incremental.duplicate_cursor_error_threshold = 100_000
+```
+
+The limit is disabled (`None`) by default. Exceeding it raises `IncrementalCursorThresholdExceeded` without truncating the hashes. A failed extraction does not commit the new pipeline state. Raise the limit if the larger state is acceptable. The check runs after each item or batch, so it limits persisted state rather than peak batch memory.
+
 ## Type mismatch errors
 
 If you encounter an `IncrementalCursorInvalidCoercion` error, it typically means the `initial_value` type does not match the data type of the field in your source data.

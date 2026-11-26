@@ -84,6 +84,25 @@ class IncrementalPrimaryKeyMissing(PipeException):
         super().__init__(pipe_name, msg)
 
 
+class IncrementalCursorThresholdExceeded(PipeException):
+    def __init__(self, pipe_name: str, cursor_path: str, hash_count: int, threshold: int) -> None:
+        self.cursor_path = cursor_path
+        self.hash_count = hash_count
+        self.threshold = threshold
+        msg = (
+            f"Number of records ({hash_count}) sharing the same value of cursor field"
+            f" `{cursor_path}` exceeded `duplicate_cursor_error_threshold` ({threshold}). dlt keeps"
+            " one deduplication hash per boundary record in the pipeline state, so this many"
+            " records at the boundary value would write a large state on every run. Use a cursor"
+            " column with higher resolution. If a destination primary-key merge handles replayed"
+            " rows, keep the start range closed and set `primary_key=()` on the incremental object"
+            " to disable extractor deduplication. Append loads still need deduplication to avoid"
+            " replayed rows. Raise `duplicate_cursor_error_threshold` if a large state is"
+            " acceptable."
+        )
+        super().__init__(pipe_name, msg)
+
+
 class JoinSchedulerError(PipeException):
     def __init__(self, pipe_name: str, msg: str) -> None:
         super().__init__(pipe_name, msg)
