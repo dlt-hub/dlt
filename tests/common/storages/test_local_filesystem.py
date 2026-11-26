@@ -1,3 +1,4 @@
+import ntpath
 import os
 import pytest
 import pathlib
@@ -106,6 +107,62 @@ def test_file_win_configuration() -> None:
         == r"\\localhost\c$\samples"
     )
     assert FilesystemConfiguration.make_local_path("file:///C:/samples") == r"C:\samples"
+    assert FilesystemConfiguration.make_local_path("file://C:/Users/a") == r"C:\Users\a"
+    assert FilesystemConfiguration.make_local_path(r"file://C:\Users\a") == r"C:\Users\a"
+    assert FilesystemConfiguration.make_local_path("file://D:/data/in.csv") == r"D:\data\in.csv"
+    assert FilesystemConfiguration.make_local_path("file://d:/data/in.csv") == r"d:\data\in.csv"
+    assert FilesystemConfiguration.make_local_path("file://c:") == "c:"
+    assert FilesystemConfiguration.make_local_path("file://c:/") == "c:\\"
+    assert (
+        FilesystemConfiguration.make_local_path("file://server/share/folder")
+        == r"\\server\share\folder"
+    )
+
+
+@pytest.mark.parametrize(
+    "file_url,expected",
+    (
+        ("file:///C:/Users/a", r"C:\Users\a"),
+        ("file://C:/Users/a", r"C:\Users\a"),
+        (r"file://C:\Users\a", r"C:\Users\a"),
+        ("file://D:/data/in.csv", r"D:\data\in.csv"),
+        ("file://d:/data/in.csv", r"d:\data\in.csv"),
+        ("file://c:", "c:"),
+        ("file://c:/", "c:\\"),
+        ("file://C%3A/Users/a", r"C:\Users\a"),
+        ("file://C:/Users/my%20folder/a.csv", r"C:\Users\my folder\a.csv"),
+        (r"file://C:\Users\my%20folder\a.csv", r"C:\Users\my folder\a.csv"),
+        ("file://server/share/folder", r"\\server\share\folder"),
+        ("file://localhost/c$/samples", r"\\localhost\c$\samples"),
+        ("file://///localhost/c$/samples", r"\\localhost\c$\samples"),
+        ("file://%3F/C%3A/hello", r"\\?\C:\hello"),
+        ("file://a:8080/share/folder", r"\\a:8080\share\folder"),
+    ),
+)
+def test_make_local_path_windows_drive_and_unc(
+    monkeypatch: pytest.MonkeyPatch, file_url: str, expected: str
+) -> None:
+    if os.name == "nt":
+        result = FilesystemConfiguration.make_local_path(file_url)
+    else:
+        with monkeypatch.context() as m:
+            m.setattr(os, "name", "nt")
+            m.setattr(os, "path", ntpath)
+            m.setattr(pathlib, "Path", pathlib.PureWindowsPath)
+            result = FilesystemConfiguration.make_local_path(file_url)
+    assert result == expected
+
+
+@skipifwindows
+@pytest.mark.parametrize(
+    "file_url,expected",
+    (
+        ("file://C:/Users/a", "//C:/Users/a"),
+        ("file://server/share/folder", "//server/share/folder"),
+    ),
+)
+def test_make_local_path_posix_netloc_unchanged(file_url: str, expected: str) -> None:
+    assert FilesystemConfiguration.make_local_path(file_url) == expected
 
 
 @skipifwindows
