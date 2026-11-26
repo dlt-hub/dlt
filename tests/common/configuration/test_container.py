@@ -1,3 +1,4 @@
+import asyncio
 from concurrent.futures import ThreadPoolExecutor
 import pytest
 import threading
@@ -13,6 +14,7 @@ from dlt.common.configuration.exceptions import (
     ContainerInjectableContextMangled,
     ContextDefaultCannotBeCreated,
 )
+from dlt.common.runners.pool_runner import TimeoutThreadPoolExecutor
 
 from tests.common.configuration.utils import environment
 from tests.utils import preserve_container
@@ -278,6 +280,84 @@ def test_thread_pool_affinity(container: Container) -> None:
         item = future.result()
 
     assert item is not main_item
+
+
+@pytest.mark.parametrize("mode", ["threads", "async"])
+def test_injected_context_is_isolated_per_context(container: Container, mode: str) -> None:
+    """Concurrent injections in pool workers or async tasks neither see nor mangle each other."""
+    main_item = container[InjectableTestContext] = InjectableTestContext(current_value="MAIN")
+    barrier = threading.Barrier(2, timeout=5)
+
+    def _inject(value: str) -> str:
+        with container.injectable_context(InjectableTestContext(current_value=value)):
+            barrier.wait()
+            seen = container[InjectableTestContext].current_value
+            barrier.wait()
+        return seen
+
+    async def _inject_async(value: str) -> str:
+        with container.injectable_context(InjectableTestContext(current_value=value)):
+            # the other task injects before this one reads
+            await asyncio.sleep(0)
+            return container[InjectableTestContext].current_value
+
+    async def _gather() -> List[str]:
+        return list(await asyncio.gather(_inject_async("A"), _inject_async("B")))
+
+    if mode == "threads":
+        with TimeoutThreadPoolExecutor(2, thread_name_prefix=container.thread_pool_prefix()) as p:
+            seen = [f.result() for f in [p.submit(_inject, "A"), p.submit(_inject, "B")]]
+    else:
+        seen = asyncio.run(_gather())
+
+    assert seen == ["A", "B"]
+    assert container[InjectableTestContext] is main_item
+
+
+def test_injected_context_reaches_pool_workers(container: Container) -> None:
+    """Pool workers see the contexts that the submitting thread injected at submit time."""
+    container[InjectableTestContext] = InjectableTestContext(current_value="SET")
+    started = threading.Event()
+    proceed = threading.Event()
+
+    def _value() -> str:
+        return container[InjectableTestContext].current_value
+
+    def _value_later() -> str:
+        started.set()
+        proceed.wait(timeout=5)
+        return _value()
+
+    with TimeoutThreadPoolExecutor(1, thread_name_prefix=container.thread_pool_prefix()) as p:
+        with container.injectable_context(InjectableTestContext(current_value="AT_SUBMIT")):
+            future = p.submit(_value_later)
+            assert started.wait(timeout=5)
+            with container.injectable_context(InjectableTestContext(current_value="LATER")):
+                proceed.set()
+                assert future.result() == "AT_SUBMIT"
+        assert p.submit(_value).result() == "SET"
+
+
+@pytest.mark.parametrize("where", ["main", "pool"])
+def test_get_worker_contexts_injected(container: Container, where: str) -> None:
+    """Injected worker contexts take precedence over the ones set in the thread slot."""
+    container[ThreadLocalWorkerContext] = ThreadLocalWorkerContext(value="set")
+
+    def _get_value() -> str:
+        ctx = container.get_worker_contexts()[ThreadLocalWorkerContext]
+        assert isinstance(ctx, ThreadLocalWorkerContext)
+        return ctx.value
+
+    def _get_injected() -> str:
+        with container.injectable_context(ThreadLocalWorkerContext(value="injected")):
+            return _get_value()
+
+    if where == "main":
+        assert _get_injected() == "injected"
+    else:
+        with TimeoutThreadPoolExecutor(1, thread_name_prefix=container.thread_pool_prefix()) as p:
+            assert p.submit(_get_injected).result() == "injected"
+    assert _get_value() == "set"
 
 
 @pytest.mark.parametrize("spec", (InjectableTestContext, GlobalTestContext))

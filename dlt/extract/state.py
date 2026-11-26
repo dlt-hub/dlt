@@ -79,8 +79,7 @@ def resource_state(
 ) -> DictStrAny:
     """Returns a dictionary with the resource-scoped state. Resource-scoped state is visible only to resource requesting the access. dlt state is preserved across pipeline runs and may be used to implement incremental loads.
 
-    Note that this function accepts the resource name as optional argument. There are rare cases when `dlt` is not able to resolve resource name due to requesting function
-    working in different thread than the main. You'll need to pass the name explicitly when you request resource_state from async functions or functions decorated with @defer.
+    The state of the running resource is also returned in parallelized and async resources and in functions decorated with `@dlt.defer`.
 
     Summary:
         The resource state is a python dictionary-like object that is available within the `@dlt.resource` decorated functions and may be read and written to.
@@ -115,7 +114,7 @@ def resource_state(
         source_state_ (Optional[DictStrAny], optional): Alternative source state. Defaults to None.
 
     Raises:
-        ResourceNameNotAvailable: Raise if used outside of resource context or from a different thread than main
+        ResourceNameNotAvailable: Raise if used outside of resource context
 
     Returns:
         DictStrAny: State dictionary

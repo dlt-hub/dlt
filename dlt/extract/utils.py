@@ -1,3 +1,4 @@
+import contextvars
 import inspect
 from typing import (
     TYPE_CHECKING,
@@ -246,16 +247,25 @@ def wrap_iterator(gen: Iterator[TDataItems]) -> Iterator[TDataItems]:
     return wrapped_gen()
 
 
+def _set_context_vars(ctx: contextvars.Context) -> None:
+    """Sets all variables of `ctx` in the current context"""
+    for var, value in ctx.items():
+        var.set(value)
+
+
 def wrap_async_iterator(
     gen: AsyncIterator[TDataItems],
 ) -> Generator[Awaitable[TDataItems], None, None]:
     """Wraps an async generator into a list of awaitables"""
     exhausted = False
     busy = False
+    # each step runs in another task, the generator keeps its own context across them
+    gen_ctx = contextvars.copy_context()
 
     # creates an awaitable that will return the next item from the async generator
     async def run() -> TDataItems:
-        nonlocal exhausted
+        nonlocal exhausted, busy, gen_ctx
+        _set_context_vars(gen_ctx)
         try:
             # if marked exhausted by the main thread and we are wrapping a generator
             # we can close it here
@@ -269,7 +279,7 @@ def wrap_async_iterator(
             exhausted = True
             raise
         finally:
-            nonlocal busy
+            gen_ctx = contextvars.copy_context()
             busy = False
 
     # this generator yields None while the async generator is not exhausted
@@ -297,16 +307,19 @@ def wrap_parallel_iterator(f: TAnyFunOrGenerator) -> TAnyFunOrGenerator:
 
         exhausted = False
         busy = False
+        # each step runs in another worker, the generator keeps its own context across them
+        gen_ctx = contextvars.copy_context()
 
         def _parallel_gen() -> TDataItems:
-            nonlocal busy
-            nonlocal exhausted
+            nonlocal busy, exhausted, gen_ctx
+            _set_context_vars(gen_ctx)
             try:
                 return next(gen)  # type: ignore[call-overload]
             except StopIteration:
                 exhausted = True
                 return None
             finally:
+                gen_ctx = contextvars.copy_context()
                 busy = False
 
         while not exhausted:
@@ -316,7 +329,7 @@ def wrap_parallel_iterator(f: TAnyFunOrGenerator) -> TAnyFunOrGenerator:
                 busy = True
                 yield _parallel_gen
             except GeneratorExit:
-                gen.close()  # type: ignore[attr-defined]
+                gen_ctx.run(gen.close)  # type: ignore[attr-defined]
                 raise
 
     if callable(f):

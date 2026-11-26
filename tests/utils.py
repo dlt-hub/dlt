@@ -406,6 +406,7 @@ def preserve_container() -> Iterator[None]:
     """Saves and restores the whole Container singleton (instance, main thread id and contexts)."""
     saved_instance = Container._INSTANCE
     saved_main_thread_id = Container._MAIN_THREAD_ID
+    saved_injected = Container._INJECTED.get()
     # the dicts are restored in place and the locks are kept, so anything still holding a
     # reference to a thread context sees the restored content
     saved_contexts = (
@@ -421,6 +422,7 @@ def preserve_container() -> Iterator[None]:
     finally:
         Container._INSTANCE = saved_instance
         Container._MAIN_THREAD_ID = saved_main_thread_id
+        Container._INJECTED.set(saved_injected)
         if saved_instance is not None:
             _restore_thread_contexts(saved_instance, saved_contexts)
 

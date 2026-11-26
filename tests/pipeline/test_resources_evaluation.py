@@ -1,11 +1,15 @@
-from typing import Any, Dict, Iterator, List, Set
+from typing import Any, AsyncIterator, Dict, Iterator, List, Set, Tuple
 import time
 import threading
 import random
 from itertools import product
 
 import dlt, asyncio, pytest, os
+from dlt.common.configuration.container import Container
+from dlt.common.configuration.resolve import inject_section
+from dlt.common.configuration.specs import ConfigSectionContext
 from dlt.common.utils import uniq_id
+from dlt.extract import DltResource
 from dlt.extract.exceptions import ResourceExtractionError
 
 
@@ -288,6 +292,125 @@ def test_parallelized_resource_called_with_args_runs_in_pool(with_config: bool) 
     dlt.pipeline("pipeline_" + uniq_id()).extract(resource(3))
 
     assert threads and all("extract-threads" in name for name in threads), threads
+
+
+@pytest.mark.parametrize("mode", ["threads", "async", "mixed"])
+def test_current_resource_is_affine_in_parallel(mode: str) -> None:
+    """`dlt.current` returns the running resource, its source and its state in pool threads and
+    async tasks while other resources inject their own contexts."""
+    n_steps = 20
+    errors: List[str] = []
+
+    def _check(name: str, i: int) -> Dict[str, Any]:
+        try:
+            assert dlt.current.resource_name() == name
+            assert dlt.current.resource().name == name
+            assert dlt.current.source().name == "affinity"
+            assert dlt.current.source_schema().name == "affinity"
+            dlt.current.resource_state().setdefault("steps", []).append(i)
+            with dlt.current.pipeline().destination_client():
+                pass
+        except Exception as ex:
+            errors.append(f"{name}: {type(ex).__name__}: {ex}")
+        return {"i": i}
+
+    def _iterate_other_resource() -> None:
+        # injects the source, state and section contexts of a single resource source
+        assert list(dlt.resource([1, 2], name="inner")) == [1, 2]
+
+    def _threaded(name: str, noisy: bool) -> DltResource:
+        @dlt.resource(name=name, parallelized=True)
+        def _gen() -> Iterator[Dict[str, Any]]:
+            for i in range(n_steps):
+                if noisy:
+                    _iterate_other_resource()
+                yield _check(name, i)
+
+        return _gen()
+
+    def _async(name: str, noisy: bool) -> DltResource:
+        @dlt.resource(name=name)
+        async def _gen() -> AsyncIterator[Dict[str, Any]]:
+            for i in range(n_steps):
+                if noisy:
+                    _iterate_other_resource()
+                await asyncio.sleep(0)
+                yield _check(name, i)
+
+        return _gen()
+
+    def _deferred(name: str) -> DltResource:
+        @dlt.defer
+        def _item(i: int) -> Dict[str, Any]:
+            return _check(name, i)
+
+        return dlt.resource((_item(i) for i in range(n_steps)), name=name)
+
+    @dlt.transformer(parallelized=True)
+    def threaded_tx(item: Dict[str, Any]) -> Dict[str, Any]:
+        return _check("threaded_tx", item["i"])
+
+    @dlt.transformer
+    async def async_tx(item: Dict[str, Any]) -> Dict[str, Any]:
+        await asyncio.sleep(0)
+        return _check("async_tx", item["i"])
+
+    @dlt.source(name="affinity")
+    def affinity() -> List[DltResource]:
+        numbers = dlt.resource([{"i": i} for i in range(n_steps)], name="numbers")
+        resources = [numbers]
+        if mode in ("threads", "mixed"):
+            resources += [_threaded(f"threaded_{n}", n < 2) for n in range(4)]
+            resources += [numbers | threaded_tx, _deferred("deferred")]
+        if mode in ("async", "mixed"):
+            resources += [_async(f"async_{n}", n < 2) for n in range(4)]
+            resources += [numbers | async_tx]
+        return resources
+
+    pipeline = dlt.pipeline("pipeline_" + uniq_id(), destination="duckdb")
+    source = affinity()
+    pipeline.extract(source)
+
+    assert errors == []
+    writers = [name for name in source.resources if name != "numbers"]
+    resources_state = pipeline.state["sources"]["affinity"]["resources"]
+    assert {name: sorted(state["steps"]) for name, state in resources_state.items()} == {
+        name: list(range(n_steps)) for name in writers
+    }
+
+
+@pytest.mark.parametrize("mode", ["threads", "async"])
+def test_parallel_generator_keeps_injected_section(mode: str) -> None:
+    """A context injected around `yield` stays with its parallel generator on every step."""
+    n_steps = 10
+    seen: List[Tuple[str, Tuple[str, ...]]] = []
+
+    def _threaded(name: str) -> DltResource:
+        @dlt.resource(name=name, parallelized=True)
+        def _gen() -> Iterator[Dict[str, Any]]:
+            with inject_section(ConfigSectionContext(sections=("own", name))):
+                for i in range(n_steps):
+                    seen.append((name, Container()[ConfigSectionContext].sections))
+                    yield {"i": i}
+
+        return _gen()
+
+    def _async(name: str) -> DltResource:
+        @dlt.resource(name=name)
+        async def _gen() -> AsyncIterator[Dict[str, Any]]:
+            with inject_section(ConfigSectionContext(sections=("own", name))):
+                for i in range(n_steps):
+                    seen.append((name, Container()[ConfigSectionContext].sections))
+                    await asyncio.sleep(0)
+                    yield {"i": i}
+
+        return _gen()
+
+    make = _threaded if mode == "threads" else _async
+    dlt.pipeline("pipeline_" + uniq_id()).extract([make(f"res_{n}") for n in range(4)])
+
+    assert len(seen) == 4 * n_steps
+    assert [sections for name, sections in seen if sections != ("own", name)] == []
 
 
 # Parametrize with different resource counts to excersize the worker pool:

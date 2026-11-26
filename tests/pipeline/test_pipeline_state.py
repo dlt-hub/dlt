@@ -1,5 +1,7 @@
+import contextvars
 import os
 import shutil
+from concurrent.futures import ThreadPoolExecutor
 from pytest_mock import MockerFixture
 from typing_extensions import get_type_hints
 import pytest
@@ -9,6 +11,7 @@ from dlt.common.pendulum import pendulum
 from dlt.common.exceptions import (
     PipelineStateNotAvailable,
     ResourceNameNotAvailable,
+    SourceSectionNotAvailable,
 )
 from dlt.common.schema import Schema
 from dlt.common.schema.utils import pipeline_state_table
@@ -475,6 +478,26 @@ def test_resource_state_in_pipeline(mocker: MockerFixture) -> None:
     p.extract(r | t_)
     assert r.state["u-gen"] == "TV"
     assert t_.state["gen"] == "ER"
+
+    # a thread started by the user sees the resource only when it runs in a copy of its context
+    def _write_state() -> None:
+        dlt.current.resource_state()["thread"] = True
+        assert dlt.current.resource().name == "user_thread"
+
+    def _gen_in_user_thread(use_context: bool):
+        with ThreadPoolExecutor(1) as pool:
+            if use_context:
+                pool.submit(contextvars.copy_context().run, _write_state).result()
+            else:
+                with pytest.raises(SourceSectionNotAvailable):
+                    pool.submit(_write_state).result()
+        yield 1
+
+    r = dlt.resource(_gen_in_user_thread, name="user_thread")
+    p.extract(r(use_context=False))
+    assert "thread" not in r.state
+    p.extract(r(use_context=True))
+    assert r.state["thread"] is True
 
 
 def test_transformer_state_write(mocker: MockerFixture) -> None:

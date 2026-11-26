@@ -1,4 +1,5 @@
 from contextlib import contextmanager
+import contextvars
 import re
 import threading
 from typing import ClassVar, Dict, Iterator, Optional, Tuple, Type, TypeVar
@@ -20,13 +21,14 @@ class Container:
     Injection context is identified by its type and available via dict indexer. The common pattern is to instantiate default context value
     if it is not yet present in container.
 
-    By default, the context is thread-affine so it can be injected only n the thread that originally set it. This behavior may be changed
-    in particular context type (spec).
+    The indexer is settable and allows to explicitly set the value. A context set this way is thread-affine: it is visible in the
+    thread that set it and in the dlt pools started by that thread (see `thread_pool_prefix`). Specs with `global_affinity` are
+    visible in all threads.
 
-    The indexer is settable and allows to explicitly set the value. This is required by in any context that needs to be explicitly instantiated.
-
-    The `injectable_context` allows to set a context with a `with` keyword and then restore the previous one after it gets out of scope.
-
+    The `injectable_context` sets a context with a `with` keyword and restores the previous one after it gets out of scope. The
+    injected context belongs to the current execution context (`contextvars`). Work submitted to dlt thread pools and asyncio
+    tasks starts from a copy of it, so they see the contexts injected by the submitter and keep their own injections private.
+    Specs with `global_affinity` are injected into the main thread.
     """
 
     _INSTANCE: ClassVar[Optional["Container"]] = None
@@ -35,6 +37,11 @@ class Container:
     """A main thread id to which get item will fallback for contexts without default"""
 
     _TContext = Dict[Type[ContainerInjectableContext], ContainerInjectableContext]
+
+    _INJECTED: ClassVar[contextvars.ContextVar[Optional[_TContext]]] = contextvars.ContextVar(
+        "dlt_injected_contexts", default=None
+    )
+    """Contexts injected in the current execution context. Never mutated: `copy_context` shares it"""
 
     thread_contexts: Dict[int, Tuple["Container._TContext", threading.RLock]]
     """Thread-id → (context dict, per-context RLock). Every thread gets its own lock."""
@@ -55,12 +62,16 @@ class Container:
         with cls._LOCK:
             cls._INSTANCE = None
             cls._MAIN_THREAD_ID = threading.get_ident()
+            cls._INJECTED.set(None)
             return cls()
 
     def __getitem__(self, spec: Type[TInjectableContext]) -> TInjectableContext:
         # return existing config object or create it from spec
         if not is_subclass(spec, ContainerInjectableContext):
             raise KeyError(f"`{spec.__name__}` is not a context")
+
+        if (injected := self._get_injected(spec)) is not None:
+            return injected  # type: ignore[return-value]
 
         context, lock = self._thread_context(spec)
         item = context.get(spec)
@@ -84,14 +95,23 @@ class Container:
         value.resolve()
         context, lock = self._thread_context(spec)
         with lock:
-            self._thread_setitem(context, spec, value)
+            # replace the context where readers see it
+            if self._get_injected(spec) is not None:
+                self._set_injected(spec, value)
+            else:
+                self._thread_setitem(context, spec, value)
 
     def __delitem__(self, spec: Type[TInjectableContext]) -> None:
         context, lock = self._thread_context(spec)
         with lock:
-            self._thread_delitem(context, spec)
+            if self._get_injected(spec) is not None:
+                self._set_injected(spec, None)
+            else:
+                self._thread_delitem(context, spec)
 
     def __contains__(self, spec: Type[TInjectableContext]) -> bool:
+        if self._get_injected(spec) is not None:
+            return True
         context, _ = self._thread_context(spec)
         return spec in context
 
@@ -157,11 +177,29 @@ class Container:
         old_ctx.in_container = False
         del context[spec]
 
+    def _get_injected(
+        self, spec: Type[ContainerInjectableContext]
+    ) -> Optional[ContainerInjectableContext]:
+        """Return the context injected for `spec` in the current execution context."""
+        injected = Container._INJECTED.get()
+        return injected.get(spec) if injected else None
+
+    def _set_injected(
+        self, spec: Type[ContainerInjectableContext], value: Optional[ContainerInjectableContext]
+    ) -> None:
+        """Set or remove (`None`) the injected context. Caller must hold the context lock."""
+        injected = dict(Container._INJECTED.get() or {})
+        if value is None:
+            self._thread_delitem(injected, spec)
+        else:
+            self._thread_setitem(injected, spec, value)
+        Container._INJECTED.set(injected)
+
     @contextmanager
     def injectable_context(
         self, config: TInjectableContext, lock_context_on_yield: bool = False
     ) -> Iterator[TInjectableContext]:
-        """Insert ``config`` into the container and restore the previous value on exit.
+        """Insert `config` into the current execution context and restore the previous value on exit.
 
         Args:
             config (TInjectableContext): The context instance to inject.
@@ -171,23 +209,28 @@ class Container:
                 the entire lifetime including yield.
 
         Yields:
-            TInjectableContext: The injected ``config`` instance.
+            TInjectableContext: The injected `config` instance.
 
         Raises:
-            ContainerInjectableContextMangled: If another writer overwrote the
-                context during yield (only possible when ``lock_context_on_yield``
-                is False).
+            ContainerInjectableContextMangled: If the context was replaced during yield.
         """
 
         config.resolve()
         spec = type(config)
         context, ctx_lock = self._thread_context(spec)
+        # global contexts are shared by all threads so they stay in the main thread context
+        in_slot = spec.global_affinity
 
         # always lock for setitem
         ctx_lock.acquire()
         try:
-            previous_config: ContainerInjectableContext = context.get(spec)
-            self._thread_setitem(context, spec, config)
+            previous_config: ContainerInjectableContext
+            if in_slot:
+                previous_config = context.get(spec)
+                self._thread_setitem(context, spec, config)
+            else:
+                previous_config = self._get_injected(spec)
+                self._set_injected(spec, config)
         except BaseException:
             ctx_lock.release()
             raise
@@ -202,14 +245,15 @@ class Container:
             if not lock_context_on_yield:
                 ctx_lock.acquire()
             try:
-                current_config = context.get(spec)
-                if current_config is config:
-                    if previous_config is None:
-                        self._thread_delitem(context, spec)
-                    else:
-                        self._thread_setitem(context, spec, previous_config)
+                current_config = context.get(spec) if in_slot else self._get_injected(spec)
+                if current_config is not config:
+                    raise ContainerInjectableContextMangled(spec, current_config, config)
+                if not in_slot:
+                    self._set_injected(spec, previous_config)
+                elif previous_config is None:
+                    self._thread_delitem(context, spec)
                 else:
-                    raise ContainerInjectableContextMangled(spec, context[spec], config)
+                    self._thread_setitem(context, spec, previous_config)
             finally:
                 ctx_lock.release()
 
@@ -245,6 +289,10 @@ class Container:
                     for spec, ctx in list(thread_ctx.items()):
                         if spec.worker_affinity:
                             result[spec] = ctx
+
+        for spec, ctx in (Container._INJECTED.get() or {}).items():
+            if spec.worker_affinity:
+                result[spec] = ctx
 
         return result
 

@@ -4,7 +4,6 @@ from concurrent.futures import (
     as_completed,
     wait as wait_for_futures,
 )
-import contextvars
 from threading import Thread
 from collections.abc import Coroutine
 from typing import Dict, Optional
@@ -117,9 +116,7 @@ class FuturesPool:
         if isinstance(item, Coroutine):
             future = asyncio.run_coroutine_threadsafe(item, self._ensure_async_pool())
         elif callable(item):
-            # pass pipe context to thread pool, happens automatically for coroutines
-            ctx = contextvars.copy_context()
-            future = self._ensure_thread_pool().submit(ctx.run, item)
+            future = self._ensure_thread_pool().submit(item)
         else:
             raise ValueError(f"Unsupported item type: `{type(item)}`")
 

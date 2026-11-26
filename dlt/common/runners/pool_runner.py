@@ -1,8 +1,10 @@
 from __future__ import annotations
+import contextvars
 import sys
 import time
 import threading
 import multiprocessing
+from functools import partial
 from importlib.machinery import ModuleSpec
 from typing import Any, Callable, Optional, Tuple, Union, cast, TypeVar
 from concurrent.futures import Executor, ThreadPoolExecutor, Future
@@ -72,6 +74,10 @@ class TimeoutThreadPoolExecutor(ThreadPoolExecutor):
         )
         self.timeout = timeout
         self._is_alive: bool = None  # set on shutdown
+
+    def submit(self, fn: Callable[P, T], /, *args: P.args, **kwargs: P.kwargs) -> Future[T]:
+        """Run `fn` in a copy of the submitting context so it sees the injected contexts"""
+        return super().submit(partial(contextvars.copy_context().run, fn, *args, **kwargs))
 
     def shutdown(self, wait: bool = True, *, cancel_futures: bool = False) -> None:
         if not wait or self.timeout is None:
