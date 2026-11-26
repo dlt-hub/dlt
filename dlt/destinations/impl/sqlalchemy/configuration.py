@@ -339,6 +339,11 @@ class SqlalchemyClientConfiguration(WithLocalFiles, DestinationClientDwhConfigur
             return location
         # remaining dialects (postgresql, oracle, db2, unknown) bind a query engine to a single
         # database: oracle needs db links and db2 needs federation to query across databases
-        if not (database := self.credentials.database):
+        database = self.credentials.database
+        if not database and backend == "oracle":
+            # oracle connects to a service name given in the query (`?service_name=...`) instead
+            # of a SID in the database part of the url
+            database = (self.credentials.query or {}).get("service_name")
+        if not database:
             self._no_data_location(f"the `{backend}` connection string identifies no database")
         return f"{location}/{database}"

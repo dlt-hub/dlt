@@ -8,6 +8,7 @@ import dlt
 import sqlalchemy as sa
 
 from dlt.common.configuration import resolve_configuration
+from dlt.common.configuration.exceptions import ConfigurationValueError
 from dlt.common.known_env import DLT_LOCAL_DIR
 from dlt.common.utils import digest128, uniq_id
 from dlt.destinations import sqlalchemy as dlt_sqlalchemy
@@ -468,3 +469,45 @@ def test_copy_before_engine_access_gets_lazy_managed_engine() -> None:
     assert copied.managed_engine._conn_owner is True
 
     engine.dispose()
+
+
+@pytest.mark.parametrize(
+    "connection_string,expected_location",
+    [
+        pytest.param(
+            "oracle+oracledb://user:pass@host:1521/ORCLSID",
+            "oracle://host:1521/ORCLSID",
+            id="oracle_sid",
+        ),
+        pytest.param(
+            "oracle+oracledb://user:pass@host:1521?service_name=my_oracle_service",
+            "oracle://host:1521/my_oracle_service",
+            id="oracle_service_name",
+        ),
+    ],
+)
+def test_oracle_data_location(connection_string: str, expected_location: str) -> None:
+    config = SqlalchemyClientConfiguration(
+        credentials=SqlalchemyCredentials(connection_string)
+    )._bind_dataset_name(dataset_name="test_dataset")
+
+    assert config.data_location() == expected_location
+
+
+def test_oracle_data_location_without_database_or_service_name() -> None:
+    config = SqlalchemyClientConfiguration(
+        credentials=SqlalchemyCredentials("oracle+oracledb://user:pass@host:1521")
+    )._bind_dataset_name(dataset_name="test_dataset")
+
+    with pytest.raises(ConfigurationValueError, match="identifies no database"):
+        config.data_location()
+
+
+def test_service_name_does_not_identify_database_for_other_dialects() -> None:
+    # only oracle connects with a service name, other dialects still need a database
+    config = SqlalchemyClientConfiguration(
+        credentials=SqlalchemyCredentials("postgresql://user:pass@host:5432?service_name=svc")
+    )._bind_dataset_name(dataset_name="test_dataset")
+
+    with pytest.raises(ConfigurationValueError, match="identifies no database"):
+        config.data_location()
