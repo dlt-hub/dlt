@@ -33,9 +33,9 @@ from dlt.common.warnings import TNoExtraKwargs, apply_deprecations
 from dlt._workspace import known_sections as ws_known_sections
 from dlt._workspace.deployment import freshness as _freshness
 from dlt._workspace.deployment import trigger as _triggers
+from dlt._workspace.deployment._retry_helpers import normalize_retry
 from dlt._workspace.deployment._trigger_helpers import (
     normalize_execute,
-    normalize_retry,
     normalize_timeout,
     normalize_triggers,
 )
