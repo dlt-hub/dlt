@@ -5798,3 +5798,32 @@ def test_public_lagged_datetime_range(cursor_type: type[datetime], use_lag: bool
     assert end is None
     assert type(incr._start_value) is datetime
     assert type(incr._cached_state["last_value"]) is datetime
+
+
+@pytest.mark.parametrize("item_type", ALL_TEST_DATA_ITEM_FORMATS)
+def test_incremental_boundary_dedup_keeps_newer_rows_with_same_primary_key(
+    item_type: TestDataItemFormat,
+) -> None:
+    """Boundary dedup with a single-column primary_key must only drop
+    already-loaded boundary rows, not newer rows sharing that key."""
+    runs = [
+        [{"id": 1, "ts": 10, "v": "a"}],
+        [
+            {"id": 1, "ts": 10, "v": "a"},
+            {"id": 1, "ts": 12, "v": "b"},
+            {"id": 2, "ts": 11, "v": "c"},
+        ],
+    ]
+
+    @dlt.resource(name="ev", primary_key="id", write_disposition="append")
+    def ev(batch: List[Dict[str, Any]], ts=dlt.sources.incremental("ts")):
+        yield from data_to_item_format(item_type, batch)
+
+    p = dlt.pipeline(pipeline_name="p" + uniq_id(), destination="duckdb")
+    for batch in runs:
+        p.run(ev(batch))
+
+    with p.sql_client() as client:
+        rows = client.execute_sql("SELECT id, ts, v FROM ev ORDER BY ts, id")
+    assert rows == [(1, 10, "a"), (2, 11, "c"), (1, 12, "b")]
+    assert "_dlt_index" not in p.default_schema.tables["ev"]["columns"]
