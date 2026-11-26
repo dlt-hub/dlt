@@ -744,3 +744,26 @@ def test_hf_endpoint_env(default_buckets_env: str) -> None:
 
     with patch("huggingface_hub.metadata_update", side_effect=assert_hf_endpoint_set):
         client.update_dataset_card_metadata(load_id="test")
+
+
+def test_table_format_load_job_arrow_dataset_merges_multi_file_schemas(tmp_path: Path) -> None:
+    import pyarrow as pa
+    import pyarrow.parquet as pq
+    from dlt.destinations.impl.filesystem.filesystem import TableFormatLoadFilesystemJob
+
+    p0 = str(tmp_path / "items.0001.0.parquet")
+    p1 = str(tmp_path / "items.0002.0.parquet")
+    pq.write_table(pa.table({"id": [1], "a": ["x"]}), p0)
+    pq.write_table(pa.table({"id": [2], "b": [5]}), p1)
+
+    ref_path = tmp_path / "items.ref0.0.reference"
+    ref_path.write_text("\n".join([p0, p1]), encoding="utf-8")
+
+    job = TableFormatLoadFilesystemJob(str(ref_path))
+    ds = job.arrow_dataset
+    assert ds.schema.names == ["id", "a", "b"]
+    assert ds.schema.field("b").nullable is True
+    assert ds.to_table().to_pylist() == [
+        {"id": 1, "a": "x", "b": None},
+        {"id": 2, "a": None, "b": 5},
+    ]

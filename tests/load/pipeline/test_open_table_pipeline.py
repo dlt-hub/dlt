@@ -718,6 +718,110 @@ def test_table_format_schema_evolution(
 @pytest.mark.parametrize(
     "destination_config",
     destinations_configs(
+        table_format_local_configs=True,
+        supports_merge=True,
+    ),
+    ids=lambda x: x.name,
+)
+@pytest.mark.parametrize(
+    "write_disposition",
+    (
+        "append",
+        "merge",
+    ),
+)
+def test_table_format_multi_file_schema_evolution(
+    destination_config: DestinationTestConfiguration,
+    write_disposition: TWriteDisposition,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """New columns introduced only in later parquet files of a multi-file load must not be dropped."""
+    import pyarrow as pa
+
+    # rotate normalized parquet files after every single row
+    monkeypatch.setenv("NORMALIZE__DATA_WRITER__FILE_MAX_ITEMS", "1")
+
+    pipeline = destination_config.setup_pipeline("fs_multi_file_pipe", dev_mode=True)
+
+    # load 1: initial arrow table with columns id, a
+    info = pipeline.run(
+        pa.table({"id": [1], "a": ["x"]}),
+        table_name="arrow_items",
+        write_disposition=write_disposition,
+        primary_key="id",
+        table_format=destination_config.table_format,
+    )
+    assert_load_info(info)
+
+    # load 2: two separate arrow batches with disjoint new columns b and c so whichever
+    # parquet file is listed first, the other new column only appears in a later file
+    batch_b = pa.table({"id": [2], "b": [5]})
+    batch_c = pa.table({"id": [3], "c": ["z"]})
+    info = pipeline.run(
+        [batch_b, batch_c],
+        table_name="arrow_items",
+        write_disposition=write_disposition,
+        primary_key="id",
+        table_format=destination_config.table_format,
+    )
+    assert_load_info(info)
+
+    # also verify dict normalization rotated across multiple parquet files (FILE_MAX_ITEMS=1)
+    info = pipeline.run(
+        [{"id": 1, "a": "x"}],
+        table_name="items",
+        write_disposition=write_disposition,
+        primary_key="id",
+        table_format=destination_config.table_format,
+    )
+    assert_load_info(info)
+    info = pipeline.run(
+        [{"id": 2}, {"id": 3, "b": 5}, {"id": 4, "c": "z"}],
+        table_name="items",
+        write_disposition=write_disposition,
+        primary_key="id",
+        table_format=destination_config.table_format,
+    )
+    assert_load_info(info)
+
+    if destination_config.table_format == "delta":
+        from dlt.common.libs.deltalake import get_delta_tables
+
+        arrow_actual = get_delta_tables(pipeline, "arrow_items")["arrow_items"].to_pyarrow_table()
+        dict_actual = get_delta_tables(pipeline, "items")["items"].to_pyarrow_table()
+    else:
+        from dlt.common.libs.pyiceberg import get_iceberg_tables
+
+        arrow_actual = get_iceberg_tables(pipeline, "arrow_items")["arrow_items"].scan().to_arrow()
+        dict_actual = get_iceberg_tables(pipeline, "items")["items"].scan().to_arrow()
+
+    arrow_rows = {r["id"]: r for r in arrow_actual.to_pylist()}
+    assert set(arrow_rows.keys()) == {1, 2, 3}
+    assert arrow_rows[1]["a"] == "x"
+    assert arrow_rows[2]["b"] == 5
+    assert arrow_rows[2]["c"] is None
+    assert arrow_rows[3]["b"] is None
+    assert arrow_rows[3]["c"] == "z"
+
+    dict_rows = {r["id"]: r for r in dict_actual.to_pylist()}
+    assert set(dict_rows.keys()) == {1, 2, 3, 4}
+    assert dict_rows[1]["a"] == "x"
+    assert dict_rows[2]["b"] is None
+    assert dict_rows[3]["b"] == 5
+    assert dict_rows[4]["c"] == "z"
+
+    # verify pipeline.dataset() can query all evolved columns
+    ds_arrow_rows = {r["id"]: r for r in pipeline.dataset().arrow_items.arrow().to_pylist()}
+    assert ds_arrow_rows[2]["b"] == 5
+    assert ds_arrow_rows[3]["c"] == "z"
+    ds_dict_rows = {r["id"]: r for r in pipeline.dataset().items.arrow().to_pylist()}
+    assert ds_dict_rows[3]["b"] == 5
+    assert ds_dict_rows[4]["c"] == "z"
+
+
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(
         table_format_filesystem_configs=True,
         with_table_format=("delta", "iceberg"),
         bucket_subset=(FILE_BUCKET, ABFS_BUCKET),
