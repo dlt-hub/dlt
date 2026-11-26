@@ -397,6 +397,33 @@ def test_workspace_profile_dev(page: Page):
             expect(page.get_by_role("row", name="fruitshop").first).to_be_visible()
 
 
+def test_workspace_profile_switch_clears_selected_pipeline(page: Page):
+    test_port = 2723
+    with isolated_workspace("pipelines", profile="tests"):
+        switch_profile("tests")
+        alpha = dlt.pipeline(pipeline_name="alpha_pipeline", destination="duckdb")
+        alpha.run(fruitshop_source().with_resources("customers"))
+
+        switch_profile("prod")
+        beta = dlt.pipeline(pipeline_name="beta_pipeline", destination="duckdb")
+        beta.run(fruitshop_source().with_resources("inventory"))
+
+        with start_dashboard(port=test_port):
+            page.goto(f"http://localhost:{test_port}/?profile=tests&pipeline=alpha_pipeline")
+            expect(
+                page.get_by_role("heading", name=re.compile(r"Pipeline\s+alpha_pipeline"))
+            ).to_be_visible(timeout=20000)
+
+            page.get_by_test_id("marimo-plugin-searchable-dropdown").click()
+            page.get_by_text("prod", exact=True).click()
+
+            expect(page).to_have_url(re.compile(rf":{test_port}/\?profile=prod$"))
+            expect(page.get_by_text("Could not attach to pipeline alpha_pipeline")).to_have_count(0)
+            expect(
+                page.get_by_role("heading", name=re.compile(r"Pipeline\s+beta_pipeline"))
+            ).to_be_visible(timeout=20000)
+
+
 def test_broken_trace_pipeline(page: Page, broken_trace_pipeline: Any, pipelines_dir: Path):
     """Dashboard should still render overview even if the last trace file is corrupted."""
     _open_pipeline(page, "broken_trace_pipeline")
