@@ -64,6 +64,9 @@ DEFAULT_RETRY_BACKOFF = Retrying(
 )
 
 
+_MAX_TASK_ID_LENGTH = 250
+
+
 class PipelineTasksGroup(TaskGroup):
     """
     Represents a dlt Airflow pipeline task group.
@@ -177,7 +180,11 @@ class PipelineTasksGroup(TaskGroup):
             if num:
                 task_name += f"-{num + 1}"
 
-        return task_name
+        # airflow limits task ids to 250 chars and, in newer versions, checks the id
+        # prefixed with the group id ("<group_id>.<task_id>"). reserve room for that prefix
+        # and for the "_start"/"_end" suffixes added when decomposing
+        max_length = max(_MAX_TASK_ID_LENGTH - len(self.group_id or "") - 1 - 6, 16)
+        return SnakeCaseNamingConvention.shorten_identifier(task_name, task_name, max_length)
 
     def _resolve_truncate_staging_destination(self, decompose: str) -> Optional[bool]:
         """Resolve the staging-destination truncation setting for a given decomposition."""

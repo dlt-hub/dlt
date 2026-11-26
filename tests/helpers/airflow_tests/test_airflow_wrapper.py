@@ -1113,3 +1113,69 @@ def test_pipeline_created_before_task_group_raises() -> None:
         assert "pipelines_dir" in message
 
     dag_wrong_order()
+
+
+def _long_name_source(source_name: str, resource_names: List[str]):
+    @dlt.source(name=source_name)
+    def _source():
+        def _res(n):
+            @dlt.resource(name=n)
+            def _r():
+                yield [1]
+
+            return _r
+
+        return [_res(n) for n in resource_names]
+
+    return _source()
+
+
+@pytest.mark.parametrize("decompose", ("none", "serialize", "parallel", "parallel-isolated"))
+@pytest.mark.parametrize("serialize_first_task", (True, False))
+def test_long_task_ids_within_airflow_limit(decompose: str, serialize_first_task: bool) -> None:
+    group_id = "p" * 100
+    long_names = ["r" * 120 + str(i) for i in range(3)]
+
+    @dag(schedule=None, start_date=DEFAULT_DATE, catchup=False, default_args=default_args)
+    def dag_long():
+        tasks = PipelineTasksGroup(group_id, local_data_folder=get_test_storage_root())
+        pipeline = dlt.pipeline(
+            pipeline_name=group_id, dataset_name="mock_data", destination="duckdb"
+        )
+        kwargs: Dict[str, Any] = {}
+        if decompose in ("parallel", "parallel-isolated"):
+            kwargs["serialize_first_task"] = serialize_first_task
+        tasks.add_run(
+            pipeline,
+            _long_name_source("s" * 60, long_names),
+            decompose=decompose,  # type: ignore[arg-type]
+            **kwargs,
+        )
+        # same long source twice and a different one: ids must stay unique
+        tasks.add_run(pipeline, _long_name_source("s" * 60, long_names), decompose="none")
+        tasks.add_run(pipeline, _long_name_source("t" * 60, long_names), decompose="none")
+
+    dag_def = dag_long()
+    task_ids = list(dag_def.task_dict.keys())
+    assert len(task_ids) == len(set(task_ids))
+    assert task_ids
+    assert all(len(t) <= 250 for t in task_ids), task_ids
+    assert all(t.startswith(group_id + ".") for t in task_ids)
+
+    # deterministic
+    again = dag_long()
+    assert list(again.task_dict.keys()) == task_ids
+
+
+def test_short_task_names_unchanged() -> None:
+    with DAG("short_names", start_date=DEFAULT_DATE, schedule=None):
+        group = PipelineTasksGroup("my_pipeline", local_data_folder=get_test_storage_root())
+    pipeline = dlt.pipeline(pipeline_name="my_pipeline", destination="duckdb")
+    assert group._task_name(pipeline, "not a source") == "my_pipeline"
+    source = mock_data_source()
+    names = list(source.selected_resources.keys())
+    expected = "mock_data_source_" + "-".join(names[:4])
+    if len(names) > 4:
+        expected += f"-{len(names) - 4}-more"
+    assert group._task_name(pipeline, source) == expected
+    assert group._task_name(pipeline, source) == expected + "-2"
