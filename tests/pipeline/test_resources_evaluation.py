@@ -269,10 +269,9 @@ def test_parallelized_resource(parallelized: bool) -> None:
         assert threads == {threading.get_ident()}  # Everything runs in main thread
 
 
-@pytest.mark.parametrize("with_config", [True, False], ids=["with-config", "no-config"])
+@pytest.mark.parametrize("with_config", [True, False], ids=["config-value", "default-arg"])
 def test_parallelized_resource_called_with_args_runs_in_pool(with_config: bool) -> None:
-    """A parallelized resource that is called with arguments runs on the extract pool, also when
-    it takes config values."""
+    """A parallelized resource with defaulted arguments runs on the extract pool when called."""
     os.environ["API_URL"] = "https://api.example.com"
     threads: Set[str] = set()
 
@@ -283,7 +282,7 @@ def test_parallelized_resource_called_with_args_runs_in_pool(with_config: bool) 
             yield {"i": i, "api_url": api_url}
 
     @dlt.resource(parallelized=True)
-    def items(n: int) -> Iterator[Dict[str, Any]]:
+    def items(n: int = 10) -> Iterator[Dict[str, Any]]:
         for i in range(n):
             threads.add(threading.current_thread().name)
             yield {"i": i}
@@ -292,6 +291,44 @@ def test_parallelized_resource_called_with_args_runs_in_pool(with_config: bool) 
     dlt.pipeline("pipeline_" + uniq_id()).extract(resource(3))
 
     assert threads and all("extract-threads" in name for name in threads), threads
+
+
+def _count_parallel_wrappers(resource: DltResource) -> int:
+    gen, count = resource._pipe.gen, 0
+    while gen is not None:
+        code = getattr(gen, "__code__", None)
+        count += code is not None and code.co_name in ("_gen_wrapper", "_fun_wrapper")
+        gen = getattr(gen, "__wrapped__", None)
+    return count
+
+
+@pytest.mark.parametrize("case", ["resource-in-source", "transformer-in-source", "parallelize"])
+def test_parallelized_resource_is_wrapped_once(case: str) -> None:
+    """A parallelized source or `parallelize()` does not wrap a parallel resource again."""
+
+    @dlt.resource(parallelized=True)
+    def items(n: int = 10) -> Iterator[Dict[str, Any]]:
+        yield from ({"i": i} for i in range(n))
+
+    @dlt.transformer(parallelized=True)
+    def double(item: Dict[str, Any], factor: int = 2) -> Dict[str, Any]:
+        return {"i": item["i"] * factor}
+
+    @dlt.source(parallelized=True)
+    def numbers() -> Any:
+        three = items(3)
+        return [three, three | double(factor=3)]
+
+    if case == "parallelize":
+        resource = items(3).parallelize()
+        expected = [0, 1, 2]
+    else:
+        source = numbers()
+        resource = source.resources["items" if case == "resource-in-source" else "double"]
+        expected = [0, 1, 2] if case == "resource-in-source" else [0, 3, 6]
+
+    assert _count_parallel_wrappers(resource) == 1
+    assert sorted(item["i"] for item in resource) == expected
 
 
 @pytest.mark.parametrize("mode", ["threads", "async", "mixed"])

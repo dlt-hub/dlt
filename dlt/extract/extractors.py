@@ -241,9 +241,9 @@ class Extractor:
             if resource.has_other_dynamic_hints or not self._is_table_cached(
                 resource, table_name, item
             ):
-                item = self._compute_and_update_tables(
-                    resource, table_name, item, TableNameMeta(table_name)
-                )
+                # a mark keeps its name as declared, table variants are stored under that name
+                table_meta = meta if isinstance(meta, TableNameMeta) else TableNameMeta(table_name)
+                item = self._compute_and_update_tables(resource, table_name, item, table_meta)
             # write to storage with inferred table name
             if table_name not in self._filtered_tables:
                 if isinstance(meta, ImportFileMeta):

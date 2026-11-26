@@ -373,9 +373,14 @@ class DltResource(Iterable[TDataItem], DltResourceHints):
         """
 
         def _filter(item: TDataItem, meta: Any = None) -> bool:
-            is_in_meta = isinstance(meta, TableNameMeta) and meta.table_name in table_names
-            is_in_dyn = self._table_name_hint_fun and self._table_name_hint_fun(item) in table_names
-            return is_in_meta or is_in_dyn
+            # a mark routes the item over the `table_name` function, see `Extractor.write_items`
+            if isinstance(meta, HintsMeta) and meta.create_table_variant:
+                return meta.hints["table_name"] in table_names
+            if isinstance(meta, TableNameMeta):
+                return meta.table_name in table_names
+            return (
+                bool(self._table_name_hint_fun) and self._table_name_hint_fun(item) in table_names
+            )
 
         # add filtering function at the end of pipe
         self.add_filter(_filter)
@@ -521,6 +526,9 @@ class DltResource(Iterable[TDataItem], DltResourceHints):
 
         The resource must be a generator or generator function or a transformer function.
         """
+        # a source with `parallelized=True` parallelizes its resources that may be parallel already
+        if getattr(self._pipe.gen, "__PARALLEL__", False):
+            return self
         if (
             not inspect.isgenerator(self._pipe.gen)
             and not (callable(self._pipe.gen) and isgeneratorfunction(self._pipe.gen))
@@ -857,8 +865,7 @@ class DltResource(Iterable[TDataItem], DltResourceHints):
         )
         if cloned_r._eject_config():
             cloned_r._inject_config(incremental_from_hints_override=incremental_from_hints)
-            # eject also removed the parallel wrapper around the config wrapper. wrap again, outside
-            # of config, so config resolves in the calling thread
+            # eject also removed the parallel wrapper around the config wrapper
             if parallelized:
                 cloned_r.parallelize()
         return cloned_r

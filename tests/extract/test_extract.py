@@ -1704,7 +1704,7 @@ def test_handle_empty_tables_dispatched_tables(extract_step: Extract, dispatch: 
 
 
 class _AlwaysDynamicResource(DltResource):
-    """Computes the table for every item, as dlthub transformations do."""
+    """Computes the table for every item."""
 
     @property
     def has_dynamic_table_name(self) -> bool:
@@ -1743,9 +1743,7 @@ _FORCED_DYNAMIC = pytest.param(None, _AlwaysDynamicResource, "events", id="force
 def test_with_table_name_mark_on_dynamic_resource(
     extract_step: Extract, table_name: Any, impl_cls: Type[DltResource], hinted_table: str
 ) -> None:
-    """A `with_table_name` mark sends the item to the marked table also on a resource that the
-    extractor treats as dynamic: one with a `table_name` function, or one that computes the table
-    for every item."""
+    """A `with_table_name` mark wins over a dynamic table name."""
     schema = dlt.Schema("marked")
     metrics = _extract_resource(extract_step, schema, _make_marked_resource(table_name, impl_cls))
 
@@ -1760,8 +1758,7 @@ def test_with_table_name_mark_on_dynamic_resource(
 def test_with_table_name_mark_computes_marked_table(
     extract_step: Extract, table_name: Any, impl_cls: Type[DltResource], hinted_table: str
 ) -> None:
-    """The table that a `with_table_name` mark names is computed with the hints of the resource,
-    not the table that the `table_name` hint names."""
+    """The marked table gets the resource hints."""
     schema = dlt.Schema("marked")
     _extract_resource(extract_step, schema, _make_marked_resource(table_name, impl_cls))
 
@@ -1771,6 +1768,63 @@ def test_with_table_name_mark_computes_marked_table(
     marked_id = schema.tables["marked"]["columns"]["id"]
     assert marked_id["data_type"] == "bigint"
     assert marked_id["primary_key"] is True
+
+
+@pytest.mark.parametrize(
+    "table_name,impl_cls,hinted_table", [_STATIC_TABLE_NAME, _TABLE_NAME_FUNCTION, _FORCED_DYNAMIC]
+)
+def test_table_variant_mark_keeps_its_hints(
+    extract_step: Extract, table_name: Any, impl_cls: Type[DltResource], hinted_table: str
+) -> None:
+    """A table variant declared with a name that is not normalized keeps its hints."""
+
+    @dlt.resource(
+        name="events",
+        table_name=table_name,
+        columns=[{"name": "id", "data_type": "bigint"}],
+        _impl_cls=impl_cls,
+    )
+    def events() -> Any:
+        yield {"id": 1, "kind": "hinted"}
+        yield dlt.mark.with_hints(
+            {"id": 2, "kind": "hinted", "v": "x"},
+            make_hints(table_name="Variant Table", columns=[{"name": "v", "data_type": "text"}]),
+            create_table_variant=True,
+        )
+
+    schema = dlt.Schema("variant")
+    metrics = _extract_resource(extract_step, schema, events())
+
+    assert {t: m.items_count for t, m in metrics.items()} == {hinted_table: 1, "variant_table": 1}
+    variant_table = schema.tables["variant_table"]
+    assert variant_table["variant_name"] == "Variant Table"
+    assert variant_table["columns"]["v"]["data_type"] == "text"
+    assert variant_table["columns"]["id"]["data_type"] == "bigint"
+
+
+@pytest.mark.parametrize("variant", [False, True], ids=["with-table-name", "table-variant"])
+def test_select_tables_follows_marks(extract_step: Extract, variant: bool) -> None:
+    """`select_tables` keeps a marked item only when the marked table is selected."""
+
+    def _events() -> DltResource:
+        @dlt.resource(name="events", table_name=lambda e: e["kind"])
+        def events() -> Any:
+            yield {"id": 1, "kind": "hinted"}
+            item = {"id": 2, "kind": "hinted"}
+            if variant:
+                yield dlt.mark.with_hints(
+                    item, make_hints(table_name="marked"), create_table_variant=True
+                )
+            else:
+                yield dlt.mark.with_table_name(item, "marked")
+
+        return events()
+
+    schema = dlt.Schema("selected")
+    metrics = _extract_resource(extract_step, schema, _events().select_tables("hinted"))
+    assert {t: m.items_count for t, m in metrics.items()} == {"hinted": 1}
+    metrics = _extract_resource(extract_step, schema, _events().select_tables("marked"))
+    assert {t: m.items_count for t, m in metrics.items()} == {"marked": 1}
 
 
 @pytest.mark.parametrize("with_hints", [False, True], ids=["resource_columns", "import_hints"])
