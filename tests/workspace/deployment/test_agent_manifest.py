@@ -125,6 +125,11 @@ def test_load_agent_spec_keeps_body_as_system_prompt() -> None:
         ("name: a\ndefaults:\n  execute:\n    concurrency: five", "b", "field `concurrency"),
         ("name: a\ndefaults:\n  execute:\n    timeout: soon", "b", "does not parse"),
         ("name: a\ndefaults:\n  execute:\n    intercept_signals: false", "b", "unexpected fields"),
+        (
+            "name: a\ndefaults:\n  execute:\n    retry:\n      max_retries: 3",
+            "b",
+            "unexpected fields",
+        ),
         ("name: a\ndefaults:\n  execute: none", "b", "field `execute"),
     ],
     ids=[
@@ -140,6 +145,7 @@ def test_load_agent_spec_keeps_body_as_system_prompt() -> None:
         "concurrency-string",
         "timeout-unparsable",
         "execute-unknown-key",
+        "execute-retry",
         "execute-not-a-mapping",
     ],
 )

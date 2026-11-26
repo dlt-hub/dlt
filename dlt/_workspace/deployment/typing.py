@@ -269,6 +269,21 @@ class TTimeoutSpec(TypedDict):
     """Seconds for graceful shutdown after sending termination signal."""
 
 
+class TRetrySpec(TypedDict):
+    """Retry policy stored on a job definition as `execute.retry`."""
+
+    max_retries: int
+    """Retries after the first attempt. An integer from `0` to `10`."""
+    initial_delay: NotRequired[Union[int, float]]
+    """Seconds before the first retry. Default `30`."""
+    backoff: NotRequired[Union[int, float]]
+    """Multiplier applied to the delay after each retry. Default `2.0`."""
+    max_delay: NotRequired[Union[int, float]]
+    """Longest delay, in seconds. Default `3600`."""
+    jitter: NotRequired[bool]
+    """Randomize each delay. Default `True`."""
+
+
 class TExecuteLimits(TypedDict):
     """How long a job's run may take and how many of them run at once."""
 
@@ -284,6 +299,8 @@ class TExecuteSpec(TExecuteLimits):
 
     intercept_signals: NotRequired[bool]
     """Intercept SIGINT/SIGTERM around the whole job. Default `True`."""
+    retry: NotRequired[TRetrySpec]
+    """Retry policy. Set with the `retry` argument of the job decorator."""
 
 
 class TDeliverSpec(TypedDict, total=False):

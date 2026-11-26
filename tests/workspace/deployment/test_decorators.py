@@ -1,8 +1,9 @@
-"""Tests for @job, @interactive, and @pipeline_run decorators."""
+"""Tests for @job, @interactive, @pipeline_run, and @agent decorators."""
 
 import asyncio
 import inspect
 import sys
+from io import BytesIO
 from typing import Any, Dict, List, Literal, cast
 
 import pytest
@@ -15,10 +16,20 @@ from dlt.common.configuration.specs import (
 )
 from dlt.common.typing import Annotated, TSecretStrValue, TypedDict
 from dlt.common.warnings import DltDeprecationWarning
-from dlt._workspace.deployment.decorators import JobFactory, interactive, job, pipeline_run
+from dlt._workspace.deployment.agent.typing import TAgentSpec
+from dlt._workspace.deployment.decorators import JobFactory, agent, interactive, job, pipeline_run
 from dlt._workspace.deployment.exceptions import InvalidJobName, InvalidJobSection
+from dlt._workspace.deployment.manifest import (
+    expand_triggers,
+    load_manifest,
+    save_manifest,
+    validate_job_definition,
+)
 from dlt._workspace.deployment.reflection import Entity
-from dlt._workspace.deployment.typing import TJobRunContext, TTrigger
+from dlt._workspace.deployment.typing import TJobDefinition, TJobRunContext, TTrigger
+
+from tests.workspace.manifest_utils import make_manifest
+from tests.workspace.utils import importable_workspace
 
 
 # module-level sources and resources for deliver tests
@@ -1044,7 +1055,6 @@ def test_decorator_expose_tags_normalize(
 
 def test_expose_tags_string_drives_tag_trigger() -> None:
     """A string `tags` value still produces a single `tag:` trigger via expand_triggers."""
-    from dlt._workspace.deployment.manifest import expand_triggers
 
     @job(expose={"tags": "nightly"})
     def tagged():
@@ -1052,3 +1062,208 @@ def test_expose_tags_string_drives_tag_trigger() -> None:
 
     triggers = expand_triggers(tagged.to_job_definition())
     assert "tag:nightly" in triggers
+
+
+_INLINE_AGENT: TAgentSpec = {
+    "name": "inline-agent",
+    "description": "d",
+    "access": {},
+    "inputs": {"type": "object", "properties": {"why": {"type": "string"}}},
+    "output": {"type": "object", "properties": {"status": {}, "summary": {}}},
+    "system_prompt": "Explain {{ why }}.",
+}
+
+_RETRY_DEFAULTS: Dict[str, Any] = {
+    "initial_delay": 30,
+    "backoff": 2.0,
+    "max_delay": 3600,
+    "jitter": True,
+}
+
+
+def _retry_policy(max_retries: int, **overrides: Any) -> Dict[str, Any]:
+    policy = {"max_retries": max_retries, **_RETRY_DEFAULTS}
+    policy.update(overrides)
+    return policy
+
+
+def _decorated_with_retry(kind: str, retry: Any) -> Any:
+    kwargs: Dict[str, Any] = {}
+    if retry is not None:
+        kwargs["retry"] = retry
+    if kind == "job":
+
+        @job(**kwargs)
+        def work() -> None:
+            return None
+
+        return work
+    if kind == "pipeline":
+
+        @pipeline_run("piped", **kwargs)
+        def work() -> None:
+            return None
+
+        return work
+    factory = agent(
+        cast(TAgentSpec, dict(_INLINE_AGENT)), loop="mock-loop", name="retried", **kwargs
+    )
+    factory.bind_module_attr(__name__, "retried")
+    return factory
+
+
+def _job_definition(kind: str, retry: Any) -> TJobDefinition:
+    return _job_definition_of(_decorated_with_retry(kind, retry), kind)
+
+
+def _job_definition_of(factory: Any, kind: str) -> TJobDefinition:
+    if kind == "agent":
+        with importable_workspace("agent_workspace"):
+            return factory.to_job_definition()
+    return factory.to_job_definition()
+
+
+@pytest.mark.parametrize(
+    "kind,concurrency",
+    [("job", 1), ("pipeline", 1), ("agent", 5)],
+    ids=["job", "pipeline", "agent"],
+)
+@pytest.mark.parametrize(
+    "retry,expected_retry",
+    [
+        (3, _retry_policy(3)),
+        (0, _retry_policy(0)),
+        (10, _retry_policy(10)),
+        (
+            {
+                "max_retries": 4,
+                "initial_delay": 5,
+                "backoff": 1.5,
+                "max_delay": 120,
+                "jitter": False,
+            },
+            {
+                "max_retries": 4,
+                "initial_delay": 5,
+                "backoff": 1.5,
+                "max_delay": 120,
+                "jitter": False,
+            },
+        ),
+        ({"max_retries": 2}, _retry_policy(2)),
+        (
+            {"max_retries": 2, "initial_delay": 10, "jitter": False},
+            _retry_policy(2, initial_delay=10, jitter=False),
+        ),
+    ],
+    ids=[
+        "shorthand-3",
+        "shorthand-0",
+        "shorthand-10",
+        "full-dict",
+        "defaults",
+        "partial-overrides",
+    ],
+)
+def test_retry_stored_on_the_job_definition(
+    kind: str, concurrency: int, retry: Any, expected_retry: Dict[str, Any]
+) -> None:
+    """`retry` is normalized at decoration and serialized on `execute.retry`."""
+    factory = _decorated_with_retry(kind, retry)
+    assert factory.execute["retry"] == expected_retry
+
+    job_def = _job_definition_of(factory, kind)
+    assert job_def["execute"]["retry"] == expected_retry
+    assert job_def["execute"]["concurrency"] == concurrency
+    validate_job_definition(job_def, validate_dict=True, raise_on_error=True)
+
+    manifest = make_manifest([job_def])
+    buf = BytesIO()
+    save_manifest(manifest, buf)
+    buf.seek(0)
+    loaded = load_manifest(buf)
+    assert loaded["jobs"][0]["execute"]["retry"] == expected_retry
+
+
+@pytest.mark.parametrize(
+    "kind,expected_execute",
+    [
+        ("job", {"concurrency": 1}),
+        ("pipeline", {"concurrency": 1}),
+        ("agent", {"concurrency": 5}),
+    ],
+    ids=["job", "pipeline", "agent"],
+)
+def test_omitted_retry_is_absent(kind: str, expected_execute: Dict[str, Any]) -> None:
+    """No `retry` argument leaves `execute.retry` unset."""
+    assert _job_definition(kind, None)["execute"] == expected_execute
+
+
+@pytest.mark.parametrize(
+    "kind",
+    ["job", "pipeline", "agent"],
+    ids=["job", "pipeline", "agent"],
+)
+@pytest.mark.parametrize(
+    "retry,match",
+    [
+        (11, "0 to 10"),
+        (-1, "0 to 10"),
+        (True, "0 to 10"),
+        (1.5, "0 to 10"),
+        ({"max_retries": True}, "0 to 10"),
+        ({"max_retries": 1.5}, "0 to 10"),
+        ("3", "integer or a mapping"),
+        ([], "integer or a mapping"),
+        ({}, "requires max_retries"),
+        ({"max_retries": 1, "nope": 1}, "unexpected fields"),
+        ({"max_retries": 1, "jitter": "yes"}, "retry.jitter must be a bool"),
+        ({"max_retries": 1, "initial_delay": "30"}, "retry.initial_delay must be a number"),
+        ({"max_retries": 1, "backoff": True}, "retry.backoff must be a number"),
+        ({"max_retries": 1, "max_delay": "3600"}, "retry.max_delay must be a number"),
+    ],
+    ids=[
+        "above-10",
+        "below-0",
+        "bool",
+        "float",
+        "max-retries-bool",
+        "max-retries-float",
+        "string",
+        "list",
+        "missing-max-retries",
+        "unexpected-field",
+        "jitter-not-bool",
+        "initial-delay-not-number",
+        "backoff-bool",
+        "max-delay-not-number",
+    ],
+)
+def test_retry_rejected(kind: str, retry: Any, match: str) -> None:
+    """Invalid `retry` values fail at decoration on every job decorator."""
+    with pytest.raises(ValueError, match=match):
+        _decorated_with_retry(kind, retry)
+
+
+def test_retry_argument_overrides_execute_retry() -> None:
+    """The `retry` argument replaces a policy passed inside `execute`."""
+
+    @job(execute={"retry": {"max_retries": 1}}, retry=4)
+    def work() -> None:
+        return None
+
+    assert work.to_job_definition()["execute"]["retry"] == _retry_policy(4)
+    assert work.to_job_definition()["execute"]["concurrency"] == 1
+
+
+def test_retry_inside_execute_is_normalized() -> None:
+    """A `retry` mapping on `execute` is stored in the same normalized form."""
+
+    @job(execute={"retry": 2, "timeout": 10})  # type: ignore[call-overload]
+    def work() -> None:
+        return None
+
+    job_def = work.to_job_definition()
+    assert job_def["execute"]["retry"] == _retry_policy(2)
+    assert job_def["execute"]["timeout"] == {"timeout": 10.0}
+    assert job_def["execute"]["concurrency"] == 1

@@ -1,7 +1,7 @@
 ---
 title: Job configuration
 description: Per-job options on the dltHub platform — execution timeouts, dependency groups, instance size, and TOML configuration sections
-keywords: [dlthub platform, job configuration, timeout, dependency groups, instance, size, require.instance, static egress, execute, require, expose, section]
+keywords: [dlthub platform, job configuration, timeout, retry, dependency groups, instance, size, require.instance, static egress, execute, require, expose, section]
 ---
 # Job configuration
 
@@ -23,6 +23,41 @@ def long_load():
 ```
 
 Accepted timeout formats: a duration string (`"6h"`, `"30m"`) or an integer number of seconds.
+
+## Retries
+
+`retry=` on `@run.job`, `@run.pipeline`, and `@run.agent` records how a retryable failure is run again. Pass an integer or a dict. `retry=3` means `max_retries=3`.
+
+```py notype
+@run.job(
+    retry={
+        "max_retries": 3,
+        "initial_delay": 30,
+        "backoff": 2.0,
+        "max_delay": 3600,
+        "jitter": True,
+    },
+)
+def load():
+    ...
+```
+
+| Key             | Meaning                                                             | Default |
+| --------------- | ------------------------------------------------------------------- | ------- |
+| `max_retries`   | Retries after the first attempt. An integer from 0 to 10. Required. | —       |
+| `initial_delay` | Seconds before the first retry.                                     | `30`    |
+| `backoff`       | Multiplier applied to the delay after each retry.                   | `2.0`   |
+| `max_delay`     | Longest delay, in seconds.                                          | `3600`  |
+| `jitter`        | Randomize each delay.                                               | `true`  |
+
+The decorator fills the defaults and stores the policy on the job definition as `execute.retry`, next to `timeout` and `concurrency`. The policy is fixed at decoration, so configuration files and environment variables leave it unchanged. `0` runs the job once.
+
+A failed run is eligible for another attempt only when the launcher exits with code 75. Exit code 1 is terminal. The launcher exits 75 when the exception and its cause or context chain contain one of these, and no terminal failure:
+
+- a builtin `TimeoutError` or `ConnectionError`
+- `requests` `ConnectionError`, `Timeout`, or `ChunkedEncodingError`
+
+Everything else is terminal, including a `TerminalException` anywhere on the chain and `requests` `SSLError`. `SSLError` is a subclass of `ConnectionError`, and it is still terminal.
 
 ## Dependency groups
 

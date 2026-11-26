@@ -85,6 +85,7 @@ from dlt._workspace.deployment.typing import (
     TRunArgs,
     TRuntimeEntryPoint,
     TTimeoutSpec,
+    TRetrySpec,
     TExecuteSpec,
     TDeliverSpec,
     TJobDefinition,

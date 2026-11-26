@@ -33,6 +33,7 @@ from dlt.common.warnings import TNoExtraKwargs, apply_deprecations
 from dlt._workspace import known_sections as ws_known_sections
 from dlt._workspace.deployment import freshness as _freshness
 from dlt._workspace.deployment import trigger as _triggers
+from dlt._workspace.deployment._retry_helpers import normalize_retry
 from dlt._workspace.deployment._trigger_helpers import (
     normalize_execute,
     normalize_timeout,
@@ -108,6 +109,7 @@ from dlt._workspace.deployment.typing import (
     TJobType,
     TRefreshPolicy,
     TRequireSpec,
+    TRetrySpec,
     TTimeoutSpec,
     TTrigger,
     WORKSPACE_DEPRECATED_SINCE,
@@ -378,6 +380,7 @@ def _make_job_factory(
     job_type: TJobType = "batch",
     trigger: Union[str, TTrigger, Sequence[Union[str, TTrigger]]] = None,
     execute: Optional[TExecuteSpec] = None,
+    retry: Optional[Union[int, TRetrySpec]] = None,
     expose: Optional[TJobExposeSpec] = None,
     require: Optional[TRequireSpec] = None,
     deliver: Optional[TDeliverTarget] = None,
@@ -429,6 +432,12 @@ def _make_job_factory(
     exec_spec = normalize_execute(execute)
     if default_concurrency:
         exec_spec.setdefault("concurrency", 1)
+    # `retry=` wins over a policy already sitting on `execute`
+    raw_retry: Union[int, TRetrySpec, None] = retry if retry is not None else exec_spec.get("retry")
+    if raw_retry is None:
+        exec_spec.pop("retry", None)
+    else:
+        exec_spec["retry"] = normalize_retry(cast(Union[int, Mapping[str, Any]], raw_retry))
     wrapper.execute = exec_spec
     wrapper.expose = _normalize_expose(expose)
     wrapper.require = require
@@ -462,6 +471,7 @@ def job(
     section: str = None,
     trigger: Union[str, TTrigger, Sequence[Union[str, TTrigger]]] = None,
     execute: Optional[TExecuteSpec] = None,
+    retry: Optional[Union[int, TRetrySpec]] = None,
     expose: Optional[TJobExposeSpec] = None,
     require: Optional[TRequireSpec] = None,
     deliver: Optional[TDeliverTarget] = None,
@@ -484,6 +494,7 @@ def job(
     section: str = None,
     trigger: Union[str, TTrigger, Sequence[Union[str, TTrigger]]] = None,
     execute: Optional[TExecuteSpec] = None,
+    retry: Optional[Union[int, TRetrySpec]] = None,
     expose: Optional[TJobExposeSpec] = None,
     require: Optional[TRequireSpec] = None,
     deliver: Optional[TDeliverTarget] = None,
@@ -505,6 +516,7 @@ def job(
     section: str = None,
     trigger: Union[str, TTrigger, Sequence[Union[str, TTrigger]]] = None,
     execute: Optional[TExecuteSpec] = None,
+    retry: Optional[Union[int, TRetrySpec]] = None,
     expose: Optional[TJobExposeSpec] = None,
     require: Optional[TRequireSpec] = None,
     deliver: Optional[TDeliverTarget] = None,
@@ -533,6 +545,12 @@ def job(
             `timeout` (seconds, human string like `"4h"`, or `TTimeoutSpec` dict),
             `concurrency` (max concurrent runs, defaults to `1`;
             pass `None` to remove the limit).
+
+        retry: Retry policy stored as `execute.retry`. An int is `max_retries`
+            (`retry=3`). A dict may also set `initial_delay` (seconds, default
+            `30`), `backoff` (default `2.0`), `max_delay` (seconds, default
+            `3600`) and `jitter` (default `True`). `max_retries` is an integer
+            from `0` to `10`.
 
         expose: UI presentation. Accepts `TJobExposeSpec` with:
             `tags` (grouping labels), `starred` (top-level UI visibility),
@@ -570,6 +588,9 @@ def job(
 
         spec: Optional configuration spec class.
 
+    Raises:
+        ValueError: `retry` is not an integer from 0 to 10 or a valid mapping.
+
     Returns:
         JobFactory: Preserves the original function's signature and return type.
     """
@@ -580,6 +601,7 @@ def job(
         job_type="batch",
         trigger=trigger,
         execute=execute,
+        retry=retry,
         expose=expose,
         require=require,
         deliver=deliver,
@@ -693,6 +715,7 @@ def pipeline_run(
     section: str = None,
     trigger: Union[str, TTrigger, Sequence[Union[str, TTrigger]]] = None,
     execute: Optional[TExecuteSpec] = None,
+    retry: Optional[Union[int, TRetrySpec]] = None,
     expose: Optional[TJobExposeSpec] = None,
     require: Optional[TRequireSpec] = None,
     interval: Optional[TIntervalSpec] = None,
@@ -722,6 +745,12 @@ def pipeline_run(
 
         execute: Execution constraints (`TExecuteSpec`): `timeout`, `concurrency`.
 
+        retry: Retry policy stored as `execute.retry`. An int is `max_retries`
+            (`retry=3`). A dict may also set `initial_delay` (seconds, default
+            `30`), `backoff` (default `2.0`), `max_delay` (seconds, default
+            `3600`) and `jitter` (default `True`). `max_retries` is an integer
+            from `0` to `10`.
+
         expose: UI presentation (`TJobExposeSpec`): `tags`, `starred`, `manual`.
 
         require: Resource requirements (`TRequireSpec`): `dependency_groups`,
@@ -748,6 +777,9 @@ def pipeline_run(
 
         spec: Optional configuration spec class.
 
+    Raises:
+        ValueError: `retry` is not an integer from 0 to 10 or a valid mapping.
+
     Returns:
         A decorator that wraps the function in a `JobFactory`.
     """
@@ -770,6 +802,7 @@ def pipeline_run(
             deco_name="@pipeline_run",
             trigger=trigger,
             execute=execute,
+            retry=retry,
             expose=full_expose,
             require=require,
             deliver=deliver,
@@ -999,6 +1032,7 @@ def agent(
     emojis: Optional[bool] = None,
     trigger: Union[str, TTrigger, Sequence[Union[str, TTrigger]]] = None,
     execute: Optional[TExecuteSpec] = None,
+    retry: Optional[Union[int, TRetrySpec]] = None,
     expose: Optional[TJobExposeSpec] = None,
     require: Optional[TRequireSpec] = None,
     spec: Type[BaseConfiguration] = None,
@@ -1027,6 +1061,7 @@ def agent(
     emojis: Optional[bool] = None,
     trigger: Union[str, TTrigger, Sequence[Union[str, TTrigger]]] = None,
     execute: Optional[TExecuteSpec] = None,
+    retry: Optional[Union[int, TRetrySpec]] = None,
     expose: Optional[TJobExposeSpec] = None,
     require: Optional[TRequireSpec] = None,
     spec: Type[BaseConfiguration] = None,
@@ -1054,6 +1089,7 @@ def agent(
     outputs_validator: Optional[AnyFun] = None,
     trigger: Union[str, TTrigger, Sequence[Union[str, TTrigger]]] = None,
     execute: Optional[TExecuteSpec] = None,
+    retry: Optional[Union[int, TRetrySpec]] = None,
     expose: Optional[TJobExposeSpec] = None,
     require: Optional[TRequireSpec] = None,
     spec: Type[BaseConfiguration] = None,
@@ -1083,6 +1119,7 @@ def agent(
     outputs_validator: Optional[AnyFun] = None,
     trigger: Union[str, TTrigger, Sequence[Union[str, TTrigger]]] = None,
     execute: Optional[TExecuteSpec] = None,
+    retry: Optional[Union[int, TRetrySpec]] = None,
     expose: Optional[TJobExposeSpec] = None,
     require: Optional[TRequireSpec] = None,
     spec: Type[BaseConfiguration] = None,
@@ -1162,6 +1199,10 @@ def agent(
             strings or `TTrigger` values.
         execute (Optional[TExecuteSpec]): Execution constraints: `timeout`, `concurrency`. Keys left
             out come from `defaults.execute` of the agent; `concurrency` defaults to 5.
+        retry (Optional[Union[int, TRetrySpec]]): Retry policy stored as `execute.retry`. An int
+            is `max_retries` (`retry=3`). A dict may also set `initial_delay` (seconds, default
+            `30`), `backoff` (default `2.0`), `max_delay` (seconds, default `3600`) and `jitter`
+            (default `True`). `max_retries` is an integer from `0` to `10`.
         expose (Optional[TJobExposeSpec]): UI presentation: `tags`, `starred`, `manual`.
         require (Optional[TRequireSpec]): Runtime resource requirements.
         spec (Type[BaseConfiguration]): Optional configuration spec class.
@@ -1172,6 +1213,7 @@ def agent(
 
     Raises:
         TypeError: An argument was passed that the chosen form does not accept.
+        ValueError: `retry` is not an integer from 0 to 10 or a valid mapping.
     """
     is_agent_ref = isinstance(func_or_ref, (str, Mapping))
     if not is_agent_ref:
@@ -1210,6 +1252,7 @@ def agent(
             job_type="batch",
             trigger=trigger,
             execute=execute,
+            retry=retry,
             expose=expose,
             require=require,
             spec=spec,

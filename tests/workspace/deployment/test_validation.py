@@ -114,6 +114,47 @@ def test_valid_manifest_timeout_accepts_int_and_float(timeout_spec: Dict[str, An
     assert result.is_valid, result.errors
 
 
+@pytest.mark.parametrize(
+    "retry",
+    [
+        {"max_retries": 3},
+        {
+            "max_retries": 3,
+            "initial_delay": 30,
+            "backoff": 2.0,
+            "max_delay": 3600,
+            "jitter": True,
+        },
+        {"max_retries": 0, "initial_delay": 1.5, "backoff": 2, "max_delay": 90.0, "jitter": False},
+    ],
+    ids=["max-retries-only", "full", "mixed-numbers"],
+)
+def test_manifest_accepts_execute_retry(retry: Dict[str, Any]) -> None:
+    """`execute.retry` is part of the job-definition schema."""
+    manifest = _make_manifest([_make_job("jobs.mod.j", execute={"concurrency": 1, "retry": retry})])
+    result = validate_manifest(manifest)
+    assert result.is_valid, result.errors
+
+
+@pytest.mark.parametrize(
+    "retry,fragment",
+    [
+        ("3", "invalid type"),
+        ({"initial_delay": 30}, "max_retries"),
+        ({"max_retries": 3, "extra": 1}, "unexpected"),
+        ({"max_retries": 3, "jitter": "yes"}, "invalid type"),
+        ({"max_retries": 3.0}, "invalid type"),
+    ],
+    ids=["string", "missing-max-retries", "unexpected-field", "jitter-string", "float-max-retries"],
+)
+def test_manifest_rejects_execute_retry(retry: Any, fragment: str) -> None:
+    """A retry policy that breaks `TRetrySpec` fails manifest validation."""
+    manifest = _make_manifest([_make_job("jobs.mod.j", execute={"concurrency": 1, "retry": retry})])
+    result = validate_manifest(manifest)
+    assert result.is_valid is False
+    assert fragment in result.errors[0]
+
+
 def test_empty_manifest() -> None:
     result = validate_manifest(_make_manifest([]))
     assert result.is_valid
