@@ -1,7 +1,7 @@
 // @ts-check
 // Note: type annotations allow type checking and IDEs autocompletion
-const fs = require("node:fs");
 require("dotenv").config();
+const path = require("node:path");
 
 const synthwave84 = require("prism-react-renderer/themes/synthwave84");
 
@@ -42,44 +42,7 @@ const lightCodeTheme = {
   ],
 };
 
-// create versions config
-const versions = {
-  current: {
-    label: "devel",
-    path: "devel",
-    noIndex: true,
-  },
-};
-
-let knownVersions = [];
-if (fs.existsSync("versions.json")) {
-  knownVersions = JSON.parse(fs.readFileSync("versions.json", "utf8"));
-}
-
-// inject master version renaming only if versions present and master included
-if (knownVersions) {
-  let latestLabel = "latest";
-  if (process.env.DOCUSAURUS_DLT_VERSION) {
-    latestLabel = `${process.env.DOCUSAURUS_DLT_VERSION} (latest)`;
-  }
-
-  if (knownVersions.includes("master")) {
-    versions.master = {
-      label: latestLabel,
-      path: "/",
-    };
-  }
-
-  // disable indexing for all known versions
-  for (const v of knownVersions) {
-    if (v === "master") {
-      continue;
-    }
-    versions[v] = {
-      noIndex: true,
-    };
-  }
-}
+const versionedDocDirs = [path.join(__dirname, "docs_processed")];
 
 /** @type {import('@docusaurus/types').Config} */
 const config = {
@@ -116,6 +79,8 @@ const config = {
   },
 
   markdown: {
+    // turns `<!-- since: 1.32.0 -->` section directives into version badges
+    preprocessor: require("./plugins/versioning/directive").preprocess,
     mermaid: true,
     hooks: {
       onBrokenMarkdownLinks: "throw",
@@ -145,7 +110,6 @@ const config = {
           editUrl: (params) => {
             return `https://github.com/dlt-hub/dlt/tree/devel/docs/website/docs/${params.docPath}`;
           },
-          versions: versions,
           showLastUpdateAuthor: true,
           showLastUpdateTime: true,
         },
@@ -161,6 +125,8 @@ const config = {
   ],
 
   plugins: [
+    // resolves version badges against released versions, see plugins/versioning/ and README.md
+    [require.resolve("./plugins/versioning"), { docDirs: versionedDocDirs }],
     // re-runs the python docs preprocessor when `website/docs` sources change
     require.resolve("./plugins/preprocess-docs"),
     // serves the last built search index during `docusaurus start`
@@ -172,7 +138,6 @@ const config = {
         siteDescription:
           "dlt is an open-source Python library that loads data from various sources into well-structured datasets. Built for LLMs with 11,000+ source connectors.",
         excludeFromMd: ["api_reference/"],
-        excludeFromIndex: ["devel/"],
         groupDepth: 2,
         separateIndexes: [
           {
@@ -198,9 +163,6 @@ const config = {
           href: "https://dlthub.com",
         },
         items: [
-          {
-            type: "docsVersionDropdown",
-          },
           {
             type: "docSidebar",
             sidebarId: "hubSidebar",
@@ -231,9 +193,7 @@ const config = {
             position: "left",
             items: [
               { to: "/release-highlights", label: "dlt" },
-              // devel-scoped until this page reaches master; retarget to
-              // /hub/release-highlights once it is in the released version
-              { to: "/devel/hub/release-highlights", label: "dltHub" },
+              { to: "/hub/release-highlights", label: "dltHub" },
             ],
           },
           { to: "https://dlthub.com/blog", label: "Blog", position: "right" },

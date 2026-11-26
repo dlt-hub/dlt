@@ -19,7 +19,7 @@ const BUILD_DIR = path.resolve(__dirname, "..", "build", "docs");
 const SITE_DIR = path.resolve(__dirname, "..");
 const SIDEBARS_PATH = path.join(SITE_DIR, "sidebars.js");
 const EXCLUDE_FROM_MD = ["api_reference/"];
-const EXCLUDE_FROM_INDEX = ["devel/"];
+const EXCLUDE_FROM_INDEX = [];
 const SEPARATE_INDEX_PREFIXES = ["hub/"];
 const HIDE_MD_PATTERNS = ["/api_reference/"];
 
@@ -228,9 +228,7 @@ function checkSidebarCoverage(llmsConfig, sidebars, indexedUrls) {
   const indexedSet = new Set(indexedUrls);
 
   // Determine the source dir for checking if a .md exists
-  // For main sidebar → versioned_docs/version-master, for hub → same
-  const versionedDir = path.join(SITE_DIR, "versioned_docs", "version-master");
-  const sourceDir = fs.existsSync(versionedDir) ? versionedDir : path.join(SITE_DIR, "docs_processed");
+  const sourceDir = path.join(SITE_DIR, "docs_processed");
 
   // Build a slug map so we can resolve slug overrides to their actual URL
   const slugToDocId = {}; // { "dir/slug": "dir/original-name" }

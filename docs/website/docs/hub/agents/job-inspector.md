@@ -1,6 +1,8 @@
 ---
 title: Job inspector agent
 description: Verified dltHub agent that diagnoses a failed job run and reports a classification with evidence and a proposed fix
+package: dlthub-client
+since: "0.28.7"
 keywords: [dlthub platform, agents, job inspector, failed job run, diagnosis, dlthub-platform toolkit, job.fail]
 ---
 # Job inspector agent

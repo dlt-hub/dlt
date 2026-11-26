@@ -985,3 +985,105 @@ html[data-theme="dark"] .api-details code.api-error {
 .doc-screenshot--small img {
   max-height: 400px;
 }
+
+/* badge colors (text; backgrounds are tints of it), tuned per theme for contrast */
+:root {
+  --badge-new: #1b7a4b;
+  --badge-updated: #4C4898;
+  --badge-preview: #8a5a00;
+}
+[data-theme='dark'] {
+  --badge-new: #7fdcab;
+  --badge-updated: #b3b0f5;
+  --badge-preview: #f2c277;
+}
+
+/* .menu__link is space-between by default, which would push the pill to the right edge */
+.sidebar-badge-new > .menu__link,
+.sidebar-badge-preview > .menu__link,
+.sidebar-badge-updated > .menu__link {
+  justify-content: flex-start;
+}
+
+/* sidebar badges for new/preview pages, set by src/theme/DocSidebarItem/Link */
+.sidebar-badge-new > .menu__link::after,
+.sidebar-badge-preview > .menu__link::after,
+.sidebar-badge-updated > .menu__link::after {
+  margin-left: 0.5em;
+  padding: 0.15em 0.5em;
+  border-radius: 0.3rem;
+  font-size: 0.65rem;
+  font-weight: 600;
+}
+.sidebar-badge-new > .menu__link::after {
+  content: "New";
+  background: color-mix(in srgb, var(--badge-new) 16%, transparent);
+  color: var(--badge-new);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--badge-new) 35%, transparent);
+}
+.sidebar-badge-preview > .menu__link::after {
+  content: "Preview";
+  background: color-mix(in srgb, var(--badge-preview) 16%, transparent);
+  color: var(--badge-preview);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--badge-preview) 35%, transparent);
+}
+.sidebar-badge-updated > .menu__link::after {
+  content: "Updated";
+  background: color-mix(in srgb, var(--badge-updated) 16%, transparent);
+  color: var(--badge-updated);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--badge-updated) 35%, transparent);
+}
+
+/* badges of new/preview sections in the page outline, added by src/theme/TOC */
+.toc-badge {
+  margin-left: 0.4em;
+  padding: 0.15em 0.45em;
+  border-radius: 0.3rem;
+  font-size: 0.65rem;
+  font-weight: 600;
+  vertical-align: middle;
+}
+.toc-badge--new {
+  background: color-mix(in srgb, var(--badge-new) 16%, transparent);
+  color: var(--badge-new);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--badge-new) 35%, transparent);
+}
+.toc-badge--updated {
+  background: color-mix(in srgb, var(--badge-updated) 16%, transparent);
+  color: var(--badge-updated);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--badge-updated) 35%, transparent);
+}
+.toc-badge--preview {
+  background: color-mix(in srgb, var(--badge-preview) 16%, transparent);
+  color: var(--badge-preview);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--badge-preview) 35%, transparent);
+}
+
+/* pill on sidebar categories with badged pages below them, see src/theme/DocSidebarItem/Category */
+.sidebar-category-new > .menu__list-item-collapsible > .menu__link > span::after,
+.sidebar-category-preview > .menu__list-item-collapsible > .menu__link > span::after,
+.sidebar-category-updated > .menu__list-item-collapsible > .menu__link > span::after {
+  margin-left: 0.5em;
+  padding: 0.15em 0.5em;
+  border-radius: 0.3rem;
+  font-size: 0.65rem;
+  font-weight: 600;
+}
+.sidebar-category-new > .menu__list-item-collapsible > .menu__link > span::after {
+  content: "New";
+  background: color-mix(in srgb, var(--badge-new) 16%, transparent);
+  color: var(--badge-new);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--badge-new) 35%, transparent);
+}
+.sidebar-category-preview > .menu__list-item-collapsible > .menu__link > span::after {
+  content: "Preview";
+  background: color-mix(in srgb, var(--badge-preview) 16%, transparent);
+  color: var(--badge-preview);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--badge-preview) 35%, transparent);
+}
+.sidebar-category-updated > .menu__list-item-collapsible > .menu__link > span::after {
+  content: "Updated";
+  background: color-mix(in srgb, var(--badge-updated) 16%, transparent);
+  color: var(--badge-updated);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--badge-updated) 35%, transparent);
+}

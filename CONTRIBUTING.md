@@ -178,9 +178,10 @@ Primarily generated and unverified submissions may be closed without detailed re
 ## Active Branches
 
 * **devel** is the default GitHub branch and is used to prepare the next release of `dlt`. Regular contributions, including most bug fixes, target this branch.
-* **master** is used for hotfixes, including urgent documentation fixes, that must be released outside the normal schedule.
+* **master** is used for code hotfixes that must be released outside the normal schedule.
 * On release day, **devel** is merged into **master**.
 * All releases of `dlt` are made from **master**.
+* The docs are built from **devel** only, including urgent documentation fixes. See [docs/README.md](docs/README.md#versioning-and-tagging) for how to tag new features and how docs rebuild on release.
 
 ## Branch Naming Rules
 

@@ -210,6 +210,8 @@ disable_compression=true
 
 ### Inspect the files of each step
 
+<!-- since: 1.32.0 -->
+
 The trace of the last run records the files that each step wrote or loaded. To see their rows and sizes by table, run:
 
 ```sh

@@ -279,6 +279,8 @@ min_id = customers_relation.select("id").min().fetchscalar()
 
 ### Filter to an incremental cursor
 
+<!-- since: 1.31.0 -->
+
 `Relation.incremental(incremental)` adds a `WHERE` clause derived from a `dlt.sources.incremental` cursor so a relation only sees rows in the cursor window.
 
 ```py
@@ -507,6 +509,8 @@ Cross-dataset joins:
 Two datasets can share a table name, for example a `users` table in each. Then give one side a stable alias, with `dataset.query("SELECT * FROM users AS alias_name")`. Refer to that alias in `on`. Without an alias, `join()` cannot tell the two tables apart and raises.
 
 #### Cross-destination joins with DuckDB
+
+<!-- since: 1.30.0 -->
 
 The [cross-dataset joins](#cross-dataset-joins) above require both datasets in the same data location. dlt can also join datasets in **different** data locations. Both datasets must use **DuckDB as their query engine**:
 

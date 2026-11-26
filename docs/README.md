@@ -27,6 +27,74 @@ The documentation is composed of several sections:
 - Cookbook / examples: found at `/docs/website/docs/examples`, these `.md` files contain more sizeable code examples meant to be ran. They appear in a separate section of the rendered documentation.
 - Educational notebooks: found at `/docs/education`, these jupyter (`.ipynb`) and marimo (`.py`) notebooks are not directly rendered in the docs, but are automatically listed in a separate docs section of the rendered docs. The marimo notebooks are automatically generated from the `.ipynb` files.
 
+## Versioning and tagging
+
+The docs are built from `devel` and published as a single version at `/docs/`. There are no per-release snapshots and no `docs version` step. Instead, pages and sections carry a tag with the package release that introduces them, and the build compares it with the latest released version on PyPI:
+
+| tag vs. released version | badge |
+| --- | --- |
+| `status: preview`, or `since` newer than the released version | **Preview** |
+| `since` released in the last 3 minors (the release itself counts) | **New in X** |
+| older | none |
+
+Badges promote automatically: once a release is out and the docs are rebuilt, **Preview** becomes **New in X**, and after 3 minors the badge disappears. You never edit a tag to promote it.
+
+### What to tag
+
+Tag **features and behavior changes** that users can notice: a new function, parameter, destination, command or section, or a changed default.
+
+Do **not** tag snippet edits, refactors, rewording, typo/link fixes or restructuring of existing content.
+
+Tag only the pages or sections that are new. Do not backfill old content.
+
+### Syntax
+
+Use the next release that is not out yet as `since`. Quote it, YAML reads `1.30` as a number.
+
+Page, in frontmatter:
+
+```md
+---
+title: My feature
+since: "1.32.0"        # or: status: preview
+package: dlt           # optional, default dlt
+---
+```
+
+Section, as an HTML comment below the heading, optionally after a blank line, which markdown linting asks for (plain markdown, no MDX):
+
+```md
+## My new section
+
+<!-- since: 1.32.0 -->
+<!-- for another package: since: dlthub 0.5.0 -->
+```
+
+Packages are `dlt` (default), `dlthub` and `dlthub-client`. `dlthub_sdk` ships inside `dlthub-client` with the same version, so tag SDK docs with `dlthub-client`. A dltHub feature names its library; the `dlt` minimum that this library release declares is picked up automatically. To stack several constraints, use a dictionary in frontmatter (`since: {dlthub-client: "0.4.0", dlt: "1.32.0"}`) or one comment per package in a section:
+
+```md
+## My dltHub section
+
+<!-- since: dlthub-client 0.4.0 -->
+<!-- since: dlt 1.32.0 -->
+```
+ Pages under `hub/` usually belong to `dlthub`, so set `package` explicitly. Use `status: preview` when you do not know the release yet, for example for features of packages released from other repositories.
+
+`node versioning/check.js <changed files>` (run from `docs/website`) fails if `since` points at a version that is already released. See [`website/README.md`](website/README.md#version-badges) for how to preview every badge state locally with a mocked released version.
+
+### Pull request checklist
+
+- [ ] New features and behavior changes in the docs are tagged with `since` or `status: preview`
+- [ ] `since` is a release that is not out yet, `package` is correct
+- [ ] Snippet edits, refactors and fixes are not tagged
+
+### How docs rebuild on release
+
+- Merging to `devel` rebuilds and publishes the docs.
+- Releasing a package (`dlt`, `dlthub`, ...) triggers a docs rebuild, which resolves the new released version, so badges are promoted on release day without any docs PR.
+- Docs for unreleased features may be live before the release. This is why they must be tagged.
+- Urgent docs fixes go to `devel` like any other change, there is no separate branch for docs.
+
 ## Tools
 
 The documentation development and build process relies on several tools. This gives a high-level overview of how things work.

@@ -1,6 +1,8 @@
 ---
 title: Background agents
 description: Run background agents as jobs on the dltHub platform, for example to diagnose failed job runs
+package: dlthub-client
+since: "0.28.7"
 keywords: [dlthub platform, agents, background agents, agent job, AGENT.md, run.agent, job inspector, pydantic-ai, claude-agent-sdk, toolkits]
 ---
 # Background agents
