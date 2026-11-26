@@ -2,12 +2,9 @@ from typing import Tuple
 
 from dlt.common import logger
 from dlt.extract.source import DltSource
+from dlt.sources.helpers.rest_client.utils import join_url
 
-
-def join_url(base_url: str, path: str) -> str:
-    if not base_url.endswith("/"):
-        base_url += "/"
-    return base_url + path.lstrip("/")
+__all__ = ["join_url", "check_connection"]
 
 
 def check_connection(

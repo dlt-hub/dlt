@@ -88,3 +88,9 @@ def test_join_url(my_base_url, path, expected):
 def test_join_url_invalid_input_types(my_base_url, path, exception):
     with pytest.raises(exception):
         join_url(my_base_url, path)
+
+
+def test_rest_api_utils_reexports_canonical_join_url():
+    from dlt.sources.rest_api.utils import join_url as rest_api_join_url
+
+    assert rest_api_join_url is join_url
