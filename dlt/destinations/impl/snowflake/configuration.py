@@ -95,8 +95,9 @@ class SnowflakeCredentialsWithoutDefaults(ConnectionStringCredentials):
         if self.private_key:
             query["private_key"] = decode_private_key(self.private_key, self.private_key_passphrase)
 
-        # we do not want passphrase to be passed
+        # we do not want passphrase or path to be passed
         query.pop("private_key_passphrase", None)
+        query.pop("private_key_path", None)
 
         conn_params: Dict[str, Any] = dict(
             query,
