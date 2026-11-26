@@ -102,7 +102,7 @@ def with_config(
         prefer_existing_sections: (bool, optional): When joining existing section context, the existing context will be preferred to the one in `sections`. Default: False
         include_defaults (bool, optional): If True then arguments with default values will be included in synthesized spec. If False only the required arguments marked with `dlt.secrets.value` and `dlt.config.value` are included
         base (Type[BaseConfiguration], optional): A base class for synthesized spec. Defaults to BaseConfiguration.
-        lock_context_on_injection (bool, optional): If True, the thread context will be locked during injection to prevent race conditions. Defaults to True.
+        lock_context_on_injection (bool, optional): Has no effect: the section context is injected into the current execution context only. Defaults to True.
     Returns:
         Callable[[TFun], TFun]: A decorated function
     """

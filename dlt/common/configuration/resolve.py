@@ -126,7 +126,7 @@ def inject_section(
     Args:
         section_context (ConfigSectionContext): Instance providing a pipeline name and section context
         merge_existing (bool, optional): Merges existing section context with `section_context` in the arguments by executing `merge_style` function on `section_context`. Defaults to True.
-        lock_context (bool, optional): Instruct to threadlock the current thread to prevent race conditions in context injection.
+        lock_context (bool, optional): Has no effect: the section context is injected into the current execution context only.
 
     Default Merge Style:
         Gets `pipeline_name` and `sections` from existing context if they are not provided in `section_context` argument.

@@ -282,6 +282,21 @@ def test_thread_pool_affinity(container: Container) -> None:
     assert item is not main_item
 
 
+def test_nested_pool_affinity(container: Container) -> None:
+    """A pool started in a pool thread sees the contexts of the thread that started the outer pool."""
+    main_item = container[InjectableTestContext] = InjectableTestContext(current_value="MAIN")
+
+    def _context() -> InjectableTestContext:
+        return container[InjectableTestContext]
+
+    def _nested() -> InjectableTestContext:
+        with TimeoutThreadPoolExecutor(1, thread_name_prefix=Container.thread_pool_prefix()) as p:
+            return p.submit(_context).result()
+
+    with TimeoutThreadPoolExecutor(1, thread_name_prefix=Container.thread_pool_prefix()) as p:
+        assert p.submit(_nested).result() is main_item
+
+
 @pytest.mark.parametrize("mode", ["threads", "async"])
 def test_injected_context_is_isolated_per_context(container: Container, mode: str) -> None:
     """Concurrent injections in pool workers or async tasks neither see nor mangle each other."""

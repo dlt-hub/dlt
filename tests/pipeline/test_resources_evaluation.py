@@ -371,7 +371,11 @@ def test_current_resource_is_affine_in_parallel(mode: str) -> None:
             for i in range(n_steps):
                 if noisy:
                     _iterate_other_resource()
-                await asyncio.sleep(0)
+                with inject_section(ConfigSectionContext(sections=("own", name))):
+                    # other tasks inject their own sections during the await
+                    await asyncio.sleep(0)
+                    if Container()[ConfigSectionContext].sections != ("own", name):
+                        errors.append(f"{name}: sees the section of another task")
                 yield _check(name, i)
 
         return _gen()
@@ -404,7 +408,7 @@ def test_current_resource_is_affine_in_parallel(mode: str) -> None:
             resources += [numbers | async_tx]
         return resources
 
-    pipeline = dlt.pipeline("pipeline_" + uniq_id(), destination="duckdb")
+    pipeline = dlt.pipeline("pipeline_" + uniq_id(), destination="dummy")
     source = affinity()
     pipeline.extract(source)
 
@@ -416,8 +420,8 @@ def test_current_resource_is_affine_in_parallel(mode: str) -> None:
     }
 
 
-@pytest.mark.parametrize("mode", ["threads", "async"])
-def test_parallel_generator_keeps_injected_section(mode: str) -> None:
+@pytest.mark.parametrize("case", ["threads", "async", "threads-locked", "threads-closed-early"])
+def test_parallel_generator_keeps_injected_section(case: str) -> None:
     """A context injected around `yield` stays with its parallel generator on every step."""
     n_steps = 10
     seen: List[Tuple[str, Tuple[str, ...]]] = []
@@ -425,7 +429,8 @@ def test_parallel_generator_keeps_injected_section(mode: str) -> None:
     def _threaded(name: str) -> DltResource:
         @dlt.resource(name=name, parallelized=True)
         def _gen() -> Iterator[Dict[str, Any]]:
-            with inject_section(ConfigSectionContext(sections=("own", name))):
+            section = ConfigSectionContext(sections=("own", name))
+            with inject_section(section, lock_context=case == "threads-locked"):
                 for i in range(n_steps):
                     seen.append((name, Container()[ConfigSectionContext].sections))
                     yield {"i": i}
@@ -443,10 +448,15 @@ def test_parallel_generator_keeps_injected_section(mode: str) -> None:
 
         return _gen()
 
-    make = _threaded if mode == "threads" else _async
-    dlt.pipeline("pipeline_" + uniq_id()).extract([make(f"res_{n}") for n in range(4)])
+    make = _async if case == "async" else _threaded
+    resources = [make(f"res_{n}") for n in range(4)]
+    if case == "threads-closed-early":
+        # the generator is closed while the section is injected
+        resources = [resource.add_limit(3) for resource in resources]
+    dlt.pipeline("pipeline_" + uniq_id()).extract(resources)
 
-    assert len(seen) == 4 * n_steps
+    if case != "threads-closed-early":
+        assert len(seen) == 4 * n_steps
     assert [sections for name, sections in seen if sections != ("own", name)] == []
 
 

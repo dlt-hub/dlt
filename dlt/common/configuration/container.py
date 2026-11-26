@@ -93,21 +93,21 @@ class Container:
     def __setitem__(self, spec: Type[TInjectableContext], value: TInjectableContext) -> None:
         # value passed to container must be final
         value.resolve()
+        # replace the context where readers see it
+        if self._get_injected(spec) is not None:
+            self._set_injected(spec, value)
+            return
         context, lock = self._thread_context(spec)
         with lock:
-            # replace the context where readers see it
-            if self._get_injected(spec) is not None:
-                self._set_injected(spec, value)
-            else:
-                self._thread_setitem(context, spec, value)
+            self._thread_setitem(context, spec, value)
 
     def __delitem__(self, spec: Type[TInjectableContext]) -> None:
+        if self._get_injected(spec) is not None:
+            self._set_injected(spec, None)
+            return
         context, lock = self._thread_context(spec)
         with lock:
-            if self._get_injected(spec) is not None:
-                self._set_injected(spec, None)
-            else:
-                self._thread_delitem(context, spec)
+            self._thread_delitem(context, spec)
 
     def __contains__(self, spec: Type[TInjectableContext]) -> bool:
         if self._get_injected(spec) is not None:
@@ -115,7 +115,8 @@ class Container:
         context, _ = self._thread_context(spec)
         return spec in context
 
-    def _effective_thread_id(self) -> int:
+    @staticmethod
+    def _effective_thread_id() -> int:
         """Return the effective thread id for context lookup.
 
         Thread in a dlt pool (named `dlt-pool-{id}-*`) see the same context
@@ -187,7 +188,7 @@ class Container:
     def _set_injected(
         self, spec: Type[ContainerInjectableContext], value: Optional[ContainerInjectableContext]
     ) -> None:
-        """Set or remove (`None`) the injected context. Caller must hold the context lock."""
+        """Set or remove (`None`) the injected context in the current execution context."""
         injected = dict(Container._INJECTED.get() or {})
         if value is None:
             self._thread_delitem(injected, spec)
@@ -203,10 +204,10 @@ class Container:
 
         Args:
             config (TInjectableContext): The context instance to inject.
-            lock_context_on_yield (bool): When False (default), the per-context lock
-                is released before yield and re-acquired for restore, allowing other
-                threads to write to the same spec. When True, the lock is held for
-                the entire lifetime including yield.
+            lock_context_on_yield (bool): Applies to contexts with `global_affinity`. When False
+                (default), the per-context lock is released before yield and re-acquired for
+                restore, allowing other threads to write to the same spec. When True, the lock is
+                held for the entire lifetime including yield.
 
         Yields:
             TInjectableContext: The injected `config` instance.
@@ -217,20 +218,26 @@ class Container:
 
         config.resolve()
         spec = type(config)
-        context, ctx_lock = self._thread_context(spec)
-        # global contexts are shared by all threads so they stay in the main thread context
-        in_slot = spec.global_affinity
 
+        if not spec.global_affinity:
+            # the injected dict belongs to the current execution context so it needs no lock
+            previous_injected = self._get_injected(spec)
+            self._set_injected(spec, config)
+            try:
+                yield config
+            finally:
+                current_injected = self._get_injected(spec)
+                if current_injected is not config:
+                    raise ContainerInjectableContextMangled(spec, current_injected, config)
+                self._set_injected(spec, previous_injected)
+            return
+
+        context, ctx_lock = self._thread_context(spec)
         # always lock for setitem
         ctx_lock.acquire()
         try:
-            previous_config: ContainerInjectableContext
-            if in_slot:
-                previous_config = context.get(spec)
-                self._thread_setitem(context, spec, config)
-            else:
-                previous_config = self._get_injected(spec)
-                self._set_injected(spec, config)
+            previous_config: ContainerInjectableContext = context.get(spec)
+            self._thread_setitem(context, spec, config)
         except BaseException:
             ctx_lock.release()
             raise
@@ -245,12 +252,10 @@ class Container:
             if not lock_context_on_yield:
                 ctx_lock.acquire()
             try:
-                current_config = context.get(spec) if in_slot else self._get_injected(spec)
+                current_config = context.get(spec)
                 if current_config is not config:
                     raise ContainerInjectableContextMangled(spec, current_config, config)
-                if not in_slot:
-                    self._set_injected(spec, previous_config)
-                elif previous_config is None:
+                if previous_config is None:
                     self._thread_delitem(context, spec)
                 else:
                     self._thread_setitem(context, spec, previous_config)
@@ -298,7 +303,8 @@ class Container:
 
     @staticmethod
     def thread_pool_prefix() -> str:
-        """Creates a container friendly pool prefix that contains starting thread id. Container implementation will automatically use it
-        for any thread-affine contexts instead of using id of the pool thread
+        """Creates a thread name prefix for dlt pools. Pool threads see the contexts set in the thread
+        that started the outermost pool. Injected contexts reach them only through a copied `contextvars`
+        context, see `TimeoutThreadPoolExecutor.submit`.
         """
-        return f"dlt-pool-{threading.get_ident()}-"
+        return f"dlt-pool-{Container._effective_thread_id()}-"

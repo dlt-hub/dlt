@@ -1,6 +1,7 @@
 import contextvars
 import os
 import shutil
+import sys
 from concurrent.futures import ThreadPoolExecutor
 from pytest_mock import MockerFixture
 from typing_extensions import get_type_hints
@@ -494,8 +495,10 @@ def test_resource_state_in_pipeline(mocker: MockerFixture) -> None:
         yield 1
 
     r = dlt.resource(_gen_in_user_thread, name="user_thread")
-    p.extract(r(use_context=False))
-    assert "thread" not in r.state
+    # free-threaded builds start threads in a copy of the caller context
+    if not getattr(sys.flags, "thread_inherit_context", 0):
+        p.extract(r(use_context=False))
+        assert "thread" not in r.state
     p.extract(r(use_context=True))
     assert r.state["thread"] is True
 
