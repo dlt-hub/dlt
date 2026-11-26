@@ -681,6 +681,29 @@ def test_run_step_with_exception_not_filtered_in_asdict() -> None:
     assert_trace_serializable(trace)
 
 
+def test_trace_with_finished_and_failed_load_packages() -> None:
+    """Load step where one package finishes and a later one fails must survive asdict()."""
+    os.environ["DESTINATION__DUMMY__FAIL_TABLE_NAMES"] = '["failing"]'
+    pipeline = dlt.pipeline("trace_failed_" + uniq_id(), destination="dummy")
+    # two sources produce two load packages, only the second one fails
+    source_a = dlt.source(lambda: dlt.resource([1, 2], name="loading"), name="a")
+    source_b = dlt.source(lambda: dlt.resource([3, 4], name="failing"), name="b")
+    with pytest.raises(PipelineStepFailed):
+        pipeline.run([source_a(), source_b()])
+
+    load_info = pipeline.last_trace.last_load_info
+    assert len(load_info.loads_ids) == 2
+    first_package, failed_package = (
+        load_info.metrics[load_id][0] for load_id in load_info.loads_ids
+    )
+    assert first_package["finished_at"] is not None
+    assert failed_package["finished_at"] is None
+    # a step with an unfinished package is not finished
+    assert load_info.finished_at is None
+
+    assert_trace_serializable(pipeline.last_trace)
+
+
 def test_save_load_empty_trace() -> None:
     os.environ["COMPLETED_PROB"] = "1.0"
     os.environ["RESTORE_FROM_DESTINATION"] = "false"
