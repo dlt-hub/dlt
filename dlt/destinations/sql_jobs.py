@@ -972,18 +972,21 @@ class SqlMergeFollowupJob(SqlFollowupJob):
             )
 
         insert_temp_table_name: str = None
+        filtered_root_row_keys: str = None
         if len(table_chain) > 1:
-            if len(primary_keys) > 0 or hard_delete_col is not None:
-                if row_key_column is None:
-                    # without keys there is no delete that looks up the row key
-                    row_key_column = escape_column_id(
-                        cls.get_row_key_col(
-                            table_chain,
-                            root_table,
-                            sql_client.fully_qualified_dataset_name(),
-                            sql_client.fully_qualified_dataset_name(staging=True),
-                        )
+            if row_key_column is None and (
+                len(primary_keys) > 0 or hard_delete_col is not None or source_filter
+            ):
+                # without keys there is no delete that looks up the row key
+                row_key_column = escape_column_id(
+                    cls.get_row_key_col(
+                        table_chain,
+                        root_table,
+                        sql_client.fully_qualified_dataset_name(),
+                        sql_client.fully_qualified_dataset_name(staging=True),
                     )
+                )
+            if len(primary_keys) > 0 or hard_delete_col is not None:
                 # condition_columns = [hard_delete_col] if not_deleted_cond is not None else None
                 condition_columns = None if hard_delete_col is None else [hard_delete_col]
                 (
@@ -1001,13 +1004,11 @@ class SqlMergeFollowupJob(SqlFollowupJob):
                     skip_dedup=skip_dedup,
                 )
                 sql.extend(create_insert_temp_table_sql)
-
-        # the source filter refers to root columns, which nested tables do not have
-        filtered_root_row_keys: str = None
-        if source_filter and len(table_chain) > 1:
-            filtered_root_row_keys = cls.gen_filtered_root_keys_sql(
-                staging_root_table_name, row_key_column, source_filter
-            )
+            # the source filter refers to root columns, which nested tables do not have
+            if source_filter:
+                filtered_root_row_keys = cls.gen_filtered_root_keys_sql(
+                    staging_root_table_name, row_key_column, source_filter
+                )
 
         # insert from staging to dataset
         for table in table_chain:
