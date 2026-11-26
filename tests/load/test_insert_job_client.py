@@ -113,11 +113,12 @@ def test_loading_errors(client: InsertValuesJobClient, file_storage: FileStorage
         TNotNullViolation = duckdb.ConstraintException
         TNumericValueOutOfRange = TDatatypeMismatch = duckdb.ConversionException
     elif dtype in ("mssql", "synapse"):
-        import pyodbc
+        import mssql_python
 
-        TUndefinedColumn = pyodbc.ProgrammingError
-        TNotNullViolation = pyodbc.IntegrityError
-        TNumericValueOutOfRange = TDatatypeMismatch = pyodbc.DataError
+        # same DB-API 2.0 classes pyodbc raised for these SQLSTATEs: 42S22, 23000 and 22003/22018
+        TUndefinedColumn = mssql_python.ProgrammingError
+        TNotNullViolation = mssql_python.IntegrityError
+        TNumericValueOutOfRange = TDatatypeMismatch = mssql_python.DataError
 
     user_table_name = prepare_table(client)
     # insert into unknown column
