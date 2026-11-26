@@ -1,10 +1,11 @@
-from typing import Any, List
+from typing import Any, Dict, Iterator, List, Set
 import time
 import threading
 import random
 from itertools import product
 
 import dlt, asyncio, pytest, os
+from dlt.common.utils import uniq_id
 from dlt.extract.exceptions import ResourceExtractionError
 
 
@@ -262,6 +263,31 @@ def test_parallelized_resource(parallelized: bool) -> None:
     else:
         assert execution_order == ["one", "one", "one", "two", "two", "two"]
         assert threads == {threading.get_ident()}  # Everything runs in main thread
+
+
+@pytest.mark.parametrize("with_config", [True, False], ids=["with-config", "no-config"])
+def test_parallelized_resource_called_with_args_runs_in_pool(with_config: bool) -> None:
+    """A parallelized resource that is called with arguments runs on the extract pool, also when
+    it takes config values."""
+    os.environ["API_URL"] = "https://api.example.com"
+    threads: Set[str] = set()
+
+    @dlt.resource(parallelized=True)
+    def items_with_config(n: int, api_url: str = dlt.config.value) -> Iterator[Dict[str, Any]]:
+        for i in range(n):
+            threads.add(threading.current_thread().name)
+            yield {"i": i, "api_url": api_url}
+
+    @dlt.resource(parallelized=True)
+    def items(n: int) -> Iterator[Dict[str, Any]]:
+        for i in range(n):
+            threads.add(threading.current_thread().name)
+            yield {"i": i}
+
+    resource = items_with_config if with_config else items
+    dlt.pipeline("pipeline_" + uniq_id()).extract(resource(3))
+
+    assert threads and all("extract-threads" in name for name in threads), threads
 
 
 # Parametrize with different resource counts to excersize the worker pool:

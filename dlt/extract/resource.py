@@ -852,8 +852,15 @@ class DltResource(Iterable[TDataItem], DltResourceHints):
         # try to eject and then inject configuration and incremental wrapper when resource is cloned
         # this makes sure that a take config values from a right section and wrapper has a separated
         # instance in the pipeline
+        parallelized = not cloned_r._pipe.is_empty and getattr(
+            cloned_r._pipe.gen, "__PARALLEL__", False
+        )
         if cloned_r._eject_config():
             cloned_r._inject_config(incremental_from_hints_override=incremental_from_hints)
+            # eject also removed the parallel wrapper around the config wrapper. wrap again, outside
+            # of config, so config resolves in the calling thread
+            if parallelized:
+                cloned_r.parallelize()
         return cloned_r
 
     def _update_wrapper(self) -> None:

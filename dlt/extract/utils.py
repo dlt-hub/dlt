@@ -321,7 +321,7 @@ def wrap_parallel_iterator(f: TAnyFunOrGenerator) -> TAnyFunOrGenerator:
 
     if callable(f):
         if isgeneratorfunction(f):
-            return wraps(f)(_gen_wrapper)  # type: ignore[return-value]
+            wrapper: AnyFun = wraps(f)(_gen_wrapper)
         else:
 
             def _fun_wrapper(*args: Any, **kwargs: Any) -> Any:
@@ -330,7 +330,10 @@ def wrap_parallel_iterator(f: TAnyFunOrGenerator) -> TAnyFunOrGenerator:
 
                 return _curry
 
-            return wraps(f)(_fun_wrapper)  # type: ignore[return-value]
+            wrapper = wraps(f)(_fun_wrapper)
+        # `wraps` also copies the `__GEN__` of a config wrapper: the mark lets a clone wrap again
+        setattr(wrapper, "__PARALLEL__", True)  # noqa: B010
+        return wrapper  # type: ignore[return-value]
     return _gen_wrapper()  # type: ignore[return-value]
 
 
