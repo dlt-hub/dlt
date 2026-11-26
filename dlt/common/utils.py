@@ -623,6 +623,67 @@ def reveal_pseudo_secret(obfuscated_secret: str, pseudo_key: bytes) -> str:
     ).decode("utf-8")
 
 
+# Query parameters that must never appear in a recorded location.
+# Mirrors dlt.sources.helpers.rest_client.redaction.SENSITIVE_PARAMS, plus
+# SAS / signature parameters used by Azure and S3 style URLs. Kept here
+# (instead of importing rest_api) so dlt.common does not depend on sources.
+_LOCATION_SENSITIVE_PARAMS = {
+    "api_key",
+    "token",
+    "key",
+    "access_token",
+    "apikey",
+    "api-key",
+    "access-token",
+    "secret",
+    "password",
+    "pwd",
+    "client_secret",
+    "sig",
+    "signature",
+    "sas",
+    "sas_token",
+    "access_key",
+    "secret_key",
+    "aws_secret_access_key",
+    "account_key",
+}
+
+
+def sanitize_location_url(url: str) -> str:
+    """Return a credential-free version of `url` for trace lineage locations.
+
+    Userinfo is dropped (hostname + port only) and sensitive query
+    parameters are replaced with "***". Path and scheme are preserved.
+
+    Exception: for ``abfss``/``abfs`` URLs the username slot holds the
+    container name, not a credential (``abfss://<container>@<account>...``),
+    so the username is kept there and only a password, if present, is dropped.
+    """
+    from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
+
+    parsed = urlsplit(url)
+    if not parsed.netloc:
+        # Local paths and scheme-less values: only redact the query.
+        qs = parse_qsl(parsed.query, keep_blank_values=True)
+        qs = [(k, "***" if k.lower() in _LOCATION_SENSITIVE_PARAMS else v) for k, v in qs]
+        return urlunsplit(parsed._replace(query=urlencode(qs, safe="*")))
+
+    hostname = parsed.hostname or ""
+    # urlsplit strips brackets from IPv6 hosts, restore them.
+    if ":" in hostname and not hostname.startswith("["):
+        hostname = f"[{hostname}]"
+    port = f":{parsed.port}" if parsed.port else ""
+    if parsed.scheme in ("abfss", "abfs") and parsed.username:
+        netloc = f"{parsed.username}@{hostname}{port}"
+    else:
+        netloc = f"{hostname}{port}"
+
+    qs = parse_qsl(parsed.query, keep_blank_values=True)
+    qs = [(k, "***" if k.lower() in _LOCATION_SENSITIVE_PARAMS else v) for k, v in qs]
+    return urlunsplit(parsed._replace(netloc=netloc, query=urlencode(qs, safe="*")))
+
+
 def get_module_name(m: ModuleType) -> str:
     """Gets module name from module with a fallback for executing module __main__"""
     if m.__name__ == "__main__" and hasattr(m, "__file__"):
