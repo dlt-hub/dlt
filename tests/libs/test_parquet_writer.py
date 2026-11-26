@@ -827,6 +827,28 @@ def test_cross_batch_schema_metadata_only_diff_no_rotation() -> None:
     assert table.column("val").to_pylist() == [1.5, 2.5]
 
 
+def test_arrow_writer_closes_writer_after_write_error() -> None:
+    schema = pa.schema(
+        [
+            pa.field("id", pa.int64(), nullable=False),
+            pa.field("country_code", pa.string(), nullable=False),
+        ]
+    )
+    first = pa.Table.from_pydict({"id": [1], "country_code": ["IT"]}, schema=schema)
+    second = pa.Table.from_pydict({"id": [2]}, schema=schema)
+
+    with get_writer(ArrowToParquetWriter, buffer_max_items=10) as writer:
+        writer.write_data_item(first, {})
+        writer._flush_items()
+        assert writer._writer.writer is not None
+
+        writer.write_data_item(second, {})
+        with pytest.raises(pa.ArrowInvalid):
+            writer._flush_items()
+
+        assert writer._writer.writer is None
+
+
 @pytest.mark.parametrize("promote_options", ["none", "default", "permissive"])
 def test_first_schema_metadata_preserved(promote_options: str) -> None:
     """In every mode the first batch's schema metadata wins on the written file."""

@@ -679,11 +679,27 @@ class ArrowToParquetWriter(ParquetDataWriter):
             if promote_options == "none" and not table.schema.equals(
                 self.writer.schema, check_metadata=False
             ):
-                raise IncompatibleArrowSchema(
+                write_error = IncompatibleArrowSchema(
                     "Arrow data has a schema incompatible with the schema already written to the"
                     " current file",
                     str(exc),
-                ) from exc
+                )
+            else:
+                write_error = exc
+            writer, self.writer = self.writer, None
+            try:
+                writer.close()
+            except Exception:
+                pass
+            if write_error is not exc:
+                raise write_error from exc
+            raise
+        except Exception:
+            writer, self.writer = self.writer, None
+            try:
+                writer.close()
+            except Exception:
+                pass
             raise
         self.items_count += table.num_rows
         if remaining_tables:
