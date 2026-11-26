@@ -5,7 +5,7 @@ import sqlfluff
 from dlt.common.utils import uniq_id
 from dlt.common.schema import Schema
 
-pytest.importorskip("dlt.destinations.impl.fabric.fabric", reason="MSSQL ODBC driver not installed")
+pytest.importorskip("dlt.destinations.impl.fabric.fabric", reason="mssql-python not installed")
 
 from dlt.destinations.impl.fabric.factory import fabric
 from dlt.destinations.impl.fabric.fabric import FabricClient

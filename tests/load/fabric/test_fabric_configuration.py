@@ -71,10 +71,11 @@ def test_fabric_credentials_odbc_dsn() -> None:
 
     # Verify Fabric-specific parameters are added
     assert dsn_dict["AUTHENTICATION"] == "ActiveDirectoryServicePrincipal"
-    assert dsn_dict["LongAsMax"] == "yes"
     assert dsn_dict["UID"] == "test-client-id@test-tenant-id"
     assert dsn_dict["PWD"] == "test-client-secret"
-    assert dsn_dict["DRIVER"] == "ODBC Driver 18 for SQL Server"
+    # mssql-python rejects both keywords
+    assert "DRIVER" not in dsn_dict
+    assert "LongAsMax" not in dsn_dict
     assert (
         dsn_dict["SERVER"]
         == "abc12345-6789-def0-1234-56789abcdef0.datawarehouse.fabric.microsoft.com,1433"
@@ -197,20 +198,6 @@ def test_fabric_credentials_no_driver_validation() -> None:
     assert creds.database == "test_db"
 
 
-def test_fabric_credentials_longasmax_always_yes() -> None:
-    """Test that LONGASMAX is always set to 'yes' for UTF-8 support"""
-    creds = FabricCredentials()
-    creds.host = "test.datawarehouse.fabric.microsoft.com"
-    creds.database = "testdb"
-    creds.azure_tenant_id = "test-tenant"
-    creds.azure_client_id = "test-client"
-    creds.azure_client_secret = "test-secret"
-
-    # Get ODBC DSN and verify LONGASMAX is set to yes
-    dsn_dict = creds.get_odbc_dsn_dict()
-    assert dsn_dict["LongAsMax"] == "yes"
-
-
 def test_fabric_credentials_odbc_dsn_escapes_secret() -> None:
     creds = FabricCredentials()
     creds.host = "test.datawarehouse.fabric.microsoft.com"
@@ -221,7 +208,6 @@ def test_fabric_credentials_odbc_dsn_escapes_secret() -> None:
 
     dsn = creds.to_odbc_dsn()
     assert dsn.endswith(";PWD={se;cr}}et}")
-    assert "DRIVER=ODBC Driver 18 for SQL Server;" in dsn
 
 
 def test_fabric_credentials_authentication_method() -> None:

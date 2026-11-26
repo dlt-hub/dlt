@@ -1,6 +1,6 @@
 """Fabric Warehouse job client implementation"""
 
-from typing import ClassVar, Sequence, List, Dict
+from typing import Any, ClassVar, Sequence, List, Dict
 from copy import deepcopy
 from urllib.parse import urlparse
 
@@ -15,9 +15,10 @@ from dlt.common.destination.client import (
 )
 from dlt.destinations.impl.mssql.mssql import MsSqlJobClient
 from dlt.destinations.impl.synapse.synapse import HINT_TO_SYNAPSE_ATTR, SynapseCopyFileLoadJob
-from dlt.destinations.impl.synapse.sql_client import SynapseSqlClient
 from dlt.destinations.impl.fabric.configuration import FabricClientConfiguration
+from dlt.destinations.impl.fabric.sql_client import FabricSqlClient
 from dlt.destinations.job_client_impl import SqlJobClientBase
+from dlt.destinations.sql_client import SqlClientBase
 from dlt.common.configuration.exceptions import ConfigurationException
 from dlt.common.configuration.specs import (
     AzureCredentialsWithoutDefaults,
@@ -129,41 +130,24 @@ class FabricClient(MsSqlJobClient, SupportsStagingDestination):
     ) -> None:
         super().__init__(schema, config, capabilities)  # type: ignore[arg-type]
         self.config: FabricClientConfiguration = config  # type: ignore[assignment]
-        dataset_name, staging_dataset_name = MsSqlJobClient.create_dataset_names(schema, config)
-        # drops tables without `IF EXISTS`, like Synapse
-        self.sql_client = SynapseSqlClient(
-            dataset_name,
-            staging_dataset_name,
-            config.credentials,  # type: ignore[arg-type]
-            capabilities,
-        )
 
         self.active_hints = deepcopy(HINT_TO_SYNAPSE_ATTR)
         if not self.config.create_indexes:
             self.active_hints.pop("primary_key", None)
             self.active_hints.pop("unique", None)
 
+    @staticmethod
+    def _create_sql_client(  # type: ignore[override]
+        dataset_name: str,
+        staging_dataset_name: str,
+        config: FabricClientConfiguration,
+        capabilities: DestinationCapabilitiesContext,
+    ) -> SqlClientBase[Any]:
+        return FabricSqlClient(dataset_name, staging_dataset_name, config.credentials, capabilities)
+
     def _get_column_def_sql(self, c: TColumnSchema, table: PreparedTableSchema = None) -> str:
         """Override to skip the mssql 900 byte cap on unique text columns, Fabric has no index keys"""
         return SqlJobClientBase._get_column_def_sql(self, c, table)
-
-    def prepare_load_table(self, table_name: str) -> PreparedTableSchema:
-        """Override to ensure proper table configuration for Fabric
-
-        Note: Fabric doesn't support table indexing - it automatically manages storage.
-        """
-        table = super().prepare_load_table(table_name)
-
-        # For _dlt_version table, convert all text columns to varchar(max) to avoid
-        # pyodbc binding them as legacy text/ntext types which don't support UTF-8 collations
-        if table_name == self.schema.version_table_name:
-            for column in table["columns"].values():
-                if column.get("data_type") == "text":
-                    # Override type mapper behavior for this specific table
-                    # Use varchar(max) with explicit precision to avoid text/ntext binding
-                    column["precision"] = 2147483647  # max value for varchar(max)
-
-        return table
 
     def should_truncate_table_before_load_on_staging_destination(self, table_name: str) -> bool:
         return self.config.truncate_tables_on_staging_destination_before_load
