@@ -32,7 +32,7 @@ def client(empty_schema: Schema) -> FabricClient:
     config = FabricClientConfiguration(credentials=creds)._bind_dataset_name(
         dataset_name="test_" + uniq_id()
     )
-    client_instance = fabric().client(empty_schema, config)  # type: ignore[arg-type]
+    client_instance = fabric().client(empty_schema, config)
     assert isinstance(client_instance, FabricClient)
     return client_instance
 
@@ -168,7 +168,7 @@ def client_with_indexes_enabled(empty_schema: Schema) -> FabricClient:
     config = FabricClientConfiguration(credentials=creds, create_indexes=True)._bind_dataset_name(
         dataset_name="test_" + uniq_id()
     )
-    client_instance = fabric().client(empty_schema, config)  # type: ignore[arg-type]
+    client_instance = fabric().client(empty_schema, config)
     assert isinstance(client_instance, FabricClient)
     assert client_instance.config.create_indexes is True
     return client_instance
