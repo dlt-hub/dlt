@@ -187,12 +187,11 @@ class Extractor:
             table_name = resource.table_name  # type: ignore[assignment]
         return self._normalize_table_identifier(table_name)
 
-    def _get_dynamic_table_name(self, resource: DltResource, item: TDataItem) -> str:
-        return (
-            self._normalize_table_identifier(resource._table_name_hint_fun(item))
-            if resource._table_name_hint_fun
-            else self._get_static_table_name(resource, item)
-        )
+    def _get_dynamic_table_name(self, resource: DltResource, item: TDataItem, meta: Any) -> str:
+        # a `with_table_name` mark routes the item over the `table_name` function
+        if resource._table_name_hint_fun and not isinstance(meta, TableNameMeta):
+            return self._normalize_table_identifier(resource._table_name_hint_fun(item))
+        return self._get_static_table_name(resource, meta)
 
     def _write_item(
         self,
@@ -234,7 +233,7 @@ class Extractor:
             items = [items]
 
         for item in items:
-            table_name = self._get_dynamic_table_name(resource, item)
+            table_name = self._get_dynamic_table_name(resource, item, meta)
             # don't write table if contract says so
             if table_name in self._filtered_tables:
                 continue

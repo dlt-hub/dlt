@@ -1,5 +1,5 @@
 from datetime import date  # noqa: I251
-from typing import Dict, Iterator, List, NamedTuple, Optional, Any, Tuple, cast
+from typing import Dict, Iterator, List, NamedTuple, Optional, Any, Tuple, Type, cast
 import pytest
 import os
 
@@ -1701,6 +1701,76 @@ def test_handle_empty_tables_dispatched_tables(extract_step: Extract, dispatch: 
     for table in tables:
         assert table not in metrics
         assert schema.tables[table]["write_disposition"] == "replace"
+
+
+class _AlwaysDynamicResource(DltResource):
+    """Computes the table for every item, as dlthub transformations do."""
+
+    @property
+    def has_dynamic_table_name(self) -> bool:
+        return True
+
+    @property
+    def has_other_dynamic_hints(self) -> bool:
+        return True
+
+
+def _make_marked_resource(table_name: Any, impl_cls: Type[DltResource]) -> DltResource:
+    @dlt.resource(
+        name="events",
+        table_name=table_name,
+        columns=[{"name": "id", "data_type": "bigint"}],
+        primary_key="id",
+        _impl_cls=impl_cls,
+    )
+    def events() -> Any:
+        yield {"id": 1, "kind": "hinted"}
+        yield dlt.mark.with_table_name({"id": 2, "kind": "hinted"}, "marked")
+
+    return events()
+
+
+_STATIC_TABLE_NAME = pytest.param("hinted", DltResource, "hinted", id="static-table-name")
+_TABLE_NAME_FUNCTION = pytest.param(
+    lambda e: e["kind"], DltResource, "hinted", id="table-name-function"
+)
+_FORCED_DYNAMIC = pytest.param(None, _AlwaysDynamicResource, "events", id="forced-dynamic")
+
+
+@pytest.mark.parametrize(
+    "table_name,impl_cls,hinted_table", [_TABLE_NAME_FUNCTION, _FORCED_DYNAMIC]
+)
+def test_with_table_name_mark_on_dynamic_resource(
+    extract_step: Extract, table_name: Any, impl_cls: Type[DltResource], hinted_table: str
+) -> None:
+    """A `with_table_name` mark sends the item to the marked table also on a resource that the
+    extractor treats as dynamic: one with a `table_name` function, or one that computes the table
+    for every item."""
+    schema = dlt.Schema("marked")
+    metrics = _extract_resource(extract_step, schema, _make_marked_resource(table_name, impl_cls))
+
+    assert metrics[hinted_table].items_count == 1
+    assert "marked" in metrics, metrics.keys()
+    assert metrics["marked"].items_count == 1
+
+
+@pytest.mark.parametrize(
+    "table_name,impl_cls,hinted_table", [_STATIC_TABLE_NAME, _TABLE_NAME_FUNCTION, _FORCED_DYNAMIC]
+)
+def test_with_table_name_mark_computes_marked_table(
+    extract_step: Extract, table_name: Any, impl_cls: Type[DltResource], hinted_table: str
+) -> None:
+    """The table that a `with_table_name` mark names is computed with the hints of the resource,
+    not the table that the `table_name` hint names."""
+    schema = dlt.Schema("marked")
+    _extract_resource(extract_step, schema, _make_marked_resource(table_name, impl_cls))
+
+    object_extractor = extract_step._last_extractors["object"]
+    assert object_extractor.computed_tables == {hinted_table, "marked"}
+    assert "marked" in schema.tables, schema.tables.keys()
+    marked_id = schema.tables["marked"]["columns"]["id"]
+    assert marked_id["data_type"] == "bigint"
+    assert marked_id["primary_key"] is True
 
 
 @pytest.mark.parametrize("with_hints", [False, True], ids=["resource_columns", "import_hints"])
