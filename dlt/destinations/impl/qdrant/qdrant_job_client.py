@@ -1,6 +1,8 @@
 from types import TracebackType
+from functools import cached_property
 from typing import Optional, Sequence, List, Dict, Type, Iterable, Any
 import threading
+import uuid
 
 from datetime import datetime, timezone
 
@@ -35,7 +37,6 @@ from dlt.destinations.impl.qdrant.configuration import QdrantClientConfiguration
 from dlt.destinations.impl.qdrant.qdrant_adapter import VECTORIZE_HINT
 
 from qdrant_client import QdrantClient as QC, models
-from qdrant_client.qdrant_fastembed import uuid
 from qdrant_client.http.exceptions import UnexpectedResponse
 
 
@@ -71,9 +72,7 @@ class QDrantLoadJob(RunnableLoadJob):
                     docs.append(self._get_embedding_doc(data, embedding_fields))
 
             if len(embedding_fields) > 0:
-                embedding_model = self._job_client.db_client._get_or_init_model(
-                    self._job_client.db_client.embedding_model_name
-                )
+                embedding_model = self._job_client.embedding_model
                 embeddings: List[Any] = list(
                     embedding_model.embed(
                         docs,
@@ -81,7 +80,7 @@ class QDrantLoadJob(RunnableLoadJob):
                         parallel=self._config.embedding_parallelism,
                     )
                 )
-                vector_name = self._job_client.db_client.get_vector_field_name()
+                vector_name = self._job_client.vector_field_name
                 embeddings = [{vector_name: embedding.tolist()} for embedding in embeddings]
             else:
                 embeddings = [{}] * len(ids)
@@ -201,6 +200,24 @@ class QdrantClient(JobClientBase, WithStateSync):
             else table_name
         )
 
+    @cached_property
+    def embedding_model(self) -> Any:
+        if hasattr(self.db_client, "_get_or_init_model"):
+            return self.db_client._get_or_init_model(
+                getattr(self.db_client, "embedding_model_name", self.config.model)
+            )
+
+        from fastembed import TextEmbedding
+
+        return TextEmbedding(model_name=self.config.model)
+
+    @property
+    def vector_field_name(self) -> str:
+        if hasattr(self.db_client, "get_vector_field_name"):
+            return str(self.db_client.get_vector_field_name())
+        # Preserve the vector name used by clients before 1.19.
+        return "fast-" + self.config.model.split("/")[-1].lower()
+
     def _create_collection(self, full_collection_name: str) -> None:
         """Creates a collection in Qdrant.
 
@@ -215,7 +232,15 @@ class QdrantClient(JobClientBase, WithStateSync):
         #       "distance": "Cosine"
         #     },
         # }
-        vectors_config = self.db_client.get_fastembed_vector_params()
+        if hasattr(self.db_client, "get_fastembed_vector_params"):
+            vectors_config = self.db_client.get_fastembed_vector_params()
+        else:
+            vectors_config = {
+                self.vector_field_name: models.VectorParams(
+                    size=self.db_client.get_embedding_size(self.config.model),
+                    distance=models.Distance.COSINE,
+                )
+            }
 
         self.db_client.create_collection(
             collection_name=full_collection_name, vectors_config=vectors_config
