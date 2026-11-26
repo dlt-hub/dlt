@@ -17,7 +17,7 @@ Heresy: issues in code that not only must be **avoided** but actively **detected
   NOTE: existing pendulum usage MAY be tolerated where it is hard to change
 
 ## terms heresy
-* use of following words constitutes heresy: gate/gating, graft
+* use of following words is heresy: gate/gating, graft, load bearing
 
 ## naming heresy
 * functions named without a verb. use verb and object: `get_deployment_module_for_env()`, not
