@@ -1,4 +1,5 @@
 from typing import Dict, List, Optional, Type, Union
+import ntpath
 import posixpath
 import os
 import json
@@ -25,9 +26,11 @@ from dlt.common.storages.exceptions import UnsupportedStorageVersionException
 
 import dlt.destinations.path_utils
 from dlt.destinations import filesystem
+from dlt.destinations.exceptions import InvalidFilesystemLayout
 from dlt.destinations.impl.filesystem.configuration import (
     HfFilesystemDestinationClientConfiguration,
 )
+from dlt.destinations.impl.filesystem.typing import TExtraPlaceholders
 from dlt.destinations.impl.filesystem.filesystem import (
     FilesystemClient,
     FilesystemDestinationClientConfiguration,
@@ -390,21 +393,74 @@ def test_replace_write_disposition(layout: str, default_buckets_env: str) -> Non
             assert ls == {job_2_load_1_path, job_1_load_2_path}
 
 
-def test_replace_does_not_truncate_sibling_tables() -> None:
-    """Regression for #4265: with layout `{table_name}`, truncating `event` must not
-    delete files of the sibling table `events`."""
-    os.environ["DESTINATION__FILESYSTEM__LAYOUT"] = "{table_name}"
-    client = _client_factory(filesystem("random_location"))
+@pytest.mark.parametrize(
+    "layout,extra_placeholders,ext",
+    [("{table_name}", None, ".jsonl"), ("{table_name}{ext}", {"ext": ""}, "")],
+    ids=["table_name_with_ext", "table_name_without_ext"],
+)
+def test_replace_does_not_truncate_sibling_tables(
+    layout: str, extra_placeholders: Optional[TExtraPlaceholders], ext: str
+) -> None:
+    """Truncating `event` keeps the files of `events` and `event__child` in the same folder,
+    regression for #4265 and #4402."""
+    client = _client_factory(
+        filesystem("random_location", layout=layout, extra_placeholders=extra_placeholders)
+    )
     client.initialize_storage()
-    event_file = client.pathlib.join(client.dataset_path, "event.jsonl")
-    events_file = client.pathlib.join(client.dataset_path, "events.jsonl")
-    client.fs_client.touch(event_file)
-    client.fs_client.touch(events_file)
+    event_file, events_file, child_file = [
+        client.pathlib.join(client.dataset_path, name + ext)
+        for name in ("event", "events", "event__child")
+    ]
+    for file in (event_file, events_file, child_file):
+        client.fs_client.touch(file)
 
     client.truncate_tables(["event"])
 
     assert not client.fs_client.isfile(event_file)
     assert client.fs_client.isfile(events_file)
+    assert client.fs_client.isfile(child_file)
+
+
+def test_unseparated_ext_rejected_on_config() -> None:
+    with pytest.raises(InvalidFilesystemLayout):
+        _client_factory(filesystem("random_location", layout="{table_name}{ext}"))
+
+
+@pytest.fixture
+def flat_file_client(tmp_path: Path) -> FilesystemClient:
+    return _client_factory(
+        filesystem(str(tmp_path), layout="{table_name}{ext}", extra_placeholders={"ext": ""})
+    )
+
+
+def test_drop_flat_table_file_keeps_neighbors(flat_file_client: FilesystemClient) -> None:
+    client = flat_file_client
+    client.initialize_storage()
+    root = Path(client.dataset_path)
+    for name in ("event", "events", "event__child"):
+        (root / name).touch()
+
+    client.drop_tables("event", delete_schema=False)
+
+    assert not (root / "event").exists()
+    assert (root / "events").is_file()
+    assert (root / "event__child").is_file()
+
+
+def test_flat_layout_lists_open_table_folder_on_windows(flat_file_client: FilesystemClient) -> None:
+    client = flat_file_client
+    # Simulate local Windows joining and the POSIX relative paths returned by glob_files.
+    listed = [
+        {"file_name": "part", "relative_path": f"{name}/data/part"}
+        for name in ("event", "events", "event__child")
+    ]
+    with (
+        patch.object(client, "pathlib", ntpath),
+        patch("dlt.destinations.impl.filesystem.filesystem.glob_files", return_value=listed),
+    ):
+        assert client.list_files_with_prefixes("dataset", [r"dataset\event"]) == [
+            r"dataset\event\data\part"
+        ]
 
 
 def test_truncate_tables_deletes_many_files(default_buckets_env: str) -> None:

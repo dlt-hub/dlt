@@ -609,11 +609,12 @@ A few things to know when specifying your filename layout:
 
 - If you want a different base path that is common to all filenames, you can suffix your `bucket_url` rather than prefix your `layout` setting.
 - If you do not provide the `{ext}` placeholder, it will automatically be added to your layout at the end with a dot as a separator.
+- To write `event` rather than `event.csv`, use `layout="{table_name}{ext}"` with `extra_placeholders={"ext": ""}`. Omitting `{ext}` leaves a trailing dot (`event.`). Use this only for `replace` with one file per table per load: writes to the same path overwrite each other. For plain CSV or JSONL, [disable compression](#file-compression). `dataset()` cannot infer the format without an extension.
 - It is best practice to have a separator between each placeholder. Dots, dashes, and forward slashes are the most common separators.
 - When you are using the `replace` disposition, `dlt` will have to be able to figure out the correct files to delete before loading the new data. For this to work, you have to:
   - include the `{table_name}` placeholder in your layout
   - not have any other placeholders except for the `{schema_name}` placeholder before the table_name placeholder and
-  - have a separator after the table_name placeholder
+  - have a separator after the table_name placeholder, unless the filename ends there
 - The separator after `{table_name}` must be a character that your [naming convention](../../general-usage/naming-convention.md) removes from table names. `dlt` selects the files of a table by this prefix. With `_` under `snake_case`, the prefix of `event` also matches the nested table `event__child`, so a `replace` of `event` deletes the child files. `/` and `.` are safe under `snake_case`.
 - `duck_case` and `direct` keep `/` and `.` inside table names, so under those conventions no separator is safe. Make sure your table names do not contain the separator you pick.
 - `dlt` warns when a layout has such a separator. To silence the warning, set `warn_unsafe_layout_separators=False` on the destination.
