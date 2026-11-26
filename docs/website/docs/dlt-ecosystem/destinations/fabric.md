@@ -25,7 +25,7 @@ This will install `dlt` with the `fabric` extra, which contains the [`mssql-pyth
 
 ### Service Principal Authentication
 
-Fabric Warehouse requires Azure Active Directory Service Principal authentication. You'll need:
+Fabric Warehouse authenticates with Microsoft Entra ID. A Service Principal is the usual choice for unattended runs, see [Authentication](#authentication) for the other methods. You'll need:
 
 1. **Tenant ID**: Your Azure AD tenant ID (GUID)
 2. **Client ID**: Application (service principal) client ID (GUID)
@@ -70,6 +70,77 @@ azure_client_id = "your-client-id"
 azure_client_secret = "your-client-secret"
 port = 1433
 connect_timeout = 30
+```
+
+## Authentication
+
+`dlt` picks the authentication method from what you configure. The first method that applies is used:
+
+1. an [azure-identity credential](#azure-identity-credential) passed in code
+2. an [access token](#access-token)
+3. the [Service Principal](#service-principal-authentication) fields
+4. the [notebook identity](#fabric-notebook), when running in a Microsoft Fabric notebook
+5. [default Azure credentials](#default-azure-credentials)
+
+A method you configure only in part raises a configuration error instead of falling back to the next one. Set all three Service Principal fields or none of them, and do not leave `access_token` empty.
+
+`host` and `database` are required with every method. All methods authenticate the warehouse connection only: [staging](#staging-support) has its own credentials.
+
+### Default Azure credentials
+
+If you set no Service Principal and no access token, `dlt` uses `DefaultAzureCredential`. It signs in with what it finds on the machine: `az login`, environment variables like `AZURE_CLIENT_ID`, a managed identity or a workload identity.
+
+```toml
+[destination.fabric.credentials]
+host = "<your-warehouse-guid>.datawarehouse.fabric.microsoft.com"
+database = "mydb"
+```
+
+To use a user-assigned managed identity, set its client id in the `AZURE_CLIENT_ID` environment variable.
+
+### Access token
+
+Set `access_token` if you acquire the Entra ID token yourself, for example from an OIDC exchange in a CI job:
+
+```toml
+[destination.fabric.credentials]
+host = "<your-warehouse-guid>.datawarehouse.fabric.microsoft.com"
+database = "mydb"
+access_token = "eyJ0eXAi..."
+```
+
+`dlt` does not refresh the token. It typically expires after an hour, so use an azure-identity credential for longer loads.
+
+### Azure-identity credential
+
+Pass any azure-identity credential to the destination to pin an exact identity. It takes precedence over everything in the configuration, and `host` and `database` are still read from it:
+
+```py
+import dlt
+from azure.identity import AzureCliCredential
+
+pipeline = dlt.pipeline(
+    destination=dlt.destinations.fabric(credentials=AzureCliCredential()),
+    dataset_name="my_dataset",
+)
+```
+
+Any object with a `get_token` method works. `dlt` requests a token for each new connection, so the credential is responsible for caching and refreshing it.
+
+### Fabric notebook
+
+In a Microsoft Fabric notebook `dlt` connects as the identity the notebook runs with. You only configure `host` and `database`. Tokens come from `notebookutils.credentials.getToken`, because `DefaultAzureCredential` cannot sign in from a notebook.
+
+Explicit configuration still wins: set the Service Principal fields, an `access_token` or pass a credential to use another identity. `FabricNotebookCredential` is the credential `dlt` uses, you can pass it yourself like any azure-identity credential:
+
+```py
+import dlt
+from dlt.destinations.impl.fabric import FabricNotebookCredential
+
+pipeline = dlt.pipeline(
+    destination=dlt.destinations.fabric(credentials=FabricNotebookCredential()),
+    dataset_name="my_dataset",
+)
 ```
 
 ## Write disposition
@@ -214,7 +285,7 @@ create_indexes=true
 
 While Fabric Warehouse is based on SQL Server, there are key differences:
 
-1. **Authentication**: Fabric requires Service Principal; username/password auth is not supported
+1. **Authentication**: Fabric authenticates with Microsoft Entra ID; username/password auth is not supported
 2. **Type System**: Uses `varchar` and `datetime2` instead of `nvarchar` and `datetimeoffset`
 3. **Collation**: Uses UTF-8 collations
 4. **SQL Dialect**: Uses `fabric` SQLglot dialect for proper SQL generation
@@ -222,7 +293,7 @@ While Fabric Warehouse is based on SQL Server, there are key differences:
 
 ### dbt support
 
-Integration with [dbt](../transformations/dbt/dbt.md) is supported via [dbt-fabric](https://github.com/Microsoft/dbt-fabric). Both Service Principal and default Azure credentials are supported and shared with dbt runners.
+Integration with [dbt](../transformations/dbt/dbt.md) is supported via [dbt-fabric](https://github.com/Microsoft/dbt-fabric). Both Service Principal and default Azure credentials are supported and shared with dbt runners. An `access_token`, the notebook identity or an azure-identity credential passed in code is not shared with dbt.
 
 Note: `dbt-fabric` versions that connect with `pyodbc` still need the _Microsoft ODBC Driver for SQL Server_ [installed on your system](https://learn.microsoft.com/en-us/sql/connect/odbc/download-odbc-driver-for-sql-server).
 

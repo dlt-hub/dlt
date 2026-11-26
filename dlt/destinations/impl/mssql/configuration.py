@@ -1,5 +1,5 @@
 import dataclasses
-from typing import ClassVar, Any, Final, List, Dict, Optional
+from typing import ClassVar, Any, Final, List, Dict, Optional, Protocol
 
 from dlt.common.configuration import configspec
 from dlt.common.configuration.specs import ConnectionStringCredentials
@@ -33,6 +33,14 @@ def escape_mssql_odbc_value(value: Optional[str]) -> str:
     if ";" in value or "}" in value:
         return "{" + value.replace("}", "}}") + "}"
     return value
+
+
+class SupportsGetToken(Protocol):
+    """Provider of Entra ID access tokens, ie. an azure-identity credential."""
+
+    def get_token(self, scope: str, /) -> Any:
+        """Returns an object with the `token` and `expires_on` attributes."""
+        ...
 
 
 def build_odbc_dsn(params: Dict[str, Any]) -> str:

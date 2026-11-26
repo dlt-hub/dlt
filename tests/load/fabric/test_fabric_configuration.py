@@ -1,11 +1,23 @@
 """Tests for Microsoft Fabric Warehouse destination configuration"""
 
-import os
-from typing import Optional, cast
+import base64
+import copy
+import pickle
+import re
+import sys
+import time
+from importlib.abc import MetaPathFinder
+from types import ModuleType, SimpleNamespace
+from typing import Any, Dict, List, Optional, cast
 
 import pytest
 
+from dlt.common import json
 from dlt.common.configuration import resolve_configuration
+from dlt.common.configuration.exceptions import (
+    ConfigFieldMissingException,
+    ConfigurationValueError,
+)
 from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.destination.typing import PreparedTableSchema
 from dlt.common.schema import Schema
@@ -15,10 +27,58 @@ from dlt.destinations.impl.fabric.factory import fabric, FabricTypeMapper
 from dlt.destinations.impl.fabric.configuration import (
     FabricCredentials,
     FabricClientConfiguration,
+    FabricNotebookCredential,
 )
+
+from tests.common.configuration.utils import environment
 
 # mark all tests as essential, do not remove
 pytestmark = pytest.mark.essential
+
+WAREHOUSE = {
+    "CREDENTIALS__HOST": "test.datawarehouse.fabric.microsoft.com",
+    "CREDENTIALS__DATABASE": "testdb",
+}
+SERVICE_PRINCIPAL = {
+    "CREDENTIALS__AZURE_TENANT_ID": "test-tenant",
+    "CREDENTIALS__AZURE_CLIENT_ID": "test-client",
+    "CREDENTIALS__AZURE_CLIENT_SECRET": "test-secret",
+}
+INCOMPLETE_SERVICE_PRINCIPAL = {
+    "CREDENTIALS__AZURE_TENANT_ID": "test-tenant",
+    "CREDENTIALS__AZURE_CLIENT_ID": "test-client",
+}
+ACCESS_TOKEN = {"CREDENTIALS__ACCESS_TOKEN": "test-token"}
+SQL_SCOPE = "https://database.windows.net/.default"
+
+
+class FakeAzureCredential:
+    def get_token(self, *scopes: str, **kwargs: Any) -> Any:
+        return SimpleNamespace(token="azure-credential-token", expires_on=None)
+
+
+def _jwt(expires_on: int) -> str:
+    def _encode(part: Dict[str, Any]) -> str:
+        return base64.urlsafe_b64encode(json.dumps(part).encode()).rstrip(b"=").decode()
+
+    return f"{_encode({'alg': 'RS256'})}.{_encode({'exp': expires_on})}.signature"
+
+
+@pytest.fixture
+def notebook_tokens(monkeypatch: pytest.MonkeyPatch) -> List[str]:
+    """Fakes NotebookUtils of a Fabric notebook. Tokens are served from the returned list and
+    replaced with the audience they were requested for."""
+    tokens: List[str] = []
+
+    def _get_token(audience: str) -> str:
+        token = tokens.pop(0)
+        tokens.append(audience)
+        return token
+
+    notebookutils = ModuleType("notebookutils")
+    notebookutils.credentials = SimpleNamespace(getToken=_get_token)  # type: ignore[attr-defined]
+    monkeypatch.setitem(sys.modules, "notebookutils", notebookutils)
+    return tokens
 
 
 def test_fabric_factory() -> None:
@@ -154,16 +214,231 @@ def test_fabric_credentials_drivername() -> None:
     assert creds.drivername == "mssql+pyodbc"
 
 
-def test_fabric_credentials_missing_service_principal() -> None:
-    """Test that Service Principal fields can trigger default credentials fallback"""
-    creds = FabricCredentials()
-    creds.host = "test.datawarehouse.fabric.microsoft.com"
-    creds.database = "testdb"
+@pytest.mark.parametrize(
+    "config,expected_provider,expected_token",
+    [
+        pytest.param(SERVICE_PRINCIPAL, None, None, id="service-principal"),
+        pytest.param({}, "DefaultAzureCredential", None, id="default-credentials"),
+        pytest.param(ACCESS_TOKEN, "_StaticTokenCredential", "test-token", id="access-token"),
+        pytest.param(
+            {**SERVICE_PRINCIPAL, **ACCESS_TOKEN},
+            "_StaticTokenCredential",
+            "test-token",
+            id="access-token-over-service-principal",
+        ),
+        pytest.param(
+            {**INCOMPLETE_SERVICE_PRINCIPAL, **ACCESS_TOKEN},
+            "_StaticTokenCredential",
+            "test-token",
+            id="access-token-over-incomplete-service-principal",
+        ),
+    ],
+)
+def test_fabric_credentials_authentication(
+    environment: Dict[str, str],
+    config: Dict[str, str],
+    expected_provider: Optional[str],
+    expected_token: Optional[str],
+) -> None:
+    environment.update(WAREHOUSE)
+    environment.update(config)
+    creds = resolve_configuration(FabricCredentials())
 
-    # When Service Principal fields are missing, on_partial should attempt to use default credentials
-    # We can't test actual Azure default credentials in unit tests, but we can verify the structure
+    provider = creds.get_token_provider()
+    dsn_dict = creds.get_odbc_dsn_dict()
+    if expected_provider is None:
+        assert provider is None
+        assert dsn_dict["AUTHENTICATION"] == "ActiveDirectoryServicePrincipal"
+        assert dsn_dict["UID"] == "test-client@test-tenant"
+        assert dsn_dict["PWD"] == "test-secret"
+    else:
+        assert type(provider).__name__ == expected_provider
+        # the driver refuses those keywords together with a token provider
+        assert not {"AUTHENTICATION", "UID", "PWD"} & set(dsn_dict)
+    if expected_token:
+        assert provider.get_token(SQL_SCOPE).token == expected_token
+    # the dbt runner picks the default credentials profile from this flag
+    assert creds.has_default_credentials() is (expected_provider == "DefaultAzureCredential")
+
+
+@pytest.mark.parametrize(
+    "config,expected_message",
+    [
+        pytest.param(INCOMPLETE_SERVICE_PRINCIPAL, "['azure_client_secret']", id="no-secret"),
+        pytest.param(
+            {**SERVICE_PRINCIPAL, "CREDENTIALS__AZURE_CLIENT_SECRET": ""},
+            "['azure_client_secret']",
+            id="empty-secret",
+        ),
+        pytest.param(
+            {"CREDENTIALS__AZURE_CLIENT_ID": "test-client"},
+            "['azure_tenant_id', 'azure_client_secret']",
+            id="client-id-only",
+        ),
+        pytest.param(
+            {"CREDENTIALS__AZURE_CLIENT_ID": ""},
+            "['azure_tenant_id', 'azure_client_id', 'azure_client_secret']",
+            id="empty-client-id-only",
+        ),
+        pytest.param(
+            {name: "" for name in SERVICE_PRINCIPAL},
+            "['azure_tenant_id', 'azure_client_id', 'azure_client_secret']",
+            id="all-empty",
+        ),
+        pytest.param(
+            {**INCOMPLETE_SERVICE_PRINCIPAL, "CREDENTIALS__AZURE_STORAGE_ACCOUNT_NAME": "account"},
+            "['azure_client_secret']",
+            id="no-secret-with-storage-account",
+        ),
+        pytest.param({"CREDENTIALS__ACCESS_TOKEN": ""}, "`access_token`", id="empty-access-token"),
+        pytest.param(
+            {**SERVICE_PRINCIPAL, "CREDENTIALS__ACCESS_TOKEN": ""},
+            "`access_token`",
+            id="empty-access-token-over-service-principal",
+        ),
+    ],
+)
+def test_fabric_credentials_incomplete_authentication(
+    environment: Dict[str, str],
+    request: pytest.FixtureRequest,
+    config: Dict[str, str],
+    expected_message: str,
+) -> None:
+    environment.update(WAREHOUSE)
+    environment.update(config)
+    with pytest.raises(ConfigurationValueError, match=re.escape(expected_message)):
+        resolve_configuration(FabricCredentials())
+
+    # the notebook identity does not take over either
+    request.getfixturevalue("notebook_tokens")
+    with pytest.raises(ConfigurationValueError, match=re.escape(expected_message)):
+        resolve_configuration(FabricCredentials())
+
+
+@pytest.mark.parametrize(
+    "config",
+    [
+        pytest.param({}, id="alone"),
+        pytest.param({**SERVICE_PRINCIPAL, **ACCESS_TOKEN}, id="over-config"),
+        pytest.param(INCOMPLETE_SERVICE_PRINCIPAL, id="over-incomplete-service-principal"),
+    ],
+)
+def test_fabric_credentials_azure_credential(
+    environment: Dict[str, str], notebook_tokens: List[str], config: Dict[str, str]
+) -> None:
+    environment.update(WAREHOUSE)
+    environment.update(config)
+    azure_credential = FakeAzureCredential()
+
+    # host and database are resolved from config
+    creds = resolve_configuration(FabricCredentials(), explicit_value=azure_credential)
     assert creds.host == "test.datawarehouse.fabric.microsoft.com"
     assert creds.database == "testdb"
+    assert creds.is_external_session()
+    assert creds.get_token_provider() is azure_credential
+    assert not {"AUTHENTICATION", "UID", "PWD"} & set(creds.get_odbc_dsn_dict())
+
+    # credentials created in code keep the credential when passed to the destination
+    creds = FabricCredentials.from_credential(azure_credential)
+    creds.host = "code.datawarehouse.fabric.microsoft.com"
+    creds.database = "codedb"
+    config_ = fabric(credentials=creds).configuration(
+        FabricClientConfiguration()._bind_dataset_name("dataset")
+    )
+    assert config_.credentials.host == "code.datawarehouse.fabric.microsoft.com"
+    assert config_.credentials.database == "codedb"
+    assert config_.credentials.get_token_provider() is azure_credential
+
+
+@pytest.mark.parametrize(
+    "config",
+    [
+        pytest.param({}, id="default-credentials"),
+        pytest.param(SERVICE_PRINCIPAL, id="service-principal"),
+        pytest.param(ACCESS_TOKEN, id="access-token"),
+    ],
+)
+def test_fabric_credentials_missing_warehouse(
+    environment: Dict[str, str], config: Dict[str, str]
+) -> None:
+    environment.update(config)
+    # only the warehouse is reported as missing, with every authentication method
+    with pytest.raises(ConfigFieldMissingException) as ex:
+        resolve_configuration(FabricCredentials())
+    assert set(ex.value.fields) == {"host", "database"}
+
+    with pytest.raises(ConfigFieldMissingException) as ex:
+        resolve_configuration(FabricCredentials(), explicit_value=FakeAzureCredential())
+    assert set(ex.value.fields) == {"host", "database"}
+
+    # the destination reports the incomplete credentials and does not drop them
+    # NOTE: a named destination does not read the warehouse of the test configuration
+    with pytest.raises(ConfigFieldMissingException) as ex:
+        fabric(destination_name="fabric_no_warehouse").configuration(
+            FabricClientConfiguration()._bind_dataset_name("dataset")
+        )
+    assert ex.value.fields == ["credentials"]
+    assert "`host`, `database`" in str(ex.value)
+
+
+def test_fabric_credentials_notebook_identity(
+    environment: Dict[str, str], notebook_tokens: List[str]
+) -> None:
+    environment.update(WAREHOUSE)
+    creds = resolve_configuration(FabricCredentials())
+    provider = creds.get_token_provider()
+    assert isinstance(provider, FabricNotebookCredential)
+    assert not {"AUTHENTICATION", "UID", "PWD"} & set(creds.get_odbc_dsn_dict())
+
+    # NotebookUtils gets the resource, tokens are reused until shortly before they expire
+    valid_token = _jwt(int(time.time()) + 3600)
+    expiring_token = _jwt(int(time.time()) + 60)
+    notebook_tokens.extend([valid_token, expiring_token, "not-a-jwt", valid_token])
+    token = provider.get_token(SQL_SCOPE)
+    assert token.token == valid_token
+    assert token.expires_on is not None and token.expires_on > time.time()
+    assert provider.get_token(SQL_SCOPE) is token
+    assert notebook_tokens.pop() == "https://database.windows.net/"
+    # copies keep the tokens, the destination is copied ie. by `pipeline.drop`
+    for provider_copy in (copy.deepcopy(provider), pickle.loads(pickle.dumps(provider))):
+        assert provider_copy.get_token(SQL_SCOPE) == token
+    copy.deepcopy(fabric(credentials=provider))
+    copy.deepcopy(creds)
+    # a token is requested for each resource
+    assert provider.get_token("https://storage.azure.com/.default").token == expiring_token
+    assert notebook_tokens.pop() == "https://storage.azure.com/"
+    # expiring tokens and tokens without known expiration are not reused
+    assert provider.get_token("https://storage.azure.com/.default").token == "not-a-jwt"
+    assert provider.get_token("https://storage.azure.com/.default").token == valid_token
+
+    # explicit configuration wins over the notebook identity
+    environment.update(SERVICE_PRINCIPAL)
+    assert resolve_configuration(FabricCredentials()).get_token_provider() is None
+
+
+def test_fabric_notebook_credential_outside_notebook() -> None:
+    assert FabricNotebookCredential.is_available() is False
+    with pytest.raises(ConfigurationValueError):
+        FabricNotebookCredential()
+
+
+def test_fabric_notebook_credential_broken_notebookutils(
+    environment: Dict[str, str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    class BrokenNotebookutilsFinder(MetaPathFinder):
+        def find_spec(self, fullname: str, path: Any, target: Any = None) -> Any:
+            if fullname == "notebookutils":
+                raise ModuleNotFoundError("No module named 'py4j'", name="py4j")
+            return None
+
+    monkeypatch.setattr(sys, "meta_path", [BrokenNotebookutilsFinder(), *sys.meta_path])
+
+    # a notebook runtime that does not import is not taken for running outside a notebook
+    with pytest.raises(ModuleNotFoundError, match="py4j"):
+        FabricNotebookCredential.is_available()
+    environment.update(WAREHOUSE)
+    with pytest.raises(ModuleNotFoundError, match="py4j"):
+        resolve_configuration(FabricCredentials())
 
 
 def test_fabric_credentials_service_principal_auto_conversion() -> None:
