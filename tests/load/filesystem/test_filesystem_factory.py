@@ -87,6 +87,77 @@ def test_resolve_bucket_url_ignores_foreign_credentials():
         assert not fs.is_hf
 
 
+@pytest.mark.parametrize("hf_show_progress", [True, False])
+def test_hf_show_progress_flag(hf_show_progress: bool, monkeypatch: pytest.MonkeyPatch) -> None:
+    """huggingface_hub progress bars are disabled by default and enabled only when opted in."""
+    from huggingface_hub.utils import (
+        are_progress_bars_disabled,
+        enable_progress_bars,
+    )
+
+    config = MagicMock(spec=HfFilesystemDestinationClientConfiguration)
+    config.hf_show_progress = hf_show_progress
+    config.credentials = MagicMock()
+    config.credentials.to_hf_api_credentials.return_value = {}
+
+    client = MagicMock(spec=HfFilesystemClient)
+    client.config = config
+
+    # env var absent -> the config flag controls the global state. patch the environment (the
+    # same signal users set) rather than huggingface_hub's parsed constant
+    monkeypatch.delenv("HF_HUB_DISABLE_PROGRESS_BARS", raising=False)
+
+    # start from a known state where progress bars are enabled
+    enable_progress_bars()
+    try:
+        with patch("huggingface_hub.HfApi"):
+            with patch.object(FilesystemClient, "__init__", return_value=None):
+                HfFilesystemClient.__init__(client, MagicMock(), config, MagicMock())
+        assert are_progress_bars_disabled() is (not hf_show_progress)
+    finally:
+        enable_progress_bars()
+
+
+@pytest.mark.parametrize("env_value", ["1", "0"], ids=["env_disabled", "env_enabled"])
+def test_hf_show_progress_respects_env_var(env_value: str, monkeypatch: pytest.MonkeyPatch) -> None:
+    """`HF_HUB_DISABLE_PROGRESS_BARS` takes priority: when the user pinned the env var dlt leaves
+    the global state untouched and does not emit huggingface_hub's "env var has priority" warning.
+    """
+    import warnings
+
+    from huggingface_hub.utils import enable_progress_bars
+
+    # default config (hf_show_progress=False) while the global state starts enabled -- absent the
+    # env-var guard dlt would call `disable_progress_bars()`, so the asserts below prove the env
+    # var (not the no-op churn check) is what keeps the state untouched
+    config = MagicMock(spec=HfFilesystemDestinationClientConfiguration)
+    config.hf_show_progress = False
+    config.credentials = MagicMock()
+    config.credentials.to_hf_api_credentials.return_value = {}
+
+    client = MagicMock(spec=HfFilesystemClient)
+    client.config = config
+
+    # env var present (set to any value) -> dlt must not touch the global state
+    monkeypatch.setenv("HF_HUB_DISABLE_PROGRESS_BARS", env_value)
+
+    enable_progress_bars()
+    try:
+        with (
+            patch("huggingface_hub.utils.disable_progress_bars") as disable_mock,
+            patch("huggingface_hub.utils.enable_progress_bars") as enable_mock,
+        ):
+            with patch("huggingface_hub.HfApi"):
+                with patch.object(FilesystemClient, "__init__", return_value=None):
+                    with warnings.catch_warnings():
+                        warnings.simplefilter("error")
+                        HfFilesystemClient.__init__(client, MagicMock(), config, MagicMock())
+            disable_mock.assert_not_called()
+            enable_mock.assert_not_called()
+    finally:
+        enable_progress_bars()
+
+
 @pytest.mark.parametrize("hf_dataset_card", [True, False])
 def test_hf_dataset_card_flag(hf_dataset_card: bool) -> None:
     """Card operations are called only when hf_dataset_card is True."""
