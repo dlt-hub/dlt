@@ -1,13 +1,13 @@
 ---
 title: Job configuration
-description: Per-job options on the dltHub platform — execution timeouts, dependency groups, instance size, and TOML configuration sections
-keywords: [dlthub platform, job configuration, timeout, retry, dependency groups, instance, size, require.instance, static egress, execute, require, expose, section]
+description: Per-job options on the dltHub platform — execution timeouts, dependency groups, instance size, TOML configuration sections, and retries
+keywords: [dlthub platform, job configuration, timeout, retry, retries, tags, dependency groups, instance, size, require.instance, static egress, execute, require, expose, section]
 ---
 # Job configuration
 
-This page documents the per-job options that aren't about *when* a job runs (those live in [Triggers and scheduling](triggers.md)) but about *how* it runs — execution limits, runner resources, the Python environment it gets, and the configuration values it reads at runtime.
+This page documents the per-job options that aren't about *when* a job runs (those live in [Triggers and scheduling](triggers.md)) but about *how* it runs — execution limits, runner resources, the Python environment it gets, the configuration values it reads at runtime, and retries.
 
-All options below are arguments to the `@run.pipeline`, `@run.job`, `@run.interactive`, and `@run.agent` decorators.
+The options below are arguments to the `@run.pipeline`, `@run.job`, `@run.interactive`, and `@run.agent` decorators.
 
 ## Execution constraints
 
@@ -52,12 +52,98 @@ def load():
 
 The decorator fills the defaults and stores the policy on the job definition as `execute.retry`, next to `timeout` and `concurrency`. The policy is fixed at decoration, so configuration files and environment variables leave it unchanged. `0` runs the job once.
 
-A failed run is eligible for another attempt only when the launcher exits with code 75. Exit code 1 is terminal. The launcher exits 75 when the exception and its cause or context chain contain one of these, and no terminal failure:
+### Retry tags
 
-- a builtin `TimeoutError` or `ConnectionError`
-- `requests` `ConnectionError`, `Timeout`, or `ChunkedEncodingError`
+Older dlt versions have no `retry=` argument. Configure the same policy with reserved tags. Put them in `expose={"tags": [...]}`, in the same list as any other tag. A `__retry:{N}` tag must be passed to turn retries on. Adding other `__retry_*` tags (such as `__retry_initial_delay`) without `__retry` has no effect.
 
-Everything else is terminal, including a `TerminalException` anywhere on the chain and `requests` `SSLError`. `SSLError` is a subclass of `ConnectionError`, and it is still terminal.
+```py notype
+@run.pipeline("github_pipeline", expose={
+    "tags": [
+        "nightly",
+        "__retry:2",
+        "__retry_initial_delay:10s",
+        "__retry_backoff_factor:2",
+        "__retry_max_delay:1m",
+    ],
+})
+def load_commits():
+    ...
+```
+
+`__retry:2` means two additional attempts (up to 3 runs in total). `__retry:0` means no retries.
+
+Because retries are plain tags, they work with any dlt version that supports job tags, including older releases. No dlt upgrade is needed, and the configuration is forward compatible.
+
+| Tag                               | Meaning                                                                    | Default | Limits                                           |
+| --------------------------------- | -------------------------------------------------------------------------- | ------- | ------------------------------------------------ |
+| `__retry:<n>`                     | Extra attempts after the first run. This is the tag that turns retries on. | off     | Non-negative integer in plain digits, at most 10 |
+| `__retry_initial_delay:<period>`  | Base delay for the first retry                                             | `30s`   | Greater than zero                                |
+| `__retry_backoff_factor:<number>` | Multiplier applied after each failed attempt                               | `2`     | At least 1, at most 100                          |
+| `__retry_max_delay:<period>`      | Cap on the delay before jitter                                             | `1h`    | Finite and greater than zero                     |
+
+Omit a delay tag to keep its default. A period is `30s`, `1m`, `1h`, `1d`, `1.5s`, or a bare number of seconds. Zero, negative values, milliseconds, and `inf` are rejected. `__retry_max_delay` uses that same syntax.
+
+### How delays are computed
+
+After failed attempt `n` (counting from 1), the delay is `min(initial_delay * backoff_factor^(n - 1), max_delay)`. Jitter then picks the wait uniformly at random between 50% and 100% of that delay, so the wait never exceeds the max delay. Jitter is always on. It is not configurable.
+
+With the tags in the example, the first failure waits between 5s and 10s. The next failure waits between 10s and 20s. Later waits grow until they are capped at `1m`.
+
+Tag configuration always applies that jitter. On `retry=`, `jitter` defaults to on and can be set to `False`, which waits the computed delay with no random reduction. `initial_delay`, `backoff`, and `max_delay` on `retry=` are seconds. `30`, `2.0`, and `3600` match the tag defaults `30s`, `2`, and `1h`.
+
+### What is retried
+
+When the launcher exits with code 75 (`EX_TEMPFAIL`), dltHub will schedule retries, if configured. Any other exit code different from 0 (success) and 75 (`EX_TEMPFAIL`) is considered terminal and won't be retried.
+
+Some common exceptions are automatically converted into retryable errors by `dlt` and will emit exit code 75 without any additional configuration.
+
+The dltHub platform retries a failed run in following cases:
+
+- The script exited with code `75` (`EX_TEMPFAIL`). Use that code to signal a transient error, for example `sys.exit(75)`.
+- a builtin `TimeoutError` or `ConnectionError`.
+- `requests` `ConnectionError`, `Timeout`, or `ChunkedEncodingError`.
+- The run failed to start or to provision.
+- The run failed without an exit code (e.g. infrastructure failure, process died unexpectedly, etc).
+
+The following failures are not retried:
+
+- Exit code `1` and any other exit code different from 0 or 75.
+- An out-of-memory failure.
+- A job's execution limit timeout.
+- A cancellation.
+
+```py notype
+import sys
+
+sys.exit(75)
+```
+
+### Invalid retry tags
+
+An invalid `__retry*` tag fails the deployment. A few of the errors:
+
+- `Unknown retry tag '__retry_foo:1'.`
+- `Duplicate retry tag '__retry'.`
+- `Retry tag '__retry:' needs a value.`
+- `Retry count 'many' must be a non-negative integer.`
+- `Retry count must be at most 10.`
+- `Retry backoff '0.5' must be at least 1.`
+- `Retry backoff must be at most 100.`
+- `Retry backoff 'nope' must be a number.`
+- `Retry delay 'later' is not a period.`
+- `Retry delay '0s' must be greater than zero.`
+
+### Attempts, cancellation, and notifications
+
+A retry is a new attempt of the same run. The run number stays the same and the attempt number increases by one. The UI shows that as `#42 (2)`. The attempt starts from scratch, with the same deployment, job version, configuration, and [trigger](triggers.md). It runs the job from the start.
+
+Archiving the job or the workspace, starting a newer run of the job, or resetting the job's incremental state cancels pending retries. Pausing a job stops its schedule, but pending retries still run. If a concurrency limit blocks a retry, it waits and tries again shortly.
+
+When retries are configured for the job, no notifications are send for intermediary failures. The failure notification, and any [on-failure follow-up jobs](triggers.md#follow-up-triggers), happen only after the final attempt, if it keeps failing. See [email alerts](../notifications/email.md) and [Slack alerts](../notifications/slack.md).
+
+:::caution Reserved tags
+Tags with a double underscore prefix (`__`) are **reserved** by dlt. Don't use that prefix for your own tags. A tag with that prefix also never acts as a [trigger](triggers.md).
+:::
 
 ## Dependency groups
 
@@ -196,7 +282,7 @@ def load_commits():
 | `display_name` | Human-readable label shown in the dashboard                                            |
 | `manual`       | Whether the runner adds the `manual:` trigger. `True` by default                       |
 
-See [Tags and bulk triggering](triggers.md#tags-and-bulk-triggering) for how tags drive `dlthub job trigger` selectors.
+See [Tags and bulk triggering](triggers.md#tags-and-bulk-triggering) for how tags drive `dlthub job trigger` selectors. The same list holds [retry settings](#retry-tags). A tag that starts with `__` is reserved by dlt.
 
 ## Next steps
 

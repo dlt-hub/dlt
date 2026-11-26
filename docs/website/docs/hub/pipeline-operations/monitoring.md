@@ -81,6 +81,8 @@ Select any run on the Jobs page to open its **run detail page**, which provides:
 | **Failed**    | Encountered an error — check logs for details |
 | **Cancelled** | Manually stopped via CLI or Web UI            |
 
+A failed run with a pending retry shows when it will retry. See [Retries](job-configuration.md#retries).
+
 ## Diagnose a failed run
 
 From the CLI:
