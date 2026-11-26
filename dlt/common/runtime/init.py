@@ -25,6 +25,7 @@ def initialize_runtime(logger_name: str, runtime_config: RuntimeConfiguration) -
         runtime_config.log_format,
         runtime_config.pipeline_name,
         version,
+        runtime_config.log_output,
     )
 
     # Init or update default requests client config
