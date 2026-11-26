@@ -103,14 +103,14 @@ class BaseDeployment(abc.ABC):
                 raise CliCommandInnerException(
                     "deploy",
                     f"Your current repository origin is not set to github but to {origin}.\nYou"
-                    " must change it to be able to run the pipelines with github actions:"
+                    f" must change it to be able to deploy with '{self.deployment_method}':"
                     " https://docs.github.com/en/get-started/getting-started-with-git/managing-remote-repositories",
                 )
         except ValueError:
             raise CliCommandInnerException(
                 "deploy",
-                "Your current repository has no origin set. Please set it up to be able to run the"
-                " pipelines with github actions:"
+                "Your current repository has no origin set. Please set it up to be able to deploy"
+                f" with '{self.deployment_method}':"
                 " https://docs.github.com/en/get-started/importing-your-projects-to-github/importing-source-code-to-github/adding-locally-hosted-code-to-github",
             )
 
