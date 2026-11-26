@@ -147,7 +147,7 @@ def load_chess_data():
     months = list(generate_months(2023, 1, 2023, 12))
 
     # Create the source with all specified months
-    source = chess_com_source("MagnusCarlsen", months)
+    source = chess_com_source("Hikaru", months)
 
     # Run the pipeline to fetch and load data
     info = pipeline.run(source)
