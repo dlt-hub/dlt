@@ -882,6 +882,9 @@ requires-dist = [
     { name = "adlfs", marker = "extra == 'synapse'", specifier = ">=2024.7.0" },
     { name = "aiohttp", marker = "extra == 'http'", specifier = ">3.9.0" },
     { name = "alembic", marker = "extra == 'sqlalchemy'", specifier = ">1.10.0" },
+    { name = "azure-core", marker = "extra == 'azure-key-vault'", specifier = ">=1.31.0" },
+    { name = "azure-identity", marker = "extra == 'azure-key-vault'", specifier = ">=1.12.0" },
+    { name = "azure-keyvault-secrets", marker = "extra == 'azure-key-vault'", specifier = ">=4.7.0" },
     { name = "botocore", marker = "extra == 'athena'", specifier = ">=1.28" },
     { name = "botocore", marker = "extra == 'filesystem'", specifier = ">=1.28" },
     { name = "botocore", marker = "extra == 's3'", specifier = ">=1.28" },
@@ -987,7 +990,7 @@ requires-dist = [
     { name = "weaviate-client", marker = "extra == 'weaviate'", specifier = ">=4.0.0,<5.0.0" },
     { name = "win-precise-time", marker = "python_full_version < '3.13' and os_name == 'nt'", specifier = ">=1.4.2" },
 ]
-provides-extras = ["hub", "gcp", "bigquery", "postgres", "redshift", "parquet", "polars", "duckdb", "ducklake", "filesystem", "s3", "gs", "az", "hf", "sftp", "http", "snowflake", "motherduck", "cli", "athena", "weaviate", "mssql", "synapse", "fabric", "oracle", "qdrant", "databricks", "clickhouse", "dremio", "lancedb", "lance", "deltalake", "sql-database", "sqlalchemy", "pyiceberg", "postgis", "dbml"]
+provides-extras = ["hub", "gcp", "bigquery", "postgres", "redshift", "parquet", "polars", "duckdb", "ducklake", "filesystem", "s3", "gs", "az", "azure-key-vault", "hf", "sftp", "http", "snowflake", "motherduck", "cli", "athena", "weaviate", "mssql", "synapse", "fabric", "oracle", "qdrant", "databricks", "clickhouse", "dremio", "lancedb", "lance", "deltalake", "sql-database", "sqlalchemy", "pyiceberg", "postgis", "dbml"]
 
 [package.metadata.requires-dev]
 adbc = [
