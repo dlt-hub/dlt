@@ -147,8 +147,21 @@ The defaults below apply to every resource, from `salesforce_source` and from `s
 ### Bulk loading
 
 Each resource runs one SOQL query. With `api="auto"` (default), the query runs as a Bulk API 2.0 job.
-Salesforce splits the job for a large sObject with PK chunking. dlt downloads the CSV results page by
-page, with `chunk_size` records in each page.
+Salesforce splits the job for a large sObject with PK chunking. dlt streams the CSV results and
+yields them in pages of `chunk_size` records. A page also ends at about 64 MB of CSV, except with
+`add_limit`.
+
+Salesforce writes the results of a large job in several chunks. dlt downloads each chunk in one
+request. The extract workers download the chunks in parallel. With `row_order` or `add_limit`, dlt
+downloads the chunks one after another to keep their order. If a download breaks, dlt continues it
+after the records it already read.
+
+dlt compares the records that it reads with the counts that Salesforce reports for each result
+chunk and for the whole job. If the counts do not match, the load fails.
+
+To list the chunks, dlt needs API version 58.0 or later (`version` in the credentials, 59.0 by
+default). With an older version, dlt logs a warning and downloads the chunks one after another.
+Then a broken download of the first chunk fails the load.
 
 If the Bulk API does not support an sObject (for example, `TaskStatus`), dlt reads the query results
 with the REST API. dlt also uses the REST API when the Bulk API is not enabled in the org. With
@@ -334,7 +347,10 @@ these arguments:
 - `sobject`: API name of the sObject, for example `Account` or `Invoice__c`.
 - `incremental`: your own [`dlt.sources.incremental`](../../general-usage/incremental-loading.md) on
   any field instead of the default one. Its range becomes the `WHERE` clause of the query. Its
-  `row_order` becomes the `ORDER BY` clause. Pass `start_date` or `incremental`, not both.
+  `row_order` becomes the `ORDER BY` clause. Pass `start_date` or your own incremental, not both.
+  An incremental without `cursor_path`, for example `dlt.sources.incremental(lag=60)`, sets the
+  values of the default incremental. `start_date` wins over its `initial_value`. With
+  `incremental=None`, each run loads all records and replaces the table.
 - `lag`: seconds re-read on each run by the default incremental.
 - `soql_filter`: SOQL condition added to the `WHERE` clause of the query.
 - `included_columns`, `excluded_columns`: fields to load or to skip. dlt logs a warning for names that
@@ -480,7 +496,8 @@ not work yet.
 Salesforce runs each Bulk API query as a job. A job usually needs 5-30 seconds before it returns
 data, even for small sObjects. dlt runs the jobs of all resources of one source in parallel, five at
 a time by default. This applies to `salesforce_source` and to the `salesforce_table` resources that
-you pass to one `pipeline.run`. To run more at once, set the number of extract workers:
+you pass to one `pipeline.run`. The same extract workers download the result chunks of a large job
+in parallel. To run more at once, set the number of extract workers:
 
 ```toml
 [extract]
@@ -504,7 +521,8 @@ into DuckDB took several times longer than the parsing.
 - `row_order` adds `ORDER BY` to the query, and `add_limit` adds `LIMIT`. These clauses disable PK
   chunking of Bulk API jobs. Use them with a cursor on an indexed field, such as `SystemModstamp` or
   `Id`.
-- If a result page needs too much memory, decrease `chunk_size`.
+- Each result chunk that downloads in parallel holds one page in memory. If the pages need too much
+  memory, decrease `chunk_size` or the number of extract workers.
 - A Bulk API query job that does not complete in 24 hours is aborted and fails the load.
 - To read less data, use `soql_filter` or `included_columns`. If the first load is too large for a
   single run, [backfill in windows](#create-your-own-pipeline) or [load in chunks](#load-in-chunks).
@@ -584,5 +602,10 @@ key, and merges all sObjects. After the upgrade, reload the data:
 ```py notype
 pipeline.run(salesforce_source(), refresh="drop_sources")
 ```
+
+In version 1.1.0, `incremental=None` loads all records on each run and replaces the table. To keep
+the default incremental, remove it. The
+[changelog](https://github.com/dlt-hub/verified-sources/blob/master/sources/salesforce/README.md#changelog)
+in the README of the source lists the changes with the upgrade steps.
 
 <!--@@@DLT_TUBA salesforce-->

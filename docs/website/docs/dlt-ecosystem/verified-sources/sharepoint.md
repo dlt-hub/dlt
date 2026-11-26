@@ -311,7 +311,7 @@ def sharepoint_files(
     file_glob: str = "*",
     reader_kwargs: Optional[Dict[str, Any]] = None,
     start_date: Optional[TAnyDateTime] = None,
-    incremental: Optional[dlt.sources.incremental[Any]] = None,
+    incremental: Optional[dlt.sources.incremental[Any]] = DEFAULT_INCREMENTAL,
     credentials: SharepointCredentials = dlt.secrets.value,
 ) -> Iterable[DltResource]:
     ...
@@ -340,7 +340,10 @@ def sharepoint_files(
   first run loads all files. A date without a time zone is in UTC.
 - `incremental`: your own `dlt.sources.incremental` on `modification_date` instead of the default
   one, for example with an `end_value`. An `incremental` with an `end_value` stores no state, so
-  you can backfill with it. Pass `start_date` or `incremental`, not both.
+  you can backfill with it. Pass `start_date` or your own incremental, not both. An incremental
+  without `cursor_path`, for example with only an `end_value`, sets the values of the default
+  incremental. `start_date` wins over its `initial_value`. With `incremental=None`, each run loads
+  all files.
 
 ### Resource `sharepoint_folder`
 
@@ -350,7 +353,7 @@ def sharepoint_folder(
     library: Optional[str] = None,
     file_glob: str = "*",
     start_date: Optional[TAnyDateTime] = None,
-    incremental: Optional[dlt.sources.incremental[Any]] = None,
+    incremental: Optional[dlt.sources.incremental[Any]] = DEFAULT_INCREMENTAL,
     credentials: SharepointCredentials = dlt.secrets.value,
 ) -> DltResource:
     ...
@@ -527,3 +530,10 @@ one hour, and dlt renews it before that time. All resources of a pipeline share 
 - dlt finds a list by its display name. If you rename the list in SharePoint, pass the new name.
   The next run then reads the whole list again.
 - dlt does not load attachments, list versions or site pages.
+
+## Upgrade from an earlier version
+
+In version 1.2.0, `incremental=None` loads all files on each run, without incremental state. To
+keep the default incremental, remove it. The
+[changelog](https://github.com/dlt-hub/verified-sources/blob/master/sources/sharepoint/README.md#changelog)
+in the README of the source lists the changes with the upgrade steps.
