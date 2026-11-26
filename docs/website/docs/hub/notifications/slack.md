@@ -59,6 +59,8 @@ With platform alerts, dltHub dispatches rich notifications to your Slack channel
 
 6. Click **Save** in the bottom changes bar.
 
+When retries are configured, no notification is sent for intermediary failures, but only after the final attempt (if it keeps failing). See [Retries](../pipeline-operations/job-configuration.md#retries) for more details.
+
 ### What the Slack notification includes
 
 dltHub formats alerts using Slack Block Kit:

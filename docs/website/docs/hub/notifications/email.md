@@ -45,6 +45,8 @@ With platform alerts, dltHub sends transactional email notifications when pipeli
 
 7. Click **Save** in the bottom changes bar to apply your configuration.
 
+When retries are configured, no notification is sent for intermediary failures, but only after the final attempt (if it keeps failing). See [Retries](../pipeline-operations/job-configuration.md#retries) for more details.
+
 ### What the email includes
 
 Platform alert emails are pre-formatted and sent via high-deliverability infrastructure. Each email includes:

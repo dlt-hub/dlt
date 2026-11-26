@@ -100,7 +100,7 @@ def transform(run_context: TJobRunContext):
     ...
 ```
 
-Follow-up triggers fire as soon as the upstream completes — no polling, no scheduler delay.
+Follow-up triggers fire as soon as the upstream completes, with no polling and no scheduler delay. When retries are configured, on-failure triggers won't fire any follow-up until the final attempt and only if it is also a failure.
 
 ## Scheduler-driven intervals
 
@@ -205,7 +205,7 @@ Above we tell `dlt` to truncate all tables belonging to resources in `data_sourc
 
 ## Tags and bulk triggering
 
-Tags are labels on jobs (set via `expose={"tags": [...]}`). They are used to:
+Tags are labels on jobs (set via `expose={"tags": [...]}`). A tag that starts with `__` is reserved by dlt and never acts as a trigger. See [Retries](job-configuration.md#retries). Tags are used to:
 
 1. Group related jobs in the dashboard
 2. Run bulk operations from the CLI via **selectors**

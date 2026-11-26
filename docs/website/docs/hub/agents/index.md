@@ -140,6 +140,8 @@ A selector matches a set of jobs at once. It takes the same forms `dlthub job tr
 
 So `trigger="job.fail:tag:ingest"` starts the agent job whenever a job tagged `ingest` fails, `trigger="job.fail:pipeline_name:*"` starts it whenever any pipeline job fails, and `trigger="job.success:jobs.github_pipeline.load_commits"` starts it when `load_commits` succeeds.
 
+When retries are configured for the job, any on-failure follow-up will only run after the final attempt, if it keeps failing. See [Retries](../pipeline-operations/job-configuration.md#retries) for more details.
+
 `pipeline_name:*` is a safe way to watch every pipeline in the workspace: unlike `*` it never matches an agent job, because only `@run.pipeline` declares a pipeline.
 
 A selector expands at deploy time to a follow-up trigger per matching job. The declaring job itself and interactive jobs are excluded. A manual run arrives with a `manual:` trigger and only the inputs that it was given. As a result, the system prompt must say what to do when an input is empty.
