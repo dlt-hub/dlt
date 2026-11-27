@@ -44,13 +44,14 @@ class AwsCredentialsWithoutDefaults(
         )
         if self.region_name:
             credentials["client_kwargs"] = {"region_name": self.region_name}
+        # identify dlt in the botocore user agent for Amazon S3 and any S3-compatible endpoint
+        config_kwargs: DictStrAny = {"user_agent_extra": f"dlt/{version.__version__}"}
         if self.endpoint_url:
             # NOTE: we need to make checksum validation optional for boto to work with s3 compat mode
             # https://www.beginswithdata.com/2025/05/14/aws-s3-tools-with-gcs/
-            credentials["config_kwargs"] = {
-                "response_checksum_validation": "when_required",
-                "request_checksum_calculation": "when_required",
-            }
+            config_kwargs["response_checksum_validation"] = "when_required"
+            config_kwargs["request_checksum_calculation"] = "when_required"
+        credentials["config_kwargs"] = config_kwargs
         return credentials
 
     def to_native_representation(self) -> Dict[str, Optional[str]]:

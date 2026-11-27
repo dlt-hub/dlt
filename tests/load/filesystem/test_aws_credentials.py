@@ -9,6 +9,7 @@ from dlt.common.configuration.specs.aws_credentials import (
     AwsCredentialsWithoutDefaults,
 )
 from dlt.common.configuration.specs.exceptions import InvalidBoto3Session
+from dlt.version import __version__
 
 from tests.common.configuration.utils import environment
 from tests.load.filesystem.utils import can_connect_pyiceberg_fileio_config, fs_creds
@@ -78,6 +79,7 @@ def test_aws_credentials_from_botocore(environment: Dict[str, str]) -> None:
         "profile": None,
         "endpoint_url": None,
         "client_kwargs": {"region_name": region_name},
+        "config_kwargs": {"user_agent_extra": f"dlt/{__version__}"},
     }
 
     # to_session_credentials still freezes (used by the STS / object_store fallback paths)
@@ -163,6 +165,8 @@ def test_aws_credentials_with_endpoint_url(environment: Dict[str, str]) -> None:
     assert s3fs_creds["endpoint_url"] == "https://123.r2.cloudflarestorage.com"
     assert s3fs_creds["client_kwargs"] == {"region_name": "eu-central-1"}
     assert "config_kwargs" in s3fs_creds
+    # user agent is tagged for any S3-compatible endpoint, alongside the checksum settings
+    assert s3fs_creds["config_kwargs"]["user_agent_extra"] == f"dlt/{__version__}"
 
 
 def _refreshable_credentials(deferred: bool = False) -> Any:
