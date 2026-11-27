@@ -6,6 +6,7 @@ from typing import List, Tuple
 from tests.workspace.runner._runner.scheduler import TriggerScheduler
 from dlt._workspace.deployment._trigger_helpers import match_triggers_with_selectors
 from dlt._workspace.deployment.typing import (
+    MANIFEST_ENGINE_VERSION,
     TEntryPoint,
     TExecuteSpec,
     TJobDefinition,
@@ -16,6 +17,7 @@ from dlt._workspace.deployment.typing import (
 
 def _job(ref: str, triggers: List[str]) -> TJobDefinition:
     return {
+        "engine_version": MANIFEST_ENGINE_VERSION,
         "job_ref": TJobRef(ref),
         "entry_point": TEntryPoint(
             module="m",

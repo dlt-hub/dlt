@@ -94,14 +94,17 @@ Use the category from step 2 and the issue number:
 
 Example: `fix/3529-dedup-sort-escape`
 
+If `ISSUE` was already a branch name rather than a number (no ticket exists), use it as given.
+
 #### 4b. Create worktree and dev environment
 
-Invoke the `/worktree-issue` skill with the branch name:
+Invoke the `/worktree-from-issue` skill with the branch name:
 ```
-/worktree-issue {branch-name}
+/worktree-from-issue {branch-name}
 ```
 
 This creates the worktree, checks out a new branch from `origin/devel`, and runs `/worktree-make-dev`.
+Use it also when there is no issue number.
 
 Note the worktree path — referred to as `WORKTREE` below.
 
@@ -172,7 +175,9 @@ Skip this step when the code path is fully internal and you can reason about cor
 make format && make lint
 ```
 
-Both must pass cleanly. Fix any issues before reporting.
+If you changed pages under `docs/website/docs`, also run `make md-fix && make md-check` in `docs/`.
+
+All must pass cleanly. Fix any issues before reporting.
 
 ### 8. Report
 

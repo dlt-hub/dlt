@@ -3,7 +3,7 @@ from typing import Any, Optional, Literal, Dict, Union, Sequence
 from dateutil import parser
 
 from dlt.common.destination import PreparedTableSchema
-from dlt.common.pendulum import timezone
+from datetime import timezone
 from dlt.common.schema.typing import TTableSchemaColumns
 from dlt.common.typing import TColumnNames
 from dlt.destinations.utils import get_resource_for_adapter
@@ -230,7 +230,7 @@ def bigquery_adapter(
         additional_table_hints[PARTITION_EXPIRATION_DAYS_HINT] = partition_expiration_days
 
     if insert_api is not None:
-        if insert_api == "streaming" and data.write_disposition != "append":
+        if insert_api == "streaming" and data.write_disposition_shorthand != "append":
             raise ValueError(
                 "BigQuery streaming insert only accepts `write_disposition='append'`. "
                 f"Received `write_disposition={data.write_disposition}`."

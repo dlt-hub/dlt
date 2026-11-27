@@ -1,11 +1,12 @@
 from typing import Iterable, Optional, Sequence, List, Tuple
 from contextlib import suppress
 
+from datetime import datetime, timezone
+
 from dlt.common.libs.sql_alchemy import sa
 
 from dlt.common.json import json
 from dlt.common import logger
-from dlt.common import pendulum
 from dlt.common.destination.client import (
     JobClientBase,
     LoadJob,
@@ -161,7 +162,7 @@ class SqlalchemyJobClient(SqlJobClientWithStagingDataset):
 
     def complete_load(self, load_id: str) -> None:
         loads_table = self._to_table_object(self.schema.tables[self.schema.loads_table_name])  # type: ignore[arg-type]
-        now_ts = pendulum.now()
+        now_ts = datetime.now(timezone.utc)
         self.sql_client.execute_sql(
             loads_table.insert().values(
                 (
@@ -203,9 +204,11 @@ class SqlalchemyJobClient(SqlJobClientWithStagingDataset):
         only_tables: Iterable[str] = None,
         expected_update: TSchemaTables = None,
         force: bool = False,
+        include_existing_tables: bool = False,
     ) -> Optional[TSchemaTables]:
-        # super().update_stored_schema(only_tables, expected_update)
-        JobClientBase.update_stored_schema(self, only_tables, expected_update, force)
+        JobClientBase.update_stored_schema(
+            self, only_tables, expected_update, force, include_existing_tables
+        )
 
         schema_info = self.get_stored_schema_by_hash(self.schema.stored_version_hash)
         if schema_info is not None and not force:
@@ -221,18 +224,22 @@ class SqlalchemyJobClient(SqlJobClientWithStagingDataset):
                 self.schema.stored_version_hash,
             )
 
+        only_tables = set(only_tables or self.schema.tables)
+        table_names = self.schema.tables.keys() if include_existing_tables else only_tables
+
         # Create all schema tables in metadata
-        for table_name in only_tables or self.schema.tables:
+        for table_name in table_names:
             self._to_table_object(self.schema.tables[table_name])  # type: ignore[arg-type]
 
         schema_update: TSchemaTables = {}
         tables_to_create: List[sa.Table] = []
         columns_to_add: List[sa.Column] = []
 
-        for table_name in only_tables or self.schema.tables:
+        for table_name in table_names:
             table = self.schema.tables[table_name]
             table_obj, new_columns, exists = self.sql_client.compare_storage_table(table["name"])
-            if not new_columns:  # Nothing to do, don't create table without columns
+            # tables outside only_tables get new columns but are not created
+            if not new_columns or (not exists and table_name not in only_tables):
                 continue
             if not exists:
                 logger.debug(f"Will create table {table_name} with new columns {len(new_columns)}")
@@ -278,7 +285,7 @@ class SqlalchemyJobClient(SqlJobClientWithStagingDataset):
             schema_name=schema.name,
             version_hash=schema.stored_version_hash,
             schema=schema_str,
-            inserted_at=pendulum.now(),
+            inserted_at=datetime.now(timezone.utc),
         ).to_normalized_mapping(schema.naming)
 
         self.sql_client.execute_sql(table_obj.insert().values(schema_mapping))

@@ -1,8 +1,9 @@
 # /// script
 # dependencies = [
-#     "dlt",
+#     "dlt[duckdb,parquet]",
 #     "numpy",
 #     "pandas",
+#     "pyarrow",
 #     "pymysql",
 #     "sqlalchemy",
 # ]
@@ -50,6 +51,15 @@ def _(mo):
     - Run a simple pipeline with different types of data, such as dataframes, databases and REST APIs.
     - Use `dlt.resource`, `dlt.source` and `dlt.transformer`.
     - Build your first dlt pipeline for a REST API.
+    """)
+    return
+
+
+@app.cell(hide_code=True)
+def _(mo):
+    mo.md(r"""
+    ---
+    ## **Install dlt**
     """)
     return
 
@@ -699,15 +709,17 @@ def _(mo):
 @app.cell(hide_code=True)
 def _(mo):
     mo.md(r"""
-    ## **Exercise 2: Create a pipeline for the GitHub API – stargazers endpoint**
+    ## **Exercise 2: Create a pipeline for the GitHub API – issue comments endpoint**
 
-    Create a `dlt.transformer` for the **"stargazers"** endpoint
-    `https://api.github.com/repos/OWNER/REPO/stargazers` for the `dlt-hub` organization.
+    Create a `dlt.transformer` for the **"issue comments"** endpoint
+    `https://api.github.com/repos/OWNER/REPO/issues/comments` for the `dlt-hub` organization.
 
     Use the `github_repos` resource as the main resource for the transformer:
 
     1. Get all repositories in the `dlt-hub` organization.
-    2. Feed these repository names into the `dlt` transformer and retrieve all stargazers for all `dlt-hub` repositories.
+    2. Feed these repository names into the `dlt` transformer and retrieve the first page of issue comments for each `dlt-hub` repository.
+
+    > **Note**: As in Exercise 1, you don't need authentication or pagination. A single request per repository returns the first page of comments.
     """)
     return
 
@@ -722,7 +734,7 @@ def _():
 def _(mo):
     mo.md(r"""
     ### Question
-    How many columns has the `github_stargazer` table? Use a `duckdb` connection, `sql_client` or `pipeline.dataset()`.
+    How many columns has the `github_issue_comment` table? Use a `duckdb` connection, `sql_client` or `pipeline.dataset()`.
     """)
     return
 

@@ -15,6 +15,7 @@ from dlt.common.typing import Annotated
 from dlt._workspace.cli import formatters
 from dlt._workspace.cli.dlthub.utils import fetch_profiles_list, fetch_workspace_info
 from dlt._workspace.cli.utils import fetch_schema_export, list_local_pipelines
+from dlt._workspace.access import RequiresAccess
 from dlt._workspace.mcp.context import with_mcp_tool_telemetry
 
 TResultFormat = Literal["markdown", "jsonl"]
@@ -41,8 +42,53 @@ def _get_dataset(pipeline_name: str) -> dlt.Dataset:
     return pipeline.dataset(schema=_get_unified_schema(pipeline))
 
 
+MUTATING_STATEMENTS = (
+    sge.Insert,
+    sge.Update,
+    sge.Delete,
+    sge.Merge,
+    sge.Drop,
+    sge.Create,
+    sge.Alter,
+    sge.TruncateTable,
+    sge.Copy,
+    sge.Pragma,
+    sge.Command,
+    sge.Attach,
+    sge.Set,
+    sge.Use,
+)
+"""Statements that change something, wherever in the tree they sit."""
+
+MUTATING_FUNCTION_SUFFIXES = ("_execute", "_attach")
+"""Table functions that attach a database or run a statement on one: `postgres_execute`."""
+
+
+def _ensure_read_only(sql_query: str, dialect: Optional[str]) -> None:
+    """Refuses anything but one read-only query. Raises `ToolError` with what was refused."""
+    try:
+        statements = sqlglot.parse(sql_query, dialect=dialect)
+    except sqlglot.errors.ParseError as e:
+        raise ToolError(f"Query cannot be parsed as {dialect or 'SQL'}: {e}") from e
+    if len(statements) != 1 or statements[0] is None:
+        raise ToolError("Only a single read-only SELECT statement is allowed")
+    root = statements[0]
+    for node in root.walk():
+        if isinstance(node, MUTATING_STATEMENTS):
+            raise ToolError(
+                "Only read-only SELECT statements are allowed."
+                f" {type(node).__name__.upper()} modifies data or schema"
+            )
+        if isinstance(node, sge.Anonymous) and node.name.lower().endswith(
+            MUTATING_FUNCTION_SUFFIXES
+        ):
+            raise ToolError(f"Function {node.name!r} is not allowed in a read-only query")
+    if not isinstance(root, sge.Query):
+        raise ToolError("Only read-only SELECT statements are allowed")
+
+
 @with_mcp_tool_telemetry()
-def list_pipelines() -> List[str]:
+def list_pipelines() -> Annotated[List[str], RequiresAccess(data=["read"])]:
     """List all dlt pipelines available in this workspace"""
     ctx = active_run_context()
     # in OSS context (no profiles), filter to pipelines created in this project
@@ -52,7 +98,7 @@ def list_pipelines() -> List[str]:
 
 
 @with_mcp_tool_telemetry()
-def get_workspace_info() -> Dict[str, Any]:
+def get_workspace_info() -> Annotated[Dict[str, Any], RequiresAccess(local=["read"])]:
     """Get workspace info: name, directories, active profile, and config providers."""
 
     info = fetch_workspace_info()
@@ -63,7 +109,7 @@ def get_workspace_info() -> Dict[str, Any]:
 
 
 @with_mcp_tool_telemetry()
-def list_profiles() -> List[Dict[str, Any]]:
+def list_profiles() -> Annotated[List[Dict[str, Any]], RequiresAccess(local=["read"])]:
     """List all available workspace profiles with status flags (current, pinned, configured)."""
     return fetch_profiles_list()
 
@@ -71,7 +117,7 @@ def list_profiles() -> List[Dict[str, Any]]:
 @with_mcp_tool_telemetry()
 def list_tables(
     pipeline_name: str,
-) -> Dict[str, Any]:
+) -> Annotated[Dict[str, Any], RequiresAccess(data=["read"])]:
     """List all data tables for a pipeline."""
     pipeline = _attach(pipeline_name)
     schema = _get_unified_schema(pipeline)
@@ -82,7 +128,7 @@ def list_tables(
 def get_table_schema(
     pipeline_name: str,
     table_name: str,
-) -> Dict[str, Any]:
+) -> Annotated[Dict[str, Any], RequiresAccess(data=["read"])]:
     """Get table schema with column names, data types, and escaped sql_identifier fields."""
     try:
         dataset = _get_dataset(pipeline_name)
@@ -114,7 +160,7 @@ def get_table_schema(
 def get_table_create_sql(
     pipeline_name: str,
     table_name: str,
-) -> str:
+) -> Annotated[str, RequiresAccess(data=["read"])]:
     """Get CREATE TABLE DDL for the table in the destination's SQL dialect."""
     from dlt.common.libs.sqlglot import to_sqlglot_type
 
@@ -182,7 +228,7 @@ def preview_table(
         TResultFormat,
         Field(description="Output format: 'markdown' or 'jsonl'"),
     ] = "markdown",
-) -> str:
+) -> Annotated[str, RequiresAccess(data=["read"])]:
     """Get the first 10 rows from a table."""
     try:
         relation = _get_dataset(pipeline_name)[table_name].limit(10)
@@ -209,16 +255,10 @@ def execute_sql_query(
         TResultFormat,
         Field(description="Output format: 'markdown' or 'jsonl'"),
     ] = "markdown",
-) -> str:
+) -> Annotated[str, RequiresAccess(data=["read"])]:
     """Execute a read-only SQL query against the pipeline's destination dataset."""
-    parsed = sqlglot.parse(sql_select_query)
-    if any(
-        isinstance(expr, (sqlglot.exp.Insert, sqlglot.exp.Update, sqlglot.exp.Delete))
-        for expr in parsed
-    ):
-        raise ToolError("Data modification statements are not allowed")
-
     dataset = _get_dataset(pipeline_name)
+    _ensure_read_only(sql_select_query, dataset.sql_client.capabilities.sqlglot_dialect)
     relation = dataset(sql_select_query)
     columns = relation.columns
     rows = relation.fetchall()
@@ -234,7 +274,7 @@ def get_row_counts(
         TResultFormat,
         Field(description="Output format: 'markdown' or 'jsonl'"),
     ] = "markdown",
-) -> str:
+) -> Annotated[str, RequiresAccess(data=["read"])]:
     """Get row counts for all data tables in a pipeline."""
     try:
         dataset = _get_dataset(pipeline_name)
@@ -275,7 +315,7 @@ def export_schema(
             )
         ),
     ] = None,
-) -> str:
+) -> Annotated[str, RequiresAccess(data=["read"], local=["write"])]:
     """Export the pipeline schema as a diagram or structured dump."""
     try:
         pipeline = _attach(pipeline_name)
@@ -297,7 +337,7 @@ def export_schema(
 @with_mcp_tool_telemetry()
 def get_local_pipeline_state(
     pipeline_name: str,
-) -> Dict[str, Any]:
+) -> Annotated[Dict[str, Any], RequiresAccess(data=["read"])]:
     """Get pipeline state: incremental cursors, resource state, and source state."""
     try:
         pipeline = _attach(pipeline_name)

@@ -9,15 +9,20 @@ import sqlglot.expressions as exp
 from urllib.parse import urlparse
 import math
 from contextlib import contextmanager
+from datetime import datetime, timedelta, timezone
+from functools import partial
 from typing import (
     Any,
     AnyStr,
+    Callable,
     ClassVar,
+    Collection,
     Dict,
     Iterator,
     List,
     Optional,
     Sequence,
+    Set,
     Tuple,
     Generator,
     Type,
@@ -34,10 +39,12 @@ from dlt.common.configuration.specs import (
     AzureServicePrincipalCredentials,
     AzureServicePrincipalCredentialsWithoutDefaults,
     AzureCredentialsWithoutDefaults,
+    GcpCredentials,
 )
 from dlt.common.destination.client import JobClientBase
 from dlt.common.destination.utils import prepare_load_table as _prepare_load_table
 from dlt.common.schema import Schema
+from dlt.common.schema.typing import TTableSchemaColumns
 from dlt.common.schema.utils import merge_columns
 from dlt.common.destination.dataset import DBApiCursor
 
@@ -53,7 +60,11 @@ from dlt.destinations.typing import DBApi, DBTransaction
 from dlt.destinations.sql_client import (
     SqlClientBase,
     DBApiCursorImpl,
+    TAttachStatement,
+    TAttachType,
+    WithAttach,
     WithSchemas,
+    attach_statement,
     raise_database_error,
     raise_open_connection_error,
 )
@@ -63,6 +74,8 @@ if TYPE_CHECKING:
     from pyarrow import Table as ArrowTable
 
 from dlt.destinations.impl.duckdb.configuration import (
+    NON_ATTACHABLE_LOCATIONS,
+    ConnStatement,
     DuckDbBaseCredentials,
     DuckDbClientConfiguration,
     DuckDbCredentials,
@@ -94,18 +107,17 @@ class DuckDBDBApiCursorImpl(DBApiCursorImpl):
             yield df
 
     def iter_arrow(self, chunk_size: int) -> Generator["ArrowTable", None, None]:
+        # duckdb 1.5 introduces `to_arrow_table` which become mandatory from 2.0 onward
+        new_api = Version(duckdb.__version__) >= Version("1.5.0")
         if not chunk_size:
-            yield self.native_cursor.fetch_arrow_table()
+            method = "to_arrow_table" if new_api else "fetch_arrow_table"
+            yield getattr(self.native_cursor, method)()
             return
         # resolve pa at runtime; `ArrowTable` is a TYPE_CHECKING-only alias above
         from dlt.common.libs.pyarrow import pyarrow as pa
 
         # iterate
-        method = (
-            "to_arrow_reader"
-            if Version(duckdb.__version__) >= Version("1.5.0")
-            else "fetch_record_batch"
-        )
+        method = "to_arrow_reader" if new_api else "fetch_record_batch"
         for item in getattr(self.native_cursor, method)(chunk_size):
             yield pa.Table.from_batches([item])
 
@@ -114,9 +126,13 @@ class DuckDBDBApiCursorImpl(DBApiCursorImpl):
         pass
 
 
-class DuckDbSqlClient(SqlClientBase[duckdb.DuckDBPyConnection], DBTransaction):
+class DuckDbSqlClient(SqlClientBase[duckdb.DuckDBPyConnection], DBTransaction, WithAttach):
     dbapi: ClassVar[DBApi] = duckdb
     cursor_impl: ClassVar[Type[DuckDBDBApiCursorImpl]] = DuckDBDBApiCursorImpl
+    attach_type: ClassVar[TAttachType] = "duckdb"
+    RESERVED_CATALOGS: ClassVar[Tuple[str, ...]] = ("memory", "system", "temp")
+    SECRET_REFRESH_MARGIN: ClassVar[timedelta] = timedelta(minutes=30)
+    """Token lifetime left when the client creates a secret with a frozen token again."""
 
     def __init__(
         self,
@@ -132,18 +148,21 @@ class DuckDbSqlClient(SqlClientBase[duckdb.DuckDBPyConnection], DBTransaction):
         # TODO: move that to methods that can be overridden, include local_config
         self._pragmas = ["enable_checkpoint_on_shutdown"]
         self._global_config: Dict[str, Any] = {
-            "TimeZone": "UTC",
             "checkpoint_threshold": "1gb",
         }
+        if credentials.session_timezone:
+            # the database default, which each cloned session inherits and may override
+            self._global_config["TimeZone"] = credentials.session_timezone
+        # duckdb cannot refresh a token frozen in a secret, so the client creates the secret again
+        self._secret_refresh_at: Optional[datetime] = None
+        self._recreate_secret: Optional[Callable[[], Any]] = None
 
     @raise_open_connection_error
     def open_connection(self) -> duckdb.DuckDBPyConnection:
         self._conn = self.credentials.conn_pool.borrow_conn(
             pragmas=self._pragmas,
             global_config=self._global_config,
-            local_config={
-                "search_path": self.fully_qualified_dataset_name(),
-            },
+            local_config={"search_path": self.fully_qualified_dataset_name()},
         )
         return self._conn
 
@@ -151,6 +170,47 @@ class DuckDbSqlClient(SqlClientBase[duckdb.DuckDBPyConnection], DBTransaction):
         if self._conn:
             self.credentials.conn_pool.return_conn(self._conn)
             self._conn = None
+
+    def attach_statements(
+        self, *, alias: str, tables: Optional[Collection[str]] = None
+    ) -> List[TAttachStatement]:
+        # the statement attaches the whole database file, so `tables` cannot narrow it
+        q_db_path = self.capabilities.escape_literal(self.credentials.database)
+        q_alias = self.escape_column_name(alias)
+        return [attach_statement(f"ATTACH IF NOT EXISTS {q_db_path} AS {q_alias} (READ_ONLY)")]
+
+    def attach(self, alias: str, statements: Sequence[TAttachStatement]) -> None:
+        pool = self.credentials.conn_pool
+        if alias not in pool.attached_aliases:
+            self._raise_on_catalog_collision(alias)
+        # from here on the pool replays the statements. `conn` covers the connection already
+        # borrowed here
+        pool.add_statements(
+            [ConnStatement(s["sql"], s["key"]) for s in statements],
+            alias=alias,
+            conn=self._conn,
+        )
+
+    def _raise_on_catalog_collision(self, alias: str) -> None:
+        """Raises for an attach alias that shadows a reserved catalog or the primary catalog."""
+        folded = self.capabilities.casefold_identifier(alias)
+        reserved = {self.capabilities.casefold_identifier(c) for c in self.RESERVED_CATALOGS}
+        if folded in reserved:
+            raise ValueError(
+                f"dlt cannot attach a foreign dataset under `{alias}`, a catalog name that"
+                " duckdb reserves."
+            )
+        if self._conn is None:
+            # only an open connection gives the primary catalog name
+            return
+        try:
+            row = self._conn.execute("SELECT current_database()").fetchone()
+        except duckdb.Error:
+            row = None
+        if row and row[0] and self.capabilities.casefold_identifier(str(row[0])) == folded:
+            raise ValueError(
+                f"The attach alias `{alias}` is the name of the primary database catalog."
+            )
 
     @contextmanager
     @raise_database_error
@@ -195,19 +255,54 @@ class DuckDbSqlClient(SqlClientBase[duckdb.DuckDBPyConnection], DBTransaction):
             else:
                 return curr.fetchall()
 
-    @contextmanager
-    @raise_database_error
-    def execute_query(self, query: AnyStr, *args: Any, **kwargs: Any) -> Iterator[DBApiCursor]:
+    def _prepare_query(
+        self, query: AnyStr, args: Tuple[Any, ...], kwargs: Dict[str, Any]
+    ) -> Tuple[str, Any]:
         assert isinstance(query, str)
+        self._refresh_expiring_secret()
         db_args = args if args else kwargs if kwargs else None
         if db_args:
             # TODO: must provide much better refactoring of params
-            query = query.replace("%s", "?")
+            return query.replace("%s", "?"), db_args
+        return query, db_args
+
+    @raise_database_error
+    def iter_arrow_query(
+        self,
+        query: AnyStr,
+        chunk_size: Optional[int] = None,
+        columns_schema: Optional[TTableSchemaColumns] = None,
+    ) -> Generator["ArrowTable", None, None]:
+        # in duckdb > 2 this loads all results into memory before returning a chunk
+        if Version(duckdb.__version__) < Version("2.0.0"):
+            yield from super().iter_arrow_query(query, chunk_size, columns_schema)
+            return
+        sql, _ = self._prepare_query(query, (), {})
+        # `.sql` streams on duckbd > 2
+        relation = self._conn.sql(sql)
+        if not chunk_size:
+            yield relation.to_arrow_table()
+            return
+
+        from dlt.common.libs.pyarrow import pyarrow as pa
+
+        reader = relation.to_arrow_reader(chunk_size)
+        try:
+            for batch in reader:
+                yield pa.Table.from_batches([batch])
+        finally:
+            # duckdb 2 errors on the next query when an open reader holds previous query results
+            reader.close()
+
+    @contextmanager
+    @raise_database_error
+    def execute_query(self, query: AnyStr, *args: Any, **kwargs: Any) -> Iterator[DBApiCursor]:
+        sql, db_args = self._prepare_query(query, args, kwargs)
 
         # we can't duplicate connection because local settings (ie. search path) are lost
         cur = self._conn
         try:
-            yield self.cursor_impl(cur.execute(query, db_args))  # type: ignore
+            yield self.cursor_impl(cur.execute(sql, db_args))  # type: ignore
         except duckdb.Error:
             try:
                 cur.rollback()
@@ -215,8 +310,14 @@ class DuckDbSqlClient(SqlClientBase[duckdb.DuckDBPyConnection], DBTransaction):
                 pass
             raise
         finally:
-            # we should somehow cleanup result set if present but no suitable method on connection
-            pass
+            self._abort_unread_result(cur)
+
+    @staticmethod
+    def _abort_unread_result(conn: duckdb.DuckDBPyConnection) -> None:
+        # duckdb 2 refuses relations while a partly read result is open, older versions have no abort
+        abort = getattr(conn, "abort", None)
+        if abort is not None:
+            abort()
 
     def warn_if_catalog_equals_dataset_name(self) -> None:
         """
@@ -255,7 +356,7 @@ class DuckDbSqlClient(SqlClientBase[duckdb.DuckDBPyConnection], DBTransaction):
     @raise_database_error
     def list_secrets(self) -> Sequence[str]:
         """List secrets that belong to this dataset"""
-        secrets = self._conn.sql(
+        secrets = self._conn.execute(
             f"SELECT name FROM duckdb_secrets() WHERE name LIKE '{self.dataset_name}%'"
         ).fetchall()
         return [s[0] for s in secrets]
@@ -268,7 +369,7 @@ class DuckDbSqlClient(SqlClientBase[duckdb.DuckDBPyConnection], DBTransaction):
                 f" `{secret_name}`."
             )
 
-        self._conn.sql(f"DROP SECRET {secret_name}")
+        self._conn.execute(f"DROP SECRET {secret_name}")
 
     @raise_database_error
     def create_secret(
@@ -288,7 +389,7 @@ class DuckDbSqlClient(SqlClientBase[duckdb.DuckDBPyConnection], DBTransaction):
             )
 
         secrets_path = Path(
-            self._conn.sql(
+            self._conn.execute(
                 "SELECT current_setting('secret_directory') AS secret_directory"
             ).fetchone()[0]
         )
@@ -310,17 +411,38 @@ class DuckDbSqlClient(SqlClientBase[duckdb.DuckDBPyConnection], DBTransaction):
         if persist_secrets:
             persistent_stmt = " PERSISTENT "
 
+        recreate_secret = partial(
+            self.create_secret, scope, credentials, secret_name, persist_secrets
+        )
         if "@" in scope:
             scope = scope.split("@")[0]
 
-        sql = self._build_secret_statements(
-            scope, credentials, secret_name, persistent_stmt, persist_secrets
+        # a cached token may live shorter than the refresh margin
+        sql, expires_at = self._build_secret(
+            scope,
+            credentials,
+            secret_name,
+            persistent_stmt,
+            persist_secrets,
+            cached=not self._secret_expires_soon(),
         )
         if not sql:
             # could not create secret - the filesystem client falls back to fsspec
             return False
-        self._conn.sql(";\n".join(sql))
+        self._conn.execute(";\n".join(sql))
+        self._secret_refresh_at = expires_at - self.SECRET_REFRESH_MARGIN if expires_at else None
+        self._recreate_secret = recreate_secret
         return True
+
+    def _secret_expires_soon(self) -> bool:
+        """Tells if the frozen token of the secret lives shorter than the refresh margin."""
+        refresh_at = self._secret_refresh_at
+        return refresh_at is not None and datetime.now(timezone.utc) >= refresh_at
+
+    def _refresh_expiring_secret(self) -> None:
+        """Creates the secret again with a new token when its frozen token is about to expire."""
+        if self._secret_expires_soon():
+            self._recreate_secret()
 
     @staticmethod
     def _build_secret_statements(
@@ -330,13 +452,32 @@ class DuckDbSqlClient(SqlClientBase[duckdb.DuckDBPyConnection], DBTransaction):
         persistent_stmt: str,
         persist_secrets: bool,
     ) -> List[str]:
+        """Builds `CREATE SECRET` statements that the caller keeps, with a new frozen token, see
+        `_build_secret`."""
+        sql, _ = DuckDbSqlClient._build_secret(
+            scope, credentials, secret_name, persistent_stmt, persist_secrets, cached=False
+        )
+        return sql
+
+    @staticmethod
+    def _build_secret(
+        scope: str,
+        credentials: FileSystemCredentials,
+        secret_name: str,
+        persistent_stmt: str,
+        persist_secrets: bool,
+        cached: bool = True,
+    ) -> Tuple[List[str], Optional[datetime]]:
         """Builds `CREATE SECRET` statements for `scope`/`credentials`, empty when none apply.
+        Returns the statements and the expiry of the token they freeze, if any. With `cached`, a
+        frozen gcs token may come from an earlier call.
 
         Default credentials hand over to DuckDB's `credential_chain` (which refreshes); static
         and external-session credentials are frozen.
         """
         protocol = urlparse(scope).scheme
         sql: List[str] = []
+        expires_at: Optional[datetime] = None
 
         # add secrets required for creating views
         if protocol == "s3":
@@ -401,16 +542,15 @@ class DuckDbSqlClient(SqlClientBase[duckdb.DuckDBPyConnection], DBTransaction):
             ):
                 if credentials.is_external_session():
                     # DuckDB's chain cannot resolve a user-passed credential, so freeze a bearer
-                    access_token = (
-                        credentials.default_credentials()
-                        .get_token("https://storage.azure.com/.default")
-                        .token
+                    access_token = credentials.default_credentials().get_token(
+                        "https://storage.azure.com/.default"
                     )
+                    expires_at = datetime.fromtimestamp(access_token.expires_on, timezone.utc)
                     sql.append(f"""
                     CREATE OR REPLACE {persistent_stmt} SECRET {secret_name} (
                         TYPE AZURE,
                         PROVIDER access_token,
-                        ACCESS_TOKEN '{access_token}',
+                        ACCESS_TOKEN '{access_token.token}',
                         ACCOUNT_NAME '{credentials.azure_storage_account_name}',
                         SCOPE '{scope}'
                     )""")
@@ -454,6 +594,20 @@ class DuckDbSqlClient(SqlClientBase[duckdb.DuckDBPyConnection], DBTransaction):
                 TOKEN '{credentials.hf_token}'
             )""")
 
+        elif (
+            protocol in ["gs", "gcs"]
+            and not persist_secrets
+            and Version(duckdb.__version__) >= Version("1.4.0")
+        ):
+            # DuckDB has no google credential chain, so freeze a bearer token
+            token, expires_at = cast(GcpCredentials, credentials).to_gcs_bearer_token(cached)
+            sql.append(f"""
+            CREATE OR REPLACE SECRET {secret_name} (
+                TYPE GCS,
+                BEARER_TOKEN '{token}',
+                SCOPE '{scope}'
+            )""")
+
         elif persist_secrets:
             raise ValueError(
                 "Cannot create persistent secret for filesystem protocol"
@@ -461,12 +615,12 @@ class DuckDbSqlClient(SqlClientBase[duckdb.DuckDBPyConnection], DBTransaction):
                 " with gs/gcs, please use the s3 compatibility layer."
             )
 
-        return sql
+        return sql, expires_at
 
     def use_dataset(self) -> None:
         """Makes duckdb schema corresponding to dataset_name the default"""
         fq_name = self.fully_qualified_dataset_name()
-        self._conn.sql(f"SET search_path = '{fq_name}'")
+        self._conn.execute(f"SET search_path = '{fq_name}'")
 
     def _register_filesystem(self, fs: AbstractFileSystem, scheme: str) -> None:
         protocols = [fs.protocol] if isinstance(fs.protocol, str) else fs.protocol
@@ -602,26 +756,17 @@ class WithTableScanners(DuckDbSqlClient, WithSchemas):
                 }
             )
 
-    @raise_database_error
-    def open_connection(self) -> duckdb.DuckDBPyConnection:
-        # lock the whole process to prevent race condition on `first_connection` flag
-        # which may become invalid if second connection got opened in another thread
-        with self.credentials.conn_pool._conn_lock:
-            first_connection = self.credentials.conn_pool.never_borrowed
-            super().open_connection()
-
-        try:
-            # NOTE: do not self.execute*** methods when opening connection, may end in endless recursion
-            if first_connection:
-                # set up dataset
-                q_dataset_name = self.fully_qualified_dataset_name()
-                create_schema_sql = "CREATE SCHEMA IF NOT EXISTS %s" % q_dataset_name
-                self._conn.sql(f"{create_schema_sql};USE {self.fully_qualified_dataset_name()}")
-        except Exception:
-            self.close_connection()
-            raise
-
-        return self._conn
+        # views live in this schema, so it must exist before `search_path` names it. `USE` is not
+        # necessary here: the pool sets `search_path` on each borrow. a pool-wide `USE` fights the
+        # other sql clients that share this cache database
+        q_dataset_name = self.fully_qualified_dataset_name()
+        self.credentials.conn_pool.add_statements(
+            [
+                ConnStatement(
+                    f"CREATE SCHEMA IF NOT EXISTS {q_dataset_name}", f"schema:{q_dataset_name}"
+                )
+            ]
+        )
 
     @abstractmethod
     def should_replace_view(self, view_name: str, table_schema: PreparedTableSchema) -> bool:
@@ -652,33 +797,38 @@ class WithTableScanners(DuckDbSqlClient, WithSchemas):
         """Return all schemas that contain `table_name`, in dict order."""
         return [s for s in self.schemas.values() if table_name in s.tables]
 
-    def create_views_for_all_tables(self) -> None:
+    def _table_views(self, tables: Optional[Collection[str]] = None) -> Dict[str, str]:
+        """Maps `tables` to views of the same name. When `tables` is `None`, maps every table of
+        every schema."""
+        if tables is not None:
+            return {table_name: table_name for table_name in tables}
         all_tables: Dict[str, str] = {}
         for s in self.schemas.values():
             for table_name in s.tables.keys():
                 all_tables.setdefault(table_name, table_name)
-        self.create_views_for_tables(all_tables)
+        return all_tables
 
-    @raise_database_error
-    def create_views_for_tables(self, tables: Dict[str, str]) -> None:
-        """Add the required tables as views to the duckdb in memory instance.
+    def create_views_for_all_tables(self) -> None:
+        self.create_views_for_tables(self._table_views())
+
+    def _build_pending_views(
+        self, tables: Dict[str, str], existing_tables: Set[str]
+    ) -> List[Tuple[str, str]]:
+        """Builds `(view_name, select_sql)` for each table that needs a view.
 
         When a table name appears in multiple schemas, views are grouped by
         physical data location.  Co-located schemas get their columns merged
         into a single SELECT; different locations are combined with
         ``UNION ALL BY NAME``.
         """
-        existing_tables = set(tname[0] for tname in self._conn.execute("SHOW TABLES").fetchall())
-
         # TODO: existing table schemas and sql statements can be cached so we do not have to recompute everything
         #  with every query
-        tables_with_data: set[str] = set()
+        tables_with_data: Set[str] = set()
         for s in self.schemas.values():
             tables_with_data.update(s.dlt_table_names())
             tables_with_data.update(s.data_table_names(seen_data_only=True))
 
-        # first pass: build SELECT SQL for every table, grouped by location
-        pending_views: List[Tuple[str, str]] = []  # (qualified_view_name, final_sql)
+        pending_views: List[Tuple[str, str]] = []
 
         for table_name, view_name in tables.items():
             if table_name not in tables_with_data:
@@ -730,24 +880,63 @@ class WithTableScanners(DuckDbSqlClient, WithSchemas):
             if view_name in existing_tables and not needs_replace:
                 continue
 
-            final_sql = " UNION ALL BY NAME ".join(location_sql.values())
-            q_view = self.make_qualified_table_name(view_name)
-            pending_views.append((q_view, final_sql))
+            pending_views.append((view_name, " UNION ALL BY NAME ".join(location_sql.values())))
 
-        # second pass: execute all CREATE VIEW statements
-        for q_view, final_sql in pending_views:
+        return pending_views
+
+    @raise_database_error
+    def create_views_for_tables(self, tables: Dict[str, str]) -> None:
+        """Add the required tables as views to the duckdb in memory instance."""
+        existing_tables = set(tname[0] for tname in self._conn.execute("SHOW TABLES").fetchall())
+        for view_name, final_sql in self._build_pending_views(tables, existing_tables):
+            q_view = self.make_qualified_table_name(view_name)
             self._conn.execute(f"CREATE OR REPLACE VIEW {q_view} AS {final_sql}")
 
-    @contextmanager
-    @raise_database_error
-    def execute_query(self, query: AnyStr, *args: Any, **kwargs: Any) -> Iterator[DBApiCursor]:
-        # skip parametrized queries, we could also render them but currently user is not able to
-        # do parametrized queries via dataset interface
-        if args or kwargs:
-            # this is hack
-            query = query.replace("%s", "?")  # type: ignore
+    def _attach_extension_statements(self) -> List[str]:
+        """Non-secret `INSTALL` and `LOAD` statements that read the data of this scanner from a
+        foreign connection. Raises `NotImplementedError` when the scanner needs an fsspec
+        filesystem that only this process registers."""
+        raise NotImplementedError(f"dlt cannot attach `{type(self).__name__}` with SQL statements.")
+
+    def _attach_secret_statements(self) -> List[str]:
+        """Credential-bearing `CREATE SECRET` statements that read the data of this scanner."""
+        return []
+
+    def attach_statements(
+        self, *, alias: str, tables: Optional[Collection[str]] = None
+    ) -> List[TAttachStatement]:
+        q_alias = self.escape_column_name(alias)
+        q_schema = self.escape_column_name(self.dataset_name)
+        # every view costs one list operation on the data location, so this method builds only
+        # the views that the query needs. the fresh attach catalog holds nothing, so no view
+        # already exists. describing a view is also what tells the scanner which extensions it
+        # needs, so this runs before `_attach_extension_statements`
+        pending_views = self._build_pending_views(self._table_views(tables), set())
+        # extensions load first, then secrets, then the views that reference them by scope
+        statements = [attach_statement(s) for s in self._attach_extension_statements()]
+        statements += [
+            # one key for the whole set: when the client emits the set again, it replaces the
+            # rotated credentials
+            attach_statement(s, secret=True, key=f"{alias}:secret")
+            for s in self._attach_secret_statements()
+        ]
+        statements.append(attach_statement(f"ATTACH IF NOT EXISTS ':memory:' AS {q_alias}"))
+        statements.append(attach_statement(f"CREATE SCHEMA IF NOT EXISTS {q_alias}.{q_schema}"))
+        for view_name, select_sql in pending_views:
+            q_view = f"{q_alias}.{q_schema}.{self.escape_column_name(view_name)}"
+            # the key is the view: data that grew since the last query redefines the view in place
+            statements.append(
+                attach_statement(f"CREATE OR REPLACE VIEW {q_view} AS {select_sql}", key=q_view)
+            )
+        return statements
+
+    def _prepare_query(
+        self, query: AnyStr, args: Tuple[Any, ...], kwargs: Dict[str, Any]
+    ) -> Tuple[str, Any]:
+        # DuckDB may read remote file metadata while binding CREATE VIEW.
+        sql, db_args = super()._prepare_query(query, args, kwargs)
         # find all tables to preload
-        expression = sqlglot.parse_one(query, read="duckdb")  # type: ignore
+        expression = sqlglot.parse_one(sql, read="duckdb")
         load_tables: Dict[str, str] = {}
         for table in expression.find_all(exp.Table):
             # sqlglot has tables without tables ie. schemas are tables
@@ -760,24 +949,19 @@ class WithTableScanners(DuckDbSqlClient, WithSchemas):
 
         if load_tables:
             self.create_views_for_tables(load_tables)
-        with super().execute_query(query, *args, **kwargs) as cursor:
-            yield cursor
+        return sql, db_args
 
     @staticmethod
-    def _setup_iceberg(conn: duckdb.DuckDBPyConnection) -> None:
-        if Version(duckdb.__version__) <= Version("1.1.2"):
-            raise NotImplementedError(
-                f"Iceberg scanner for duckdb `{duckdb.__version__}` does not implement recent"
-                " snapshot discovery. Please install duckdb >= 1.1.3"
-            )
-        # needed to make persistent secrets work in new connection
-        # https://github.com/duckdb/duckdb_iceberg/issues/83
-        conn.execute("FROM duckdb_secrets()")
+    def _iceberg_setup_statements() -> List[str]:
+        """Database-scoped SQL that prepares a connection to read iceberg tables."""
+        statements = []
 
-        # `duckdb_iceberg` extension does not support autoloading
-        # https://github.com/duckdb/duckdb_iceberg/issues/71
-        if Version(duckdb.__version__) < Version("1.2.0"):
-            conn.execute("INSTALL Iceberg FROM core_nightly; LOAD iceberg")
+        # reading the secret table once makes a persistent secret visible to `iceberg_scan`.
+        # https://github.com/duckdb/duckdb_iceberg/issues/83 is fixed upstream, but old duckdb
+        # still carries the bug and the statement costs well under a millisecond
+        if Version(duckdb.__version__) < Version("1.4.2"):
+            statements.append("FROM duckdb_secrets()")
+        return statements
 
     def __del__(self) -> None:
         if self.memory_db:

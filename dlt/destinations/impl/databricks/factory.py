@@ -148,6 +148,7 @@ class databricks(Destination[DatabricksClientConfiguration, "DatabricksClient"])
 
     def _raw_capabilities(self) -> DestinationCapabilitiesContext:
         caps = DestinationCapabilitiesContext()
+        caps.supports_session_timezone = True
         caps.preferred_loader_file_format = "parquet"
         caps.supported_loader_file_formats = ["jsonl", "parquet", "model"]
         caps.preferred_staging_file_format = "parquet"
@@ -176,7 +177,7 @@ class databricks(Destination[DatabricksClientConfiguration, "DatabricksClient"])
         caps.alter_add_multi_column = True
         caps.supports_multiple_statements = False
         caps.supports_clone_table = True
-        caps.supported_merge_strategies = ["delete-insert", "upsert", "scd2", "insert-only"]
+        caps.supported_merge_strategies = ["delete-insert", "upsert", "scd2", "insert-only", "cdc"]
         caps.supported_replace_strategies = [
             "truncate-and-insert",
             "insert-from-staging",
@@ -229,7 +230,8 @@ class databricks(Destination[DatabricksClientConfiguration, "DatabricksClient"])
             staging_credentials_name (str, optional): If set, credentials with given name will be used in copy command
             destination_name (str, optional): Name of the destination, can be used in config section to differentiate between multiple of the same type
             environment (str, optional): Environment of the destination
-            staging_volume_name (str, optional): Name of the staging volume to use
+            staging_volume_name (str, optional): Fully qualified name of the Databricks managed volume for temporary storage, e.g., `catalog.database.volume`.
+                When omitted, dlt creates or reuses `_dlt_staging_load_volume` in the destination catalog and dataset.
             create_indexes (bool, optional): Whether PRIMARY KEY or FOREIGN KEY constrains should be created
             insert_api (TDatabricksInsertApi, optional): Ingestion backend for `append` write
                 disposition. Can be overridden per resource via `databricks_adapter`.

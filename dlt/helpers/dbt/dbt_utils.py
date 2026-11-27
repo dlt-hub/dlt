@@ -8,6 +8,7 @@ from dlt.common.json import json
 from dlt.common.exceptions import MissingDependencyException
 from dlt.common.typing import StrAny, TypeAlias, AnyType
 
+from dlt.helpers.dbt.configuration import DBT_SEND_ANONYMOUS_USAGE_STATS_ENV
 from dlt.helpers.dbt.exceptions import (
     DBTProcessingError,
     DBTNodeResult,
@@ -66,11 +67,24 @@ def parse_dbt_execution_results(results: Any) -> Sequence[DBTNodeResult]:
         logger.warning(f"{type(results)} is unknown and cannot be logged")
         return None
 
-    return [
-        DBTNodeResult(res.node.name, res.message, res.execution_time, str(res.status))
-        for res in results
-        if isinstance(res, dbt_results.NodeResult)
-    ]
+    return [_to_node_result(res) for res in results if isinstance(res, dbt_results.NodeResult)]
+
+
+def _to_node_result(res: dbt_results.NodeResult) -> DBTNodeResult:
+    adapter_response = res.adapter_response or None
+    rows_affected = (adapter_response or {}).get("rows_affected")
+    # DB-API drivers report -1 when the statement does not count rows ie. DDL or views
+    if rows_affected is not None and rows_affected < 0:
+        rows_affected = None
+    return DBTNodeResult(
+        res.node.name,
+        res.message,
+        res.execution_time,
+        str(res.status),
+        rows_affected=rows_affected,
+        failures=res.failures,
+        adapter_response=adapter_response,
+    )
 
 
 def run_dbt_command(
@@ -81,7 +95,17 @@ def run_dbt_command(
     global_args: Sequence[str] = None,
     command_args: Sequence[str] = None,
     package_vars: StrAny = None,
+    send_anonymous_usage_stats: Optional[bool] = None,
 ) -> Union[Sequence[DBTNodeResult], dbt_results.ExecutionResult]:
+    global_args = list(global_args or [])
+    if send_anonymous_usage_stats is None:
+        # the dbt runner passes the option via env so the venv call works with older dlt versions
+        send_anonymous_usage_stats = os.environ.get(
+            DBT_SEND_ANONYMOUS_USAGE_STATS_ENV, ""
+        ).lower() in ("1", "true")
+    if not send_anonymous_usage_stats:
+        # also prevents dbt from writing `.user.yml` cookie into the profiles dir
+        global_args.append("--no-send-anonymous-usage-stats")
     args = ["--profiles-dir", profiles_dir]
     # add profile name if provided
     if profile_name:
@@ -100,7 +124,7 @@ def run_dbt_command(
         success: bool = None
         # dbt uses logbook which does not run on python 10. below is a hack that allows that
         warnings.filterwarnings("ignore", category=DeprecationWarning, module="logbook")
-        runner_args = (global_args or []) + [command] + args  # type: ignore
+        runner_args = global_args + [command] + args
 
         runner = dbtRunner()
         run_result = runner.invoke(runner_args)
@@ -117,7 +141,7 @@ def run_dbt_command(
             raise dbt_exc
         return parsed_results or results
     except SystemExit as sys_ex:
-        # dbt >= 1.7 uses dbtRunner which handles BaseExceptions internally,
+        # dbtRunner which handles BaseExceptions internally,
         # so SystemExit should not reach here, but we handle it defensively
 
         raise DBTProcessingError(command, None, sys_ex)

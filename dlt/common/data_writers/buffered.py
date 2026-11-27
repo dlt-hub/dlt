@@ -169,6 +169,7 @@ class BufferedDataWriter(Generic[TWriter]):
             file_path=self._file_name,
             created=self._created,
             last_modified=self._last_modified or self._created,
+            files_count=1,
         )
         self.closed_files.append(metrics)
         # reset current file
@@ -296,6 +297,7 @@ class BufferedDataWriter(Generic[TWriter]):
             self._file.tell(),
             self._created,
             self._last_modified,
+            files_count=1,
         )
         self.closed_files.append(metrics)
         self._file.close()

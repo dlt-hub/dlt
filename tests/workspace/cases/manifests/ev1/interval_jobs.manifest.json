@@ -1,0 +1,52 @@
+{
+  "engine_version": 1,
+  "version": 1,
+  "version_hash": "kjnEUQIVbLUmXVqTuB3pCozAJrsDLBHQynY9zRgIH5I=",
+  "created_at": "2026-01-01T00:00:00Z",
+  "deployment_module": "__deployment__",
+  "description": "v1 manifest with allow_external_schedulers settings to migrate",
+  "jobs": [
+    {
+      "job_ref": "jobs.events.hourly_events",
+      "entry_point": {
+        "module": "events",
+        "function": "hourly_events",
+        "job_type": "batch",
+        "launcher": "dlt._workspace.deployment.launchers.job"
+      },
+      "triggers": ["schedule:0 * * * *"],
+      "default_trigger": "schedule:0 * * * *",
+      "execute": {"concurrency": 1},
+      "interval": {"start": "2024-01-01T00:00:00Z"},
+      "allow_external_schedulers": true
+    },
+    {
+      "job_ref": "jobs.events.daily_report",
+      "entry_point": {
+        "module": "events",
+        "function": "daily_report",
+        "job_type": "batch",
+        "launcher": "dlt._workspace.deployment.launchers.job"
+      },
+      "triggers": ["schedule:0 0 * * *"],
+      "default_trigger": "schedule:0 0 * * *",
+      "execute": {"concurrency": 1},
+      "interval": {"start": "2024-01-01T00:00:00Z"},
+      "allow_external_schedulers": false,
+      "refresh": "block"
+    },
+    {
+      "job_ref": "jobs.events.cleanup",
+      "entry_point": {
+        "module": "events",
+        "function": "cleanup",
+        "job_type": "batch",
+        "launcher": "dlt._workspace.deployment.launchers.job"
+      },
+      "triggers": ["manual:jobs.events.cleanup"],
+      "execute": {"concurrency": 1},
+      "require": {"machine": "gpu-a100"},
+      "refresh": "always"
+    }
+  ]
+}

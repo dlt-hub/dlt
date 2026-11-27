@@ -1,0 +1,9 @@
+version: 2
+
+sources:
+  - name: dlt
+    schema: "{{ var('source_dataset_name') }}"
+    tables:
+      - name: events
+        config:
+          event_time: created_at

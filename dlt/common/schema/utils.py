@@ -4,10 +4,22 @@ import hashlib
 import warnings
 import yaml
 from copy import deepcopy, copy
-from typing import Dict, List, Sequence, Tuple, Type, Any, cast, Iterable, Optional, Union
+from typing import (
+    Dict,
+    FrozenSet,
+    List,
+    Sequence,
+    Tuple,
+    Type,
+    Any,
+    cast,
+    Iterable,
+    Optional,
+    Union,
+)
 
 from dlt.common.pendulum import pendulum
-from dlt.common.time import ensure_pendulum_datetime_utc
+from dlt.common.time import ensure_pendulum_datetime
 from dlt.common import logger
 from dlt.common.json import json
 from dlt.common.data_types import TDataType
@@ -69,6 +81,8 @@ from dlt.common.warnings import Dlt100DeprecationWarning
 
 RE_NON_ALPHANUMERIC_UNDERSCORE = re.compile(r"[^a-zA-Z\d_]")
 DEFAULT_WRITE_DISPOSITION: TWriteDisposition = "append"
+DECIMAL_DATA_TYPES: FrozenSet[TDataType] = frozenset(("decimal", "wei"))
+"""Data types that share precision and scale"""
 
 
 def is_valid_schema_name(name: str) -> bool:
@@ -161,6 +175,13 @@ def is_compound_prop(prop: str) -> bool:
     if prop in ColumnPropInfos:
         return ColumnPropInfos[prop].compound is True
     # for any unknown property
+    return False
+
+
+def is_type_modifier_prop(prop: str) -> bool:
+    """Checks if a column property modifies the data type ie. precision or scale."""
+    if prop in ColumnPropInfos:
+        return ColumnPropInfos[prop].type_modifier is True
     return False
 
 
@@ -456,6 +477,9 @@ def merge_column(
     """Merges properties from `col_b` into `col_a`, modifying `col_a` in place.
 
     All properties from `col_b` are copied into `col_a`, potentially overwriting existing values.
+    When `col_b` changes the data type of `col_a`, type modifiers of `col_a` (`precision`,
+    `scale`, `timezone`, `x-nested-type`) are dropped first. Changing between `decimal` and
+    `wei` keeps them.
 
     Args:
         col_a: Target column schema that will be modified
@@ -467,6 +491,12 @@ def merge_column(
         The modified col_a (same object that was passed in)
     """
     col_b_clean = col_b if merge_defaults else remove_column_defaults(copy(col_b))
+    # remove type modifiers before any other merges
+    a_type, b_type = col_a.get("data_type"), col_b_clean.get("data_type")
+    if a_type and b_type and a_type != b_type and not {a_type, b_type} <= DECIMAL_DATA_TYPES:
+        for prop in [p for p in col_a if is_type_modifier_prop(p)]:
+            col_a.pop(prop)  # type: ignore[misc]
+    # merge props as usual
     for n, v in col_b_clean.items():
         col_a[n] = v  # type: ignore
 
@@ -851,7 +881,7 @@ def get_active_record_timestamp(table: TTableSchema) -> Optional[pendulum.DateTi
     # method assumes a column with "x-active-record-timestamp" property exists
     cname = get_first_column_name_with_prop(table, "x-active-record-timestamp")
     hint_val = table["columns"][cname]["x-active-record-timestamp"]  # type: ignore[typeddict-item]
-    return None if hint_val is None else ensure_pendulum_datetime_utc(hint_val)
+    return None if hint_val is None else ensure_pendulum_datetime(hint_val)
 
 
 def merge_schema_updates(schema_updates: Sequence[TSchemaUpdate]) -> TSchemaTables:
@@ -1319,20 +1349,47 @@ def version_table() -> TTableSchema:
     # after an update of existing tables (always at the end)
     # set to nullable so we can migrate existing tables
     # WARNING: do not reorder the columns
+    columns: List[TColumnSchema] = [
+        {
+            "name": "version",
+            "data_type": "bigint",
+            "nullable": False,
+            "description": "Numeric version of the schema, incremented on each schema change",
+        },
+        {
+            "name": "engine_version",
+            "data_type": "bigint",
+            "nullable": False,
+            "description": "Version of the dlt schema engine that created this schema",
+        },
+        {
+            "name": "inserted_at",
+            "data_type": "timestamp",
+            "nullable": False,
+            "description": "Timestamp when this schema version was stored",
+        },
+        {
+            "name": "schema_name",
+            "data_type": "text",
+            "nullable": False,
+            "description": "Name of the schema",
+        },
+        {
+            "name": "version_hash",
+            "data_type": "text",
+            "nullable": False,
+            "description": "Unique hash of the schema content, used to detect changes",
+        },
+        {
+            "name": "schema",
+            "data_type": "text",
+            "nullable": False,
+            "description": "JSON representation of the complete schema definition",
+        },
+    ]
     table = new_table(
         VERSION_TABLE_NAME,
-        columns=[
-            {
-                "name": "version",
-                "data_type": "bigint",
-                "nullable": False,
-            },
-            {"name": "engine_version", "data_type": "bigint", "nullable": False},
-            {"name": "inserted_at", "data_type": "timestamp", "nullable": False},
-            {"name": "schema_name", "data_type": "text", "nullable": False},
-            {"name": "version_hash", "data_type": "text", "nullable": False},
-            {"name": "schema", "data_type": "text", "nullable": False},
-        ],
+        columns=columns,
     )
     table["write_disposition"] = "skip"
     table["description"] = "Created by DLT. Tracks schema updates"
@@ -1344,24 +1401,42 @@ def loads_table() -> TTableSchema:
     # after an update of existing tables (always at the end)
     # set to nullable so we can migrate existing tables
     # WARNING: do not reorder the columns
+    columns: List[TColumnSchema] = [
+        {
+            "name": C_DLT_LOADS_TABLE_LOAD_ID,
+            "data_type": "text",
+            "nullable": False,
+            "precision": 64,
+            "description": "Unique identifier of the load operation",
+        },
+        {
+            "name": "schema_name",
+            "data_type": "text",
+            "nullable": True,
+            "description": "Name of the schema associated with this load",
+        },
+        {
+            "name": "status",
+            "data_type": "bigint",
+            "nullable": False,
+            "description": "Status of the load operation (0 = success)",
+        },
+        {
+            "name": "inserted_at",
+            "data_type": "timestamp",
+            "nullable": False,
+            "description": "Timestamp when the load was completed",
+        },
+        {
+            "name": "schema_version_hash",
+            "data_type": "text",
+            "nullable": True,
+            "description": "Hash of the schema version used during this load",
+        },
+    ]
     table = new_table(
         LOADS_TABLE_NAME,
-        columns=[
-            {
-                "name": C_DLT_LOADS_TABLE_LOAD_ID,
-                "data_type": "text",
-                "nullable": False,
-                "precision": 64,
-            },
-            {"name": "schema_name", "data_type": "text", "nullable": True},
-            {"name": "status", "data_type": "bigint", "nullable": False},
-            {"name": "inserted_at", "data_type": "timestamp", "nullable": False},
-            {
-                "name": "schema_version_hash",
-                "data_type": "text",
-                "nullable": True,
-            },
-        ],
+        columns=columns,
     )
     table["write_disposition"] = "skip"
     table["description"] = "Created by DLT. Tracks completed loads"
@@ -1377,12 +1452,19 @@ def dlt_id_column() -> TColumnSchema:
         "unique": True,
         "row_key": True,
         "precision": 64,
+        "description": "Unique identifier for this row, generated by dlt",
     }
 
 
 def dlt_load_id_column() -> TColumnSchema:
     """Definition of dlt load id column"""
-    return {"name": "_dlt_load_id", "data_type": "text", "nullable": False, "precision": 64}
+    return {
+        "name": "_dlt_load_id",
+        "data_type": "text",
+        "nullable": False,
+        "precision": 64,
+        "description": "Load identifier linking this row to its load operation",
+    }
 
 
 def pipeline_state_table(add_dlt_id: bool = False) -> TTableSchema:
@@ -1391,12 +1473,42 @@ def pipeline_state_table(add_dlt_id: bool = False) -> TTableSchema:
     # set to nullable so we can migrate existing tables
     # WARNING: do not reorder the columns
     columns: List[TColumnSchema] = [
-        {"name": "version", "data_type": "bigint", "nullable": False},
-        {"name": "engine_version", "data_type": "bigint", "nullable": False},
-        {"name": "pipeline_name", "data_type": "text", "nullable": False},
-        {"name": "state", "data_type": "text", "nullable": False},
-        {"name": "created_at", "data_type": "timestamp", "nullable": False},
-        {"name": "version_hash", "data_type": "text", "nullable": True},
+        {
+            "name": "version",
+            "data_type": "bigint",
+            "nullable": False,
+            "description": "Numeric version of the pipeline state",
+        },
+        {
+            "name": "engine_version",
+            "data_type": "bigint",
+            "nullable": False,
+            "description": "Version of the dlt state engine",
+        },
+        {
+            "name": "pipeline_name",
+            "data_type": "text",
+            "nullable": False,
+            "description": "Name of the pipeline this state belongs to",
+        },
+        {
+            "name": "state",
+            "data_type": "text",
+            "nullable": False,
+            "description": "Compressed JSON representation of the pipeline state",
+        },
+        {
+            "name": "created_at",
+            "data_type": "timestamp",
+            "nullable": False,
+            "description": "Timestamp when this state was created",
+        },
+        {
+            "name": "version_hash",
+            "data_type": "text",
+            "nullable": True,
+            "description": "Hash of the state content, used to detect changes",
+        },
         dlt_load_id_column(),
     ]
     if add_dlt_id:

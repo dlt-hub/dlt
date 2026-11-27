@@ -3,7 +3,6 @@ title: Deploy a pipeline with dltHub
 description: Run, deploy, and schedule dlt pipelines with dltHub's managed orchestrator
 keywords: [orchestrator, scheduling, cron, dlthub, platform, deploy]
 ---
-
 # Deploy a pipeline with dltHub
 
 dltHub ships a managed orchestrator built around the `@dlt.hub.run` decorators. The schedule and the data dependencies live in your Python code, not in a separate DAG (directed acyclic graph) file or YAML.
@@ -14,7 +13,7 @@ This page walks through four stages: scaffolding a workspace, running a pipeline
 
 If you don't have `uv` yet, follow the [uv installation guide](https://docs.astral.sh/uv/getting-started/installation/). Then scaffold a workspace:
 
-```sh
+```cli
 uvx dlthub-init@latest
 ```
 
@@ -24,7 +23,7 @@ This creates the `.dlt/.workspace` marker that activates workspace mode, along w
 
 Any regular dlt pipeline can be run on the platform without a deployment file. Given a `pipeline.py` with a top-level `pipeline.run(...)` call:
 
-```sh
+```cli
 uv run dlthub run pipeline.py
 ```
 
@@ -34,7 +33,7 @@ This deploys the file ad-hoc, executes it on the platform, and streams logs back
 
 To run the same pipeline as a managed job, decorate the entrypoint and declare it in a workspace `__deployment__.py`:
 
-```py
+```py notype
 import dlt
 from dlt.hub import run
 
@@ -58,13 +57,13 @@ __all__ = ["ingest_breweries"]
 
 Deploy with:
 
-```sh
+```cli
 uv run dlthub deploy
 ```
 
 To trigger a run, invoke the job by name:
 
-```sh
+```cli
 uv run dlthub run ingest_breweries
 ```
 
@@ -74,7 +73,7 @@ See [Deployments](../../hub/pipeline-operations/deployments.md) for the manifest
 
 Pass a `trigger=` to the decorator to make the job cron-driven:
 
-```py
+```py notype
 from dlt.hub.run import trigger
 
 
@@ -103,6 +102,5 @@ You can also change the cron from the dltHub platform's **Manage Schedule** dial
 ## See also
 
 - [Introduction to dltHub](../../hub/getting-started/introduction.md)
-- [dltHub platform tutorial](../../hub/getting-started/platform-tutorial.md)
 - [Triggers and scheduling](../../hub/pipeline-operations/triggers.md)
 - [Deployments](../../hub/pipeline-operations/deployments.md)

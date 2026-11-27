@@ -207,6 +207,20 @@ def create_pool(config: PoolRunnerConfiguration) -> Executor:
     return executor
 
 
+def create_thread_pool(
+    max_workers: int, thread_name_prefix: str = None, timeout: float = None
+) -> Executor:
+    """Creates a thread pool with `max_workers` threads. Returns `NullExecutor` that runs jobs
+    inline when the platform has no threads or a single worker is requested."""
+    if max_workers <= 1 or not platform_supports_threading():
+        return NullExecutor()
+    return TimeoutThreadPoolExecutor(
+        max_workers,
+        timeout=timeout,
+        thread_name_prefix=thread_name_prefix or Container.thread_pool_prefix(),
+    )
+
+
 _MAIN_FIXUP_LOCK = threading.Lock()
 _MAIN_FIXUP_SUPPRESSED = False
 

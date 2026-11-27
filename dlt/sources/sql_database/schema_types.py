@@ -14,7 +14,15 @@ from typing_extensions import TypeAlias
 from sqlalchemy.exc import NoReferencedTableError
 
 from dlt.common.typing import TypedDict
-from dlt.common.libs.sql_alchemy import Table, Column, Row, sqltypes, Select, TypeEngine
+from dlt.common.libs.sql_alchemy import (
+    Table,
+    Column,
+    Row,
+    sqltypes,
+    Select,
+    TypeDecorator,
+    TypeEngine,
+)
 from dlt.common import logger
 from dlt.common.schema.typing import TColumnSchema, TTableSchemaColumns, TTableReference
 
@@ -126,6 +134,13 @@ def sqla_col_to_column_schema(
         # Column ignored by callback
         return col
 
+    # a TypeDecorator is not an instance of the type it wraps so the matching below would miss it.
+    # `impl` is the wrapped instance on both SQLAlchemy 1.4 and 2.x, `impl_instance` is 2.x only
+    while isinstance(sql_t, TypeDecorator):
+        sql_t = sql_t.impl
+        if isinstance(sql_t, type):
+            sql_t = sql_t()
+
     add_precision = reflection_level == "full_with_precision"
 
     if _is_uuid_type(sql_t):
@@ -163,8 +178,13 @@ def sqla_col_to_column_schema(
             col["precision"] = sql_t.length
     elif isinstance(sql_t, sqltypes.DateTime):
         col["data_type"] = "timestamp"
-        # special handling for MSSQL
-        col["timezone"] = sql_t.timezone or sql_t.__visit_name__ in ("DATETIMEOFFSET",)
+        # special handling for MSSQL and Oracle TIMESTAMP WITH LOCAL TIME ZONE
+        # (Oracle reflects the latter with timezone=False but local_timezone=True)
+        col["timezone"] = (
+            sql_t.timezone
+            or getattr(sql_t, "local_timezone", False)
+            or sql_t.__visit_name__ in ("DATETIMEOFFSET",)
+        )
     elif isinstance(sql_t, sqltypes.Date):
         col["data_type"] = "date"
     elif isinstance(sql_t, sqltypes.Time):

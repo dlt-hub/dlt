@@ -185,3 +185,13 @@ def test_file_transaction_directory(fs: fsspec.AbstractFileSystem):
             writer.write(b"test 1")
 
         writer.release_lock()
+
+
+def test_lock_requires_mtime(fs: fsspec.AbstractFileSystem, file_name: str):
+    """A filesystem without mtime cannot expire stale locks, so locking must fail loudly
+    instead of waiting on a lock no one will ever release."""
+    writer = TransactionalFile(file_name, fs)
+    writer.extract_mtime = lambda _: None
+
+    with pytest.raises(RuntimeError, match="no modification time"):
+        writer.acquire_lock()

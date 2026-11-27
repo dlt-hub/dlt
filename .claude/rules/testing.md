@@ -31,7 +31,7 @@ paths:
 
 ## Parallel safety and isolation
 - Tests run in parallel! ALWAYS use test storage (`get_test_storage`), unique pipeline names (`uniq_id`), and worker-aware storage roots (`get_test_storage_root` from `tests/utils.py`). Isolate pipelines with `dev_mode` or random `dataset_name`. Avoid external resources that clash with other tests.
-- Tests must work on Linux, macOS and Windows. Avoid encoding paths and platform-specific code.
+- Tests must work on Linux, macOS and Windows. Avoid encoding paths and platform-specific code. Local path assertions must be Windows compatible.
 
 ## Placement and comments
 - When adding new test ALWAYS try find the right place by looking where code you make changes is tested

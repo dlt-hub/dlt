@@ -1,4 +1,6 @@
-from typing import List
+from datetime import datetime, timezone
+from decimal import Decimal
+from typing import Any, Dict, List
 
 import pytest
 
@@ -6,7 +8,7 @@ import dlt
 from dlt.common.destination.reference import TDestinationReferenceArg
 from dlt.common.exceptions import MissingDependencyException
 
-from dlt.common.time import ensure_pendulum_datetime_utc
+from dlt.common.time import ensure_pendulum_datetime
 from dlt.common.utils import uniq_id
 
 from dlt.pipeline.exceptions import PipelineStepFailed
@@ -22,6 +24,7 @@ from tests.pipeline.utils import (
     assert_table_counts,
     load_tables_to_dicts,
 )
+from tests.utils import capture_dlt_logger
 
 try:
     from dlt.sources.sql_database import (
@@ -30,13 +33,19 @@ try:
         sql_database,
         sql_table,
     )
-    from tests.load.sources.sql_database.mssql_source import MSSQLSourceDB
+    from tests.load.sources.sql_database.mssql_source import DECIMALS_ROW, MSSQLSourceDB
     import sqlalchemy as sa
 except MissingDependencyException:
     pytest.skip("Tests require sql alchemy", allow_module_level=True)
 
 
 pytestmark = pytest.mark.mssql
+
+
+PANDAS_MIXED_OFFSETS = "pandas backend yields a DATETIMEOFFSET column with mixed offsets as strings"
+CONNECTORX_DATETIMEOFFSET = (
+    "connectorx (0.4.5 to 0.4.7a1) returns DATETIMEOFFSET as the instant minus its offset"
+)
 
 
 def make_pipeline(destination_name: TDestinationReferenceArg) -> dlt.Pipeline:
@@ -54,7 +63,11 @@ def test_all_data_types(
     mssql_db: MSSQLSourceDB,
     backend: TableBackend,
     reflection_level: ReflectionLevel,
+    request: pytest.FixtureRequest,
 ) -> None:
+    if backend == "pandas" and reflection_level == "minimal":
+        # without a reflected type nothing turns the strings back into timestamps
+        request.applymarker(pytest.mark.xfail(strict=True, reason=PANDAS_MIXED_OFFSETS))
     source = sql_database(
         credentials=mssql_db.credentials,
         schema=mssql_db.schema,
@@ -114,7 +127,7 @@ def test_sql_table_incremental_datetime_ntz(
         reflection_level=reflection_level,
         incremental=dlt.sources.incremental(
             "some_smalldatetime",
-            initial_value=ensure_pendulum_datetime_utc("1999-01-01T00:00:00+00:00").naive(),
+            initial_value=ensure_pendulum_datetime("1999-01-01T00:00:00+00:00").naive(),
             row_order="asc",
             range_start="open",
         ),
@@ -122,11 +135,38 @@ def test_sql_table_incremental_datetime_ntz(
     )
 
     pipeline = make_pipeline("duckdb")
-    rc = mssql_db.table_infos["app_user"]["row_count"]
-    assert_incremental_chunks(pipeline, table, "some_smalldatetime", timezone=False, row_count=rc)
+    info = mssql_db.table_infos["app_user"]
+    assert_incremental_chunks(
+        pipeline,
+        table,
+        "some_smalldatetime",
+        timezone=False,
+        row_count=info["row_count"],
+        cursor_values=[row["some_smalldatetime"] for row in info["rows"]],
+    )
 
 
-@pytest.mark.parametrize("backend", ["sqlalchemy", "pyarrow", "pandas", "connectorx"])
+@pytest.mark.parametrize(
+    "backend",
+    [
+        "sqlalchemy",
+        "pyarrow",
+        pytest.param(
+            "pandas",
+            marks=pytest.mark.xfail(
+                strict=True,
+                reason=PANDAS_MIXED_OFFSETS,
+            ),
+        ),
+        pytest.param(
+            "connectorx",
+            marks=pytest.mark.xfail(
+                strict=True,
+                reason=CONNECTORX_DATETIMEOFFSET,
+            ),
+        ),
+    ],
+)
 @pytest.mark.parametrize("reflection_level", ["minimal", "full", "full_with_precision"])
 def test_sql_table_incremental_datetime_tz(
     mssql_db: MSSQLSourceDB,
@@ -142,8 +182,8 @@ def test_sql_table_incremental_datetime_tz(
         backend=backend,
         reflection_level=reflection_level,
         incremental=dlt.sources.incremental(
-            "created_at",
-            initial_value=ensure_pendulum_datetime_utc("1999-01-01T00:00:00+00:00"),
+            "some_datetimeoffset",
+            initial_value=datetime(1999, 1, 1, tzinfo=timezone.utc),
             row_order="asc",
             range_start="open",
         ),
@@ -151,8 +191,15 @@ def test_sql_table_incremental_datetime_tz(
     )
 
     pipeline = make_pipeline("duckdb")
-    rc = mssql_db.table_infos["app_user"]["row_count"]
-    assert_incremental_chunks(pipeline, table, "created_at", timezone=True, row_count=rc)
+    info = mssql_db.table_infos["app_user"]
+    assert_incremental_chunks(
+        pipeline,
+        table,
+        "some_datetimeoffset",
+        timezone=True,
+        row_count=info["row_count"],
+        cursor_values=[row["some_datetimeoffset"] for row in info["rows"]],
+    )
 
 
 @pytest.mark.no_load
@@ -174,7 +221,7 @@ def test_sql_table_high_datetime(
         backend="pyarrow",
         reflection_level="full_with_precision",
         incremental=dlt.sources.incremental(
-            "some_datetime2", initial_value=ensure_pendulum_datetime_utc("2918-08-01 00:00:00.000")
+            "some_datetime2", initial_value=ensure_pendulum_datetime("2918-08-01 00:00:00.000")
         ),
     )
 
@@ -194,7 +241,7 @@ def test_sql_table_high_datetime(
         assert_table_counts(pipeline, {"app_user": 1}, "app_user")
         assert (
             load_tables_to_dicts(pipeline, "app_user")["app_user"][0]["some_datetime2"]
-            == ensure_pendulum_datetime_utc("2918-08-01 00:00:00.000").naive()
+            == ensure_pendulum_datetime("2918-08-01 00:00:00.000").naive()
         )
 
 
@@ -224,7 +271,7 @@ def test_uniqueidentifier_data_type(
         primary_key="some_uniqueidentifier",
         incremental=dlt.sources.incremental(
             "updated_at",
-            initial_value=ensure_pendulum_datetime_utc("1999-01-01T00:00:00+00:00"),
+            initial_value=ensure_pendulum_datetime("1999-01-01T00:00:00+00:00"),
         ),
     )
 
@@ -243,7 +290,7 @@ def test_uniqueidentifier_data_type(
 
     # 2. update 3 existing rows' updated_at AND insert 10 new rows, then merge
     # updated_at set far in the future so updated rows enter the incremental window
-    future_ts = ensure_pendulum_datetime_utc("2030-01-01T00:00:00+00:00")
+    future_ts = ensure_pendulum_datetime("2030-01-01T00:00:00+00:00")
     for i, row in enumerate(rows_after_initial[:3]):
         mssql_db.update_row(
             {"updated_at": future_ts.add(seconds=i)},
@@ -285,3 +332,81 @@ def test_uniqueidentifier_yields_str(
     assert len(all_uuids) == mssql_db.table_infos["app_user"]["row_count"]
     for val in all_uuids:
         uuid.UUID(val)  # validates well-formed
+
+
+@pytest.mark.parametrize(
+    "backend,backend_kwargs",
+    [
+        ("pyarrow", {}),
+        ("connectorx", {"return_type": "arrow"}),
+        ("connectorx", {"return_type": "arrow_stream"}),
+    ],
+    ids=["pyarrow", "connectorx-arrow", "connectorx-arrow_stream"],
+)
+@pytest.mark.usefixtures("mssql_db_with_decimals")
+def test_decimal_precision(
+    mssql_db: MSSQLSourceDB,
+    backend: TableBackend,
+    backend_kwargs: Dict[str, Any],
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Decimals and MONEY keep precision, connectorx warns on columns it rounds or reads as floats."""
+    if backend == "connectorx":
+        pytest.importorskip("sqlalchemy", minversion="2.0")
+
+    table = sql_table(
+        credentials=mssql_db.credentials,
+        table="decimals",
+        schema=mssql_db.schema,
+        backend=backend,
+        reflection_level="full",
+        backend_kwargs=backend_kwargs,
+    )
+    pipeline = make_pipeline("duckdb")
+    with capture_dlt_logger(caplog) as caplog:
+        info = pipeline.run(table)
+    assert_load_info(info)
+
+    row = load_tables_to_dicts(pipeline, "decimals")["decimals"][0]
+    # does not fit float64: connectorx<0.4.6 returned it as double
+    assert row["amount"] == DECIMALS_ROW["amount"]
+    assert row["big_amount"] == DECIMALS_ROW["big_amount"]
+    balance = pipeline.default_schema.get_table("decimals")["columns"]["balance"]
+    assert (balance["data_type"], balance["precision"], balance["scale"]) == ("decimal", 19, 4)
+
+    warnings = [r.message for r in caplog.records if "lower precision" in r.message]
+    if backend == "pyarrow":
+        assert row["rate"] == DECIMALS_ROW["rate"]
+        assert row["balance"] == DECIMALS_ROW["balance"]
+        assert warnings == []
+    else:
+        # connectorx rounds to its fixed scale of 10 and reads MONEY as double
+        assert row["rate"] == Decimal("1.1234567891")
+        assert len(warnings) == 1
+        assert "`rate`" in warnings[0]
+        assert "`balance`" in warnings[0]
+        assert "`amount`" not in warnings[0]
+        assert "`big_amount`" not in warnings[0]
+
+
+@pytest.mark.usefixtures("mssql_db_with_decimals")
+def test_connectorx_decimal_out_of_range(mssql_db: MSSQLSourceDB) -> None:
+    """connectorx fails on values above ~7.9e18 even if the column precision allows them."""
+    pytest.importorskip("sqlalchemy", minversion="2.0")
+
+    # fits DECIMAL(35,2)
+    mssql_db.update_row(
+        {"big_amount": Decimal("123456789012345678901.23")}, "id = 1", table="decimals"
+    )
+
+    table = sql_table(
+        credentials=mssql_db.credentials,
+        table="decimals",
+        schema=mssql_db.schema,
+        backend="connectorx",
+        reflection_level="full",
+    )
+    pipeline = make_pipeline("duckdb")
+    # the value cannot be rescaled to the fixed scale of 10 within 96 bits of rust_decimal
+    with pytest.raises(PipelineStepFailed, match="decimal scale is not equal to expected scale"):
+        pipeline.extract(table)

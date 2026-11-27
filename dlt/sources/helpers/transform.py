@@ -1,7 +1,8 @@
 from collections.abc import Sequence as C_Sequence
-from typing import Any, Dict, Sequence, Union
+from typing import Any, Dict, Optional, Sequence, Union
 
 from dlt.common.typing import TDataItem
+from dlt.common.utils import map_nested_dicts_in_place
 from dlt.extract.items_transform import ItemTransformFunctionNoMeta
 
 import jsonpath_ng
@@ -107,6 +108,41 @@ def pivot(
                 else:
                     match.full_path.update(item, trans_value)
 
+        return item
+
+    return _transformer
+
+
+def propagate_to_nested(
+    keys: Union[str, Sequence[str]], max_nesting: Optional[int] = None
+) -> ItemTransformFunctionNoMeta[TDataItem]:
+    """Copies the values of `keys` of a root item into the dicts of its nested lists, so the
+    rows of nested tables get the values of their root row, e.g.:
+    {"day": 1, "lines": [{"sku": "a"}]} -> {"day": 1, "lines": [{"sku": "a", "day": 1}]}
+
+    The copied values replace the values of the nested dicts. Dicts nested in dicts are
+    flattened into the same table, so they do not get the values. Changes the item in place,
+    items that are not dicts pass through.
+
+    Args:
+        keys (Union[str, Sequence[str]]): Keys of the root item to copy.
+        max_nesting (Optional[int]): The number of nested list levels that get the values, all
+            levels if `None`.
+
+    Returns:
+        ItemTransformFunctionNoMeta[TDataItem]: The map function for `resource.add_map`.
+    """
+    if isinstance(keys, str):
+        keys = [keys]
+
+    def _update(nested: Dict[str, Any], values: Dict[str, Any]) -> Dict[str, Any]:
+        nested.update(values)
+        return nested
+
+    def _transformer(item: TDataItem) -> TDataItem:
+        if isinstance(item, dict):
+            if values := {key: item[key] for key in keys if key in item}:
+                map_nested_dicts_in_place(_update, item, values, max_nesting=max_nesting)
         return item
 
     return _transformer

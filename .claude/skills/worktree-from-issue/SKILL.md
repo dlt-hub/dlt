@@ -65,8 +65,10 @@ Use `/create-worktree` skill:
 Then create the feature branch inside the worktree:
 
 ```
-git -C <worktree-path> checkout -b <branch_name>
+git -C <worktree-path> checkout --no-track -b <branch_name>
 ```
+
+`--no-track` leaves the branch without an upstream, so the user's `git push` works.
 
 ### 5. Set up dev environment
 

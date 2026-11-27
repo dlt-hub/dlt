@@ -1,5 +1,7 @@
 import os
-from typing import List, Optional, Dict
+import re
+from datetime import datetime, timezone  # noqa: I251
+from typing import Any, List, Optional, Dict
 import sys
 from subprocess import CalledProcessError
 import pytest
@@ -32,6 +34,9 @@ from dlt.destinations.impl.duckdb.configuration import DuckDbClientConfiguration
 from dlt.destinations.impl.duckdb.sql_client import DuckDbSqlClient
 from dlt.destinations.impl.filesystem.filesystem import FilesystemClient
 from dlt.destinations.impl.filesystem.sql_client import FilesystemSqlClient
+from dlt.destinations.path_utils import prepare_datetime_params
+
+from tests.pipeline.cases.github_pipeline.filesystem_layout_pipeline import LAYOUT, PIPELINES
 
 from tests.pipeline.utils import airtable_emojis, load_table_counts, assert_load_info
 from tests.utils import get_test_storage_root
@@ -91,6 +96,12 @@ skip_on_312 = pytest.mark.skipif(
     reason="Old dlt versions (<1.0) do not run on Python 3.12+",
 )
 GITHUB_DATASET = "github_3"
+DLT_030_DEPENDENCIES = [
+    "dlt[duckdb]==0.3.0",
+    "json-logging==1.4.1rc0",
+    "setuptools<80",
+    "sentry-sdk<3",  # dlt 0.3.0 imports Hub, which Sentry SDK 3 removed
+]
 
 
 @skip_on_312
@@ -106,9 +117,7 @@ def test_pipeline_with_dlt_update(test_storage: FileStorage) -> None:
         }
     ):
         # create virtual env with (0.3.0) before the current schema upgrade
-        with Venv.create(
-            tempfile.mkdtemp(), ["dlt[duckdb]==0.3.0", "json-logging==1.4.1rc0", "setuptools<80"]
-        ) as venv:
+        with Venv.create(tempfile.mkdtemp(), DLT_030_DEPENDENCIES) as venv:
             # NOTE: we force a newer duckdb into the 0.3.0 dlt version to get compatible duckdb storage
             venv.install_deps(venv.context, ["duckdb" + "==" + pkg_version("duckdb")])
             # load 20 issues
@@ -163,12 +172,12 @@ def test_pipeline_with_dlt_update(test_storage: FileStorage) -> None:
                 test_storage.load(f".dlt/pipelines/{GITHUB_PIPELINE_NAME}/state.json")
             )
             assert "_version_hash" not in state_dict
-            # also we expect correctly decoded pendulum here
+            # the legacy `Z` suffix must still decode to the same instant
             legacy_incremental = state_dict["sources"]["github"]["resources"]["load_issues"][
                 "incremental"
             ]["created_at"]
             created_at_value = custom_pua_decode(legacy_incremental["last_value"])
-            assert isinstance(created_at_value, pendulum.DateTime)
+            assert isinstance(created_at_value, datetime)
             assert created_at_value == pendulum.parse("2021-04-16T04:34:05Z")
             # legacy state predates start_value field
             assert "start_value" not in legacy_incremental
@@ -251,9 +260,7 @@ def test_dataset_on_schema_stored_by_old_dlt(test_storage: FileStorage) -> None:
 
     with test_workspace({"DESTINATION__DUCKDB__CREDENTIALS": "duckdb:///test_github_3.duckdb"}):
         # 0.3.0 stores an engine 5 schema in the destination
-        with Venv.create(
-            tempfile.mkdtemp(), ["dlt[duckdb]==0.3.0", "json-logging==1.4.1rc0", "setuptools<80"]
-        ) as venv:
+        with Venv.create(tempfile.mkdtemp(), DLT_030_DEPENDENCIES) as venv:
             venv.install_deps(venv.context, ["duckdb" + "==" + pkg_version("duckdb")])
             print(
                 venv.run_script(
@@ -426,12 +433,12 @@ def assert_github_pipeline_end_state(
         "incremental"
     ]["created_at"]
     created_at_value = incremental_state["last_value"]
-    assert isinstance(created_at_value, pendulum.DateTime)
+    assert isinstance(created_at_value, datetime)
     assert created_at_value == pendulum.parse("2023-02-17T09:52:12Z")
     # start_value snapshots the previous (legacy) run's last_value, so the covered range
     # for this current-version run is [legacy_last_value, new_last_value)
     start_value = incremental_state["start_value"]
-    assert isinstance(start_value, pendulum.DateTime)
+    assert isinstance(start_value, datetime)
     assert start_value == pendulum.parse("2021-04-16T04:34:05Z")
     pipeline = pipeline.drop()
     # print(pipeline.working_dir)
@@ -457,9 +464,7 @@ def test_load_package_with_dlt_update(test_storage: FileStorage) -> None:
     # execute in test storage
     with test_workspace({"DESTINATION__DUCKDB__CREDENTIALS": "duckdb:///test_github_3.duckdb"}):
         # create virtual env with (0.3.0) before the current schema upgrade
-        with Venv.create(
-            tempfile.mkdtemp(), ["dlt[duckdb]==0.3.0", "json-logging==1.4.1rc0", "setuptools<80"]
-        ) as venv:
+        with Venv.create(tempfile.mkdtemp(), DLT_030_DEPENDENCIES) as venv:
             venv.install_deps(venv.context, ["duckdb" + "==" + pkg_version("duckdb")])
             # extract and normalize on old version but DO NOT LOAD
             print(
@@ -526,9 +531,7 @@ def test_normalize_package_with_dlt_update(test_storage: FileStorage) -> None:
     # execute in test storage
     with test_workspace({"DESTINATION__DUCKDB__CREDENTIALS": "duckdb:///test_github_3.duckdb"}):
         # create virtual env with (0.3.0) before the current schema upgrade
-        with Venv.create(
-            tempfile.mkdtemp(), ["dlt[duckdb]==0.3.0", "json-logging==1.4.1rc0", "setuptools<80"]
-        ) as venv:
+        with Venv.create(tempfile.mkdtemp(), DLT_030_DEPENDENCIES) as venv:
             venv.install_deps(venv.context, ["duckdb" + "==" + pkg_version("duckdb")])
             # extract only
             print(
@@ -640,9 +643,7 @@ def test_normalize_path_separator_legacy_behavior(test_storage: FileStorage) -> 
     with test_workspace({"DESTINATION__DUCKDB__CREDENTIALS": "duckdb:///test_github_3.duckdb"}):
         venv_dir = tempfile.mkdtemp()
         # create virtual env with (0.3.0) before the current schema upgrade
-        with Venv.create(
-            venv_dir, ["dlt[duckdb]==0.3.0", "json-logging==1.4.1rc0", "setuptools<80"]
-        ) as venv:
+        with Venv.create(venv_dir, DLT_030_DEPENDENCIES) as venv:
             venv.install_deps(venv.context, ["duckdb" + "==" + pkg_version("duckdb")])
             try:
                 print(venv.run_script("../tests/pipeline/cases/github_pipeline/github_rev.py"))
@@ -817,3 +818,222 @@ def test_load_normalized_refresh_package_from_1_25(test_storage: FileStorage) ->
         assert package_state["applied_dropped_tables"] == ["items"]
         # `items` was dropped and re-created with only the second run's row
         assert load_table_counts(pipeline, "items") == {"items": 1}
+
+
+def test_load_filesystem_package_with_date_layout_from_1_25(test_storage: FileStorage) -> None:
+    """read filesystem_layout_pipeline.py docstring for test case details."""
+    shutil.copytree(
+        "tests/pipeline/cases/github_pipeline", get_test_storage_root(), dirs_exist_ok=True
+    )
+
+    with test_workspace():
+        with Venv.create(tempfile.mkdtemp(), ["dlt==1.25.0"]) as venv:
+            try:
+                old_output = venv.run_script("filesystem_layout_pipeline.py", "old")
+                print(old_output)
+            except CalledProcessError as cpe:
+                print(f"script output: {cpe.output}")
+                raise
+
+        venv = Venv.restore_current()
+        try:
+            output = venv.run_script("filesystem_layout_pipeline.py", "load")
+            print(output)
+        except CalledProcessError as cpe:
+            print(f"script output: {cpe.output}")
+            raise
+
+        def layout_paths(script_output: str, pipeline_name: str, load_id: str) -> List[str]:
+            prefix = f"FILE:{pipeline_name}:"
+            return [
+                line[len(prefix) :].replace("\\", "/")
+                for line in script_output.splitlines()
+                if line.startswith(prefix) and load_id in line
+            ]
+
+        layout_prefix = LAYOUT.split("{load_id}")[0]
+        for pipeline_name, current_datetime in PIPELINES.items():
+            pipeline = dlt.attach(pipeline_name)
+            old_load_id, new_load_id = sorted(pipeline.list_completed_load_packages())
+            # the old dlt rendered the first package, the current dlt the second one
+            for load_id, rendered in ((old_load_id, old_output), (new_load_id, output)):
+                package_state = pipeline.get_load_package_state(load_id)
+                assert "placeholders" not in package_state
+                # both versions render the creation time that the old dlt wrote to the package
+                # state, in UTC. a naive `current_datetime` from the config is UTC
+                params = prepare_datetime_params(
+                    datetime.fromisoformat(current_datetime) if current_datetime else None,
+                    package_state["created_at"],
+                )
+                expected = layout_prefix.format(table_name="items", **params) + load_id + "."
+                pattern = re.escape(expected)
+                if current_datetime and rendered is old_output:
+                    # dlt 1.25 rendered `{timestamp}` of the naive config string in the system
+                    # timezone, the current dlt renders it in UTC. the date placeholders are
+                    # the wall clock of the string in both
+                    pattern = pattern.replace(
+                        re.escape(f"{params['timestamp']}-{params['timestamp_ms']}"), r"\d+-\d+"
+                    )
+                paths = layout_paths(rendered, pipeline_name, load_id)
+                assert len(paths) == 1, paths
+                assert re.search(pattern, paths[0]), paths[0]
+
+
+def _run_datetime_key_case(old_version: str, strategy: str) -> None:
+    """Loads the datetime-key case with an old dlt."""
+    with Venv.create(tempfile.mkdtemp(), [f"dlt[duckdb]=={old_version}", "setuptools<80"]) as venv:
+        # force a compatible duckdb so the current version can open the same database file
+        venv.install_deps(venv.context, ["duckdb==" + pkg_version("duckdb")])
+        try:
+            print(venv.run_script("datetime_key_pipeline.py", strategy))
+        except CalledProcessError as cpe:
+            print(f"script output: {cpe.output}")
+            raise
+
+
+@skip_on_312
+def test_scd2_datetime_rows_not_reversioned_after_dlt_update(test_storage: FileStorage) -> None:
+    """read datetime_key_pipeline.py docstring for test case details."""
+    shutil.copytree(
+        "tests/pipeline/cases/github_pipeline", get_test_storage_root(), dirs_exist_ok=True
+    )
+
+    with test_workspace({"DESTINATION__DUCKDB__CREDENTIALS": "duckdb:///test_datetime_key.duckdb"}):
+        _run_datetime_key_case("0.4.10", "scd2")
+
+        pipeline = dlt.attach("datetime_key")
+        with pipeline.sql_client() as client:
+            old_rows = client.execute_sql("SELECT _dlt_id, _dlt_valid_to FROM events ORDER BY id")
+        assert len(old_rows) == 3
+        assert all(row[1] is None for row in old_rows)
+
+        venv = Venv.restore_current()
+        try:
+            print(venv.run_script("datetime_key_pipeline.py", "scd2"))
+        except CalledProcessError as cpe:
+            print(f"script output: {cpe.output}")
+            raise
+
+        with pipeline.sql_client() as client:
+            new_rows = client.execute_sql("SELECT _dlt_id, _dlt_valid_to FROM events ORDER BY id")
+        # unchanged data must not be re-versioned: a moved row hash would retire all three rows
+        assert len(new_rows) == 3
+        assert [row[0] for row in old_rows] == [row[0] for row in new_rows]
+        assert all(row[1] is None for row in new_rows)
+
+
+@skip_on_312
+def test_upsert_datetime_key_hash_stable_after_dlt_update(test_storage: FileStorage) -> None:
+    """read datetime_key_pipeline.py docstring for test case details."""
+    shutil.copytree(
+        "tests/pipeline/cases/github_pipeline", get_test_storage_root(), dirs_exist_ok=True
+    )
+
+    with test_workspace(
+        {"DESTINATION__DUCKDB__CREDENTIALS": "duckdb:///test_datetime_upsert.duckdb"}
+    ):
+        # 0.4.x has no `upsert` strategy, so the oldest version that keys on a hash is 1.25.0
+        _run_datetime_key_case("1.25.0", "upsert")
+
+        pipeline = dlt.attach("datetime_key")
+        with pipeline.sql_client() as client:
+            old_rows = client.execute_sql("SELECT _dlt_id FROM events ORDER BY occurred_at")
+        assert len(old_rows) == 3
+
+        venv = Venv.restore_current()
+        try:
+            print(venv.run_script("datetime_key_pipeline.py", "upsert"))
+        except CalledProcessError as cpe:
+            print(f"script output: {cpe.output}")
+            raise
+
+        with pipeline.sql_client() as client:
+            new_rows = client.execute_sql("SELECT _dlt_id FROM events ORDER BY occurred_at")
+        # the datetime primary key is the hash, so a moved rendering inserts copies instead
+        assert len(new_rows) == 3
+        assert [row[0] for row in old_rows] == [row[0] for row in new_rows]
+
+
+def _incremental_state(pipeline: dlt.Pipeline) -> Dict[str, Any]:
+    return pipeline.state["sources"]["datetime_key"]["resources"]["events"]["incremental"][
+        "occurred_at"
+    ]
+
+
+def test_incremental_boundary_hashes_stable_after_dlt_update(test_storage: FileStorage) -> None:
+    """read datetime_key_pipeline.py docstring for test case details."""
+    shutil.copytree(
+        "tests/pipeline/cases/github_pipeline", get_test_storage_root(), dirs_exist_ok=True
+    )
+
+    with test_workspace(
+        {"DESTINATION__DUCKDB__CREDENTIALS": "duckdb:///test_datetime_incremental.duckdb"}
+    ):
+        _run_datetime_key_case("1.25.0", "incremental")
+
+        pipeline = dlt.attach("datetime_key")
+        assert load_table_counts(pipeline, "events") == {"events": 3}
+        # both rows on the max cursor are remembered so the next run can skip them
+        old_hashes = set(_incremental_state(pipeline)["unique_hashes"])
+        assert len(old_hashes) == 2
+
+        venv = Venv.restore_current()
+        try:
+            print(venv.run_script("datetime_key_pipeline.py", "incremental"))
+        except CalledProcessError as cpe:
+            print(f"script output: {cpe.output}")
+            raise
+
+        pipeline = dlt.attach("datetime_key")
+        # the same rows must hash the same, or the two boundary rows are loaded a second time
+        assert load_table_counts(pipeline, "events") == {"events": 3}
+        assert set(_incremental_state(pipeline)["unique_hashes"]) == old_hashes
+
+        # a row past the boundary rebuilds the set in the short format
+        try:
+            print(venv.run_script("datetime_key_pipeline.py", "incremental", "advance"))
+        except CalledProcessError as cpe:
+            print(f"script output: {cpe.output}")
+            raise
+
+        pipeline = dlt.attach("datetime_key")
+        assert load_table_counts(pipeline, "events") == {"events": 4}
+        new_hashes = _incremental_state(pipeline)["unique_hashes"]
+        assert len(new_hashes) == 1
+        assert len(new_hashes[0]) == 12
+
+
+def test_trace_of_newer_dlt_is_ignored_by_older_dlt(test_storage: FileStorage) -> None:
+    """1.32 added fields to the trace metrics. dlt 1.31 cannot unpickle such a trace and ignores
+    it, and the current dlt reads the trace that 1.31 writes afterwards."""
+    shutil.copytree(
+        "tests/pipeline/cases/github_pipeline", get_test_storage_root(), dirs_exist_ok=True
+    )
+    with test_workspace({"DESTINATION__DUCKDB__CREDENTIALS": "duckdb:///test_trace_compat.duckdb"}):
+        pipeline = dlt.pipeline("trace_compat", destination="duckdb", dataset_name="trace_data")
+        assert_load_info(pipeline.run([{"id": 1}], table_name="items"))
+        assert pipeline.last_trace is not None
+
+        with Venv.create(tempfile.mkdtemp(), ["dlt[duckdb]==1.31.0"]) as venv:
+            # force a compatible duckdb so both versions can open the same database file
+            venv.install_deps(venv.context, ["duckdb==" + pkg_version("duckdb")])
+            try:
+                # the trace of the current version is ignored, the pipeline keeps working
+                output = venv.run_script("trace_compat_pipeline.py", "read")
+                print(output)
+                assert "TRACE: None" in output
+                output = venv.run_script("trace_compat_pipeline.py", "run")
+                print(output)
+            except CalledProcessError as cpe:
+                print(f"script output: {cpe.output}")
+                raise
+        assert "TRACE: None" not in output
+
+        # the trace written by 1.31 loads, it has no files count
+        pipeline = dlt.attach("trace_compat")
+        trace = pipeline.last_trace
+        assert trace is not None
+        extract_info = trace.last_extract_info
+        extract_metrics = extract_info.metrics[extract_info.loads_ids[0]][0]
+        assert extract_metrics["table_metrics"]["items"].files_count is None
+        assert load_table_counts(pipeline, "items") == {"items": 2}

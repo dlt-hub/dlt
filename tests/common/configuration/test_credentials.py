@@ -3,8 +3,10 @@ from typing import Any, Dict
 from unittest.mock import patch
 
 import pytest
-from dlt.common.configuration import resolve_configuration
+from dlt.common.configuration import configspec, resolve_configuration
 from dlt.common.configuration.exceptions import ConfigFieldMissingException
+from dlt.common.configuration.specs import BaseConfiguration
+from dlt.common.configuration.utils import get_resolved_traces
 from dlt.common.configuration.specs import (
     ConnectionStringCredentials,
     GcpServiceAccountCredentialsWithoutDefaults,
@@ -234,6 +236,49 @@ def test_connection_string_str_repr() -> None:
     assert str(c) == "postgres://loader:***@localhost:5432/dlt_data"
 
 
+@pytest.mark.parametrize(
+    "connection_string,expected",
+    [
+        ("postgresql://loader:pass@example.com:5432/dlt_data", "postgresql://example.com:5432"),
+        # the dbapi driver is not part of the identity, the backend is
+        ("postgresql+psycopg2://u:p@example.com:5432/db", "postgresql://example.com:5432"),
+        # a private or local address is reported as configured, a scope is not an identity
+        ("postgresql://example.com/dlt_data", "postgresql://example.com"),
+        ("postgresql://loader:pass@localhost:5432/dlt_data", "postgresql://localhost:5432"),
+        ("mssql+pyodbc://u:p@host:1433/db?driver=ODBC+Driver+18", "mssql://host:1433"),
+        # file based backends are identified by the database path
+        ("sqlite:////tmp/abs.db", "sqlite:///tmp/abs.db"),
+        ("sqlite:///rel.db", "sqlite://rel.db"),
+        # transient backends are reported as configured too, the backend alone is a valid scope
+        ("sqlite:///:memory:", "sqlite://:memory:"),
+        ("sqlite://", "sqlite://"),
+    ],
+    ids=[
+        "postgres",
+        "postgres-with-driver",
+        "postgres-no-port",
+        "postgres-localhost",
+        "mssql-with-query",
+        "sqlite-absolute",
+        "sqlite-relative",
+        "sqlite-memory",
+        "sqlite-no-database",
+    ],
+)
+def test_connection_string_data_location(connection_string: str, expected: str) -> None:
+    """A scope names the engine and address, never credentials or connect options"""
+    location = ConnectionStringCredentials(connection_string).data_location()
+    assert location == expected
+    assert "pass" not in location and "loader" not in location
+
+
+def test_connection_string_data_location_ignores_credentials() -> None:
+    """The same database read by two users is reported with the same scope"""
+    loader = ConnectionStringCredentials("postgresql://loader:a@example.com:5432/dlt_data")
+    admin = ConnectionStringCredentials("postgresql://admin:b@example.com:5432/dlt_data")
+    assert loader.data_location() == admin.data_location()
+
+
 def test_gcp_service_credentials_native_representation(environment) -> None:
     with pytest.raises(InvalidGoogleNativeCredentialsType):
         GcpServiceAccountCredentials().parse_native_representation(1)
@@ -385,3 +430,109 @@ def test_aws_credentials_resolved(environment: Dict[str, str]) -> None:
     assert config.aws_session_token == "fake_session_token"
     assert config.profile_name == "fake_profile"
     assert config.region_name == "eu-central"
+
+
+@configspec
+class EmbeddedCredentialsConfiguration(BaseConfiguration):
+    credentials: ConnectionStringCompatCredentials = None
+
+
+def test_partial_dict_merges_native_value_in_embedded_credentials(
+    environment: Dict[str, str],
+) -> None:
+    """A mapping sets only some fields. The rest still come from the native value in a provider."""
+    environment["CREDENTIALS"] = "postgres://loader:pwd@localhost:5432/dlt_data"
+
+    c = resolve_configuration(
+        EmbeddedCredentialsConfiguration(), explicit_value={"credentials": {"database": "other_db"}}
+    )
+
+    assert c.credentials.is_resolved()
+    # the mapping wins for the fields that it sets
+    assert c.credentials.database == "other_db"
+    # the native value fills the remaining ones
+    assert c.credentials.username == "loader"
+    assert c.credentials.password == "pwd"
+    assert c.credentials.host == "localhost"
+
+
+def test_provider_field_wins_over_native_value_in_embedded_credentials(
+    environment: Dict[str, str],
+) -> None:
+    environment["CREDENTIALS"] = "postgres://loader:pwd@localhost:5432/dlt_data"
+    environment["CREDENTIALS__PASSWORD"] = "env_pwd"
+
+    c = resolve_configuration(
+        EmbeddedCredentialsConfiguration(), explicit_value={"credentials": {"database": "other_db"}}
+    )
+
+    assert c.credentials.password == "env_pwd"
+    assert c.credentials.database == "other_db"
+
+
+def test_embedded_credentials_ignores_unparsable_native_value(
+    environment: Dict[str, str],
+) -> None:
+    """dlt ignores a native value of another type. The mapping resolves on its own."""
+    environment["CREDENTIALS"] = "not-a-connection-string"
+
+    c = resolve_configuration(
+        EmbeddedCredentialsConfiguration(),
+        explicit_value={
+            "credentials": {"drivername": "postgres", "database": "db", "username": "usr"}
+        },
+    )
+
+    assert c.credentials.is_resolved()
+    assert c.credentials.database == "db"
+    assert c.credentials.password is None
+
+
+def test_embedded_credentials_instance_skips_native_value(environment: Dict[str, str]) -> None:
+    """An explicit instance still skips the search for the native value."""
+    environment["CREDENTIALS"] = "postgres://loader:pwd@localhost:5432/dlt_data"
+    explicit = ConnectionStringCompatCredentials()
+    explicit.drivername = "postgres"
+    explicit.database = "inst_db"
+
+    c = resolve_configuration(
+        EmbeddedCredentialsConfiguration(),
+        explicit_value={"credentials": explicit},
+        accept_partial=True,
+    )
+
+    assert c.credentials.database == "inst_db"
+    # dlt did not merge the native value
+    assert c.credentials.username is None
+    assert c.credentials.password is None
+
+
+def test_merged_native_value_is_traced_in_embedded_credentials(
+    environment: Dict[str, str],
+) -> None:
+    """dlt traces the initial value as it traces any resolved value. The mapping gets no trace."""
+    environment["CREDENTIALS"] = "postgres://loader:pwd@localhost:5432/dlt_data"
+    tracer = get_resolved_traces()
+
+    resolve_configuration(
+        EmbeddedCredentialsConfiguration(), explicit_value={"credentials": {"database": "other_db"}}
+    )
+
+    traced = tracer._get_log_as_dict(tracer.resolved_traces)
+    # dlt logs the native value under the field name. dlt never logs explicit values
+    assert ".credentials" in traced
+    assert traced[".credentials"].provider_name == "Environment Variables"
+    assert not any(t.provider_name == "ExplicitValues" for t in tracer.resolved_traces)
+
+
+def test_empty_mapping_skips_native_value_in_embedded_credentials(
+    environment: Dict[str, str],
+) -> None:
+    """An empty mapping sets no fields so it is not an explicit value for the config."""
+    environment["CREDENTIALS"] = "postgres://loader:pwd@localhost:5432/dlt_data"
+
+    with pytest.raises(ConfigFieldMissingException) as py_ex:
+        resolve_configuration(
+            EmbeddedCredentialsConfiguration(), explicit_value={"credentials": {}}
+        )
+    assert py_ex.value.fields == ["credentials"]

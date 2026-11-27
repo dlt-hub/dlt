@@ -93,7 +93,7 @@ def init_command(
     if source_name.startswith("dlthub:"):
         display_source_name = source_name[7:]
         fmt.warning(
-            "The `dlthub:<source>` syntax is deprecated. User dltHub AI Workbench instead:\n"
+            "The `dlthub:<source>` syntax is deprecated. Use dltHub AI Harness instead:\n"
             "%s\n"
             "will get you started. See %s for more details."
             % (fmt.cli_cmd("ai init"), fmt.bold(DLT_AI_DOCS_URL))

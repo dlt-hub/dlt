@@ -3,7 +3,6 @@ title:  URL-parser data enrichment
 description: Enriching the url with various parameters.
 keywords: [data enrichment, url parser, referer data enrichment]
 ---
-
 # Data enrichment part three: URL parser data enrichment
 
 URL parser data enrichment involves extracting various URL components to gain additional insights and
@@ -73,7 +72,7 @@ understanding, you may explore all three enrichments sequentially in the noteboo
 Alternatively, to create a data enrichment pipeline, you can start by creating the following
 directory structure:
 
-```text
+```tree
 url_parser_enrichment/
 ├── .dlt/
 │   └── secrets.toml
@@ -141,6 +140,7 @@ We use a free service called [URL Parse API](https://urlparse.com/), to parse th
 need to register to use this service nor get an API key.
 
 1. Create a `url_parser` function as follows:
+
    ```py
    import requests
 
@@ -177,8 +177,8 @@ need to register to use this service nor get an API key.
 
 1. In creating the pipeline, the `url_parser` can be used in the following ways:
 
-   - Add map function
-   - Transformer function
+  - Add map function
+  - Transformer function
 
    The `dlt` library's `transformer` and `add_map` functions serve distinct purposes in data
    processing.
@@ -194,7 +194,7 @@ need to register to use this service nor get an API key.
 
 1. Here, we create the pipeline and use the `add_map` functionality:
 
-   ```py
+   ```py notype
    # Create the pipeline
    pipeline = dlt.pipeline(
        pipeline_name="data_enrichment_three",
@@ -213,7 +213,7 @@ need to register to use this service nor get an API key.
    do so, you need to add the transformer decorator at the top of the `url_parser` function. For
    `pipeline.run`, you can use the following code:
 
-   ```py
+   ```py notype
    # using url_parser as a transformer function
    load_info = pipeline.run(
        tracked_data | url_parser,
@@ -229,7 +229,7 @@ need to register to use this service nor get an API key.
 1. Install necessary dependencies for the preferred
    [destination](../../dlt-ecosystem/destinations/), for example, duckdb:
 
-   ```sh
+   ```cli
    pip install "dlt[duckdb]"
    ```
 
@@ -241,10 +241,9 @@ need to register to use this service nor get an API key.
 
 1. To ensure that everything loads as expected, use the command:
 
-   ```sh
+   ```cli
    dlt pipeline <pipeline_name> show
    ```
 
    For example, the "pipeline_name" for the above pipeline example is `data_enrichment_three`; you
    can use any custom name instead.
-

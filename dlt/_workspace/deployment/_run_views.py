@@ -1,15 +1,17 @@
 """CLI views for `run` / `serve` orchestration: banner, warnings, plan, picker."""
 
 import sys
-from typing import List, Optional, Sequence, Tuple
+from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 from dlt.common import json
 
 from dlt._workspace.cli import echo as fmt
 from dlt._workspace.deployment._job_ref import format_job_label
 from dlt._workspace.deployment._run_typing import TRunBannerInfo, TRunJobInfo
+from dlt._workspace.deployment.agent.transcript import mark, status_mark
 from dlt._workspace.deployment.exceptions import AmbiguousJobSelector
-from dlt._workspace.deployment.typing import TJobDefinition
+from dlt._workspace.deployment.job_result import is_agent_result
+from dlt._workspace.deployment.typing import TJobDefinition, TJobResult
 
 
 TCandidate = Tuple[TJobDefinition, str]
@@ -38,6 +40,37 @@ def print_run_plan(info: TRunJobInfo) -> None:
     fmt.echo("run_id:  %s" % info["run_id"])
     fmt.echo("entry_point:")
     fmt.echo(json.typed_dumps(info["entry_point"], pretty=True))
+
+
+def print_job_result(result: TJobResult, emojis: bool = True) -> None:
+    """Render the structured result a job returned, after its run finished."""
+    fields: Dict[str, Any] = dict(result)
+    fmt.echo("")
+    fmt.echo("%sResult  [%s]" % (mark("result", emojis), result["type"]))
+    # agent results carry a status and a summary
+    if is_agent_result(result["type"]):
+        status = fields.get("status", "")
+        fmt.echo("  status:     %s%s" % (status_mark(status, emojis), status))
+        if summary := fields.get("summary"):
+            fmt.echo("  summary:    %s" % summary)
+    for entity in fields.get("object") or []:
+        fmt.echo("  %s: %s" % (entity["type"], entity["id"]))
+    if trace := fields.get("trace"):
+        fmt.echo(
+            "  loop:       %s on %s, %s turns, %s tokens"
+            % (
+                trace.get("loop_type", "?"),
+                trace.get("model", "?"),
+                trace.get("turn_count", 0),
+                trace.get("total_tokens", 0),
+            )
+        )
+        if (tools := trace.get("local_tools")) is not None:
+            wired = ", ".join(f"{name} ({verb})" for name, verb in tools.items())
+            fmt.echo("  local tools: %s" % (wired or "none"))
+    payload = fields.get("result")
+    if payload is not None:
+        fmt.echo(json.typed_dumps(payload, pretty=True))
 
 
 def print_run_banner(info: TRunBannerInfo) -> None:

@@ -2,12 +2,17 @@
 
 import argparse
 import subprocess
+import sys
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Callable, Dict, List, Optional, Tuple
 
 import pytest
 
+from dlt._workspace.cli import echo as fmt
+from dlt._workspace.cli._dlt import NonInteractiveAction, YesAction
+from dlt._workspace.cli.dlthub import _local_workspace_command as local_serve_mod
+from dlt._workspace.cli.dlthub._local_workspace_command import open_serve_browser
 from dlt._workspace.cli.dlthub.commands import LocalWorkspaceCommand
 from dlt._workspace.deployment import _run_helpers as run_helpers_mod
 from dlt._workspace.deployment._run_helpers import fetch_run_info
@@ -16,15 +21,13 @@ from dlt._workspace.deployment.exceptions import (
     DeploymentException,
     JobRefNotInCandidates,
 )
-from dlt._workspace.deployment.launchers import _launcher as launcher_mod
+from dlt._workspace.deployment.launchers import LAUNCHER_JOB, _launcher as launcher_mod
 from dlt._workspace.deployment.typing import (
-    TEntryPoint,
-    TExecuteSpec,
     TJobDefinition,
-    TJobRef,
     TJobsDeploymentManifest,
-    TTrigger,
 )
+
+from tests.workspace.manifest_utils import make_job, make_manifest
 
 
 NOW = datetime(2026, 4, 19, 12, 0, tzinfo=timezone.utc)
@@ -34,34 +37,25 @@ def _job(
     ref: str,
     *,
     triggers: Optional[List[str]] = None,
-    default_trigger: Optional[str] = None,
     job_type: str = "batch",
     function: Optional[str] = "main",
-    deliver: Optional[Dict[str, Any]] = None,
+    launcher: Optional[str] = None,
+    **fields: Any,
 ) -> TJobDefinition:
-    entry: TEntryPoint = {
-        "module": "my_mod",
-        "function": function,
-        "job_type": job_type,  # type: ignore[typeddict-item]
-        "launcher": "dlt._workspace.deployment.launchers.job",
-    }
-    if triggers is None:
-        triggers = [f"manual:{ref}"]
-    jd: TJobDefinition = {
-        "job_ref": TJobRef(ref),
-        "entry_point": entry,
-        "triggers": [TTrigger(t) for t in triggers],
-        "execute": TExecuteSpec(),
-    }
-    if default_trigger is not None:
-        jd["default_trigger"] = TTrigger(default_trigger)
-    if deliver is not None:
-        jd["deliver"] = deliver  # type: ignore[typeddict-item]
-    return jd
+    return make_job(
+        ref,
+        job_type=job_type,  # type: ignore[arg-type]
+        triggers=[f"manual:{ref}"] if triggers is None else triggers,
+        module="my_mod",
+        function=function,
+        launcher=launcher or LAUNCHER_JOB,
+        concurrency=None,
+        **{k: v for k, v in fields.items() if v is not None},
+    )
 
 
 def _manifest(jobs: List[TJobDefinition]) -> TJobsDeploymentManifest:
-    return {"engine_version": 1, "jobs": jobs}  # type: ignore[typeddict-item]
+    return make_manifest(jobs)
 
 
 def _patch_load_manifest(
@@ -182,7 +176,7 @@ def _invoke_local(monkeypatch: pytest.MonkeyPatch, op: str, *cli_args: str) -> T
     stderr_buf: List[str] = []
 
     def _sync_exec(argv: List[str]) -> None:
-        result = subprocess.run(argv, capture_output=True, text=True, timeout=60)
+        result = subprocess.run(argv, capture_output=True, encoding="utf-8", timeout=60)
         stdout_buf.append(result.stdout)
         stderr_buf.append(result.stderr)
         raise SystemExit(result.returncode)
@@ -306,6 +300,24 @@ def test_local_pipeline_run_argparse_present() -> None:
     assert args.refresh is True
 
 
+def test_local_pipeline_trace_metrics_argparse() -> None:
+    """`local pipeline trace <name> metrics` parses the action and the steps."""
+    cmd = LocalWorkspaceCommand()
+    parser = argparse.ArgumentParser(prog="dlthub local")
+    cmd.configure_parser(parser)
+    args = parser.parse_args(
+        ["pipeline", "trace", "my_pipe", "metrics", "--steps", "extract", "normalize"]
+    )
+    assert args.operation == "trace"
+    assert args.pipeline_name == "my_pipe"
+    assert args.action == "metrics"
+    assert args.steps == ["extract", "normalize"]
+    # plain trace keeps working without the action
+    args = parser.parse_args(["pipeline", "trace", "my_pipe"])
+    assert args.action is None
+    assert args.steps is None
+
+
 def test_local_run_file_no_short_form() -> None:
     """`-f` is no longer a short alias for --deployment (reserved for future --follow)."""
     cmd = LocalWorkspaceCommand()
@@ -313,3 +325,185 @@ def test_local_run_file_no_short_form() -> None:
     cmd.configure_parser(parser)
     with pytest.raises(SystemExit):
         parser.parse_args(["run", "-f", "some.py"])
+
+
+def _interactive_job(port: int, ref: str = "jobs.dash") -> TJobDefinition:
+    job = _job(ref, job_type="interactive")
+    job["entry_point"]["run_args"] = {"port": port}  # type: ignore[typeddict-unknown-key]
+    return job
+
+
+def _install_browser_and_exec(monkeypatch: pytest.MonkeyPatch) -> List[Tuple[str, Any]]:
+    """Capture `webbrowser.open` and `exec_process` calls in order, without launching."""
+    events: List[Tuple[str, Any]] = []
+
+    def _open(url: str) -> bool:
+        events.append(("open", url))
+        return True
+
+    def _exec(argv: List[str]) -> None:
+        events.append(("exec", argv))
+
+    monkeypatch.setattr(local_serve_mod.webbrowser, "open", _open)
+    monkeypatch.setattr(launcher_mod, "exec_process", _exec)
+    return events
+
+
+def _parse_dlthub_local(argv: List[str]) -> argparse.Namespace:
+    """Parse global `--non-interactive` / `-y` together with `dlthub local`."""
+    parser = argparse.ArgumentParser(prog="dlthub")
+    parser.add_argument("--non-interactive", action=NonInteractiveAction)
+    parser.add_argument("-y", "--yes", action=YesAction)
+    local = parser.add_subparsers(dest="command", required=True).add_parser("local")
+    LocalWorkspaceCommand().configure_parser(local)
+    return parser.parse_args(argv)
+
+
+@pytest.mark.parametrize(
+    ("host", "url"),
+    [
+        pytest.param("0.0.0.0", "http://localhost:27182", id="wildcard-ipv4"),
+        pytest.param("::", "http://localhost:27182", id="wildcard-ipv6"),
+        pytest.param("", "http://localhost:27182", id="empty-host"),
+        pytest.param("127.0.0.1", "http://127.0.0.1:27182", id="loopback"),
+        pytest.param("localhost", "http://localhost:27182", id="localhost"),
+    ],
+)
+def test_open_serve_browser_uses_listen_host(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    host: str,
+    url: str,
+) -> None:
+    """Wildcard binds open on localhost; any other host is used as given."""
+    events = _install_browser_and_exec(monkeypatch)
+    open_serve_browser(27182, host)
+    assert events == [("open", url)]
+    assert "Opening %s" % url in capsys.readouterr().out
+
+
+def test_local_serve_opens_browser_at_resolved_port(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Interactive serve opens the banner port, after the listen line, before exec."""
+    events = _install_browser_and_exec(monkeypatch)
+    _patch_load_manifest(monkeypatch, _manifest([_interactive_job(27182)]))
+    args = _parse_dlthub_local(["local", "serve", "jobs.dash"])
+    LocalWorkspaceCommand().execute(args)
+
+    assert len(events) == 2
+    assert events[0] == ("open", "http://localhost:27182")
+    assert events[1][0] == "exec"
+    out = capsys.readouterr().out
+    assert out.index("Listening on http://localhost:27182") < out.index(
+        "Opening http://localhost:27182"
+    )
+
+
+def _serve_with_non_interactive_flag(monkeypatch: pytest.MonkeyPatch) -> None:
+    args = _parse_dlthub_local(["--non-interactive", "local", "serve", "jobs.dash"])
+    LocalWorkspaceCommand().execute(args)
+
+
+def _serve_with_yes_flag(monkeypatch: pytest.MonkeyPatch) -> None:
+    args = _parse_dlthub_local(["--yes", "local", "serve", "jobs.dash"])
+    LocalWorkspaceCommand().execute(args)
+
+
+def _serve_with_non_tty_stdin(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(sys.stdin, "isatty", lambda: False)
+    args = _parse_dlthub_local(["local", "serve", "jobs.dash"])
+    with fmt.maybe_no_stdin():
+        LocalWorkspaceCommand().execute(args)
+
+
+@pytest.mark.parametrize(
+    "invoke",
+    [
+        pytest.param(_serve_with_non_interactive_flag, id="flag-non-interactive"),
+        pytest.param(_serve_with_yes_flag, id="flag-yes"),
+        pytest.param(_serve_with_non_tty_stdin, id="stdin-not-a-tty"),
+    ],
+)
+def test_local_serve_non_interactive_does_not_open_browser(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    invoke: Callable[[pytest.MonkeyPatch], None],
+) -> None:
+    """A non-interactive serve prints the listen URL and does not open a browser."""
+    events = _install_browser_and_exec(monkeypatch)
+    _patch_load_manifest(monkeypatch, _manifest([_interactive_job(27182)]))
+    invoke(monkeypatch)
+    assert len(events) == 1
+    assert events[0][0] == "exec"
+    out = capsys.readouterr().out
+    assert "Opening " not in out
+    assert "Listening on http://localhost:27182" in out
+
+
+def test_local_serve_dry_run_does_not_open_browser(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Dry-run resolves the job and neither launches nor opens a browser."""
+    events = _install_browser_and_exec(monkeypatch)
+    _patch_load_manifest(monkeypatch, _manifest([_interactive_job(27182)]))
+    args = _parse_dlthub_local(["local", "serve", "jobs.dash", "--dry-run"])
+    LocalWorkspaceCommand().execute(args)
+    assert events == []
+    out = capsys.readouterr().out
+    assert "--dry-run: not launching" in out
+    assert "Opening " not in out
+    assert "Listening on " not in out
+
+
+def test_local_serve_browser_failure_still_serves(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """A browser that fails to open does not stop the server from launching."""
+    events = _install_browser_and_exec(monkeypatch)
+
+    def _boom(url: str) -> bool:
+        raise OSError("no display")
+
+    monkeypatch.setattr(local_serve_mod.webbrowser, "open", _boom)
+    _patch_load_manifest(monkeypatch, _manifest([_interactive_job(27182)]))
+    args = _parse_dlthub_local(["local", "serve", "jobs.dash"])
+    LocalWorkspaceCommand().execute(args)
+
+    assert len(events) == 1
+    assert events[0][0] == "exec"
+    assert "Opening http://localhost:27182" in capsys.readouterr().out
+
+
+def test_local_serve_ambiguous_non_interactive_does_not_prompt(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Two matches and `--non-interactive` raise instead of reading a TTY."""
+    events = _install_browser_and_exec(monkeypatch)
+    monkeypatch.setattr(sys.stdin, "isatty", lambda: True)
+    monkeypatch.setattr(sys.stdout, "isatty", lambda: True)
+    jobs = [_interactive_job(27182, "jobs.a"), _interactive_job(27183, "jobs.b")]
+    _patch_load_manifest(monkeypatch, _manifest(jobs))
+    args = _parse_dlthub_local(["--non-interactive", "local", "serve"])
+    with pytest.raises(AmbiguousJobSelector):
+        LocalWorkspaceCommand().execute(args)
+    assert events == []
+
+
+def test_local_run_does_not_open_browser(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """`local run` keeps the banner and does not open a browser."""
+    events = _install_browser_and_exec(monkeypatch)
+    _patch_load_manifest(monkeypatch, _manifest([_job("jobs.a")]))
+    args = _parse_dlthub_local(["local", "run", "jobs.a"])
+    LocalWorkspaceCommand().execute(args)
+    assert len(events) == 1
+    assert events[0][0] == "exec"
+    out = capsys.readouterr().out
+    assert "Opening " not in out
+    assert "Listening on " not in out

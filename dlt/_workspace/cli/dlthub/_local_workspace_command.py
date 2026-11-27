@@ -1,6 +1,7 @@
 import argparse
 import sys
-from typing import Dict, List, Optional
+import webbrowser
+from typing import Any, Dict, List, Optional
 
 from dlt.common import json
 from dlt.common.configuration.specs.pluggable_run_context import RunContextBase
@@ -164,19 +165,48 @@ def _add_pipeline_name(parser: argparse.ArgumentParser, _op: str) -> None:
     parser.add_argument("pipeline_name", nargs="?", help="Pipeline name")
 
 
-def _parse_config_args(pairs: List[str]) -> Dict[str, str]:
-    config: Dict[str, str] = {}
+def _parse_config_args(pairs: List[str]) -> Dict[str, Any]:
+    """`KEY=VALUE` pairs into a config dict. A dotted key nests, as config sections do."""
+    config: Dict[str, Any] = {}
     for pair in pairs:
         if "=" not in pair:
             raise ValueError(f"config must be KEY=VALUE, got: {pair!r}")
         key, value = pair.split("=", 1)
-        config[key] = value
+        *sections, name = key.split(".")
+        target = config
+        for section in sections:
+            target = target.setdefault(section, {})
+        target[name] = value
     return config
 
 
 def execute_run(args: argparse.Namespace) -> None:
     """Run a batch job locally — interactive job-types are forbidden."""
     _execute_one(args, forbidden_job_type="interactive", available_selectors=["batch"])
+
+
+# interactive launchers (streamlit, marimo, mcp, dashboard) bind this address
+_SERVE_BIND_HOST = "0.0.0.0"
+_WILDCARD_BIND_HOSTS = ("0.0.0.0", "::", "")
+
+
+def open_serve_browser(port: int, host: str = _SERVE_BIND_HOST) -> None:
+    """Open the local serve URL when the CLI session is interactive.
+
+    Args:
+        port (int): Listen port the server binds.
+        host (str): Bind host. `0.0.0.0`, `::`, and an empty host open on localhost.
+    """
+    if not fmt.is_interactive():
+        return
+    browse_host = "localhost" if host in _WILDCARD_BIND_HOSTS else host
+    url = "http://%s:%d" % (browse_host, port)
+    fmt.echo("Opening %s" % url)
+    try:
+        webbrowser.open(url)
+    except Exception:
+        # headless environments have no browser; the banner already printed the url
+        pass
 
 
 def execute_serve(args: argparse.Namespace) -> None:
@@ -216,6 +246,9 @@ def _execute_one(
     from dlt._workspace.deployment.launchers._launcher import exec_process
 
     cli_config = _parse_config_args(getattr(args, "config", None) or [])
+    if verbosity := getattr(args, "verbosity", 0):
+        # the launcher runs in its own process and reads the level from the entry point config
+        cli_config.setdefault("agent", {}).setdefault("verbosity", verbosity + 1)
     info = fetch_run_info(
         selector=getattr(args, "selector_or_job_ref", None),
         selectors=selectors,
@@ -261,6 +294,9 @@ def _execute_one(
         if port := info["entry_point"].get("run_args", {}).get("port"):
             banner["port"] = int(port)
     print_run_banner(banner)
+    # exec_process replaces this process, so the browser has to open first
+    if port := banner.get("port"):
+        open_serve_browser(port, _SERVE_BIND_HOST)
 
     exec_process(
         [

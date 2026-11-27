@@ -46,6 +46,7 @@ from .config_setup import (
     build_resource_dependency_graph,
     paginate_dependent_resource,
     paginate_resource,
+    record_endpoint_input,
     process_parent_data_item,
     setup_incremental_object,
     create_response_hooks,
@@ -342,6 +343,8 @@ def create_resources(
             )
 
             resources[resource_name] = process(resources[resource_name], processing_steps)
+
+        record_endpoint_input(resources[resource_name], client, endpoint_config.get("path"))
 
     return resources
 

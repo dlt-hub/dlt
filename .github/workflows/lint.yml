@@ -8,31 +8,11 @@ on:
 jobs:
 
   run_lint:
-    name: ${{ matrix.display_name }}
-    strategy:
-      fail-fast: true
-      matrix:
-        include:
-          - display_name: linux-3.10
-            os: blacksmith-8vcpu-ubuntu-2404
-            python-version: "3.10"
-          - display_name: linux-3.11
-            os: blacksmith-8vcpu-ubuntu-2404
-            python-version: "3.11"
-          - display_name: linux-3.12
-            os: blacksmith-8vcpu-ubuntu-2404
-            python-version: "3.12"
-          - display_name: linux-3.13
-            os: blacksmith-8vcpu-ubuntu-2404
-            python-version: "3.13"
-          - display_name: linux-3.14
-            os: blacksmith-8vcpu-ubuntu-2404
-            python-version: "3.14"
-
+    name: lint
     defaults:
       run:
         shell: bash
-    runs-on: ${{ matrix.os }}
+    runs-on: blacksmith-8vcpu-ubuntu-2404
 
     steps:
 
@@ -42,12 +22,12 @@ jobs:
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
-          python-version: ${{ matrix.python-version }}
+          python-version: "3.10"
 
       - name: Install uv
         uses: astral-sh/setup-uv@v6
         with:
-          python-version: ${{ matrix.python-version }}
+          python-version: "3.10"
           activate-environment: true
           enable-cache: true
 
@@ -60,6 +40,16 @@ jobs:
       - name: Run make lint
         run: make lint
 
+      # emscripten drops the marker-excluded deps (orjson), so this catches a hard
+      # import of one of them that plain CPython lint cannot see
+      - name: Setup Node
+        uses: actions/setup-node@v5
+        with:
+          node-version: '22'
+
+      - name: Check dlt imports under emscripten
+        run: make lint-emscripten
+
       - name: Check filesizes
         uses: ppremk/lfs-warning@v3.2
         with:
@@ -70,15 +60,3 @@ jobs:
             **/*.md
             **/*.ipynb
             **/package-lock.json
-
-
-  matrix_job_required_check:
-    name: lint-check
-    needs: run_lint
-    runs-on: blacksmith-2vcpu-ubuntu-2404
-    if: always()
-    steps:
-      - name: Check matrix job results
-        if: contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled')
-        run: |
-          echo "One or more matrix job tests failed or were cancelled. You may need to re-run them." && exit 1

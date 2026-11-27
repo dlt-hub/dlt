@@ -20,6 +20,9 @@ class LoaderConfiguration(PoolRunnerConfiguration):
     _load_storage_config: LoadStorageConfiguration = None
     truncate_staging_dataset: bool = False
     """If set to `True`, the staging dataset will be truncated after loading the data"""
+    truncate_staging_merge_tables_before_load: bool = True
+    """If `False`, dlt keeps the staging tables of `merge` tables when the load begins. Other
+    dispositions copy the whole staging table and always load from a truncated one"""
     start_new_jobs_on_signal: bool = False
     """If set to False: will attempt to drain load pool on signal, if True: will continue loading new job"""
     auto_abort_on_terminal_error: bool = False

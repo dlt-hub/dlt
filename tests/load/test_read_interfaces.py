@@ -1,15 +1,13 @@
-from datetime import timedelta  # noqa: I251
+from datetime import date, timedelta  # noqa: I251
 from typing import Any, cast, Tuple, List
 import re
 import pytest
 import dlt
 import os
 import sqlglot.expressions as sge
-from copy import copy
 
 from dlt import Pipeline
 from dlt.common import Decimal
-from dlt.common.incremental.typing import IncrementalColumnState
 from dlt.common.pendulum import pendulum
 
 from functools import reduce
@@ -24,6 +22,7 @@ from dlt.extract.incremental import Incremental
 from dlt.extract.source import DltSource
 from dlt.dataset.exceptions import LineageFailedException
 
+from tests.extract.utils import bind_state
 from tests.load.read_dataset_fixtures import (
     destination_config,
     preserve_module_environ_per_destination_config,
@@ -54,6 +53,16 @@ def _total_records(destination_type: str) -> int:
     return 3000
 
 
+# not all destinations fully fill chunks, treat chunk size as maximum for these
+INEXACT_CHUNK_SIZE_DESTINATIONS = [
+    "dlt.destinations.filesystem",
+    "dlt.destinations.ducklake",  # vector size seems to not be consistent, typically 700
+    "dlt.destinations.duckdb",  # vector sizes started to vary
+    "dlt.destinations.lancedb",  # default is 200
+    "dlt.destinations.lance",
+]
+
+
 def _chunk_size(destination_type: str) -> int:
     """chunk size for a given pipeline"""
     if destination_type == "dlt.destinations.bigquery":
@@ -72,6 +81,18 @@ def _expected_chunk_count(p: Pipeline) -> List[int]:
         chunk_size,
         total_records - chunk_size,
     ]
+
+
+def _assert_chunk_sizes(p: Pipeline, sizes: List[int], expected: List[int]) -> None:
+    destination_type = p.destination.destination_type
+    if destination_type == "dlt.destinations.snowflake":
+        # snowflake driver ignores chunk_size
+        return
+    if destination_type in INEXACT_CHUNK_SIZE_DESTINATIONS:
+        chunk_size = _chunk_size(destination_type)
+        assert all(0 < size <= chunk_size for size in sizes)
+    else:
+        assert sizes == expected
 
 
 def create_test_source(destination_type: str, table_format: TTableFormat) -> DltSource:
@@ -142,7 +163,22 @@ def create_test_source(destination_type: str, table_format: TTableFormat) -> Dlt
                 for i in range(total_records)
             ]
 
-        return [items, double_items, orderable_in_chain]
+        # one row per calendar day, used to exercise incremental on a DATE-typed cursor
+        @dlt.resource(
+            table_format=table_format,
+            write_disposition="replace",
+            columns={"id": {"data_type": "bigint"}, "created_date": {"data_type": "date"}},
+        )
+        def daily_items():
+            yield from [
+                {
+                    "id": i,
+                    "created_date": (ITEMS_EPOCH + timedelta(days=i)).date(),
+                }
+                for i in range(total_records)
+            ]
+
+        return [items, double_items, orderable_in_chain, daily_items]
 
     return source()
 
@@ -202,7 +238,7 @@ def test_str_and_repr_on_dataset_and_relation(populated_pipeline: Pipeline) -> N
         _replace_variable_content(str(dataset_))
         == "Dataset `dataset_name` at `duckdb[<destination_config>]` "
         "with schemas:\n"
-        "  source: items, double_items, orderable_in_chain, items__children\n"
+        "  source: items, double_items, orderable_in_chain, daily_items, items__children\n"
         "  aleph: digits"
     )
 
@@ -259,14 +295,11 @@ def test_arrow_access(populated_pipeline: Pipeline) -> None:
     # chunk
     table = table_relationship.arrow(chunk_size=chunk_size)
     assert set(table.column_names) == set(EXPECTED_COLUMNS)
-    # NOTE: chunksize is unpredictable on snowflake
-    if populated_pipeline.destination.destination_type != "dlt.destinations.snowflake":
-        assert table.num_rows == chunk_size
+    _assert_chunk_sizes(populated_pipeline, [table.num_rows], [chunk_size])
 
     # check frame amount and items counts
     tables = list(table_relationship.iter_arrow(chunk_size=chunk_size))
-    if populated_pipeline.destination.destination_type != "dlt.destinations.snowflake":
-        assert [t.num_rows for t in tables] == expected_chunk_counts
+    _assert_chunk_sizes(populated_pipeline, [t.num_rows for t in tables], expected_chunk_counts)
 
     # check all items are present, this MUST also be true for snowflake
     ids = reduce(lambda a, b: a + b, [t.column(EXPECTED_COLUMNS[0]).to_pylist() for t in tables])
@@ -281,32 +314,21 @@ def test_dataframe_access(populated_pipeline: Pipeline) -> None:
     total_records = _total_records(populated_pipeline.destination.destination_type)
     chunk_size = _chunk_size(populated_pipeline.destination.destination_type)
     expected_chunk_counts = _expected_chunk_count(populated_pipeline)
-    skip_df_chunk_size_check = populated_pipeline.destination.destination_type in [
-        "dlt.destinations.filesystem",
-        "dlt.destinations.snowflake",
-        "dlt.destinations.ducklake",  # vector size seems to not be consistent, typically 700
-        "dlt.destinations.duckdb",  # vector sizes started to vary
-        "dlt.destinations.lancedb",  # default is 200
-        "dlt.destinations.lance",
-    ]
 
     # full frame
     df = table_relationship.df()
     assert len(df.index) == total_records
     assert set(df.columns.values) == set(EXPECTED_COLUMNS)
 
-    # TODO: snowflake does not follow a chunk size, make and exception (accept range), same for arrow
     # chunk
     df = table_relationship.df(chunk_size=chunk_size)
-    if not skip_df_chunk_size_check:
-        assert len(df.index) == chunk_size
+    _assert_chunk_sizes(populated_pipeline, [len(df.index)], [chunk_size])
 
     assert set(df.columns.values) == set(EXPECTED_COLUMNS)
 
     # iterate all dataframes
     frames = list(table_relationship.iter_df(chunk_size=chunk_size))
-    if not skip_df_chunk_size_check:
-        assert [len(df.index) for df in frames] == expected_chunk_counts
+    _assert_chunk_sizes(populated_pipeline, [len(f.index) for f in frames], expected_chunk_counts)
 
     # check all items are present
     ids = reduce(lambda a, b: a + b, [f[EXPECTED_COLUMNS[0]].to_list() for f in frames])
@@ -385,6 +407,8 @@ def test_row_counts(populated_pipeline: Pipeline) -> None:
     total_records = _total_records(populated_pipeline.destination.destination_type)
 
     dataset = populated_pipeline.dataset()
+    # the output columns are named in the dlt schema namespace, also on case-folding destinations
+    assert list(dataset.row_counts().df().columns) == ["table_name", "row_count"]
     # default is all data tables
     assert set(dataset.row_counts().df().itertuples(index=False, name=None)) == {
         (
@@ -401,6 +425,10 @@ def test_row_counts(populated_pipeline: Pipeline) -> None:
         ),
         (
             "orderable_in_chain",
+            total_records,
+        ),
+        (
+            "daily_items",
             total_records,
         ),
         (
@@ -468,6 +496,10 @@ def test_row_counts(populated_pipeline: Pipeline) -> None:
             total_records,
         ),
         (
+            "daily_items",
+            total_records,
+        ),
+        (
             "digits",
             3,
         ),
@@ -524,35 +556,33 @@ def test_sql_queries(populated_pipeline: Pipeline) -> None:
         populated_pipeline.dataset()(query, _execute_raw_query=True).df()
     assert "Must be an SQL SELECT statement" in str(exc2.value)
 
-    # we only test the following for duckdb
+    # the qualified query aliases every projection and ties every column to its table
+    qualified_query = join_relationship._lineage().qualified_query
+    assert [select.alias for select in qualified_query.selects] == ["id", "double_id"]
+    assert all(column.table for column in qualified_query.find_all(sge.Column))
+
+    # a raw query relation executes the query as parsed, without qualification
+    raw_relationship = populated_pipeline.dataset()(
+        join_relationship.sqlglot_expression, _execute_raw_query=True
+    )
+    assert raw_relationship.to_sql() == raw_relationship.sqlglot_expression.sql(
+        dialect=raw_relationship.destination_dialect
+    )
+    assert all(select.alias == "" for select in raw_relationship.sqlglot_expression.selects)
+    # columns of a raw query relation come from partial lineage
+    assert raw_relationship.columns == ["id", "double_id"]
+
+    # the bound query depends on the destination identifiers and dialect
     if populated_pipeline.destination.destination_type != "dlt.destinations.duckdb":
         return
 
-    # test various query stages
-    # raw query has no aliases
+    # bound query has quoted identifiers
     assert (
-        join_relationship.sqlglot_expression.sql("duckdb").replace(dataset_name, "dataset_name")
-        == "SELECT i.id, di.double_id FROM dataset_name.items AS i JOIN dataset_name.double_items"
-        " AS di ON (i.id = di.id) WHERE i.id < 20 ORDER BY i.id ASC"
+        join_relationship.to_sql().replace(dataset_name, "dataset_name")
+        == 'SELECT "i"."id" AS "id", "di"."double_id" AS "double_id" FROM "dataset_name"."items" AS'
+        ' "i" JOIN "dataset_name"."double_items" AS "di" ON ("i"."id" = "di"."id") WHERE'
+        ' "i"."id" < 20 ORDER BY "i"."id" ASC'
     )
-
-    # TODO move these tests to the `dlt.destination.queries::normalize_query()`
-    # TODO modify `dlt.dataset.lineage::compute_columns_schema()` to return the normalized query instead of a tuple
-    # qualified query has aliases
-    # assert (
-    #     join_relationship._qualified_query.sql("duckdb").replace(dataset_name, "dataset_name")
-    #     == "SELECT i.id AS id, di.double_id AS double_id FROM dataset_name.items AS i JOIN"
-    #     " dataset_name.double_items AS di ON (i.id = di.id) WHERE i.id < 20 ORDER BY i.id ASC"
-    # )
-
-    # TODO move these tests to the `dlt.destination.queries::normalize_query()`
-    # normalized has quoted indentifiers
-    # assert (
-    #     join_relationship._normalized_query.sql("duckdb").replace(dataset_name, "dataset_name")
-    #     == 'SELECT "i"."id" AS "id", "di"."double_id" AS "double_id" FROM "dataset_name"."items" AS'
-    #     ' "i" JOIN "dataset_name"."double_items" AS "di" ON ("i"."id" = "di"."id") WHERE'
-    #     ' "i"."id" < 20 ORDER BY "i"."id" ASC'
-    # )
 
 
 @pytest.mark.no_load
@@ -824,30 +854,35 @@ def test_where(populated_pipeline: Pipeline) -> None:
 
     assert total_records - 3 == len(not_in_rows)
 
+    # filters bind the output columns of an aggregating query and of an alias that shadows a column
+    dataset = populated_pipeline.dataset()
+    max_rows = dataset("SELECT MAX(id) AS max_id FROM items").where("max_id", "gt", 0).fetchall()
+    assert [tuple(row) for row in max_rows] == [(total_records - 1,)]
+    shadow_rows = (
+        dataset("SELECT id AS src_id, id * 10 AS id FROM items").where("id", "eq", 10).fetchall()
+    )
+    assert [tuple(row) for row in shadow_rows] == [(1, 10)]
+
 
 @pytest.mark.no_load
 @pytest.mark.essential
 def test_relation_incremental_datetime_on_dataset(populated_pipeline: Pipeline) -> None:
     """End-to-end: dataset.table('items').incremental(<datetime cursor>) on every destination."""
-    items = populated_pipeline.dataset().items
+    items = populated_pipeline.dataset().table("items")
     total_records = _total_records(populated_pipeline.destination.destination_type)
     last_dt = ITEMS_EPOCH + timedelta(seconds=total_records - 1)
 
-    # post-run state matches what `bind()` persisted: start_value snapshot == last_value
-    cached_state: IncrementalColumnState = {
-        "initial_value": ITEMS_EPOCH,
-        "last_value": last_dt,
-        "start_value": last_dt,
-        "unique_hashes": [],
-    }
-
     def _bind(incr: Incremental[Any], instance_start_value: Any = None) -> Incremental[Any]:
-        incr._cached_state = copy(cached_state)
+        # post-run state matches what `bind()` persisted: start_value snapshot == last_value
+        bind_state(incr, None, initial_value=ITEMS_EPOCH, start_value=last_dt)
+        # set deduplication key on "created_at" to make it unique
+        incr.set_deduplication_key("created_at", from_hints=False)
         incr.start_value = instance_start_value if instance_start_value is not None else last_dt
         return incr
 
     # 1. bound, no lag, no end_value — lower = last_dt, no upper, keeps the last row
     incr = _bind(dlt.sources.incremental[pendulum.DateTime]("created_at"))
+    # upper boundary included thanks to "created_at" being unique
     assert len(items.incremental(incr).fetchall()) == 1
 
     # 2. lag — start_value = last_dt - 5s; no upper bound; includes last_dt itself
@@ -888,6 +923,67 @@ def test_relation_incremental_datetime_on_dataset(populated_pipeline: Pipeline) 
         return int(d.timestamp())
 
     assert [_ts(d) for d in actual_dts] == [_ts(d) for d in expected_dts]
+
+
+@pytest.mark.no_load
+@pytest.mark.essential
+def test_relation_incremental_date_on_dataset(populated_pipeline: Pipeline) -> None:
+    """End-to-end: dataset.table('daily_items').incremental(<date cursor>) on every destination."""
+    daily = populated_pipeline.dataset().table("daily_items")
+    total_records = _total_records(populated_pipeline.destination.destination_type)
+    epoch_date = ITEMS_EPOCH.date()
+    last_date = epoch_date + timedelta(days=total_records - 1)
+    initial_date = epoch_date.subtract(days=1)
+
+    def _bind(incr: Incremental[Any], instance_start_value: Any = None) -> Incremental[Any]:
+        bind_state(incr, None, initial_value=initial_date, start_value=last_date.subtract(days=1))
+        incr.initial_value = initial_date
+        # this will include the upper boundary but also assumes that days are unique
+        incr.range_start = "open"
+        incr.range_end = "closed"
+        incr.start_value = (
+            instance_start_value if instance_start_value is not None else last_date.subtract(days=1)
+        )
+        return incr
+
+    # 1. bound, no end_value — lower = last_date, keeps the last day only
+    incr = _bind(dlt.sources.incremental[date]("created_date"))
+    assert len(daily.incremental(incr).fetchall()) == 1
+
+    # 2. wider lower bound — last_date - 5 days, inclusive, yields 6 days
+    lagged_start = last_date - timedelta(days=6)
+    incr_lag = _bind(
+        dlt.sources.incremental[date]("created_date"), instance_start_value=lagged_start
+    )
+    assert len(daily.incremental(incr_lag).fetchall()) == 6
+
+    # 3. unbound, initial_value is a datetime — coerced to its calendar date, keeps every row
+    incr_unbound = dlt.sources.incremental[date]("created_date")
+    assert len(daily.incremental(incr_unbound).fetchall()) == total_records
+
+    # 4. unbound with range modifiers and explicit end_value
+    range_start_date = epoch_date + timedelta(days=10)
+    range_end_date = epoch_date + timedelta(days=20)
+    incr_range = dlt.sources.incremental[date](
+        "created_date",
+        initial_value=range_start_date,
+        end_value=range_end_date,
+        range_start="open",
+        range_end="closed",
+    )
+    arrow_tbl = (
+        daily.incremental(incr_range).select("created_date").order_by("created_date").arrow()
+    )
+    actual_dates = arrow_tbl["created_date"].to_pylist()
+    expected_dates = [epoch_date + timedelta(days=i) for i in range(11, 21)]
+
+    # destinations differ in returned type (date / datetime / string); compare ISO date strings
+    def _d(v: Any) -> str:
+        if isinstance(v, str):
+            return v[:10]
+        return v.date().isoformat() if hasattr(v, "hour") else v.isoformat()
+
+    assert [_d(d) for d in actual_dates] == [_d(d) for d in expected_dates]
 
 
 @pytest.mark.no_load
@@ -1007,8 +1103,7 @@ def test_schema_arg(populated_pipeline: Pipeline) -> None:
 @pytest.mark.no_load
 @pytest.mark.essential
 def test_ibis_expression_relation(populated_pipeline: Pipeline) -> None:
-    # NOTE: we could generalize this with a context for certain deps
-    import ibis
+    ibis = pytest.importorskip("ibis")
 
     # now we should get the more powerful ibis relation
     dataset = populated_pipeline.dataset()
@@ -1271,10 +1366,81 @@ def test_ibis_expression_relation(populated_pipeline: Pipeline) -> None:
     )
 
 
+def _assert_ibis_dataset_access(pipeline: Pipeline, ibis_connection: Any) -> None:
+    """Asserts that `ibis_connection` reads all tables of `pipeline` dataset, both fully qualified
+    and unqualified: the backend must default to the dataset."""
+    destination_type = pipeline.destination.destination_type
+    total_records = _total_records(destination_type)
+
+    map_i = lambda x: x
+    if destination_type == "dlt.destinations.snowflake":
+        map_i = lambda x: x.upper()
+
+    dataset_name = map_i(pipeline.dataset_name)
+    table_like_statement = None
+    table_name_prefix = ""
+    additional_tables = []
+
+    # clickhouse has no datasets, but table prefixes and a sentinel table
+    if destination_type == "dlt.destinations.clickhouse":
+        table_like_statement = dataset_name + "."
+        table_name_prefix = dataset_name + "___"
+        dataset_name = None
+        additional_tables += ["dlt_sentinel_table"]
+    # from aleph schema
+    additional_tables += ["digits"]
+
+    add_table_prefix = lambda x: table_name_prefix + x
+
+    schema = pipeline.default_schema
+    expected_table_names = {
+        add_table_prefix(map_i(x))
+        for x in (
+            [
+                schema.loads_table_name,
+                schema.state_table_name,
+                schema.version_table_name,
+                "double_items",
+                "items",
+                "items__children",
+                "orderable_in_chain",
+                "daily_items",
+            ]
+            + additional_tables
+        )
+    }
+    # databricks can't list tables (looks like internal ibis bug)
+    can_list_tables = destination_type != "dlt.destinations.databricks"
+    # clickhouse has no datasets and ibis does not set the mssql schema, so those backends do not
+    # default to the dataset
+    has_default_dataset = destination_type not in (
+        "dlt.destinations.clickhouse",
+        "dlt.destinations.mssql",
+    )
+
+    if can_list_tables:
+        table_names_in_ibis = ibis_connection.list_tables(
+            database=dataset_name, like=table_like_statement
+        )
+        print(table_names_in_ibis)
+        assert set(table_names_in_ibis) == expected_table_names
+
+    table_name = add_table_prefix(map_i("items"))
+    items_table = ibis_connection.table(table_name, database=dataset_name)
+    assert items_table.count().to_pandas() == total_records
+
+    if has_default_dataset:
+        if can_list_tables:
+            # the dataset tables are listed without naming the dataset
+            assert expected_table_names.issubset(set(ibis_connection.list_tables()))
+        assert ibis_connection.table(table_name).count().to_pandas() == total_records
+        assert ibis_connection.tables[table_name].count().to_pandas() == total_records
+
+
 @pytest.mark.no_load
 @pytest.mark.essential
 def test_ibis_dataset_access(populated_pipeline: Pipeline) -> None:
-    # NOTE: we could generalize this with a context for certain deps
+    pytest.importorskip("ibis")
 
     # make sure the not implemented error is raised if the ibis backend can't be created
     try:
@@ -1293,66 +1459,45 @@ def test_ibis_dataset_access(populated_pipeline: Pipeline) -> None:
         for _ in range(3):
             gc.collect()
 
-        total_records = _total_records(populated_pipeline.destination.destination_type)
-
-        map_i = lambda x: x
-        if populated_pipeline.destination.destination_type == "dlt.destinations.snowflake":
-            map_i = lambda x: x.upper()
-
-        dataset_name = map_i(populated_pipeline.dataset_name)
-        table_like_statement = None
-        table_name_prefix = ""
-        additional_tables = []
-
-        # clickhouse has no datasets, but table prefixes and a sentinel table
-        if populated_pipeline.destination.destination_type == "dlt.destinations.clickhouse":
-            table_like_statement = dataset_name + "."
-            table_name_prefix = dataset_name + "___"
-            dataset_name = None
-            additional_tables += ["dlt_sentinel_table"]
-        # from aleph schema
-        additional_tables += ["digits"]
-
-        add_table_prefix = lambda x: table_name_prefix + x
-
-        # databricks can't list tables (looks like internal ibis bug)
-        if populated_pipeline.destination.destination_type != "dlt.destinations.databricks":
-            # just do a basic check to see wether ibis can connect
-            schema = populated_pipeline.default_schema
-            table_names_in_ibis = ibis_connection.list_tables(
-                database=dataset_name, like=table_like_statement
-            )
-            expected_table_names = {
-                add_table_prefix(map_i(x))
-                for x in (
-                    [
-                        schema.loads_table_name,
-                        schema.state_table_name,
-                        schema.version_table_name,
-                        "double_items",
-                        "items",
-                        "items__children",
-                        "orderable_in_chain",
-                    ]
-                    + additional_tables
-                )
-            }
-            print(table_names_in_ibis)
-            assert set(table_names_in_ibis) == expected_table_names
-
-        table_name = add_table_prefix(map_i("items"))
-        items_table = ibis_connection.table(table_name, database=dataset_name)
-        assert items_table.count().to_pandas() == total_records
-
-        # some of the destinations allow to set default schema/dataset
-        try:
-            items_table = ibis_connection.tables[table_name]
-            assert items_table.count().to_pandas() == total_records
-        except KeyError:
-            if populated_pipeline.destination.destination_type not in ["dlt.destinations.mssql"]:
-                raise
+        _assert_ibis_dataset_access(populated_pipeline, ibis_connection)
     finally:
         ibis_connection.disconnect()
+
+
+@pytest.mark.no_load
+@pytest.mark.essential
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(default_sql_configs=True, subset=["duckdb"]),
+    ids=lambda x: x.name,
+)
+def test_ibis_dataset_access_external_connection(
+    destination_config: DestinationTestConfiguration,
+) -> None:
+    """dlt hands over a connection that the caller opened, configured for the dataset."""
+    pytest.importorskip("ibis")
+    import duckdb
+
+    conn = duckdb.connect(":memory:")
+    pipeline = dlt.pipeline(
+        "read_pipeline_external_" + uniq_id(4),
+        destination=dlt.destinations.duckdb(conn),
+        dataset_name="read_test",
+        dev_mode=True,
+    )
+    pipeline.run(
+        create_test_source(pipeline.destination.destination_type, destination_config.table_format)
+    )
+    pipeline.run([1, 2, 3], table_name="digits", schema=Schema("aleph"))
+
+    ibis_connection = pipeline.dataset().ibis()
+    try:
+        _assert_ibis_dataset_access(pipeline, ibis_connection)
+        # the caller's connection is shared, so the pipeline still loads into the same database
+        pipeline.run([{"id": 1}], table_name="new_items")
+        assert ibis_connection.table("new_items").count().to_pandas() == 1
+    finally:
+        conn.close()
 
 
 @pytest.mark.no_load

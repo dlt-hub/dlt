@@ -768,11 +768,14 @@ def test_table_format_empty_source(
 
     pipeline = destination_config.setup_pipeline("fs_pipe", dev_mode=True)
 
+    # iceberg does not commit a snapshot for empty data
+    empty_version = -1 if destination_config.table_format == "iceberg" else 0
+
     # run 1: empty Arrow table with schema
     # this should create empty Delta table with same schema as Arrow table
     info = pipeline.run(a_table(empty_arrow_table))
     assert_load_info(info)
-    assert get_table_version(pipeline, "a_table", destination_config.table_format) == 0
+    assert get_table_version(pipeline, "a_table", destination_config.table_format) == empty_version
     expected, actual = get_expected_actual(
         pipeline, "a_table", destination_config.table_format, empty_arrow_table
     )
@@ -783,7 +786,9 @@ def test_table_format_empty_source(
     # this should load records into Delta table
     info = pipeline.run(a_table(arrow_table))
     assert_load_info(info)
-    assert get_table_version(pipeline, "a_table", destination_config.table_format) == 1
+    assert (
+        get_table_version(pipeline, "a_table", destination_config.table_format) == empty_version + 1
+    )
     expected, actual = get_expected_actual(
         pipeline, "a_table", destination_config.table_format, empty_arrow_table
     )
@@ -809,7 +814,7 @@ def test_table_format_empty_source(
     users_materialize_table_schema.apply_hints(table_format=destination_config.table_format)
     info = pipeline.run(users_materialize_table_schema(), loader_file_format="parquet")
     assert_load_info(info)
-    assert get_table_version(pipeline, "users", destination_config.table_format) == 0
+    assert get_table_version(pipeline, "users", destination_config.table_format) == empty_version
     _, actual = get_expected_actual(
         pipeline, "users", destination_config.table_format, empty_arrow_table
     )
@@ -1052,6 +1057,7 @@ def test_parquet_to_delta_upgrade(destination_config: DestinationTestConfigurati
 def test_iceberg_adapter_partitioning(
     destination_config: DestinationTestConfiguration,
 ) -> None:
+    from dlt.common.libs.pyarrow import pyarrow as pa
     from dlt.common.libs.pyiceberg import get_iceberg_tables
     from dlt.destinations.adapters import iceberg_adapter, iceberg_partition
     from pyiceberg.transforms import (
@@ -1139,6 +1145,36 @@ def test_iceberg_adapter_partitioning(
     it = get_iceberg_tables(pipeline, "truncate_partitioned")["truncate_partitioned"]
     assert it.metadata.specs_struct().fields[0].name == "category_trunc_4"
     assert isinstance(it.spec().fields[0].transform, TruncateTransform)
+
+    # Test partitioning with nested columns and types that iceberg needs converted
+    arrow_table = arrow_table_all_data_types(
+        "arrow-table",
+        include_decimal_arrow_max_precision=True,
+        include_not_normalized_name=False,
+        include_null=False,
+        num_rows=2,
+    )[0]
+    arrow_table = arrow_table.append_column(
+        "tags", pa.array([["x", "y"], []], type=pa.list_(pa.string()))
+    ).append_column(
+        "attrs", pa.array([[("k", 1)], [("j", 2)]], type=pa.map_(pa.string(), pa.int64()))
+    )
+
+    @dlt.resource(table_format="iceberg")
+    def nested_partitioned():
+        yield arrow_table
+
+    resource = iceberg_adapter(nested_partitioned, partition=iceberg_partition.day("datetime"))
+    # second load goes to the existing table
+    for _ in range(2):
+        assert_load_info(pipeline.run(resource))
+
+    it = get_iceberg_tables(pipeline, "nested_partitioned")["nested_partitioned"]
+    assert [it.schema().find_column_name(f.source_id) for f in it.spec().fields] == ["datetime"]
+    assert [s.spec_id for s in it.metadata.partition_specs] == [0]
+    assert load_table_counts(pipeline, "nested_partitioned")["nested_partitioned"] == 4
+    loaded_tags = sorted(row["tags"] for row in it.scan().to_arrow().to_pylist())
+    assert loaded_tags == sorted(arrow_table["tags"].to_pylist() * 2)
 
 
 @pytest.mark.parametrize(

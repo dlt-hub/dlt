@@ -1,6 +1,7 @@
 import re
+import os
 import base64
-from typing import Optional
+from typing import Any, Optional, cast
 
 from dlt.common.exceptions import MissingDependencyException
 
@@ -8,6 +9,56 @@ from dlt.common.exceptions import MissingDependencyException
 PEM_REGEX = re.compile(
     r"-----BEGIN ([A-Z ]+)-----\s+([A-Za-z0-9+/=\s]+)-----END \1-----", re.MULTILINE
 )
+
+
+def _import_fernet() -> Any:
+    try:
+        from cryptography.fernet import Fernet
+
+        return Fernet
+    except ModuleNotFoundError as e:
+        raise MissingDependencyException(
+            "symmetric encryption of secrets",
+            dependencies=["cryptography"],
+        ) from e
+
+
+def generate_secret() -> str:
+    """Generates a random url-safe secret with high entropy."""
+    return base64.urlsafe_b64encode(os.urandom(32)).decode("ascii")
+
+
+def derive_encryption_key(secret: str, purpose: str) -> str:
+    """Derives a url-safe Fernet key from `secret` for `purpose` with HKDF-SHA256."""
+
+    try:
+        from cryptography.hazmat.primitives.kdf.hkdf import HKDF
+        from cryptography.hazmat.primitives import hashes
+    except ModuleNotFoundError as e:
+        raise MissingDependencyException(
+            "symmetric encryption of secrets",
+            dependencies=["cryptography"],
+        ) from e
+
+    key = HKDF(
+        algorithm=hashes.SHA256(), length=32, salt=None, info=purpose.encode("utf-8")
+    ).derive(secret.encode("utf-8"))
+    return base64.urlsafe_b64encode(key).decode("ascii")
+
+
+def encrypt_text(key: str, text: str) -> str:
+    """Encrypts `text` with a Fernet `key`. Returns a url-safe token."""
+    token = _import_fernet()(key.encode("ascii")).encrypt(text.encode("utf-8"))
+    return cast(str, token.decode("ascii"))
+
+
+def decrypt_text(key: str, token: str) -> str:
+    """Decrypts a Fernet `token` with `key`. Raises `ValueError` when the key does not match."""
+    fernet = _import_fernet()
+    try:
+        return cast(str, fernet(key.encode("ascii")).decrypt(token.encode("ascii")).decode("utf-8"))
+    except Exception as e:
+        raise ValueError("dlt cannot decrypt the token. The encryption key does not match.") from e
 
 
 def is_pem(data: str) -> bool:

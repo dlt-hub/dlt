@@ -12,6 +12,7 @@ import yaml
 from dlt.common.libs import git
 from dlt._workspace.cli.dlthub.ai.agents import AI_AGENTS
 from dlt._workspace.cli.dlthub.ai.utils import (
+    AI_WORKBENCH_BASE_DIR,
     DEFAULT_AI_WORKBENCH_BRANCH,
     DEFAULT_AI_WORKBENCH_REPO,
     compute_file_hash,
@@ -156,6 +157,7 @@ def workbench_repo(tmp_path_factory: pytest.TempPathFactory) -> str:
         DEFAULT_AI_WORKBENCH_REPO,
         str(cache_dir),
         branch=DEFAULT_AI_WORKBENCH_BRANCH,
+        path=AI_WORKBENCH_BASE_DIR,
     )
     # NOTE: make another copy if DEFAULT_AI_WORKBENCH_REPO is a local folder not to drop it
     target = cache_dir / "workbench_copy"

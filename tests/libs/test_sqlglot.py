@@ -1,12 +1,18 @@
-from typing import List, Optional, Set, Tuple, cast
+from datetime import date, datetime, timedelta, timezone
+from typing import Any, List, Optional, Set, Tuple, cast
 import importlib
 import pytest
 import sqlglot
 import sqlglot.expressions as sge
+from sqlglot.errors import OptimizeError
+from sqlglot.optimizer.annotate_types import annotate_types
+from sqlglot.optimizer.qualify import qualify
 
 from dlt.common.libs.sqlglot import (
     DLT_SUBQUERY_NAME,
     TSqlGlotDialect,
+    build_column_literal,
+    build_typed_literal,
     filter_select_column_names,
     from_sqlglot_type,
     get_select_column_names,
@@ -18,7 +24,10 @@ from dlt.common.libs.sqlglot import (
     reorder_or_adjust_outer_select,
     normalize_query_identifiers,
     has_pure_column_projection,
+    get_left_source_qualifier,
+    where_on_output,
 )
+from dlt.common.destination import Destination
 from dlt.common.normalizers.naming.snake_case import NamingConvention as SnakeCaseNaming
 from dlt.common.schema.typing import TDataType, TColumnType, TTableSchemaColumns
 from dlt.common.schema.exceptions import CannotCoerceNullException
@@ -113,6 +122,7 @@ def _from_sqlglot_cases() -> list[tuple[sge.DataType.Type, Optional[TDataType]]]
         sge.DataType.Type.BOOLEAN: "bool",
         # UNKNOWN
         sge.DataType.Type.UNKNOWN: None,
+        sge.DataType.Type.NULL: None,
     }
 
     try:
@@ -685,6 +695,34 @@ def test_has_pure_column_projection(query: str, expected: bool) -> None:
     assert has_pure_column_projection(cast(sge.Query, sqlglot.parse_one(query))) is expected
 
 
+@pytest.mark.parametrize(
+    "dialect,query,expected",
+    [
+        pytest.param("duckdb", "SELECT * FROM t", "t", id="table"),
+        pytest.param("duckdb", "SELECT * FROM t AS x", "x", id="aliased-table"),
+        pytest.param("duckdb", "SELECT * FROM (SELECT 1) AS s", "s", id="derived-table"),
+        pytest.param("duckdb", "SELECT * FROM (SELECT 1)", None, id="unaliased-derived-table"),
+        pytest.param(
+            "duckdb", "SELECT * FROM read_parquet('a.parquet') AS x", "x", id="table-function"
+        ),
+        pytest.param(
+            "duckdb", "SELECT * FROM read_parquet('a.parquet')", None, id="unaliased-table-function"
+        ),
+        pytest.param(
+            "duckdb", "SELECT * FROM generate_series(1, 3) AS g(n)", "g", id="aliased-columns"
+        ),
+        pytest.param("snowflake", "SELECT * FROM TABLE(my_udtf(1)) AS x", "x", id="udtf"),
+        pytest.param("snowflake", "SELECT * FROM @my_stage AS s", "s", id="stage"),
+        pytest.param("postgres", "SELECT * FROM (VALUES (1)) AS v(a)", "v", id="values"),
+        # bigquery binds the alias to the unnested element, not to the source
+        pytest.param("bigquery", "SELECT * FROM UNNEST([1, 2]) AS x", None, id="unnest"),
+    ],
+)
+def test_get_left_source_qualifier(dialect: str, query: str, expected: Optional[str]) -> None:
+    query_expr = cast(sge.Query, sqlglot.parse_one(query, read=dialect))
+    assert get_left_source_qualifier(query_expr) == expected
+
+
 def _wrap_and_migrate(query: str, *projection: str) -> Tuple[sge.Select, sge.Query]:
     """Wrap `query` as a derived table selecting `projection`, then migrate its ORDER BY/LIMIT."""
     subquery = cast(sge.Query, sqlglot.parse_one(query)).subquery(DLT_SUBQUERY_NAME)
@@ -764,3 +802,217 @@ def test_migrate_order_and_limit_rewrites_computed_key_to_output_name() -> None:
     sort_key = order.expressions[0].this
     assert isinstance(sort_key, sge.Column)
     assert sort_key.name == "c" and sort_key.table == DLT_SUBQUERY_NAME
+
+
+@pytest.mark.parametrize(
+    "query,predicate,expected",
+    [
+        pytest.param(
+            "SELECT a, b FROM t", "a = 1", "SELECT a, b FROM t WHERE a = 1", id="plain-columns"
+        ),
+        pytest.param(
+            "SELECT a FROM t", "b = 1", "SELECT a FROM t WHERE b = 1", id="column-not-in-output"
+        ),
+        pytest.param(
+            "SELECT a FROM t LIMIT 5",
+            "a > 1",
+            "SELECT a FROM t WHERE a > 1 LIMIT 5",
+            id="limit-applies-after-filter",
+        ),
+        pytest.param(
+            "SELECT b * 10 AS a FROM t",
+            "a = 10",
+            "SELECT b * 10 AS a FROM t WHERE (b * 10) = 10",
+            id="computed-alias",
+        ),
+        pytest.param(
+            "SELECT a AS src, a * 10 AS a FROM t",
+            "a = 10",
+            "SELECT t.* FROM (SELECT a AS src, a * 10 AS a FROM t) AS t WHERE a = 10",
+            id="alias-shadows-source",
+        ),
+        pytest.param(
+            "SELECT a AS b, b AS a FROM t",
+            "a = 1",
+            "SELECT t.* FROM (SELECT a AS b, b AS a FROM t) AS t WHERE a = 1",
+            id="swapped-renames",
+        ),
+        pytest.param(
+            "SELECT t.a, u.b AS u__b FROM t JOIN u ON t.id = u.id",
+            "u__b = 1",
+            "SELECT t.a, u.b AS u__b FROM t JOIN u ON t.id = u.id WHERE u.b = 1",
+            id="joined-alias",
+        ),
+        pytest.param(
+            "SELECT a * 10 AS a FROM t",
+            "t.a = 1",
+            "SELECT a * 10 AS a FROM t WHERE t.a = 1",
+            id="qualified-column-binds-source",
+        ),
+        pytest.param(
+            "SELECT MAX(a) AS m FROM t",
+            "m > 1",
+            "SELECT t.* FROM (SELECT MAX(a) AS m FROM t) AS t WHERE m > 1",
+            id="aggregate",
+        ),
+        pytest.param(
+            "SELECT b, COUNT(*) AS n FROM t GROUP BY b",
+            "a > 1",
+            "SELECT b, COUNT(*) AS n FROM t WHERE a > 1 GROUP BY b",
+            id="group-by-filters-source-rows",
+        ),
+        pytest.param(
+            "SELECT a, ROW_NUMBER() OVER (ORDER BY a) AS rn FROM t",
+            "rn = 1",
+            "SELECT t.* FROM (SELECT a, ROW_NUMBER() OVER (ORDER BY a) AS rn FROM t) AS t WHERE"
+            " rn = 1",
+            id="window",
+        ),
+        pytest.param(
+            "SELECT MY_UDAF(a) AS m FROM t",
+            "m > 1",
+            "SELECT t.* FROM (SELECT MY_UDAF(a) AS m FROM t) AS t WHERE m > 1",
+            id="unknown-function",
+        ),
+        pytest.param(
+            "SELECT b, MAX(a) AS m FROM t GROUP BY b ORDER BY m LIMIT 2",
+            "m > 1",
+            "SELECT t.* FROM (SELECT b, MAX(a) AS m FROM t GROUP BY b) AS t WHERE m > 1 ORDER BY m"
+            " LIMIT 2",
+            id="order-and-limit-move-out",
+        ),
+        pytest.param(
+            "SELECT b, MAX(a) AS m FROM t GROUP BY b ORDER BY MIN(c) LIMIT 2",
+            "m > 1",
+            "SELECT b, MAX(a) AS m FROM t WHERE m > 1 GROUP BY b ORDER BY MIN(c) LIMIT 2",
+            id="order-key-not-in-output",
+        ),
+    ],
+)
+def test_where_on_output(query: str, predicate: str, expected: str) -> None:
+    """Unqualified predicate columns bind to the output of the query, other columns to its sources."""
+    source = cast(sge.Query, sqlglot.parse_one(query))
+    filtered = where_on_output(source, sge.condition(predicate))
+    assert filtered.sql() == expected
+
+    def _qualified(expression: sge.Expression, dialect: str) -> Optional[str]:
+        schema = {
+            "t": {"a": "INT", "b": "INT", "c": "INT", "id": "INT"},
+            "u": {"b": "INT", "id": "INT"},
+        }
+        try:
+            return qualify(expression.copy(), schema=schema, dialect=dialect).sql("duckdb")
+        except OptimizeError:
+            # clickhouse sees select aliases in the same select: `a AS b, b AS a` is a cycle there
+            return None
+
+    # clickhouse binds WHERE names to select aliases first, the filter must mean the same there
+    if _qualified(source, "clickhouse") == _qualified(source, "duckdb"):
+        assert _qualified(filtered, "clickhouse") == _qualified(filtered, "duckdb")
+
+
+def test_build_typed_literal_bool_produces_boolean_expression() -> None:
+    """A bool value must become sge.Boolean, not a numeric literal -- bool is an int
+    subclass, so an isinstance(v, (int, float)) check ahead of the bool check would
+    silently misclassify it and break sqlglot's type annotation pass downstream.
+    """
+    lit = build_typed_literal(True)
+    assert isinstance(lit, sge.Boolean)
+    assert lit.this is True
+
+    lit = build_typed_literal(False)
+    assert isinstance(lit, sge.Boolean)
+    assert lit.this is False
+
+
+def test_build_typed_literal_bool_survives_type_annotation() -> None:
+    """A WHERE clause built from a bool literal (as Relation.where()/.filter() do)
+    must survive sqlglot's annotate_types pass instead of raising decimal.InvalidOperation.
+    """
+    condition = sge.EQ(this=sge.column("is_active"), expression=build_typed_literal(True))
+    select = sqlglot.select("*").from_("my_table").where(condition)
+
+    annotated = annotate_types(select)
+
+    assert "TRUE" in annotated.sql()
+
+
+_PLUS_2 = timezone(timedelta(hours=2))
+
+
+@pytest.mark.parametrize(
+    "dlt_type,value,expected_sql",
+    [
+        pytest.param(
+            "timestamp",
+            datetime(2024, 1, 1, 12, tzinfo=_PLUS_2),
+            "CAST('2024-01-01 12:00:00.000000+02:00' AS TIMESTAMPTZ)",
+            id="timestamp-aware-keeps-offset",
+        ),
+        pytest.param(
+            "timestamp",
+            datetime(2024, 1, 1, 12),
+            "CAST('2024-01-01 12:00:00.000000' AS TIMESTAMP(6))",
+            id="timestamp-naive",
+        ),
+        pytest.param(
+            "timestamp",
+            date(2024, 1, 1),
+            "CAST('2024-01-01 00:00:00.000000+00:00' AS TIMESTAMPTZ)",
+            id="timestamp-from-date",
+        ),
+        pytest.param(
+            "timestamp",
+            "2024-01-01T12:00:00+02:00",
+            "CAST('2024-01-01 10:00:00.000000+00:00' AS TIMESTAMPTZ)",
+            id="timestamp-from-iso-string",
+        ),
+        pytest.param(
+            "timestamp",
+            [datetime(2024, 1, 1, 12, tzinfo=_PLUS_2), datetime(2024, 1, 2, 12, tzinfo=_PLUS_2)],
+            "(CAST('2024-01-01 12:00:00.000000+02:00' AS TIMESTAMPTZ),"
+            " CAST('2024-01-02 12:00:00.000000+02:00' AS TIMESTAMPTZ))",
+            id="timestamp-iterable",
+        ),
+        pytest.param(
+            "date",
+            datetime(2024, 1, 1, 12, tzinfo=_PLUS_2),
+            "CAST('2024-01-01' AS DATE)",
+            id="date-from-aware-datetime",
+        ),
+        pytest.param("date", date(2024, 1, 1), "CAST('2024-01-01' AS DATE)", id="date"),
+        pytest.param("date", "2024-01-01", "CAST('2024-01-01' AS DATE)", id="date-from-iso-string"),
+        pytest.param("bigint", "5", "CAST('5' AS BIGINT)", id="bigint-from-string"),
+        pytest.param(
+            "text", ["a", "b"], "(CAST('a' AS TEXT), CAST('b' AS TEXT))", id="text-iterable"
+        ),
+        pytest.param(None, 10, "10", id="untyped"),
+    ],
+)
+def test_build_column_literal(dlt_type: Optional[TDataType], value: Any, expected_sql: str) -> None:
+    caps = Destination.from_reference("duckdb").capabilities()
+    sqlglot_type = to_sqlglot_type(dlt_type, nullable=True) if dlt_type else None
+
+    literal = build_column_literal(value, sqlglot_type, caps)
+
+    assert literal.sql(dialect="duckdb") == expected_sql
+
+
+@pytest.mark.parametrize(
+    "destination,expected_cast",
+    [("databricks", "TIMESTAMP"), ("snowflake", "TIMESTAMPTZ(6)")],
+    ids=["fixed-precision", "configurable-precision"],
+)
+def test_build_column_literal_timestamp_cast_precision(
+    destination: str, expected_cast: str
+) -> None:
+    """A destination without configurable timestamp precision gets a cast without precision."""
+    caps = Destination.from_reference(destination).capabilities()
+    sqlglot_type = to_sqlglot_type("timestamp", nullable=True)
+
+    literal = build_column_literal(datetime(2024, 1, 1, 12, tzinfo=_PLUS_2), sqlglot_type, caps)
+
+    assert isinstance(literal, sge.Cast)
+    # older sqlglot versions drop the precision for databricks when rendering
+    assert bool(literal.to.expressions) is caps.supports_timestamp_precision_configuration
+    assert literal.sql(dialect=caps.sqlglot_dialect).endswith(f"AS {expected_cast})")

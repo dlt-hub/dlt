@@ -1,24 +1,24 @@
 ---
-title: Installation
+title: Install the AI harness
+sidebar_label: Installation
 description: Install the dltHub AI Harness in a new or existing workspace, and add feature toolkits by intent or by command.
 keywords: [ai harness, install, dlthub-init, dlthub-start, dlthub ai init, toolkit install]
 ---
-
 # Installation
 
-You need Python 3.10 or later, [uv](https://docs.astral.sh/uv/) on your PATH, and one of the supported coding agents (Claude Code, Cursor, or Codex) already installed.
+To install the [AI Harness](https://dlthub.com/features/ai-harness), you need Python 3.10 or later, [uv](https://docs.astral.sh/uv/) on your PATH, and one of the supported coding agents (Claude Code, Cursor, or Codex) already installed.
 
 ## Add the AI Harness to a project
 
 Run the following command in the directory where you want the workspace:
 
-```sh
+```cli
 uvx dlthub-init@latest
 ```
 
 This scaffolds a dltHub workspace, then wires the base `init` toolkit for Claude Code (default):
 
-```text
+```tree
 your-project/
 ├── .dlt/
 │   ├── .workspace              # marks this directory as a dltHub workspace
@@ -38,7 +38,7 @@ your-project/
 
 To wire up Cursor or Codex instead, run:
 
-```sh
+```cli
 uv run dlthub ai init --agent cursor
 ```
 
@@ -66,29 +66,40 @@ For example, if you tell the agent:
 
 If you prefer explicit installs, the same three CLI commands are always available. List everything:
 
-```sh
+```cli
 uv run dlthub ai toolkit list
 ```
 
 Inspect a specific toolkit before installing:
 
-```sh
+```cli
 uv run dlthub ai toolkit info rest-api-pipeline
 ```
 
 Install it:
 
-```sh
+```cli
 uv run dlthub ai toolkit install rest-api-pipeline
 ```
 
-By default `dlthub ai toolkit install` installs for the agent already wired up in the workspace. Pass `--agent claude|cursor|codex` to install for a different one, or `--overwrite` to replace files the agent already has.
+By default `dlthub ai toolkit install` installs for the agent already wired up in the workspace. Pass `--agent claude|cursor|codex` to install for a different one, or use the update command below for an installed toolkit. A fresh install skips existing files and component folders. `install --overwrite` replaces installed files with the toolkit's version, including ones you edited or deleted, and removes unmodified files the toolkit no longer ships. Files from other toolkits are not touched.
+
+A toolkit that ships agent definitions installs each one to `.claude/dlthub/agents/<toolkit>/<agent>/` (`.cursor/dlthub/agents/` for Cursor, `.agents/dlthub/agents/` for Codex), where `run.agent("<toolkit>:<agent>")` finds it. See [Background agents](../agents/index.md).
+
+## Updating toolkits
+
+Update one installed toolkit, or omit its name to update all installed toolkits:
+
+```sh
+uv run dlthub ai toolkit update rest-api-pipeline
+uv run dlthub ai toolkit update
+```
 
 ## Verify
 
 Check that the workspace is fully wired:
 
-```sh
+```cli
 uv run dlthub ai status
 ```
 
@@ -97,4 +108,4 @@ Output includes the dlt version, the configured agent, the installed toolkits, a
 ## What's next
 
 - [Toolkits](toolkits.md) walks through the full catalog and where each fits in the development cycle.
-- [Deploy with AI Harness](../pipeline-operations/deployments.md#deploy-with-ai-harness) shows how to use the `dlthub-platform` toolkit end-to-end.
+- [Deploy with the dltHub AI Harness](../pipeline-operations/deployments.md#deploy-with-the-dlthub-ai-harness) shows how to use the `dlthub-platform` toolkit end-to-end.

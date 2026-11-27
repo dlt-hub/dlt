@@ -32,6 +32,14 @@ class TVersion(TypedDict):
     version: str
 
 
+class TRunContextInfo(TypedDict, total=False):
+    """TypeDict representing the active run context"""
+
+    name: str
+    profile: str
+    """Present only if run context supports profiles"""
+
+
 class TExecutionContext(TypedDict, total=False):
     """TypeDict representing the runtime context info"""
 
@@ -41,5 +49,5 @@ class TExecutionContext(TypedDict, total=False):
     exec_info: List[TExecInfoNames]
     library: TVersion
     os: TVersion
-    run_context: str
+    run_context: TRunContextInfo
     dlthub: TVersion

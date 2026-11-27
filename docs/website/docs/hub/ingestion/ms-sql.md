@@ -3,7 +3,6 @@ title: "Source: MS SQL replication"
 description: MS SQL replication
 keywords: [MSSQL, CDC, Change Tracking, MSSQL replication]
 ---
-
 # MS SQL replication
 
 :::note
@@ -51,7 +50,6 @@ WITH (TRACK_COLUMNS_UPDATED = ON);
 
 * Specify the credentials for your SQL Server connection according to the [sql_database source instructions](../../dlt-ecosystem/verified-sources/sql_database/setup)
 
-
 ## Setting up the pipeline
 
 The process involves two main steps:
@@ -83,7 +81,9 @@ Now you can use the `sql_table` resource to perform the initial backfill:
 ```py
 import dlt
 from dlt.sources.sql_database import sql_table
+from sqlalchemy import create_engine, Engine
 
+engine: Engine = create_engine("...")
 # Initial full load
 initial_resource = sql_table(
     credentials=engine,
@@ -105,7 +105,7 @@ pipeline.run(initial_resource)
 
 By default, the `_DLT_DELETED` or the `_DLT_SYS_CHANGE_VERSION` columns are only created by the incremental change tracking resource when there are changes. If you want these to be created during the initial load, you can configure this with `apply_hints` before running the pipeline as follows:
 
-```py
+```py notype
 initial_resource.apply_hints(
         columns=[
             {"name": "_dlt_sys_change_version", "data_type": "bigint"},
@@ -116,7 +116,7 @@ initial_resource.apply_hints(
 
 Next, configure the incremental resource for the first run with the `create_change_tracking_table` function and run it **once**:
 
-```py
+```py notype
 from dlthub.sources.mssql import create_change_tracking_table
 
 # Optional: Configure engine isolation level
@@ -134,6 +134,7 @@ incremental_resource = create_change_tracking_table(
 
 pipeline.run(incremental_resource)
 ```
+
 When running for the first time, it is necessary to pass the `tracking_version` in the `initial_tracking_version` argument. This will initialize incremental loading and keep the updated tracking version in the dlt state. In subsequent runs, you do not need to provide the initial value anymore.
 
 ### Incremental loading
@@ -142,8 +143,10 @@ After the initial load, you can run the `create_change_tracking_table` resource 
 You do not need to pass `initial_tracking_version` anymore, since this is automatically stored in the dlt state.
 
 ```py
+from sqlalchemy import create_engine, Engine
 from dlthub.sources.mssql import create_change_tracking_table
 
+engine: Engine = create_engine("...")
 incremental_resource = create_change_tracking_table(
     credentials=engine,
     table=table_name,
@@ -267,8 +270,6 @@ if __name__ == "__main__":
 
 </details>
 
-
-
 ## Understanding the change tracking query
 
 The incremental loading process uses a SQL query that joins the CHANGETABLE function with the source table to fetch the latest changes. Here’s a simplified version of the query:
@@ -297,25 +298,26 @@ ORDER BY
  Since the query joins with the production table, there may be implications for locking and performance. Ensure your database can handle the additional load, and consider isolation levels if necessary.
 :::
 
-
 ## Full refresh
 
 :::warning
 Doing a full refresh will drop the destination table, i.e., delete data from the destination, and reset the state holding the tracking version.
 :::
 You can trigger a full refresh by performing a full load again and passing `drop_resources` to the run method (as described in the [pipeline configuration](../../general-usage/pipeline#selectively-drop-tables-and-resource-state-with-drop_resources)):
-```py
+
+```py notype
 pipeline.run(initial_resource, refresh="drop_resources")
 ```
-
 
 ## Handling deletes
 
 There is an optional parameter that can be passed to `create_change_tracking_table` for configuring how to handle deletes:
 
 ```py
+from sqlalchemy import create_engine, Engine
 from dlthub.sources.mssql import create_change_tracking_table
 
+engine: Engine = create_engine("...")
 incremental_resource = create_change_tracking_table(
     credentials=engine,
     table=table_name,
@@ -345,9 +347,9 @@ Because deleted rows carry NULLs, the destination schema must accept NULLs for t
 
 ```py
 from dlthub.sources.mssql import remove_nullability_adapter
+from dlt.sources.sql_database import sql_table
 
 table = sql_table(
     table_adapter_callback=remove_nullability_adapter,
 )
 ```
-

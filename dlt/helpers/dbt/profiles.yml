@@ -117,7 +117,8 @@ snowflake_pkey:
       account: "{{ env_var('DLT__CREDENTIALS__HOST') }}"
       user: "{{ env_var('DLT__CREDENTIALS__USERNAME') }}"
       database: "{{ env_var('DLT__CREDENTIALS__DATABASE') }}"
-      password: "{{ env_var('DLT__CREDENTIALS__PASSWORD') }}"
+      # a key pair alone is the whole credential, and dbt ignores an empty password
+      password: "{{ env_var('DLT__CREDENTIALS__PASSWORD', '') }}"
       role: "{{ env_var('DLT__CREDENTIALS__ROLE', '') }}"
       schema: "{{ var('destination_dataset_name', var('source_dataset_name')) }}"
       warehouse: "{{ env_var('DLT__CREDENTIALS__WAREHOUSE', '') }}"

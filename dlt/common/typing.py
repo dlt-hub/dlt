@@ -1,4 +1,9 @@
-from collections.abc import Mapping as C_Mapping, Sequence as C_Sequence, Callable as C_Callable
+from collections.abc import (
+    Mapping as C_Mapping,
+    Sequence as C_Sequence,
+    Set as C_Set,
+    Callable as C_Callable,
+)
 from datetime import datetime, date  # noqa: I251
 import inspect
 import os
@@ -32,8 +37,10 @@ from typing import (
 from typing_extensions import (
     ForwardRef,
     Annotated,
+    Doc,
     Never,
     NotRequired,
+    Required,
     ParamSpec,
     TypeAlias,
     Concatenate,
@@ -121,8 +128,15 @@ TDataRecordBatch = list[TDataRecord]
 """List of table row dictionaries. Not guaranteed to be JSON serializable without custom encoding."""
 TAnyDateTime = Union[pendulum.DateTime, pendulum.Date, datetime, date, str, float, int]
 """DateTime represented as pendulum/python object, ISO string or unix timestamp"""
-TTimeInterval = Tuple[datetime, datetime]
-"""Half-open time interval `[start, end)` as timezone-aware datetimes."""
+
+
+class TTimeInterval(NamedTuple):
+    """Time interval `[start, end)` as timezone-aware datetimes."""
+
+    start: datetime
+    end: datetime
+
+
 TVariantBase = TypeVar("TVariantBase", covariant=True)
 TVariantRV = Tuple[str, Any]
 VARIANT_FIELD_FORMAT = "v_%s"
@@ -360,6 +374,19 @@ def is_annotated(ann_type: Any) -> bool:
         return False
 
 
+def annotation_metadata(hint: Any) -> Tuple[Any, ...]:
+    """Metadata of an `Annotated` hint, read through `NotRequired`, `Required` and `Optional`."""
+    if get_origin(hint) in (NotRequired, Required):
+        return annotation_metadata(get_args(hint)[0])
+    # Python below 3.11 wraps the hint of a `None`-defaulted argument in `Optional`
+    if is_optional_type(hint):
+        inner = extract_union_types(hint, no_none=True)
+        if len(inner) == 1:
+            return annotation_metadata(inner[0])
+    # only `Annotated` carries metadata; `Literal` args are values, not annotations
+    return getattr(hint, "__metadata__", ())
+
+
 def is_list_generic_type(t: Type[Any]) -> bool:
     try:
         return issubclass(get_origin(t), C_Sequence)
@@ -372,6 +399,42 @@ def is_dict_generic_type(t: Type[Any]) -> bool:
         return issubclass(get_origin(t), C_Mapping)
     except TypeError:
         return False
+
+
+def is_set_generic_type(t: Type[Any]) -> bool:
+    try:
+        return issubclass(get_origin(t), C_Set)
+    except TypeError:
+        return False
+
+
+def map_annotation(hint: Any, fn: Callable[[Any], Any]) -> Any:
+    """Rebuilds `hint` bottom-up, applying `fn` to every node once its arguments were rebuilt.
+
+    Descends into `Annotated`, `NotRequired`, `Required`, tuples, lists, dicts, sets and unions.
+    """
+    origin = get_origin(hint)
+    args = get_args(hint)
+    if is_annotated(hint):
+        inner, *metadata = args
+        hint = Annotated[(map_annotation(inner, fn), *metadata)]
+    elif origin in (NotRequired, Required):
+        hint = origin[map_annotation(args[0], fn)]
+    # tuple must be checked before is_list_generic_type (tuple is a Sequence)
+    elif origin is tuple and args:
+        if len(args) == 2 and args[1] is Ellipsis:
+            hint = origin[map_annotation(args[0], fn), ...]
+        else:
+            hint = origin[tuple(map_annotation(a, fn) for a in args)]
+    elif is_list_generic_type(hint) and args:
+        hint = origin[map_annotation(args[0], fn)]
+    elif is_dict_generic_type(hint) and args:
+        hint = origin[args[0], map_annotation(args[1], fn)]
+    elif is_set_generic_type(hint) and args:
+        hint = origin[map_annotation(args[0], fn)]
+    elif is_union_type(hint):
+        hint = Union[tuple(map_annotation(u, fn) for u in extract_union_types(hint))]
+    return fn(hint)
 
 
 def extract_inner_type(

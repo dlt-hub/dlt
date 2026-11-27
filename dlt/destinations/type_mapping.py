@@ -108,9 +108,8 @@ class TypeMapperImpl(DataTypeMapper):
 
         if precision is None:
             return None
-        elif scale is None:
-            return (precision,)
-        return (precision, scale)
+        # scale applies only to decimal and wei
+        return (precision,)
 
     def decimal_precision(
         self, precision: Optional[int] = None, scale: Optional[int] = None

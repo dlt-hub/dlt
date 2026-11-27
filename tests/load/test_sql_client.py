@@ -1,13 +1,17 @@
 import os
 import pytest
 import datetime  # noqa: I251
+from functools import partial
 from typing import Iterator, Any, Tuple, Type, Union
 from threading import Thread, Event
 from time import sleep
 
 from dlt.common import pendulum, Decimal
+from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.destination.exceptions import IdentifierTooLongException
+from dlt.common.destination.utils import to_literal_datetime
 from dlt.common.schema.typing import LOADS_TABLE_NAME
+from dlt.common.schema.utils import new_table
 from dlt.common.storages import FileStorage
 from dlt.common.utils import uniq_id
 
@@ -19,7 +23,7 @@ from dlt.destinations.exceptions import (
 )
 from dlt.destinations.sql_client import DBApiCursor, SqlClientBase, raise_database_error
 from dlt.destinations.typing import TNativeConn
-from dlt.common.time import ensure_pendulum_datetime_utc, to_py_datetime
+from dlt.common.time import ensure_datetime_in_tz, ensure_pendulum_datetime, to_py_datetime
 
 from tests.utils import get_test_storage_root
 from tests.load.utils import (
@@ -220,12 +224,12 @@ def test_execute_sql(client: SqlJobClientBaseWithDestinationTestConfiguration) -
     assert len(rows) == 1
     # print(rows)
     assert rows[0][0] == "event"
-    assert isinstance(ensure_pendulum_datetime_utc(rows[0][1]), datetime.datetime)
+    assert isinstance(ensure_pendulum_datetime(rows[0][1]), datetime.datetime)
     assert rows[0][0] == "event"
     # print(rows[0][1])
     # print(type(rows[0][1]))
     # ensure datetime obj to make sure it is supported by dbapi
-    inserted_at = to_py_datetime(ensure_pendulum_datetime_utc(rows[0][1]))
+    inserted_at = to_py_datetime(ensure_pendulum_datetime(rows[0][1]))
     if client.config.destination_name == "sqlalchemy_sqlite":
         # timezone aware datetime is not supported by sqlite
         inserted_at = inserted_at.replace(tzinfo=None)
@@ -299,7 +303,7 @@ def test_execute_query(client: SqlJobClientBaseWithDestinationTestConfiguration)
         rows = curr.fetchall()
         assert len(rows) == 1
         assert rows[0][0] == "event"
-        assert isinstance(ensure_pendulum_datetime_utc(rows[0][1]), datetime.datetime)
+        assert isinstance(ensure_pendulum_datetime(rows[0][1]), datetime.datetime)
     with client.sql_client.execute_query(
         f"SELECT schema_name, inserted_at FROM {version_table_name} WHERE inserted_at = %s",
         rows[0][1],
@@ -621,6 +625,62 @@ def test_transaction_isolation(client: SqlJobClientBaseWithDestinationTestConfig
     indirect=True,
     ids=lambda x: x.name,
 )
+def test_connection_owned_from_outside(
+    client: SqlJobClientBaseWithDestinationTestConfiguration,
+) -> None:
+    """When `owns_connection` is False, a borrower receives the client but not the connection
+    lifetime. The `with` block must not open a second connection and must not close the
+    connection of the owner.
+    """
+    client.update_stored_schema()
+    sql_client = client.sql_client
+    version_table_name = sql_client.make_qualified_table_name(client.schema.version_table_name)
+    query = f"SELECT schema_name FROM {version_table_name}"
+
+    # if no outside owner takes control, a client owns its connection
+    assert sql_client.owns_connection is True
+    owned_conn = sql_client.native_connection
+    assert owned_conn is not None
+
+    sql_client.owns_connection = False
+    try:
+        with sql_client as borrowed:
+            assert borrowed is sql_client
+            # a second connection here leaks, because the owner already opened one
+            assert borrowed.native_connection is owned_conn
+            assert len(borrowed.execute_sql(query)) == 1
+        # the borrower did not change the connection of the owner
+        assert sql_client.native_connection is owned_conn
+        assert len(sql_client.execute_sql(query)) == 1
+
+        # nested borrows are no-ops as well
+        with sql_client:
+            with sql_client:
+                pass
+        assert sql_client.native_connection is owned_conn
+        assert len(sql_client.execute_sql(query)) == 1
+    finally:
+        sql_client.owns_connection = True
+
+    # the owner still closes the connection on demand. after the owner owns the connection again,
+    # the `with` block closes it on exit
+    sql_client.close_connection()
+    assert not sql_client.native_connection
+    with sql_client:
+        assert sql_client.native_connection is not None
+    assert not sql_client.native_connection
+
+    # the connection stays open, because the fixture drops the dataset through it
+    sql_client.open_connection()
+    assert len(sql_client.execute_sql(query)) == 1
+
+
+@pytest.mark.parametrize(
+    "client",
+    destinations_configs(default_sql_configs=True),
+    indirect=True,
+    ids=lambda x: x.name,
+)
 def test_max_table_identifier_length(
     client: SqlJobClientBaseWithDestinationTestConfiguration,
 ) -> None:
@@ -745,6 +805,111 @@ def test_recover_on_explicit_tx(client: SqlJobClientBaseWithDestinationTestConfi
 
     client.complete_load("LMN")
     assert_load_id(client.sql_client, "LMN")
+
+
+@pytest.mark.parametrize(
+    "client",
+    destinations_configs(default_sql_configs=True, supports_merge=True),
+    indirect=True,
+    ids=lambda x: x.name,
+)
+@pytest.mark.parametrize(
+    "boundary,active_record",
+    [
+        ("2024-04-11T10:15:30.123456+02:00", None),
+        ("2024-04-11T10:15:30.123456", "9999-12-31"),
+        ("2024-04-11T10:15:30+00:00", "9999-12-31T00:00:00+00:00"),
+    ],
+    ids=["aware_boundary", "naive_boundary_active_date", "utc_active_datetime"],
+)
+def test_scd2_literals_match_previous_literals(
+    client: SqlJobClientBaseWithDestinationTestConfiguration,
+    boundary: str,
+    active_record: str,
+) -> None:
+    """Stores the scd2 validity timestamps with the literals of dlt 1.31 and checks that the
+    current literals select them, so an upgrade keeps retiring the active records."""
+    caps = client.capabilities
+    if "scd2" not in (caps.supported_merge_strategies or []):
+        pytest.skip(f"{client.config.destination_name} does not support scd2")
+
+    format_literal = (
+        caps.format_datetime_literal
+        or DestinationCapabilitiesContext.generic_capabilities().format_datetime_literal
+    )
+    to_literal = partial(
+        to_literal_datetime,
+        supports_tz_aware_datetime=caps.supports_tz_aware_datetime,
+        precision=caps.timestamp_precision,
+    )
+    # the literals of dlt 1.31: the boundary in UTC, the active record timestamp with its timezone
+    pairs = [
+        (
+            format_literal(
+                ensure_datetime_in_tz(boundary, datetime.timezone.utc),
+                caps.timestamp_precision,
+                no_tz=not caps.supports_tz_aware_datetime,
+            ),
+            caps.escape_literal(to_literal(boundary)),
+        )
+    ]
+    if active_record is not None:
+        pairs.append(
+            (
+                format_literal(ensure_pendulum_datetime(active_record), caps.timestamp_precision),
+                caps.escape_literal(to_literal(active_record)),
+            )
+        )
+    is_sqlalchemy = client.config.destination_type == "sqlalchemy"
+    if is_sqlalchemy:
+        # dlt 1.31 bound the sqlalchemy literals as strings
+        from dlt.common.libs.sql_alchemy import sa
+
+        pairs = [
+            (
+                str(
+                    sa.literal(previous.strip("'")).compile(
+                        client.sql_client.engine, compile_kwargs={"literal_binds": True}
+                    )
+                ),
+                literal,
+            )
+            for previous, literal in pairs
+        ]
+
+    table_name = f"scd2_literals_{uniq_id()}"
+    client.schema.update_table(
+        new_table(
+            table_name,
+            columns=[
+                {"name": "id", "data_type": "bigint", "nullable": False},
+                {"name": "ts", "data_type": "timestamp", "nullable": True},
+            ],
+        )
+    )
+    client.schema._bump_version()
+    client.update_stored_schema()
+    qualified_table_name = client.sql_client.make_qualified_table_name(table_name)
+    id_ = client.sql_client.escape_column_name("id")
+    ts = client.sql_client.escape_column_name("ts")
+
+    for idx, (previous_literal, literal) in enumerate(pairs):
+        client.sql_client.execute_sql(
+            f"INSERT INTO {qualified_table_name} ({id_}, {ts}) VALUES ({idx}, {previous_literal})"
+        )
+        # compared like the scd2 merge compares the active record timestamp
+        condition = f"{ts} = {literal}"
+        if is_sqlalchemy:
+            condition = str(
+                caps.dialect_capabilities.timestamp_equals(sa.literal_column(ts), literal).compile(
+                    client.sql_client.engine, compile_kwargs={"literal_binds": True}
+                )
+            )
+        rows = client.sql_client.execute_sql(
+            f"SELECT CASE WHEN {condition} THEN 1 ELSE 0 END FROM {qualified_table_name}"
+            f" WHERE {id_} = {idx}"
+        )
+        assert rows[0][0] == 1, (previous_literal, literal)
 
 
 def test_raise_database_error_no_circular_dependency():

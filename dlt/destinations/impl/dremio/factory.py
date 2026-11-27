@@ -1,8 +1,9 @@
-from typing import Any, Optional, Type, Union, Dict, TYPE_CHECKING, Sequence, Tuple
+from functools import partial
+from typing import Any, Optional, Type, Union, Dict, TYPE_CHECKING
 
 from dlt.common.destination import Destination, DestinationCapabilitiesContext
 from dlt.common.arithmetics import DEFAULT_NUMERIC_PRECISION, DEFAULT_NUMERIC_SCALE
-from dlt.common.data_writers.escape import escape_dremio_identifier
+from dlt.common.data_writers.escape import escape_ansi_literal, escape_dremio_identifier
 
 from dlt.common.destination.typing import PreparedTableSchema
 from dlt.common.exceptions import TerminalValueError
@@ -115,6 +116,9 @@ class dremio(Destination[DremioClientConfiguration, "DremioClient"]):
         caps.enforces_nulls_on_alter = False
         caps.sqlglot_dialect = "dremio"
         caps.supports_tz_aware_datetime = False
+        caps.escape_literal = partial(
+            escape_ansi_literal, precision=caps.timestamp_precision, no_tz=True
+        )
 
         return caps
 

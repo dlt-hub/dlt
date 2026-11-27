@@ -179,7 +179,7 @@ def test_track_anon_event(mocker: MockerFixture, disable_temporary_telemetry) ->
     assert isinstance(context["ci_run"], bool)
     assert isinstance(context["exec_info"], list)
     assert ["kubernetes", "codespaces"] <= context["exec_info"]
-    assert context["run_context"] == "dlt"
+    assert context["run_context"] == {"name": "dlt"}
 
 
 def test_forced_anon_tracker() -> None:

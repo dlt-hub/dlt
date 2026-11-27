@@ -79,6 +79,15 @@ jobs:
               extras: "--extra s3 --extra parquet --extra duckdb --extra filesystem --extra deltalake --extra pyiceberg"
               post_install_commands: "uv run pip install sqlalchemy==2.0.18" # minimum version required by `pyiceberg`
 
+            # the ibis group pins duckdb<2, so this job runs without ibis
+            - display_name: filesystem_s3_local duckdb2
+              destinations: "[\"filesystem\"]"
+              filesystem_drivers: "[\"memory\", \"file\", \"r2\", \"s3\"]"
+              extras: "--extra s3 --extra parquet --extra duckdb --extra filesystem --extra deltalake --extra pyiceberg"
+              no_ibis: true
+              post_install_commands: "uv run pip install sqlalchemy==2.0.18 && uv pip install duckdb==2.0.0"
+              always_run_all_tests: true
+
             - display_name: filesystem_az
               destinations: "[\"filesystem\"]"
               # note that all buckets are enabled for testing
@@ -257,7 +266,7 @@ jobs:
         if: ${{ matrix.pre_install_commands }}
 
       - name: Install dependencies
-        run: uv sync --group pipeline --group ibis --group providers ${{ matrix.extras }}
+        run: uv sync --group pipeline ${{ !matrix.no_ibis && '--group ibis' || '' }} --group providers ${{ matrix.extras }}
 
       - name: Run post install commands
         run: ${{ matrix.post_install_commands }}
@@ -285,7 +294,7 @@ jobs:
           PYTEST_ARGS: ${{ matrix.rerun_args || '' }}
 
   run_vault_providers:
-    name: vault providers
+    name: vault providers and agents
     env:
       # Prevent implicit resyncs by `uv run`; this is ignored by explicit `uv sync` commands.
       UV_NO_SYNC: "1"
@@ -318,11 +327,16 @@ jobs:
           enable-cache: ${{ github.event_name != 'pull_request_target' }}
 
       - name: Install dependencies
-        # google-api-python-client for google secrets, botocore (s3 extra) for aws secrets manager
-        run: uv sync --group providers --extra s3
+        # google-api-python-client for google secrets, botocore (s3 extra) for aws secrets manager,
+        # the workspace and both agent loops for the agent runs
+        run: uv sync --group providers --extra s3 --group workspace-deps --extra cli --group agent --group agent-claude
 
       - name: create secrets.toml
         run: pwd && echo "$DLT_SECRETS_TOML" > tests/.dlt/secrets.toml
 
       - name: Run vault provider tests
         run: uv run pytest tests/helpers/providers
+
+      - name: Run agents on real loops and models
+        # skipped unless the secrets carry `jobs.agent.api_key`
+        run: make test-workspace-agents

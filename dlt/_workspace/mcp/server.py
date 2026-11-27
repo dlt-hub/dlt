@@ -7,7 +7,9 @@ from fastmcp.prompts import Prompt
 
 from dlt.common import logger
 from dlt.common.configuration.plugins import manager
+from dlt._workspace.access import FULL_ACCESS, missing_access, required_access
 from dlt._workspace.cli.utils import DEFAULT_MCP_FEATURES as _DEFAULT_MCP_FEATURES
+from dlt._workspace.typing import TWorkspaceAccess
 
 
 # large sentinel set used to discover all registered feature names
@@ -38,30 +40,6 @@ def discover_features() -> Tuple[Set[str], Set[str]]:
     return available, extra
 
 
-def resolve_features(feature_tokens: Optional[List[str]], defaults: Set[str] = None) -> Set[str]:
-    """Resolve `+name`, `-name`, `name` tokens against defaults into a feature set."""
-    if defaults is None:
-        defaults = WorkspaceMCP.DEFAULT_FEATURES
-    if not feature_tokens:
-        return set(defaults)
-
-    result = set(defaults)
-    for item in feature_tokens:
-        # tokens may be comma-separated: "--features=-secrets,+context"
-        # because argparse treats leading "-" as a flag, use "=" form for removals
-        for token in item.split(","):
-            token = token.strip()
-            if not token:
-                continue
-            if token.startswith("-"):
-                result.discard(token[1:])
-            elif token.startswith("+"):
-                result.add(token[1:])
-            else:
-                result.add(token)
-    return result
-
-
 def _curry_pipeline_name(fn: Callable[..., Any], pipeline_name: str) -> Callable[..., Any]:
     """Bind pipeline_name as the first argument, hiding it from the MCP schema."""
 
@@ -77,11 +55,19 @@ def _curry_pipeline_name(fn: Callable[..., Any], pipeline_name: str) -> Callable
 
 
 class DltMCP(FastMCP):
-    def __init__(self, name: str, features: Set[str], port: int = 8000, path: str = "/mcp") -> None:
+    def __init__(
+        self,
+        name: str,
+        features: Set[str],
+        port: int = 8000,
+        path: str = "/mcp",
+        access: TWorkspaceAccess = FULL_ACCESS,
+    ) -> None:
         super().__init__(name=name)
         self._port = port
         self._path = path
         self._features = features
+        self._access = access
         self._register_features()
 
     def run(self, transport: str = "streamable-http", **kwargs: Any) -> None:
@@ -108,9 +94,17 @@ class DltMCP(FastMCP):
                 self.add_provider(provider)
         logger.debug("dlt MCP features registered for %s.", self._features)
 
+    def _serves(self, tool: Any) -> bool:
+        """True when the caller's access covers what the tool requires."""
+        shortfall = missing_access(required_access(tool), self._access)
+        if shortfall:
+            logger.debug("Tool %s needs %s.", getattr(tool, "__name__", tool), shortfall)
+        return not shortfall
+
     def _register_tools(self, tools: List[Any]) -> None:
         for tool in tools:
-            self.add_tool(tool)
+            if self._serves(tool):
+                self.add_tool(tool)
 
 
 class WorkspaceMCP(DltMCP):
@@ -125,12 +119,13 @@ class WorkspaceMCP(DltMCP):
         path: str = "/mcp",
         features: Optional[Set[str]] = None,
         extra_features: Optional[Set[str]] = None,
+        access: TWorkspaceAccess = FULL_ACCESS,
     ) -> None:
         if features is not None:
             resolved = features
         else:
             resolved = self.DEFAULT_FEATURES | (extra_features or set())
-        super().__init__(name=name, features=resolved, port=port, path=path)
+        super().__init__(name=name, features=resolved, port=port, path=path, access=access)
 
 
 class PipelineMCP(DltMCP):
@@ -147,4 +142,5 @@ class PipelineMCP(DltMCP):
 
     def _register_tools(self, tools: List[Any]) -> None:
         for tool_fn in tools:
-            self.add_tool(_curry_pipeline_name(tool_fn, self.pipeline_name))
+            if self._serves(tool_fn):
+                self.add_tool(_curry_pipeline_name(tool_fn, self.pipeline_name))

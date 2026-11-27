@@ -1,6 +1,6 @@
 import os
 from functools import partial
-from typing import Callable, Any, Dict, Iterator, List, Literal
+from typing import Callable, Any, Dict, Iterator, List, Literal, Optional, Tuple
 from dataclasses import dataclass
 
 import pytest
@@ -9,6 +9,7 @@ import dlt
 from dlt.common.typing import TDataItem
 
 from dlt.common.exceptions import MissingDependencyException
+from dlt.common.jsonpath import extract_simple_field_name
 from dlt.extract.items_transform import LimitItem
 
 try:
@@ -38,6 +39,12 @@ class MockIncremental:
     on_cursor_value_missing: str = "raise"
     range_start: str = "closed"
     range_end: str = "open"
+
+    def get_cursor_column_name(self) -> Optional[str]:
+        return extract_simple_field_name(self.cursor_path)
+
+    def get_current_range(self, apply_lag: bool = True) -> Tuple[Any, Any]:
+        return self.last_value, self.end_value
 
 
 @pytest.mark.parametrize("backend", ["sqlalchemy", "pyarrow", "pandas", "connectorx"])

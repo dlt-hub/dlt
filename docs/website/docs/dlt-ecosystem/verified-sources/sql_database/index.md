@@ -3,9 +3,9 @@ title: 30+ SQL databases
 description: PostgreSQL, MySQL, MS SQL, BigQuery, Redshift, and more
 keywords: [sql connector, sql database pipeline, sql database]
 ---
-import Header from '../_source-info-header.md';
-
 # 30+ SQL databases
+
+import Header from '../_source-info-header.md';
 
 <Header/>
 
@@ -15,17 +15,17 @@ The SQL Database verified source loads data to your specified destination using 
 
 Sources and resources that can be loaded using this verified source are:
 
-| Name         | Description                                                          |
-| ------------ | -------------------------------------------------------------------- |
+| Name         | Description                                                             |
+| ------------ | ----------------------------------------------------------------------- |
 | sql_database | Reflects the tables and views in an SQL database and retrieves the data |
-| sql_table    | Retrieves data from a particular SQL database table                  |
-|              |                                                                      |
+| sql_table    | Retrieves data from a particular SQL database table                     |
+|              |                                                                         |
 
 :::tip
 If you prefer to skip the tutorial and see the code example right away, check out the pipeline example [here](https://github.com/dlt-hub/verified-sources/blob/master/sources/sql_database_pipeline.py).
 :::
 
-### Supported databases
+## Supported databases
 
 :::tip dltHub Features
 For Microsoft SQL Server change tracking support, see the [MS SQL replication](../../../hub/ingestion/ms-sql.md) docs.
@@ -33,8 +33,7 @@ For Microsoft SQL Server change tracking support, see the [MS SQL replication](.
 
 We support all [SQLAlchemy dialects](https://docs.sqlalchemy.org/en/20/dialects/), which include, but are not limited to, the following database engines:
 
-
-* [PostgreSQL](./troubleshooting.md#postgres--mssql)
+* [PostgreSQL](./troubleshooting.md#postgres--mssql) ([change data capture](../pg_replication.md))
 * [MySQL](./troubleshooting.md#mysql)
 * SQLite
 * [Oracle](./troubleshooting.md#oracle)

@@ -35,6 +35,13 @@ def test_bigquery_adapter_streaming_wrong_disposition():
     with pytest.raises(ValueError):
         bigquery_adapter(test_resource, insert_api="streaming")
 
+    # dlt accepts the dict form of append
+    @dlt.resource(write_disposition={"disposition": "append"})
+    def append_resource():
+        yield {"field1": 1, "field2": 2}
+
+    bigquery_adapter(append_resource, insert_api="streaming")
+
 
 def test_bigquery_streaming_wrong_disposition():
     @dlt.resource(write_disposition="merge")

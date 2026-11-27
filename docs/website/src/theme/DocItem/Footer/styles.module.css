@@ -1,0 +1,33 @@
+.goFurther {
+  margin-top: var(--ifm-spacing-vertical);
+  padding-top: var(--ifm-spacing-vertical);
+  border-top: 1px solid var(--ifm-toc-border-color);
+}
+
+.heading {
+  margin: 0 0 0.5rem;
+  font-size: var(--ifm-h5-font-size);
+  font-weight: var(--ifm-font-weight-semibold);
+  color: var(--ifm-color-emphasis-700);
+}
+
+.list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.item {
+  padding: 0.25rem 0;
+  font-size: 0.9375rem;
+  line-height: 1.5;
+}
+
+.link {
+  font-weight: var(--ifm-font-weight-semibold);
+}
+
+.description {
+  display: block;
+  color: var(--ifm-color-emphasis-700);
+}

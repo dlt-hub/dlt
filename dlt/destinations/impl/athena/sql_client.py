@@ -40,6 +40,7 @@ from dlt.common import logger
 from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.destination.dataset import DBApiCursor
 from dlt.common.data_writers.escape import escape_hive_identifier
+from dlt.common.time import ensure_datetime_in_tz
 
 from dlt.destinations.typing import DBApi, DBTransaction
 from dlt.destinations.exceptions import (
@@ -65,7 +66,8 @@ def _format_pendulum_datetime(formatter: Formatter, escaper: Callable[[str], str
     # https://docs.aws.amazon.com/athena/latest/ug/engine-versions-reference-0003.html#engine-versions-reference-0003-timestamp-changes
     # ICEBERG tables have TIMESTAMP(6), other tables have TIMESTAMP(3), we always generate TIMESTAMP(6)
     # it is up to the user to cut the microsecond part
-    val_string = val.strftime("%Y-%m-%d %H:%M:%S.%f")
+    # athena has no timezone type, so the instant must be converted before the offset is dropped
+    val_string = ensure_datetime_in_tz(val).strftime("%Y-%m-%d %H:%M:%S.%f")
     return f"""TIMESTAMP '{val_string}'"""
 
 
@@ -81,6 +83,8 @@ class DLTAthenaFormatter(DefaultParameterFormatter):
         if DLTAthenaFormatter._INSTANCE:
             return
         formatters = deepcopy(_DEFAULT_FORMATTERS)
+        # NOTE: pendulum stays here. pyathena looks formatters up by exact type, so a value a user
+        # yields as `pendulum.DateTime` needs its own entry next to the stdlib one
         formatters[DateTime] = _format_pendulum_datetime
         formatters[datetime] = _format_pendulum_datetime
         formatters[Date] = _format_date

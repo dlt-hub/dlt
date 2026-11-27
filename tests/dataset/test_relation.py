@@ -1,6 +1,8 @@
 import pathlib
 import sys
-from typing import Any
+from datetime import date, datetime, timedelta, timezone
+from typing import Any, List, Tuple
+from unittest.mock import ANY
 
 import pytest
 from sqlglot import expressions as sge
@@ -10,6 +12,7 @@ from dlt.common.utils import uniq_id
 from dlt.common.schema.schema import Schema
 from dlt.common.schema.typing import C_DLT_LOAD_ID, LOADS_TABLE_NAME, VERSION_TABLE_NAME
 from dlt.common.schema.utils import new_table
+from dlt.dataset import lineage
 from dlt.dataset.dataset import _get_load_ids, _get_latest_load_id
 from dlt.dataset.exceptions import LineageFailedException
 from tests.dataset.utils import TLoadsFixture, crm
@@ -40,17 +43,30 @@ def inventory():
 
 
 @pytest.fixture(scope="module")
-def dataset() -> dlt.Dataset:
+def dataset(module_tmp_path: pathlib.Path) -> dlt.Dataset:
     @dlt.resource(name="purchases")
     def purchases_data():
         yield from (
-            {"id": 1, "name": "alice", "city": "berlin"},
-            {"id": 2, "name": "bob", "city": "paris"},
-            {"id": 3, "name": "charlie", "city": "barcelona"},
+            {
+                "id": i,
+                "name": name,
+                "city": city,
+                "created_at": datetime(2024, 1, i, 10, tzinfo=timezone.utc),
+                "day": date(2024, 1, i),
+            }
+            for i, name, city in (
+                (1, "alice", "berlin"),
+                (2, "bob", "paris"),
+                (3, "charlie", "barcelona"),
+            )
         )
 
+    # each xdist worker gets its own database file, a shared one fails on the duckdb file lock
     pipeline = dlt.pipeline(
-        "_relation_to_ibis", destination="duckdb", full_refresh=True, dev_mode=True
+        "_relation_to_ibis",
+        pipelines_dir=str(module_tmp_path / "pipelines_dir"),
+        destination=dlt.destinations.duckdb(str(module_tmp_path / "relation_to_ibis.duckdb")),
+        dev_mode=True,
     )
     pipeline.run([purchases_data])
     return pipeline.dataset()
@@ -108,6 +124,108 @@ def test_transformed_relation_to_ibis_(purchases: dlt.Relation) -> None:
     assert list(out["name"]) == ["charlie"]
 
 
+@pytest.mark.parametrize(
+    "query,where_args,expected_rows",
+    [
+        pytest.param(
+            "SELECT city, MAX(id) AS max_id FROM purchases GROUP BY city",
+            ("max_id > 1",),
+            [("barcelona", 3), ("paris", 2)],
+            id="aggregate-expr",
+        ),
+        pytest.param(
+            "SELECT id AS src_id, id * 10 AS id FROM purchases",
+            ("id", "eq", 10),
+            [(1, 10)],
+            id="alias-shadows-source-typed",
+        ),
+        pytest.param(
+            "SELECT id, ROW_NUMBER() OVER (ORDER BY id DESC) AS rn FROM purchases",
+            ("rn", "eq", 1),
+            [(3, 1)],
+            id="untyped-window-column-typed",
+        ),
+    ],
+)
+def test_where_filters_relation_output(
+    dataset: dlt.Dataset,
+    query: str,
+    where_args: Tuple[Any, ...],
+    expected_rows: List[Tuple[Any, ...]],
+) -> None:
+    assert sorted(dataset(query).where(*where_args).fetchall()) == expected_rows
+
+
+_PLUS_2 = timezone(timedelta(hours=2))
+
+
+@pytest.mark.parametrize(
+    "column,operator,value,expected_ids",
+    [
+        pytest.param(
+            "created_at",
+            "eq",
+            datetime(2024, 1, 2, 12, tzinfo=_PLUS_2),
+            [2],
+            id="timestamp-aware-non-utc",
+        ),
+        pytest.param(
+            "created_at",
+            "in",
+            [datetime(2024, 1, 1, 12, tzinfo=_PLUS_2), datetime(2024, 1, 3, 12, tzinfo=_PLUS_2)],
+            [1, 3],
+            id="timestamp-aware-in",
+        ),
+        pytest.param(
+            "created_at",
+            "not_in",
+            [datetime(2024, 1, 2, 12, tzinfo=_PLUS_2)],
+            [1, 3],
+            id="timestamp-aware-not-in",
+        ),
+        pytest.param(
+            "created_at", "eq", datetime(2024, 1, 2, 10), [2], id="timestamp-naive-utc-wall-clock"
+        ),
+        pytest.param(
+            "created_at", "eq", "2024-01-02T12:00:00+02:00", [2], id="timestamp-iso-string"
+        ),
+        pytest.param("created_at", "gte", date(2024, 1, 2), [2, 3], id="timestamp-from-date"),
+        pytest.param("day", "eq", date(2024, 1, 2), [2], id="date"),
+        pytest.param(
+            "day",
+            "eq",
+            datetime(2024, 1, 2, 12, tzinfo=_PLUS_2),
+            [2],
+            id="date-from-aware-datetime",
+        ),
+        pytest.param("day", "in", ["2024-01-01", "2024-01-03"], [1, 3], id="date-iso-string-in"),
+        pytest.param("id", "lte", "2", [1, 2], id="bigint-from-string"),
+    ],
+)
+def test_where_temporal_literals(
+    dataset: dlt.Dataset, column: str, operator: Any, value: Any, expected_ids: List[int]
+) -> None:
+    """Values compare to a column as instances of its type, tz-aware values keep their offset."""
+    rows = dataset.table("purchases").where(column, operator, value).select("id").fetchall()
+    assert sorted(row[0] for row in rows) == expected_ids
+
+
+def test_aggregate_does_not_mutate_relation(dataset: dlt.Dataset) -> None:
+    query = sge.select(sge.column("id")).from_("purchases")
+    query_sql = query.sql()
+    relation = dataset(query)
+    ids = relation.select("id")
+
+    assert ids.max().fetchscalar() == 3
+    assert ids.min().fetchscalar() == 1
+    # the source relations and the caller's expression keep their projection
+    assert sorted(row[0] for row in ids.fetchall()) == [1, 2, 3]
+    assert sorted(row[0] for row in relation.fetchall()) == [1, 2, 3]
+    relation.max()
+    assert query.sql() == query_sql
+    assert len(relation.fetchall()) == 3
+
+
 def test_relation_from_loads_rejects_non_table_relations(dataset: dlt.Dataset) -> None:
     with pytest.raises(ValueError, match=r"only works on relations created via \.table\(\)"):
         dataset.query("SELECT * FROM purchases").from_loads(["load_1"])
@@ -126,6 +244,144 @@ def test_relation_with_load_id_rejects_non_table_relations(
 
     with pytest.raises(ValueError, match=r"only works on relations created via \.table\(\)"):
         dataset.table("users__orders").where("order_id", "gt", 1).with_load_id_col()
+
+
+@pytest.mark.parametrize(
+    "query,expected_columns",
+    [
+        ("SELECT item_id, name FROM items", ["item_id", "name"]),
+        # an unqualified column is not attributed to the only unknown table
+        ("SELECT col_unknown FROM table_unknown", None),
+        ("SELECT * FROM table_unknown", None),
+    ],
+    ids=["known_table", "unknown_table_unqualified_column", "unknown_table_star"],
+)
+def test_relation_columns_match_execution(
+    multi_schema_dataset: dlt.Dataset, query: str, expected_columns: Any
+) -> None:
+    """The columns of a relation are the columns that its execution returns, or both fail."""
+    relation = multi_schema_dataset(query)
+    if expected_columns is None:
+        with pytest.raises(LineageFailedException):
+            relation.columns
+        with pytest.raises(LineageFailedException):
+            relation.arrow()
+    else:
+        assert relation.columns == expected_columns
+        assert relation.arrow().schema.names == expected_columns
+
+
+@pytest.mark.parametrize(
+    "query,expected_columns",
+    [
+        ("SELECT item_id, name FROM items", ["item_id", "name"]),
+        ("SELECT col_unknown FROM table_unknown", ["col_unknown"]),
+        # a `*` over an unknown table cannot be expanded
+        ("SELECT * FROM table_unknown", []),
+    ],
+    ids=["known_table", "unknown_table_unqualified_column", "unknown_table_star"],
+)
+@pytest.mark.parametrize("execute_raw_query", [True, False], ids=["raw", "partial"])
+def test_relation_partial_lineage(
+    multi_schema_dataset: dlt.Dataset,
+    query: str,
+    expected_columns: Any,
+    execute_raw_query: bool,
+) -> None:
+    # a raw query implies partial lineage
+    relation = multi_schema_dataset(
+        query,
+        _execute_raw_query=execute_raw_query,
+        _allow_partial_lineage=not execute_raw_query,
+    )
+    assert relation.columns == expected_columns
+
+    # relations derived from the relation keep both modes
+    derived = relation.limit(1)
+    assert derived._allow_partial_lineage is True
+    assert derived._execute_raw_query is execute_raw_query
+    assert derived.columns == expected_columns
+    if execute_raw_query:
+        assert derived.to_sql() == derived.sqlglot_expression.sql(
+            dialect=derived.destination_dialect
+        )
+
+
+def test_relation_lineage_computed_once(tmp_path: pathlib.Path, mocker: Any) -> None:
+    pipeline = dlt.pipeline(
+        "relation_lineage",
+        pipelines_dir=str(tmp_path / "pipelines_dir"),
+        destination=dlt.destinations.duckdb(str(tmp_path / "relation_lineage.db")),
+        dev_mode=True,
+    )
+    pipeline.run([{"id": 1}], table_name="items")
+    dataset = pipeline.dataset()
+    lineage_spy = mocker.spy(lineage, "compute_columns_schema")
+    sqlglot_schema_spy = mocker.spy(lineage, "create_sqlglot_schema")
+
+    relation = dataset("SELECT * FROM items")
+    assert "value" not in relation.columns
+    relation.fetchall()
+    assert lineage_spy.call_count == 1
+    # the query binding reuses the sqlglot schema of the lineage
+    assert sqlglot_schema_spy.call_count == 1
+
+    # a change of the dataset schema computes the lineage again
+    dataset.schema.update_table(
+        new_table("items", columns=[{"name": "value", "data_type": "text", "nullable": True}])
+    )
+    assert "value" in relation.columns
+    assert lineage_spy.call_count == 2
+    assert sqlglot_schema_spy.call_count == 2
+
+    # a raw query executes without lineage, its columns compute it on request
+    raw_relation = dataset("SELECT * FROM items", _execute_raw_query=True)
+    raw_relation.fetchall()
+    assert lineage_spy.call_count == 2
+    assert raw_relation.columns == ["id", "_dlt_load_id", "_dlt_id", "value"]
+    assert lineage_spy.call_count == 3
+
+
+def test_cross_dataset_relation_lineage_follows_foreign_schema(
+    tmp_path: pathlib.Path, mocker: Any
+) -> None:
+    db_path = str(tmp_path / "cross_dataset_lineage.db")
+    pipeline_users = dlt.pipeline(
+        "lineage_users",
+        pipelines_dir=str(tmp_path / "pipelines_dir"),
+        destination=dlt.destinations.duckdb(db_path),
+        dataset_name="users_data",
+    )
+    pipeline_users.run([{"id": 1, "name": "alice"}], table_name="users")
+    pipeline_purchases = dlt.pipeline(
+        "lineage_purchases",
+        pipelines_dir=str(tmp_path / "pipelines_dir"),
+        destination=dlt.destinations.duckdb(db_path),
+        dataset_name="purchases_data",
+    )
+    pipeline_purchases.run([{"user_id": 1, "amount": 10}], table_name="purchases")
+    ds_users, ds_purchases = pipeline_users.dataset(), pipeline_purchases.dataset()
+    lineage_spy = mocker.spy(lineage, "compute_columns_schema")
+
+    joined = ds_users.table("users").join(
+        ds_purchases.table("purchases"), on="users.id = purchases.user_id"
+    )
+    assert "x-annotation-pii" not in joined.columns_schema["purchases__amount"]
+    assert joined.fetchall() == [(1, "alice", ANY, ANY, 1, 10, ANY, ANY)]
+    assert lineage_spy.call_count == 1
+
+    # a hint added to the schema of the foreign dataset computes the lineage again
+    ds_purchases.schema.update_table(
+        new_table(
+            "purchases",
+            columns=[{"name": "amount", "data_type": "bigint", "x-annotation-pii": True}],  # type: ignore[typeddict-unknown-key]
+        )
+    )
+    assert joined.columns_schema["purchases__amount"].get("x-annotation-pii") is True
+    assert joined.fetchall() == [(1, "alice", ANY, ANY, 1, 10, ANY, ANY)]
+    assert lineage_spy.call_count == 2
+    # the schema of the primary dataset did not change
+    assert "x-annotation-pii" not in ds_users.schema.get_table_columns("users")["id"]
 
 
 def test_dataset_load_ids(dataset_with_loads: TLoadsFixture):
@@ -429,6 +685,40 @@ def test_multi_schema_row_counts(multi_schema_dataset: dlt.Dataset) -> None:
         "warehouses": 1,
     }
     assert counts == expected_counts
+
+
+@pytest.fixture(scope="module")
+def casefolding_dataset(module_tmp_path: pathlib.Path) -> dlt.Dataset:
+    """Dataset on a duckdb that folds identifiers to upper case, like snowflake."""
+    pipeline = dlt.pipeline(
+        pipeline_name="casefolding",
+        pipelines_dir=str(module_tmp_path / "pipelines_dir"),
+        destination=dlt.destinations.duckdb(
+            str(module_tmp_path / "casefolding.db"),
+            casefold_identifier=str.upper,
+            has_case_sensitive_identifiers=True,
+        ),
+        dev_mode=True,
+    )
+    pipeline.run(inventory())
+    return pipeline.dataset()
+
+
+def test_casefolding_row_counts_output_names(casefolding_dataset: dlt.Dataset) -> None:
+    """`row_counts` names its output columns in the dlt schema namespace, also when the
+    destination folds identifiers."""
+    counts = casefolding_dataset.row_counts()
+    assert counts.columns == ["table_name", "row_count"]
+    rows = counts.arrow().to_pylist()
+    assert {row["table_name"]: row["row_count"] for row in rows} == {
+        "items": len(ITEMS_DATA),
+        "warehouses": len(WAREHOUSES_DATA),
+    }
+
+
+def test_casefolding_literal_projection_output_name(casefolding_dataset: dlt.Dataset) -> None:
+    relation = casefolding_dataset("SELECT 'Widget' AS kind, item_id FROM items ORDER BY item_id")
+    assert relation.arrow().schema.names == ["kind", "item_id"]
 
 
 def test_multi_schema_cross_schema_sql_query(multi_schema_dataset: dlt.Dataset) -> None:
@@ -908,3 +1198,34 @@ def test_changing_relation_with_query() -> None:
 
     with pytest.raises(LineageFailedException):
         relation.select("hello", "hillo").to_sql()
+
+
+@pytest.mark.skipif(
+    sys.version_info < (3, 10),
+    reason=f"Skipping tests for Python `{sys.version_info}`. Ibis only supports Python >= 3.10.",
+)
+def test_ibis_backend_gets_own_client(
+    dataset: dlt.Dataset, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The ibis backend owns the client, so each call must get a new client."""
+    shared_client = dataset.destination_client
+
+    created: list[Any] = []
+    original_create = dlt.Dataset._create_destination_client
+
+    def _counting_create(self: Any) -> Any:
+        client = original_create(self)
+        created.append(client)
+        return client
+
+    monkeypatch.setattr(dlt.Dataset, "_create_destination_client", _counting_create)
+
+    dataset.ibis()
+    backend = dataset.ibis()
+
+    # each backend built its own client, and none of them is the shared client of the dataset
+    assert len(created) == 2
+    assert all(client is not shared_client for client in created)
+    assert "purchases" in backend.list_tables(database=dataset.dataset_name)
+    # the dataset keeps its own client usable
+    assert len(dataset.table("purchases").df()) == 3

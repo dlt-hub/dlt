@@ -3,6 +3,8 @@ import pytest
 import requests_mock
 
 import dlt
+from dlt.common.configuration import resolve_configuration
+from dlt.common.configuration.specs import RuntimeConfiguration
 
 from tests.utils import start_test_telemetry, stop_telemetry
 
@@ -14,7 +16,10 @@ STATE_URL_SUFFIX = "/state"
 def test_platform_connection() -> None:
     mock_platform_url = "http://platform.com/endpoint"
     os.environ["RUNTIME__DLTHUB_DSN"] = mock_platform_url
-    start_test_telemetry()
+    # platform only; anon telemetry HTTP is not under test and can segfault on macOS after fork
+    runtime_config = resolve_configuration(RuntimeConfiguration())
+    runtime_config.dlthub_telemetry = False
+    start_test_telemetry(runtime_config)
 
     trace_url = mock_platform_url + TRACE_URL_SUFFIX
     state_url = mock_platform_url + STATE_URL_SUFFIX

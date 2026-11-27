@@ -6,15 +6,20 @@ import pytest
 import datetime  # noqa: 251
 import time
 import math
+from zoneinfo import ZoneInfo
 
 from dlt.common import pendulum, Decimal, json
 from dlt.common.configuration import inject_section
+from dlt.common.configuration.container import Container
+from dlt.common.configuration.specs import TimezoneContext
 from dlt.common.data_writers.writers import ArrowToParquetWriter, ParquetDataWriter
 from dlt.common.data_writers.exceptions import IncompatibleArrowSchema
 from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.destination.configuration import ParquetFormatConfiguration
+from dlt.common.libs.pyarrow import normalize_py_arrow_item
+from dlt.common.normalizers.naming.snake_case import NamingConvention
 from dlt.common.schema.utils import new_column
-from dlt.common.schema.typing import TDataType
+from dlt.common.schema.typing import TDataType, TTableSchemaColumns
 from dlt.common.configuration.specs.config_section_context import ConfigSectionContext
 
 from tests.common.data_writers.utils import get_writer
@@ -226,6 +231,76 @@ def test_parquet_writer_config() -> None:
             assert reader.metadata.row_group(0).column(0).has_column_index is True
             assert reader.metadata.row_group(0).column(0).has_offset_index is True
             assert reader.metadata.row_group(0).column(0).compression == "GZIP"
+
+
+TZ_CONTEXT_COLUMNS: TTableSchemaColumns = {
+    "ts_aware": {"name": "ts_aware", "data_type": "timestamp", "timezone": True},
+    "ts_naive": {"name": "ts_naive", "data_type": "timestamp", "timezone": False},
+}
+# january, so `Europe/Berlin` is +01:00 and the offset is not a DST guess
+TZ_CONTEXT_INSTANT = datetime.datetime(2024, 1, 15, 22, 30, tzinfo=datetime.timezone.utc)
+
+
+@pytest.mark.parametrize("tz_name", ["UTC", "Europe/Berlin"], ids=["utc", "berlin"])
+@pytest.mark.parametrize("item_type", ["dict", "arrow"])
+@pytest.mark.parametrize("tz_aware_caps", [True, False], ids=["caps-tz", "caps-no-tz"])
+def test_parquet_writer_follows_context_timezone(
+    tz_name: str, item_type: str, tz_aware_caps: bool
+) -> None:
+    """A tz-aware column is labelled with the context timezone and reads back into arrow with it.
+
+    A destination without tz support gets it naive, in the context wall clock.
+    """
+    expected_naive = TZ_CONTEXT_INSTANT.astimezone(ZoneInfo(tz_name)).replace(tzinfo=None)
+    aware_stays_aware = tz_aware_caps
+    caps = DestinationCapabilitiesContext.generic_capabilities()
+    caps.supports_tz_aware_datetime = tz_aware_caps
+
+    with Container().injectable_context(TimezoneContext(tz_name)):
+        if item_type == "dict":
+            writer_type: Any = ParquetDataWriter
+            # the normalizer applies the timezone hint in the context timezone, not the writer,
+            # so pass the values the writer would receive
+            item: Any = [
+                {
+                    "ts_aware": TZ_CONTEXT_INSTANT if aware_stays_aware else expected_naive,
+                    "ts_naive": expected_naive,
+                }
+            ]
+        else:
+            writer_type = ArrowToParquetWriter
+            arrow_column = pa.array([TZ_CONTEXT_INSTANT], type=pa.timestamp("us", tz="UTC"))
+            # this writer keeps the schema it is handed, so normalize first as extract does
+            item = normalize_py_arrow_item(
+                pa.Table.from_pydict({"ts_aware": arrow_column, "ts_naive": arrow_column}),
+                TZ_CONTEXT_COLUMNS,
+                NamingConvention(),
+                caps,
+            )
+
+        with get_writer(writer_type, caps=caps) as writer:
+            writer.write_data_item(item, TZ_CONTEXT_COLUMNS)
+            writer._flush_items()
+
+    with pa.parquet.ParquetFile(writer.closed_files[0].file_path) as reader:
+        table = reader.read()
+        assert table.schema.field("ts_aware").type.tz == (tz_name if aware_stays_aware else None)
+        assert table.schema.field("ts_naive").type.tz is None
+
+        aware_index = table.schema.get_field_index("ts_aware")
+        naive_index = table.schema.get_field_index("ts_naive")
+        aware_type = reader.metadata.schema.column(aware_index).logical_type
+        naive_type = reader.metadata.schema.column(naive_index).logical_type
+        # parquet has no field for a zone name, only this flag. the name asserted above lives in
+        # the `ARROW:schema` metadata, so only an arrow reader sees it
+        assert json.loads(aware_type.to_json())["isAdjustedToUTC"] is aware_stays_aware
+        assert json.loads(naive_type.to_json())["isAdjustedToUTC"] is False
+
+        # the label may differ, the instant must not. without a label the context wall clock is kept
+        assert table.column("ts_aware")[0].as_py() == (
+            TZ_CONTEXT_INSTANT if aware_stays_aware else expected_naive
+        )
+        assert table.column("ts_naive")[0].as_py() == expected_naive
 
 
 def test_parquet_writer_config_spark() -> None:

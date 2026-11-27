@@ -131,7 +131,7 @@ def test_rotation_with_buffer_on_schema_change(disable_compression: bool) -> Non
     # the last file must contain text value of the column3
     with FileStorage.open_zipsafe_ro(writer.closed_files[-1].file_path, "r", encoding="utf-8") as f:
         content = f.readlines()
-    assert "(col3_value" in content[-1]
+    assert "('col3_value'" in content[-1]
     # check metrics
     assert writer.closed_files[0].items_count == 11
     assert writer.closed_files[1].items_count == 22

@@ -3,9 +3,9 @@ title: Personio
 description: dlt verified source for Personio API
 keywords: [personio api, personio verified source, personio]
 ---
-import Header from './_source-info-header.md';
-
 # Personio
+
+import Header from './_source-info-header.md';
 
 <Header/>
 
@@ -21,16 +21,16 @@ You can check out our pipeline example [here](https://github.com/dlt-hub/verifie
 
 Resources that can be loaded using this verified source are:
 
-| Name                       | Description                                                                       | Endpoint                                          |
-|----------------------------|-----------------------------------------------------------------------------------|---------------------------------------------------|
-| employees                  | Retrieves company employees' details                                              | /company/employees                                |
-| absences                   | Retrieves absence periods for absences tracked in days                            | /company/time-offs                                |
-| absences_types             | Retrieves a list of various types of employee absences                            | /company/time-off-types                           |
-| attendances                | Retrieves attendance records for each employee                                    | /company/attendances                              |
-| projects                   | Retrieves a list of all company projects                                          | /company/attendances/projects                     |
-| document_categories        | Retrieves all document categories of the company                                  | /company/document-categories                      |
+| Name                       | Description                                                                       | Endpoint                                            |
+| -------------------------- | --------------------------------------------------------------------------------- | --------------------------------------------------- |
+| employees                  | Retrieves company employees' details                                              | /company/employees                                  |
+| absences                   | Retrieves absence periods for absences tracked in days                            | /company/time-offs                                  |
+| absences_types             | Retrieves a list of various types of employee absences                            | /company/time-off-types                             |
+| attendances                | Retrieves attendance records for each employee                                    | /company/attendances                                |
+| projects                   | Retrieves a list of all company projects                                          | /company/attendances/projects                       |
+| document_categories        | Retrieves all document categories of the company                                  | /company/document-categories                        |
 | employees_absences_balance | The transformer retrieves the absence balance for a specific employee             | /company/employees/\{employee_id\}/absences/balance |
-| custom_reports_list        | Retrieves metadata about existing custom reports (name, report type, report date) | /company/custom-reports/reports                   |
+| custom_reports_list        | Retrieves metadata about existing custom reports (name, report type, report date) | /company/custom-reports/reports                     |
 | custom_reports             | The transformer for custom reports                                                | /company/custom-reports/reports/\{report_id\}       |
 
 ## Setup guide
@@ -54,7 +54,7 @@ To get started with your data pipeline, follow these steps:
 
 1. Enter the following command:
 
-   ```sh
+   ```cli
    dlt init personio duckdb
    ```
 
@@ -97,18 +97,24 @@ For more information, read [Credentials](../../general-usage/credentials).
 
 1. Before running the pipeline, ensure that you have installed all the necessary dependencies by
    running the command:
-   ```sh
+
+   ```cli
    pip install -r requirements.txt
    ```
+
 1. You're now ready to run the pipeline! To get started, run the following command:
+
    ```sh
    python personio_pipeline.py
    ```
+
 1. Once the pipeline has finished running, you can verify that everything loaded correctly by using
    the following command:
-   ```sh
+
+   ```cli
    dlt pipeline <pipeline_name> show
    ```
+
    For example, the `pipeline_name` for the above pipeline example is `personio`, you may also use
    any custom name instead.
 
@@ -122,7 +128,8 @@ For more information, read [Run a pipeline.](../../walkthroughs/run-a-pipeline)
 ### Source `personio_source`
 
 This `dlt` source returns data resources like `employees`, `absences`, `absence_types`, etc.
-```py
+
+```py notype
 @dlt.source(name="personio")
 def personio_source(
     client_id: str = dlt.secrets.value,
@@ -154,14 +161,17 @@ def personio_source(
 This resource retrieves data on all the employees in a company.
 
 ```py
+from typing import Iterable
+from dlt.common.typing import TDataItem
+
 @dlt.resource(primary_key="id", write_disposition="merge")
 def employees(
     updated_at: dlt.sources.incremental[
         pendulum.DateTime
     ] = dlt.sources.incremental(
-        "last_modified_at", initial_value=None, allow_external_schedulers=True
+        "last_modified_at", initial_value=None
     ),
-    items_per_page: int = ITEMS_PER_PAGE,
+    items_per_page: int = 100,
 ) -> Iterable[TDataItem]:
     ...
 ```
@@ -171,7 +181,9 @@ def employees(
 
 `items_per_page`: Maximum number of items per page, defaults to 200.
 
-`allow_external_schedulers`: A boolean that, if true, permits [external schedulers](../../general-usage/incremental/cursor.md#using-airflow-schedule-for-backfill-and-incremental-loading) to manage incremental loading.
+This source does not set `allow_external_schedulers`. To load the data interval of each Airflow run,
+set `allow_external_schedulers=True` on the incrementals of the source. For an example, see
+[Using Airflow schedule for backfill and incremental loading](../../general-usage/incremental/cursor.md#using-airflow-schedule-for-backfill-and-incremental-loading).
 
 Like the `employees` resource discussed above, other resources `absences` and `attendances` load
 data incrementally from the Personio API to your preferred destination.
@@ -179,9 +191,13 @@ data incrementally from the Personio API to your preferred destination.
 ### Resource `absence_types`
 
 Simple resource, which retrieves a list of various types of employee absences.
+
 ```py
+from typing import Iterable
+from dlt.common.typing import TDataItem
+
 @dlt.resource(primary_key="id", write_disposition="replace")
-def absence_types(items_per_page: int = ITEMS_PER_PAGE) -> Iterable[TDataItem]:
+def absence_types(items_per_page: int = 100) -> Iterable[TDataItem]:
    ...
 ...
 ```
@@ -204,7 +220,7 @@ The transformer functions transform or process data from resources.
 The transformer function `employees_absences_balance` processes data from the `employees` resource.
 It fetches and returns a list of the absence balances for each employee.
 
-```py
+```py notype
 @dlt.transformer(
     data_from=employees,
     write_disposition="merge",
@@ -214,6 +230,7 @@ It fetches and returns a list of the absence balances for each employee.
 def employees_absences_balance(employees_item: TDataItem) -> Iterable[TDataItem]:
     ...
 ```
+
 `employees_item`: The data item from the 'employees' resource.
 
 It uses the `@dlt.defer` decorator to enable parallel run in thread pool.
@@ -237,14 +254,14 @@ verified source.
 
 1. To load employee data:
 
-   ```py
+   ```py notype
    load_data = personio_source().with_resources("employees")
    print(pipeline.run(load_data))
    ```
 
 1. To load data from all supported endpoints:
 
-   ```py
+   ```py notype
    load_data = personio_source()
    print(pipeline.run(load_data))
    ```

@@ -1,13 +1,13 @@
 """Tests for DuckDB job runs store."""
 
-from dlt.common.pendulum import pendulum
+from datetime import datetime, timedelta, timezone
 
 from tests.workspace.runner._runner.run_store import DuckDBJobRunsStore
 
 
 def test_create_and_get_last_run() -> None:
     store = DuckDBJobRunsStore()
-    now = pendulum.now("UTC")
+    now = datetime.now(timezone.utc)
     store.create_run(
         {
             "run_id": "r1",
@@ -27,7 +27,7 @@ def test_create_and_get_last_run() -> None:
 
 def test_update_run_status() -> None:
     store = DuckDBJobRunsStore()
-    now = pendulum.now("UTC")
+    now = datetime.now(timezone.utc)
     store.create_run(
         {
             "run_id": "r1",
@@ -38,7 +38,7 @@ def test_update_run_status() -> None:
             "status": "running",
         }
     )
-    finished = now.add(seconds=5)
+    finished = now + timedelta(seconds=5)
     store.update_run("r1", "completed", finished_at=finished)
     last = store.get_last_run("jobs.a")
     assert last["status"] == "completed"
@@ -48,8 +48,8 @@ def test_update_run_status() -> None:
 
 def test_get_last_run_returns_most_recent() -> None:
     store = DuckDBJobRunsStore()
-    t1 = pendulum.datetime(2024, 1, 1, tz="UTC")
-    t2 = pendulum.datetime(2024, 1, 2, tz="UTC")
+    t1 = datetime(2024, 1, 1, tzinfo=timezone.utc)
+    t2 = datetime(2024, 1, 2, tzinfo=timezone.utc)
     store.create_run(
         {
             "run_id": "r1",
@@ -82,7 +82,7 @@ def test_get_last_run_none_when_empty() -> None:
 
 def test_jobs_isolated() -> None:
     store = DuckDBJobRunsStore()
-    now = pendulum.now("UTC")
+    now = datetime.now(timezone.utc)
     store.create_run(
         {
             "run_id": "r1",

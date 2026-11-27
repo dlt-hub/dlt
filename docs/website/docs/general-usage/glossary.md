@@ -3,7 +3,6 @@ title: Glossary
 description: Glossary of common dlt terms
 keywords: [glossary, resource, source, pipeline]
 ---
-
 # Glossary
 
 ## [Source](source)

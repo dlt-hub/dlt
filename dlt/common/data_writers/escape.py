@@ -1,11 +1,13 @@
 import re
 import base64
-from typing import Any, Dict
+from typing import Any, Callable, Dict, Optional
 from datetime import date, datetime, time, timezone  # noqa: I251
 
 from dlt.common.json import json
-from dlt.common.pendulum import pendulum
-from dlt.common.time import reduce_pendulum_datetime_precision
+from dlt.common.time import (
+    normalize_timezone,
+    reduce_datetime_precision,
+)
 
 # use regex to escape characters in single pass
 # NUL (\x00) is stripped: postgres/redshift cannot store it in text and duckdb cannot parse it
@@ -176,6 +178,33 @@ def escape_snowflake_literal(v: Any) -> Any:
     return "NULL" if v is None else str(v)
 
 
+def escape_ansi_literal(
+    v: Any,
+    datetime_literal: Optional[Callable[..., str]] = None,
+    precision: int = 6,
+    no_tz: bool = False,
+) -> Any:
+    """Escapes `v` as a standard SQL literal. A `datetime` renders with `datetime_literal`, by
+    default `format_datetime_literal`, at `precision` and naive in the context timezone with
+    `no_tz`, like the values stored without timezone support."""
+    if isinstance(v, str):
+        return "'" + v.replace("'", "''") + "'"
+    if isinstance(v, bool):
+        return "TRUE" if v else "FALSE"
+    if isinstance(v, datetime):
+        return (datetime_literal or format_datetime_literal)(v, precision, no_tz)
+    # typed literals, because Trino does not compare strings to date columns
+    if isinstance(v, date):
+        return f"DATE '{v.isoformat()}'"
+    if isinstance(v, time):
+        return f"TIME '{v.isoformat()}'"
+    if isinstance(v, (list, dict)):
+        return escape_ansi_literal(json.dumps(v))
+    if isinstance(v, bytes):
+        return f"X'{v.hex()}'"
+    return "NULL" if v is None else str(v)
+
+
 def escape_databricks_identifier(v: str) -> str:
     # databricks escapes an embedded backtick by doubling it; backslash is literal
     return "`" + v.replace("`", "``") + "`"
@@ -227,6 +256,8 @@ def escape_clickhouse_literal(v: Any) -> Any:
         return _escape_extended(
             v, prefix="'", escape_dict=CLICKHOUSE_ESCAPE_DICT, escape_re=CLICKHOUSE_ESCAPE_RE
         )
+    if isinstance(v, datetime):
+        return format_clickhouse_datetime_literal(v)
     if isinstance(v, (datetime, date, time)):
         return f"'{v.isoformat()}'"
     if isinstance(v, (list, dict)):
@@ -266,6 +297,8 @@ def escape_bigquery_literal(v: Any) -> Any:
         return _escape_extended(
             v, prefix="'", escape_dict=BIGQUERY_ESCAPE_DICT, escape_re=BIGQUERY_ESCAPE_RE
         )
+    if isinstance(v, datetime):
+        return format_bigquery_datetime_literal(v)
     if isinstance(v, (datetime, date, time)):
         return f"'{v.isoformat()}'"
     if isinstance(v, (list, dict)):
@@ -286,10 +319,11 @@ escape_bigquery_identifier = escape_hive_identifier
 
 
 def format_datetime_value(v: datetime, precision: int = 6, no_tz: bool = False) -> str:
-    """ISO datetime string at given `precision`, optionally UTC-naive."""
-    if no_tz and v.tzinfo is not None:
-        v = v.astimezone(tz=timezone.utc).replace(tzinfo=None)
-    v = reduce_pendulum_datetime_precision(v, precision)
+    """ISO datetime string at given `precision`, optionally naive."""
+    if no_tz:
+        # same call the loaded value goes through, so literal and stored value agree
+        v = normalize_timezone(v, False)
+    v = reduce_datetime_precision(v, precision)
     if precision < 3:
         timespec = "seconds"
     elif precision < 6:
@@ -304,9 +338,7 @@ def format_datetime_literal(v: datetime, precision: int = 6, no_tz: bool = False
     return "'" + format_datetime_value(v, precision, no_tz) + "'"
 
 
-def format_bigquery_datetime_literal(
-    v: pendulum.DateTime, precision: int = 6, no_tz: bool = False
-) -> str:
+def format_bigquery_datetime_literal(v: datetime, precision: int = 6, no_tz: bool = False) -> str:
     """Returns BigQuery-adjusted datetime literal by prefixing required `TIMESTAMP` indicator.
 
     Also works for Presto-based engines.
@@ -315,9 +347,10 @@ def format_bigquery_datetime_literal(
     return "TIMESTAMP " + format_datetime_literal(v, precision, no_tz)
 
 
-def format_clickhouse_datetime_literal(
-    v: pendulum.DateTime, precision: int = 6, no_tz: bool = False
-) -> str:
-    """Returns clickhouse compatible function"""
-    datetime = format_datetime_literal(v, precision, True)
-    return f"toDateTime64({datetime}, {precision}, '{v.tzinfo}')"
+def format_clickhouse_datetime_literal(v: datetime, precision: int = 6, no_tz: bool = False) -> str:
+    """Returns a `toDateTime64` call: an aware value in UTC, a naive value as written, read in the
+    session timezone."""
+    if v.tzinfo is None:
+        return f"toDateTime64({format_datetime_literal(v, precision)}, {precision})"
+    utc_value = v.astimezone(timezone.utc).replace(tzinfo=None)
+    return f"toDateTime64({format_datetime_literal(utc_value, precision)}, {precision}, 'UTC')"

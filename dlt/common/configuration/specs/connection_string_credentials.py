@@ -46,6 +46,16 @@ class ConnectionStringCredentials(CredentialsConfiguration):
         except Exception:
             raise InvalidConnectionString(self.__class__, native_value, self.drivername)
 
+    def data_location(self) -> str:
+        """Returns a human readable location of the data, ie. `postgresql://example.com:5432`."""
+        if self.host:
+            address = f"{self.host}:{self.port}" if self.port else self.host
+        else:
+            # file and memory backends have no server, the database locates them
+            address = self.database or ""
+        backend = self.drivername.split("+")[0] if self.drivername else ""
+        return f"{backend}://{address}" if backend else address
+
     def on_resolved(self) -> None:
         if self.password:
             self.password = self.password.strip()

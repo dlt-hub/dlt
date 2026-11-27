@@ -73,8 +73,8 @@ def test_create_table_uses_varchar(client: FabricClient) -> None:
     # Fabric uses datetime2 with precision 0-6
     assert '"col4_precision" datetime2(3)  NOT NULL' in sql
 
-    # varchar instead of nvarchar
-    assert '"col5_precision" varchar(25)' in sql
+    # varchar instead of nvarchar, with the char precision scaled to utf-8 bytes
+    assert '"col5_precision" varchar(100)' in sql
 
     assert '"col6_precision" decimal(6,2)  NOT NULL' in sql
     assert '"col7_precision" varbinary(19)' in sql
@@ -120,26 +120,25 @@ def test_create_dlt_version_table_uses_varchar(client: FabricClient) -> None:
 
 
 def test_unique_column_uses_varchar(client: FabricClient) -> None:
-    """Test that unique text columns use varchar with proper length"""
+    """Unique text columns are typed like any other text column, Fabric has no index key limit"""
     from dlt.common.schema.typing import TColumnSchema
 
-    # Create a table schema with a unique text column
     prepared_table = client.prepare_load_table("event_test_table")
 
-    # Add a unique text column to test
     unique_column: TColumnSchema = {
         "name": "unique_text_col",
         "data_type": "text",
         "nullable": False,
         "unique": True,
     }
-
-    # Get column definition SQL
     col_sql = client._get_column_def_sql(unique_column, prepared_table)
-
-    # Should use varchar (not nvarchar) with 900 byte limit for unique columns
-    assert "varchar(900)" in col_sql
+    assert "varchar(max)" in col_sql
     assert "nvarchar" not in col_sql
+
+    # precision is scaled the same way as for non unique columns
+    unique_column["precision"] = 25
+    col_sql = client._get_column_def_sql(unique_column, prepared_table)
+    assert "varchar(100)" in col_sql
 
 
 def test_fabric_capabilities() -> None:

@@ -47,7 +47,7 @@ class JobProcess:
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             bufsize=1,
-            text=True,
+            encoding="utf-8",
             errors="backslashreplace",
             env=merged_env,
         )

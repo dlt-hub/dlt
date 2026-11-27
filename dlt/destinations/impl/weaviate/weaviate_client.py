@@ -14,6 +14,8 @@ from typing import (
     cast,
 )
 
+from datetime import datetime, timezone
+
 from dlt.common.configuration.exceptions import ConfigurationValueError
 from dlt.common.destination.exceptions import (
     DestinationUndefinedEntity,
@@ -39,9 +41,8 @@ from weaviate.exceptions import (
 
 from dlt.common import logger
 from dlt.common.json import json
-from dlt.common.pendulum import pendulum
 from dlt.common.typing import StrAny, TFun
-from dlt.common.time import ensure_pendulum_datetime_utc
+from dlt.common.time import ensure_datetime_in_tz
 from dlt.common.schema import Schema, TSchemaTables, TTableSchemaColumns
 from dlt.common.schema.typing import (
     C_DLT_LOAD_ID,
@@ -63,13 +64,16 @@ from dlt.common.destination.client import (
     WithStateSync,
     LoadJob,
 )
-from dlt.common.storages import FileStorage
+from dlt.common.storages import FileStorage, ParsedLoadJobFileName
 
 from dlt.destinations.impl.weaviate.weaviate_adapter import VECTORIZE_HINT, TOKENIZATION_HINT
 from dlt.destinations.job_client_impl import StorageSchemaInfo, StateInfo
 from dlt.destinations.impl.weaviate.configuration import WeaviateClientConfiguration
 from dlt.destinations.impl.weaviate.exceptions import PropertyNameConflict, WeaviateBatchError
-from dlt.destinations.utils import get_pipeline_state_query_columns
+from dlt.destinations.utils import (
+    get_pipeline_state_query_columns,
+    verify_unsupported_merge_options,
+)
 
 
 # Type mapping from Weaviate type strings (output of WeaviateTypeMapper) to v4 DataType enums
@@ -205,7 +209,7 @@ class LoadWeaviateJob(RunnableLoadJob):
                     data[key] = json.dumps(data[key])
             for key in self.date_indices:
                 if key in data:
-                    data[key] = ensure_pendulum_datetime_utc(data[key]).isoformat()
+                    data[key] = ensure_datetime_in_tz(data[key]).isoformat()
             if self.unique_identifiers:
                 uuid = self.generate_uuid(data, self.unique_identifiers, self._collection_name)
             else:
@@ -693,13 +697,33 @@ class WeaviateClient(JobClientBase, WithStateSync):
             pass  # Ignore if not found
 
     @wrap_weaviate_error
+    def verify_schema(
+        self, only_tables: Iterable[str] = None, new_jobs: Iterable[ParsedLoadJobFileName] = None
+    ) -> List[PreparedTableSchema]:
+        loaded_tables = super().verify_schema(only_tables, new_jobs)
+        # the merge updates every matched record and applies no SQL condition
+        if exceptions := verify_unsupported_merge_options(
+            self.schema,
+            loaded_tables,
+            self.capabilities,
+            self.config.destination_type,
+            ("skip_unchanged_rows", "source_filter"),
+        ):
+            for exception in exceptions:
+                logger.error(str(exception))
+            raise exceptions[0]
+        return loaded_tables
+
     def update_stored_schema(
         self,
         only_tables: Iterable[str] = None,
         expected_update: TSchemaTables = None,
         force: bool = False,
+        include_existing_tables: bool = False,
     ) -> Optional[TSchemaTables]:
-        applied_update = super().update_stored_schema(only_tables, expected_update, force)
+        applied_update = super().update_stored_schema(
+            only_tables, expected_update, force, include_existing_tables
+        )
         # Retrieve the schema from Weaviate
         try:
             schema_info = self.get_stored_schema_by_hash(self.schema.stored_version_hash)
@@ -711,7 +735,11 @@ class WeaviateClient(JobClientBase, WithStateSync):
                 "not found in the storage (or update enforced). upgrading"
             )
             # TODO: return a real updated table schema (like in SQL job client)
-            self._execute_schema_update(only_tables, store_schema=schema_info is None)
+            self._execute_schema_update(
+                only_tables,
+                store_schema=schema_info is None,
+                include_existing_tables=include_existing_tables,
+            )
         else:
             logger.info(
                 f"Schema with hash {self.schema.stored_version_hash} "
@@ -721,9 +749,18 @@ class WeaviateClient(JobClientBase, WithStateSync):
 
         return applied_update
 
-    def _execute_schema_update(self, only_tables: Iterable[str], store_schema: bool = True) -> None:
-        for table_name in only_tables or self.schema.tables.keys():
+    def _execute_schema_update(
+        self,
+        only_tables: Iterable[str],
+        store_schema: bool = True,
+        include_existing_tables: bool = False,
+    ) -> None:
+        only_tables = set(only_tables or self.schema.tables.keys())
+        for table_name in self.schema.tables.keys() if include_existing_tables else only_tables:
             exists, existing_columns = self.get_storage_table(table_name)
+            # tables outside only_tables get new columns but are not created
+            if not exists and table_name not in only_tables:
+                continue
             # TODO: detect columns where vectorization was added or removed and modify it. currently we ignore change of hints
             new_columns = self.schema.get_new_table_columns(
                 table_name,
@@ -974,7 +1011,7 @@ class WeaviateClient(JobClientBase, WithStateSync):
             load_id,
             self.schema.name,
             0,
-            pendulum.now().isoformat(),
+            datetime.now(timezone.utc).isoformat(),
             self.schema.version_hash,
         ]
         assert len(values) == len(self.loads_collection_properties)
@@ -1001,7 +1038,7 @@ class WeaviateClient(JobClientBase, WithStateSync):
         values = [
             schema.version,
             schema.ENGINE_VERSION,
-            str(pendulum.now().isoformat()),
+            str(datetime.now(timezone.utc).isoformat()),
             schema.name,
             schema.stored_version_hash,
             schema_str,

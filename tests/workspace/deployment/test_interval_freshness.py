@@ -11,11 +11,11 @@ Covers:
 """
 
 from datetime import timezone  # noqa: I251
-from typing import Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 import pytest
 
-from dlt.common.time import ensure_pendulum_datetime_utc
+from dlt.common.time import ensure_datetime_in_tz
 from dlt.common.typing import TTimeInterval
 
 from dlt._workspace.deployment._interval_store_freshness import (
@@ -30,20 +30,13 @@ from dlt._workspace.deployment.freshness import (
     get_transitive_freshness_downstream,
 )
 from dlt._workspace.deployment.typing import (
-    TEntryPoint,
-    TExecuteSpec,
-    TFreshnessConstraint,
     TIntervalSpec,
     TJobDefinition,
-    TJobRef,
     TJobType,
-    TRefreshPolicy,
-    TTrigger,
 )
 
-
-def _iv(start: str, end: str) -> TTimeInterval:
-    return (ensure_pendulum_datetime_utc(start), ensure_pendulum_datetime_utc(end))
+from tests.utils import make_interval
+from tests.workspace.manifest_utils import make_job
 
 
 def _job(
@@ -53,31 +46,23 @@ def _job(
     default_trigger: Optional[str] = None,
     job_type: TJobType = "batch",
     freshness: Optional[List[str]] = None,
-    refresh: Optional[TRefreshPolicy] = None,
-    allow_external_schedulers: Optional[bool] = None,
+    **fields: Any,
 ) -> TJobDefinition:
-    job: TJobDefinition = {
-        "job_ref": TJobRef(ref),
-        "entry_point": TEntryPoint(
-            module="m",
-            function="f",
-            job_type=job_type,
-            launcher="dlt._workspace.deployment.launchers.job",
-        ),
-        "triggers": [TTrigger(t) for t in (triggers or [])],
-        "execute": TExecuteSpec(),
+    optional = {
+        "interval": interval,
+        "default_trigger": default_trigger,
+        "freshness": freshness,
+        **fields,
     }
-    if interval is not None:
-        job["interval"] = interval
-    if default_trigger is not None:
-        job["default_trigger"] = TTrigger(default_trigger)
-    if freshness is not None:
-        job["freshness"] = [TFreshnessConstraint(c) for c in freshness]
-    if refresh is not None:
-        job["refresh"] = refresh
-    if allow_external_schedulers is not None:
-        job["allow_external_schedulers"] = allow_external_schedulers
-    return job
+    return make_job(
+        ref,
+        job_type=job_type,
+        triggers=triggers,
+        module="m",
+        function="f",
+        concurrency=None,
+        **{k: v for k, v in optional.items() if v is not None},
+    )
 
 
 def _make_chain(*refs: str) -> Dict[str, TJobDefinition]:
@@ -221,7 +206,7 @@ def _chain_with_block_middle() -> Dict[str, TJobDefinition]:
             "jobs.c",
             ["manual:jobs.c"],
             freshness=["job.is_fresh:jobs.b"],
-            refresh="block",
+            refresh_propagation="block",
         ),
         "jobs.d": _job("jobs.d", ["manual:jobs.d"], freshness=["job.is_fresh:jobs.c"]),
     }
@@ -236,7 +221,7 @@ def _diamond_with_blocked_branch() -> Dict[str, TJobDefinition]:
             "jobs.c",
             ["manual:jobs.c"],
             freshness=["job.is_fresh:jobs.a"],
-            refresh="block",
+            refresh_propagation="block",
         ),
         "jobs.d": _job(
             "jobs.d",
@@ -254,21 +239,22 @@ def _chain_with_always_middle() -> Dict[str, TJobDefinition]:
             "jobs.b",
             ["manual:jobs.b"],
             freshness=["job.is_fresh:jobs.a"],
-            refresh="always",
+            refresh_propagation="always",
         ),
         "jobs.c": _job("jobs.c", ["manual:jobs.c"], freshness=["job.is_fresh:jobs.b"]),
     }
 
 
 def _chain_with_interval_middle() -> Dict[str, TJobDefinition]:
-    """A → B(interval-store) → C(auto). B is excluded; the walk does not pass through it."""
+    """A → B(interval-store) → C(auto). The walk passes through B — interval-store
+    severing is not implemented on the runtime."""
     return {
         "jobs.a": _job("jobs.a", ["manual:jobs.a"]),
         "jobs.b": _job(
             "jobs.b",
             ["schedule:0 * * * *"],
-            interval={"start": "2024-01-01T00:00:00Z"},
-            allow_external_schedulers=True,
+            interval={"start": "2024-01-01T00:00:00Z", "mode": "parallel"},
+            incremental_mode="interval",
             freshness=["job.is_fresh:jobs.a"],
         ),
         "jobs.c": _job("jobs.c", ["manual:jobs.c"], freshness=["job.is_fresh:jobs.b"]),
@@ -302,8 +288,8 @@ def _self_cycle_two_jobs() -> Dict[str, TJobDefinition]:
         (_diamond_with_blocked_branch(), "jobs.a", ["jobs.b", "jobs.d"]),
         # always mid-walk is treated as auto (no amplification)
         (_chain_with_always_middle(), "jobs.a", ["jobs.b", "jobs.c"]),
-        # interval-store mid-walk excludes the node and severs the walk
-        (_chain_with_interval_middle(), "jobs.a", []),
+        # interval-store mid-walk passes through (severing not implemented on runtime)
+        (_chain_with_interval_middle(), "jobs.a", ["jobs.b", "jobs.c"]),
         # cycle safety — A → B → A
         (_self_cycle_two_jobs(), "jobs.a", ["jobs.b"]),
         # root not in all_jobs — no error, empty list
@@ -371,8 +357,8 @@ def test_get_refresh_cascade_targets(
 def test_sort_and_coalesce(
     intervals: List[Tuple[str, str]], expected: List[Tuple[str, str]]
 ) -> None:
-    ivs = [(ensure_pendulum_datetime_utc(s), ensure_pendulum_datetime_utc(e)) for s, e in intervals]
-    exp = [(ensure_pendulum_datetime_utc(s), ensure_pendulum_datetime_utc(e)) for s, e in expected]
+    ivs = [TTimeInterval(ensure_datetime_in_tz(s), ensure_datetime_in_tz(e)) for s, e in intervals]
+    exp = [TTimeInterval(ensure_datetime_in_tz(s), ensure_datetime_in_tz(e)) for s, e in expected]
     assert sort_and_coalesce(ivs) == exp
 
 
@@ -400,19 +386,19 @@ def test_iter_intervals(
     first_start: Optional[str],
     first_end: Optional[str],
 ) -> None:
-    iv = _iv(*overall)
+    iv = make_interval(*overall)
     intervals = list(iter_intervals(cron, iv))
     assert len(intervals) == expected_count
     if first_start is not None:
         assert intervals[0] == (
-            ensure_pendulum_datetime_utc(first_start),
-            ensure_pendulum_datetime_utc(first_end),
+            ensure_datetime_in_tz(first_start),
+            ensure_datetime_in_tz(first_end),
         )
 
 
 def test_monthly_variable_length_intervals() -> None:
     """Monthly cron produces intervals of variable length (28-31 days)."""
-    overall = _iv("2024-01-01", "2024-05-01")
+    overall = make_interval("2024-01-01", "2024-05-01")
     intervals = list(iter_intervals("0 0 1 * *", overall))
     lengths = [(iv[1] - iv[0]).days for iv in intervals]
     assert lengths == [31, 29, 31, 30]
@@ -420,7 +406,7 @@ def test_monthly_variable_length_intervals() -> None:
 
 def test_weekly_cron() -> None:
     """Weekly cron (every Monday at midnight)."""
-    overall = _iv("2024-01-01", "2024-01-29")
+    overall = make_interval("2024-01-01", "2024-01-29")
     intervals = list(iter_intervals("0 0 * * 1", overall))
     assert len(intervals) == 4
     for iv in intervals:
@@ -428,47 +414,47 @@ def test_weekly_cron() -> None:
 
 
 def test_iter_intervals_is_lazy() -> None:
-    overall = _iv("2024-01-01", "2024-12-31")
+    overall = make_interval("2024-01-01", "2024-12-31")
     gen = iter_intervals("0 0 * * *", overall)
     first = next(gen)
     assert first == (
-        ensure_pendulum_datetime_utc("2024-01-01"),
-        ensure_pendulum_datetime_utc("2024-01-02"),
+        ensure_datetime_in_tz("2024-01-01"),
+        ensure_datetime_in_tz("2024-01-02"),
     )
     second = next(gen)
     assert second == (
-        ensure_pendulum_datetime_utc("2024-01-02"),
-        ensure_pendulum_datetime_utc("2024-01-03"),
+        ensure_datetime_in_tz("2024-01-02"),
+        ensure_datetime_in_tz("2024-01-03"),
     )
 
 
 def test_eligible_intervals_skips_completed() -> None:
     completed = sort_and_coalesce(
         [
-            (
-                ensure_pendulum_datetime_utc("2024-01-01"),
-                ensure_pendulum_datetime_utc("2024-01-02"),
+            TTimeInterval(
+                ensure_datetime_in_tz("2024-01-01"),
+                ensure_datetime_in_tz("2024-01-02"),
             ),
-            (
-                ensure_pendulum_datetime_utc("2024-01-02"),
-                ensure_pendulum_datetime_utc("2024-01-03"),
+            TTimeInterval(
+                ensure_datetime_in_tz("2024-01-02"),
+                ensure_datetime_in_tz("2024-01-03"),
             ),
         ]
     )
-    overall = _iv("2024-01-01", "2024-01-05")
+    overall = make_interval("2024-01-01", "2024-01-05")
     eligible = get_eligible_intervals("0 0 * * *", overall, completed)
     assert len(eligible) == 2
-    assert eligible[0][0] == ensure_pendulum_datetime_utc("2024-01-03")
+    assert eligible[0][0] == ensure_datetime_in_tz("2024-01-03")
 
 
 def test_eligible_intervals_all_when_none_completed() -> None:
-    overall = _iv("2024-01-01", "2024-01-05")
+    overall = make_interval("2024-01-01", "2024-01-05")
     eligible = get_eligible_intervals("0 0 * * *", overall, [])
     assert len(eligible) == 4
 
 
 def test_eligible_intervals_ordered() -> None:
-    overall = _iv("2024-01-01", "2024-01-04")
+    overall = make_interval("2024-01-01", "2024-01-04")
     eligible = get_eligible_intervals("0 0 * * *", overall, [])
     starts = [iv[0] for iv in eligible]
     assert starts == sorted(starts)
@@ -476,19 +462,19 @@ def test_eligible_intervals_ordered() -> None:
 
 def test_next_eligible_interval_returns_first_incomplete() -> None:
     completed = [
-        (ensure_pendulum_datetime_utc("2024-01-01"), ensure_pendulum_datetime_utc("2024-01-02"))
+        TTimeInterval(ensure_datetime_in_tz("2024-01-01"), ensure_datetime_in_tz("2024-01-02"))
     ]
-    overall = _iv("2024-01-01", "2024-01-05")
+    overall = make_interval("2024-01-01", "2024-01-05")
     iv = next_eligible_interval("0 0 * * *", overall, completed)
     assert iv is not None
-    assert iv[0] == ensure_pendulum_datetime_utc("2024-01-02")
+    assert iv[0] == ensure_datetime_in_tz("2024-01-02")
 
 
 def test_next_eligible_interval_none_when_all_done() -> None:
     completed = [
-        (ensure_pendulum_datetime_utc("2024-01-01"), ensure_pendulum_datetime_utc("2024-01-03"))
+        TTimeInterval(ensure_datetime_in_tz("2024-01-01"), ensure_datetime_in_tz("2024-01-03"))
     ]
-    overall = _iv("2024-01-01", "2024-01-03")
+    overall = make_interval("2024-01-01", "2024-01-03")
     iv = next_eligible_interval("0 0 * * *", overall, completed)
     assert iv is None
 
@@ -496,34 +482,34 @@ def test_next_eligible_interval_none_when_all_done() -> None:
 def test_next_eligible_skips_leading_completed() -> None:
     """Leading completed block is trimmed, avoiding iteration over 100 done intervals."""
     completed = [
-        (ensure_pendulum_datetime_utc("2024-01-01"), ensure_pendulum_datetime_utc("2024-04-10"))
+        TTimeInterval(ensure_datetime_in_tz("2024-01-01"), ensure_datetime_in_tz("2024-04-10"))
     ]
-    overall = _iv("2024-01-01", "2024-06-01")
+    overall = make_interval("2024-01-01", "2024-06-01")
     iv = next_eligible_interval("0 0 * * *", overall, completed)
     assert iv is not None
-    assert iv[0] == ensure_pendulum_datetime_utc("2024-04-10")
+    assert iv[0] == ensure_datetime_in_tz("2024-04-10")
 
 
 def test_next_eligible_with_gap_in_middle() -> None:
     """Completed intervals with a gap — returns the first interval in the gap."""
     completed = sort_and_coalesce(
         [
-            (
-                ensure_pendulum_datetime_utc("2024-01-01"),
-                ensure_pendulum_datetime_utc("2024-01-03"),
+            TTimeInterval(
+                ensure_datetime_in_tz("2024-01-01"),
+                ensure_datetime_in_tz("2024-01-03"),
             ),
-            (
-                ensure_pendulum_datetime_utc("2024-01-04"),
-                ensure_pendulum_datetime_utc("2024-01-05"),
+            TTimeInterval(
+                ensure_datetime_in_tz("2024-01-04"),
+                ensure_datetime_in_tz("2024-01-05"),
             ),
         ]
     )
-    overall = _iv("2024-01-01", "2024-01-05")
+    overall = make_interval("2024-01-01", "2024-01-05")
     iv = next_eligible_interval("0 0 * * *", overall, completed)
     assert iv is not None
     assert iv == (
-        ensure_pendulum_datetime_utc("2024-01-03"),
-        ensure_pendulum_datetime_utc("2024-01-04"),
+        ensure_datetime_in_tz("2024-01-03"),
+        ensure_datetime_in_tz("2024-01-04"),
     )
 
 
@@ -574,13 +560,13 @@ def test_iter_intervals_respects_tz_across_dst(
     Uses exact match on starts (not just `in`) so phantom DST duplicates or drifted
     ticks fail the test rather than being silently tolerated.
     """
-    overall = _iv(overall_start, overall_end)
+    overall = make_interval(overall_start, overall_end)
     intervals = list(iter_intervals(cron, overall, tz=tz))
     for iv in intervals:
         assert iv[0].tzinfo == timezone.utc
         assert iv[1].tzinfo == timezone.utc
     starts = [iv[0] for iv in intervals]
-    assert starts == [ensure_pendulum_datetime_utc(s) for s in expected_starts]
+    assert starts == [ensure_datetime_in_tz(s) for s in expected_starts]
 
 
 @pytest.mark.parametrize(
@@ -616,11 +602,11 @@ def test_next_eligible_interval_tz_returns_utc(
     expected_end: str,
 ) -> None:
     """next_eligible_interval with a non-UTC tz returns UTC intervals."""
-    overall = _iv(overall_start, overall_end)
+    overall = make_interval(overall_start, overall_end)
     iv = next_eligible_interval(cron, overall, [], tz=tz)
     assert iv is not None
     assert iv[0].tzinfo == timezone.utc
     assert iv == (
-        ensure_pendulum_datetime_utc(expected_start),
-        ensure_pendulum_datetime_utc(expected_end),
+        ensure_datetime_in_tz(expected_start),
+        ensure_datetime_in_tz(expected_end),
     )

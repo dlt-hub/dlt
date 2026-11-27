@@ -29,6 +29,8 @@ Be it a Google Colab notebook, AWS Lambda function, an Airflow DAG, your local l
   </a>
 </div>
 
+> We launched **dltHub** in March 2026. You can now run your dlt pipelines on a managed, agent-native platform with transformations, data quality and observability built in. [Learn more](https://dlthub.com/) or [deploy your first pipeline](https://dlthub.com/docs/hub/getting-started/onboarding).
+
 ## Installation
 
 dlt supports Python 3.10 through Python 3.14. Note that some optional extras are not yet available for Python 3.14, so support for this version is considered experimental.
@@ -59,24 +61,27 @@ from dlt.sources.rest_api import rest_api_source
 
 # 1. Describe the API declaratively
 source = rest_api_source({
-    "client": {"base_url": "https://pokeapi.co/api/v2/"},
+    "client": {"base_url": "https://api.spotify.com/v1"},
     "resources": [
-        {"name": "pokemon", "endpoint": {"path": "pokemon", "params": {"limit": 1000}}},
+        {
+          "name": "playlist_tracks",
+          "endpoint": {"path": "playlists/{playlist_id}/tracks"},
+        },
     ],
 })
 
 # 2. Point a pipeline at any destination
 pipeline = dlt.pipeline(
-    pipeline_name="pokemon",
+    pipeline_name="spotify",
     destination="duckdb",
-    dataset_name="pokemon_data",
+    dataset_name="spotify_data",
 )
 
 # 3. Extract, normalize, and load
-print(pipeline.run(source))
+pipeline.run(source)
 
 # 4. ...and read it straight back as a DataFrame
-print(pipeline.dataset().pokemon.df())
+pipeline.dataset().playlist_tracks.df()
 ```
 
 ...or load any Python iterable — a [resource](https://dlthub.com/docs/general-usage/resource) is just a generator, and dlt infers the schema, types the columns, and writes the table:
@@ -84,15 +89,22 @@ print(pipeline.dataset().pokemon.df())
 ```python
 import dlt
 
-@dlt.resource(table_name="players", primary_key="id", write_disposition="merge")
-def players():
-    yield {"id": 1, "name": "Magnus", "rating": 2839}
-    yield {"id": 2, "name": "Pragg", "rating": 2758}
+@dlt.resource(table_name="tracks", primary_key="id", write_disposition="merge")
+def tracks():
+    yield {"id": 1, "title": "Yellow",       "artist": "Coldplay",   "streams": 4_200_000_000}
+    yield {"id": 2, "title": "Shape of You", "artist": "Ed Sheeran", "streams": 3_900_000_000}
 
-dlt.pipeline(destination="duckdb", dataset_name="chess").run(players())
+dlt.pipeline(
+    destination="duckdb",
+    dataset_name="spotify_data",
+).run(
+  source=tracks(),
+)
 ```
 
-Check out a super simple demo in **[Colab](https://colab.research.google.com/drive/1NfSB1DpwbbHX9_t5vlalBTf13utwpMGx?usp=sharing)** or a more advanced [Hugging Face demo with Marimo notebooks](https://molab.marimo.io/github/marimo-team/gallery-examples/blob/main/notebooks/external/dlthub-huggingface.py).
+Check out a basic example in **[Colab](https://colab.research.google.com/drive/1NfSB1DpwbbHX9_t5vlalBTf13utwpMGx?usp=sharing)** or a more advanced [Hugging Face demo with Marimo notebooks](https://molab.marimo.io/github/marimo-team/gallery-examples/blob/main/notebooks/external/dlthub-huggingface.py).
+
+Ready to run it in production? [Deploy it with dltHub](#run-it-in-production-with-dlthub).
 
 ## Why dlt
 
@@ -109,20 +121,25 @@ from dlt.sources.rest_api import rest_api_source
 
 source = rest_api_source({
     "client": {
-        "base_url": "https://api.example.com/v1",
+        "base_url": "https://api.spotify.com/v1",
         "paginator": {"type": "cursor", "cursor_path": "next_cursor"},
     },
     "resources": [
         {
-            "name": "guests",
-            "endpoint": {"path": "events/guests"},
+            "name": "playlist_tracks",
+            "endpoint": {"path": "playlists/{playlist_id}/tracks"},
             "processing_steps": [
-                {"filter": lambda r: r["approval_status"] == "approved"},
-                {"map": lambda r: {**r, "email": r["email"].lower()}},
+                {"filter": lambda r: r["track"]["duration_ms"] > 0},
+                {"map": flatten_track},
             ],
         },
     ],
 })
+```
+
+```python
+def flatten_track(record: dict[str, Any]) -> dict[str, Any]:
+    ...
 ```
 
 **SQL databases** — reflect tables and types straight from the database ([docs](https://dlthub.com/docs/tutorial/sql-database)):
@@ -130,7 +147,7 @@ source = rest_api_source({
 ```python
 from dlt.sources.sql_database import sql_database
 
-source = sql_database("mysql+pymysql://user:pass@host/db")
+source = sql_database("mysql+pymysql://user:pass@host/spotify")
 ```
 
 **Files in any bucket** — list, then parse CSV / JSONL / Parquet from local disk, S3, GCS, or Azure ([docs](https://dlthub.com/docs/tutorial/filesystem)):
@@ -139,9 +156,11 @@ source = sql_database("mysql+pymysql://user:pass@host/db")
 from dlt.sources.filesystem import filesystem, read_csv_duckdb
 
 source = (
-    filesystem(bucket_url="s3://my-bucket/data", file_glob="*.csv")
-    | read_csv_duckdb()
-).with_name("events")
+    filesystem(
+        bucket_url="s3://my-bucket/spotify",
+        file_glob="tracks_*.csv",
+    ) | read_csv_duckdb()
+).with_name("tracks")
 ```
 
 **DataFrames & Arrow** — pandas, Polars, and Arrow tables load directly; Arrow-backed frames move with zero copies:
@@ -150,8 +169,17 @@ source = (
 import dlt
 import pandas as pd
 
-df = pd.DataFrame({"event": ["dlt summit", "DuckCon"], "signups": [1240, 860]})
-dlt.pipeline(destination="duckdb", dataset_name="events").run(df, table_name="events")
+df = pd.DataFrame({
+  "track": ["Yellow",        "Shape of You"],
+  "streams": [4_200_000_000, 3_900_000_000],
+})
+dlt.pipeline(
+    destination="duckdb",
+    dataset_name="spotify_data",
+).run(
+    df,
+    table_name="tracks",
+)
 ```
 
 See [many more sources](https://dlthub.com/docs/dlt-ecosystem/verified-sources) in the ecosystem.
@@ -162,10 +190,10 @@ The same resource runs anywhere. Change the `destination` string and dlt takes c
 
 ```python
 pipeline = dlt.pipeline(
-    pipeline_name="luma",
-    destination="duckdb",       # → snowflake, bigquery, postgres, redshift, databricks,
-    dataset_name="luma_data",   #   athena, clickhouse, motherduck, filesystem (S3/GCS/Azure),
-)                               #   iceberg, delta, ... and custom reverse-ETL destinations
+    pipeline_name="spotify",
+    destination="duckdb",         # → snowflake, bigquery, postgres, redshift, databricks,
+    dataset_name="spotify_data",  #   athena, clickhouse, motherduck, filesystem (S3/GCS/Azure),
+)                                 #   iceberg, delta, ... and custom reverse-ETL destinations
 pipeline.run(source)
 ```
 
@@ -188,19 +216,19 @@ import dlt
 
 @dlt.resource(
     primary_key="id",
-    write_disposition="merge",                       # upsert on the primary key
-    columns={"email": {"x-annotation-pii": True}},   # type and annotate columns
-    schema_contract={"columns": "freeze"},           # reject unexpected columns
+    write_disposition="merge",                        # upsert on the primary key
+    columns={"artist": {"x-annotation-pii": False}},  # type and annotate columns
+    schema_contract={"columns": "freeze"},            # reject unexpected columns
 )
-def events(
+def tracks(
     updated_at=dlt.sources.incremental("updated_at"),  # load only new/changed rows
 ):
-    yield from fetch_events(since=updated_at.last_value)
+    yield from fetch_tracks(since=updated_at.last_value)
 
 
 @dlt.source
-def luma(api_key: str = dlt.secrets.value):
-    return events(), guests()   # group one or more resources behind shared config/auth
+def spotify(api_key: str = dlt.secrets.value):
+    return tracks(), playlists()   # group one or more resources behind shared config/auth
 ```
 
 [**Schema contracts**](https://dlthub.com/docs/general-usage/schema-contracts) enforce the shape at the gate, with three modes — `evolve` (accept and adapt the schema), `freeze` (reject the record), and `discard` (drop the offending row/column) — applied independently to `tables`, `columns`, and `data_type`. You also get [schema inference](https://dlthub.com/docs/general-usage/schema), [normalization of nested data](https://dlthub.com/docs/general-usage/schema/#data-normalizer), [incremental loading](https://dlthub.com/docs/general-usage/incremental-loading), and [secrets & config injection](https://dlthub.com/docs/general-usage/credentials) out of the box.
@@ -212,15 +240,19 @@ A pipeline is durable. Reconnect to one by name with `dlt.attach` and read any t
 ```python
 import dlt
 
-pipeline = dlt.attach(pipeline_name="luma", destination="duckdb", dataset_name="luma_data")
+pipeline = dlt.attach(
+    pipeline_name="spotify",
+    destination="duckdb",
+    dataset_name="spotify_data",
+)
 
 dataset = pipeline.dataset()
-dataset.tables               # ['events', 'guests', ...]
+dataset.tables               # ['tracks', 'playlists', ...]
 
-guests = dataset.guests      # a lazy dlt.Relation
-guests.df()                  # pandas DataFrame
-guests.arrow()               # pyarrow.Table (zero-copy)
-guests.to_ibis()             # ibis expression — lazy, composable
+tracks = dataset.tracks      # a lazy dlt.Relation
+tracks.df()                  # pandas DataFrame
+tracks.arrow()               # pyarrow.Table (zero-copy)
+tracks.to_ibis()             # ibis expression — lazy, composable
 ```
 
 ## Transform with Ibis — Python in, SQL out
@@ -230,15 +262,15 @@ Lift any loaded table into an [Ibis](https://ibis-project.org/) expression, comp
 ```python
 import ibis
 
-guests = pipeline.dataset().guests.to_ibis()
+tracks = pipeline.dataset().tracks.to_ibis()
 
-guests_by_event = (
-    guests
-    .group_by("event_id")
-    .aggregate(n_guests=ibis._.api_id.count())
+streams_by_artist = (
+    tracks
+    .group_by("artist")
+    .aggregate(total_streams=ibis._.streams.sum())
 )
 
-guests_by_event.to_pyarrow()   # compiles to SQL and runs on the destination
+streams_by_artist.to_pyarrow()   # compiles to SQL and runs on the destination
 ```
 
 dlt also supports [Python and SQL data access](https://dlthub.com/docs/general-usage/dataset-access/), [transformations](https://dlthub.com/docs/dlt-ecosystem/transformations), [pipeline inspection](https://dlthub.com/docs/general-usage/dashboard), and [visualizing data in Marimo notebooks](https://dlthub.com/docs/general-usage/dataset-access/marimo).
@@ -247,9 +279,9 @@ dlt also supports [Python and SQL data access](https://dlthub.com/docs/general-u
 
 For detailed usage and configuration, please refer to the [official documentation](https://dlthub.com/docs).
 
-## Examples
+### Examples
 
-You can find examples for various use cases in the [examples](docs/examples) folder, or in the [code examples section](https://dlthub.com/docs/examples) of our docs page.
+Find examples in the [cookbook section](https://dlthub.com/docs/examples) of our docs page.
 
 ## Adding as dependency
 
@@ -278,6 +310,23 @@ Please read [CONTRIBUTING](CONTRIBUTING.md) before you make a PR.
 - 📣 **New destinations are unlikely to be merged** due to high maintenance cost (but we are happy to improve SQLAlchemy destination to handle more dialects)
 - Significant changes require tests and docs and in many cases writing tests will be more laborious than writing code
 - Bugfixes and improvements are welcome! You'll get help with writing tests and docs + a decent review.
+
+## Run it in production with dltHub
+
+[dltHub](https://dlthub.com/docs/hub/getting-started/introduction) is an agent-native data engineering platform built around `dlt`. It uses the same sources, destinations, and pipelines you already write, and adds what you need to run them in production:
+
+- **Agent-native development**: build pipelines from prompts with Claude Code, Codex, or Cursor, with per-source context files and scaffolding commands
+- **[Transformations](https://dlthub.com/docs/hub/transformations)** and **[data quality checks](https://dlthub.com/docs/hub/data-quality)** on the data you load
+- **[Managed infrastructure](https://dlthub.com/docs/hub/pipeline-operations/overview)** for pipelines, notebooks, and data apps, with `dev` and `prod` profiles and one-command deploys
+- **[Observability](https://dlthub.com/docs/hub/ingestion/dashboard)**: monitor runs and troubleshoot from the workspace dashboard
+
+`dlt` stays open source under the Apache 2.0 license. dltHub is a commercial product governed by the [dltHub License](https://dlthub.com/docs/hub/license).
+
+**[Deploy your first pipeline →](https://dlthub.com/docs/hub/getting-started/onboarding)** One command sets up a workspace, connects it to dltHub, and has your coding agent deploy and run a sample pipeline:
+
+```sh
+uvx dlthub-start@latest
+```
 
 ## Sponsors
 

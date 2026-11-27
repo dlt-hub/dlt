@@ -54,6 +54,15 @@ def get_sorting_key(sql_client: ClickHouseSqlClient, table_name: str) -> str:
     return _get_key(sql_client, table_name, "sorting")
 
 
+def get_primary_key(sql_client: ClickHouseSqlClient, table_name: str) -> str:
+    """Returns primary key of given table.
+
+    - returns empty string if no primary key is set
+    - returns composite key as tuple WITHOUT parentheses
+    """
+    return _get_key(sql_client, table_name, "primary")
+
+
 def get_partition_key(sql_client: ClickHouseSqlClient, table_name: str) -> str:
     """Returns partition key of given table.
 
@@ -64,9 +73,11 @@ def get_partition_key(sql_client: ClickHouseSqlClient, table_name: str) -> str:
 
 
 def _get_key(
-    sql_client: ClickHouseSqlClient, table_name: str, key_type: Literal["sorting", "partition"]
+    sql_client: ClickHouseSqlClient,
+    table_name: str,
+    key_type: Literal["sorting", "primary", "partition"],
 ) -> str:
-    """Returns sorting or partition key of given table.
+    """Returns sorting, primary or partition key of given table.
 
     - returns empty string if no such key is set
     - returns composite key as tuple WITHOUT parentheses

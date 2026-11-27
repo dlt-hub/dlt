@@ -3,16 +3,17 @@ title: Workspace setup
 description: Convert a Python project into a dltHub platform workspace and configure credentials for dev, prod, and access profiles
 keywords: [dlthub platform, workspace, setup, login, profiles, credentials, configuration]
 ---
-
 # Workspace setup
 
 A workspace ready for the dltHub platform is a regular Python project with a few additions. You can easily convert any existing dlt project into a dltHub workspace.
+
+Starting from scratch instead? Use `uvx dlthub-start@latest`, which scaffolds a workspace and runs a first pipeline for you — see [Deploy your first pipeline](../getting-started/onboarding.md).
 
 ## 1. Enable dltHub platform features
 
 Initialize the workspace:
 
-```sh
+```cli
 uvx dlthub-init@latest
 ```
 
@@ -22,14 +23,14 @@ The `.dlt/.workspace` marker activates [profile support](./profiles.md) and enab
 
 ## 2. Log in to the dltHub platform
 
-```sh
+```cli
 dlthub login
 ```
 
 This opens a GitHub OAuth device flow and authenticates the current user. Then bind this repo to a remote workspace:
 
-```sh
-dlthub workspace connect [<name_or_id>] [--org-id <id>]
+```cli
+dlthub workspace connect [<workspace>] [--org-id <org_id>]
 ```
 
 With no argument, an interactive picker is shown, grouped by organization. The chosen `workspace_id` (and `organization_id`, on the first connect) is persisted to `.dlt/config.toml`. To list workspaces you have access to, use `dlthub workspace list`.
@@ -48,7 +49,7 @@ Connecting multiple local repositories to the same remote workspace is not yet s
 
 ## 3. Add pipelines
 
-```sh
+```cli
 dlthub pipeline init <source> <destination>
 ```
 
@@ -62,16 +63,16 @@ The dltHub platform uses **profiles** to manage different configurations for dif
 
 The built-in profiles are:
 
-| Profile | Scope | Purpose | Credentials |
-|---------|-------|---------|-------------|
-| `dev` | Local only | Local development (default when running on your machine) | Local DuckDB / test credentials |
-| `tests` | Local only | Automated tests | Test credentials |
-| `prod` | Synced with backend | Production batch jobs running on the dltHub platform | Read/write access to your destination |
-| `access` | Synced with backend | Interactive notebooks and dashboards on the dltHub platform | Read-only access (for safe data exploration) |
+| Profile  | Scope               | Purpose                                                                                                       | Credentials                                  |
+| -------- | ------------------- | ------------------------------------------------------------------------------------------------------------- | -------------------------------------------- |
+| `dev`    | Local only          | Local development (default when running on your machine)                                                      | Local DuckDB / test credentials              |
+| `tests`  | Local only          | Automated tests                                                                                               | Test credentials                             |
+| `prod`   | Synced with backend | Production batch jobs running on the dltHub platform                                                          | Read/write access to your destination        |
+| `access` | Synced with backend | Interactive notebooks and dashboards on the dltHub platform, and [agent jobs](../agents/index.md) that pin it | Read-only access (for safe data exploration) |
 
 Any custom profile you reference in a job decorator (e.g. `require={"profile": "analytics"}`) is also synced to the cloud configuration.
 
-When you run a script locally, dlt uses `dev`. When the dltHub platform executes a **batch job**, it uses `prod`. When the dltHub platform serves an **interactive job** (notebook, dashboard, MCP), it uses `access`. If `access` is not configured, interactive jobs fall back to `prod`.
+When you run a script locally, dlt uses `dev`. When the dltHub platform executes a **batch job**, it uses `prod`. When the dltHub platform serves an **interactive job** (notebook, dashboard, MCP), it uses `access`. If `access` is not configured, interactive jobs fall back to `prod`. An **agent job** is a batch job and takes `prod` too, so declare `require={"profile": "access"}` on it to keep the production credentials out of its environment.
 
 See [profiles in dltHub](./profiles.md) for the full reference.
 
@@ -79,7 +80,7 @@ See [profiles in dltHub](./profiles.md) for the full reference.
 
 Configuration files live in the `.dlt/` directory:
 
-```text
+```tree
 .dlt/
 ├── .workspace              # Marker file enabling profiles + the `dlthub` CLI
 ├── config.toml             # Workspace-wide config (all profiles)

@@ -1,13 +1,100 @@
 import argparse
+import codecs
 import importlib.util
 import os
 import subprocess
-from typing import Any, Dict, List, Optional, Tuple
+import sys
+from typing import Any, Dict, Iterator, List, Optional, Set, Tuple, Type
+
+from requests.exceptions import SSLError
 
 from dlt.common import json
+from dlt.common.configuration import resolve_configuration
+from dlt.common.configuration.specs import known_sections
+from dlt.common.configuration.specs.pluggable_run_context import ProfilesRunContext
 from dlt.common.configuration.utils import add_config_dict_to_env
+from dlt.common.exceptions import TerminalException
+from dlt.common.runtime.run_context import active
+from dlt.common.time import set_context_timezone
+from dlt.sources.helpers.requests.retry import DEFAULT_RETRY_EXCEPTIONS
 
-from dlt._workspace.deployment.typing import TRuntimeEntryPoint
+from dlt._workspace import known_sections as ws_known_sections
+from dlt.common import known_env
+from dlt._workspace._known_env import WORKSPACE__PROFILE
+from dlt._workspace.deployment._job_ref import parse_job_ref
+from dlt._workspace.deployment.configuration import JobConfiguration
+from dlt._workspace.deployment.typing import TRuntimeEntryPoint, resolve_incremental_mode
+
+
+EXIT_TERMINAL_ERROR = 1
+"""Failed run that is terminal, or any failure not identified as transient. This is the default."""
+
+# matches EX_TEMPFAIL from sysexits.h; os.EX_TEMPFAIL is absent on Windows
+EXIT_TRANSIENT_ERROR = 75
+"""Failed run whose chain contains a connection or timeout error and no terminal failure."""
+
+_RETRYABLE_EXCEPTION_TYPES: Tuple[Type[BaseException], ...] = (
+    TimeoutError,
+    ConnectionError,
+    *DEFAULT_RETRY_EXCEPTIONS,
+)
+
+
+def _exception_chain(exc: BaseException) -> Iterator[BaseException]:
+    """Yields `exc` and the cause or context chain a traceback reports.
+
+    An explicit cause is followed. Otherwise the unsuppressed context is followed.
+    Each exception is yielded once, so a cyclic chain stops.
+    """
+    seen: Set[int] = set()
+    current: Optional[BaseException] = exc
+    while current is not None and id(current) not in seen:
+        seen.add(id(current))
+        yield current
+        cause = current.__cause__
+        if isinstance(cause, BaseException):
+            current = cause
+            continue
+        context = current.__context__
+        if not current.__suppress_context__ and isinstance(context, BaseException):
+            current = context
+            continue
+        current = None
+
+
+def failure_exit_code(exc: BaseException) -> int:
+    """Launcher status for a failed run.
+
+    A `TerminalException` or an SSL/certificate error on the reported chain selects
+    `EXIT_TERMINAL_ERROR`. `EXIT_TRANSIENT_ERROR` is returned only when that chain
+    contains a concrete connection or timeout failure and no terminal one. Every
+    other failure returns `EXIT_TERMINAL_ERROR`.
+
+    Args:
+        exc (BaseException): Failure raised by the run.
+
+    Returns:
+        int: `EXIT_TERMINAL_ERROR` or `EXIT_TRANSIENT_ERROR`.
+    """
+    # SSLError subclasses ConnectionError; TransientException also wraps coding errors
+    saw_retryable = False
+    for item in _exception_chain(exc):
+        if isinstance(item, (TerminalException, SSLError)):
+            return EXIT_TERMINAL_ERROR
+        if isinstance(item, _RETRYABLE_EXCEPTION_TYPES):
+            saw_retryable = True
+    if saw_retryable:
+        return EXIT_TRANSIENT_ERROR
+    return EXIT_TERMINAL_ERROR
+
+
+def use_utf8_output() -> None:
+    """Writes stdout and stderr as UTF-8."""
+    # on Windows a pipe gets the system code page, which cannot encode emojis or box drawing
+    for stream in (sys.stdout, sys.stderr):
+        encoding = getattr(stream, "encoding", None)
+        if encoding and codecs.lookup(encoding).name != "utf-8" and hasattr(stream, "reconfigure"):
+            stream.reconfigure(encoding="utf-8")
 
 
 def exec_process(argv: List[str]) -> None:
@@ -76,3 +163,67 @@ def set_config_env_vars(sections: Tuple[str, ...], config: Dict[str, Any]) -> No
     """Set config params as env vars using EnvironProvider naming convention."""
     if config:
         add_config_dict_to_env(config, sections, overwrite_keys=True)
+
+
+def activate_profile(entry_point: TRuntimeEntryPoint) -> None:
+    """Activates the profile of `entry_point` in this process and in the processes it starts."""
+
+    profile = entry_point.get("profile")
+    if not profile:
+        return
+    os.environ[WORKSPACE__PROFILE] = profile
+    # a run context created before the env var was set keeps its profile until switched
+    ctx = active()
+    if isinstance(ctx, ProfilesRunContext) and ctx.profile != profile:
+        ctx.switch_profile(profile)
+
+
+def apply_job_configuration(entry_point: TRuntimeEntryPoint) -> None:
+    """Updates unset job behavior settings in `entry_point` from configuration.
+
+    Explicit entry point values take precedence over config providers.
+    """
+    # config resolves in the job's own sections, `jobs.<section>.<name>` taken from `job_ref`.
+    parts = tuple(p for p in parse_job_ref(entry_point["job_ref"]) if p)
+    sections = (ws_known_sections.JOBS,) + parts
+    explicit: Dict[str, Any] = {}
+    if entry_point.get("incremental_mode"):
+        explicit["incremental_mode"] = entry_point["incremental_mode"]
+    if entry_point.get("auto_refresh_pipeline_mode"):
+        explicit["auto_refresh_pipeline_mode"] = entry_point["auto_refresh_pipeline_mode"]
+    config = resolve_configuration(
+        JobConfiguration(), sections=sections, explicit_value=explicit or None
+    )
+    if config.incremental_mode:
+        entry_point["incremental_mode"] = config.incremental_mode
+    if config.auto_refresh_pipeline_mode:
+        entry_point["auto_refresh_pipeline_mode"] = config.auto_refresh_pipeline_mode
+
+
+def prepare_run_env(entry_point: TRuntimeEntryPoint) -> None:
+    """Set interval and pipeline refresh env vars, before user code runs."""
+    iv_start = entry_point.get("interval_start")
+    iv_end = entry_point.get("interval_end")
+    if iv_start and iv_end:
+        os.environ[known_env.DLT_INTERVAL_START] = iv_start
+        os.environ[known_env.DLT_INTERVAL_END] = iv_end
+
+    # subprocess launchers exec the user module, so the join decision only reaches incrementals
+    # through the environment
+    if "incremental_mode" in entry_point:
+        os.environ[known_env.DLT_ALLOW_EXTERNAL_SCHEDULERS] = str(
+            resolve_incremental_mode(entry_point) == "interval"
+        )
+    else:
+        os.environ.pop(known_env.DLT_ALLOW_EXTERNAL_SCHEDULERS, None)
+
+    # `require.timezone` holds for the whole run, so a manually or on-success triggered job gets
+    # it without any interval
+    os.environ[known_env.DLT_INTERVAL_TIMEZONE] = entry_point.get("interval_timezone", "UTC")
+    # this interpreter read the env at import, so re-read what was just set
+    set_context_timezone(None)
+
+    if entry_point.get("refresh") and entry_point.get("auto_refresh_pipeline_mode"):
+        set_config_env_vars(
+            (known_sections.PIPELINES,), {"refresh": entry_point["auto_refresh_pipeline_mode"]}
+        )

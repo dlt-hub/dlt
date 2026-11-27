@@ -1,8 +1,9 @@
 from importlib.metadata import version as pkg_version, distribution as pkg_distribution
-from typing import Optional
+from typing import Dict, Optional
 from urllib.request import url2pathname
 from urllib.parse import urlparse
 from packaging.requirements import Requirement
+from packaging.utils import canonicalize_name
 
 DLT_IMPORT_NAME = "dlt"
 PKG_NAME = DLT_PKG_NAME = "dlt"
@@ -48,3 +49,21 @@ def get_dependency_requirement(
         if req.name == dependency_name:
             return req
     return None
+
+
+def get_extra_requirements(extra: str, package: str = DLT_PKG_NAME) -> Dict[str, Requirement]:
+    """Requirements under `extra` of `package`, by normalized name, markers dropped"""
+    reqs: Dict[str, Requirement] = {}
+    for req_str in pkg_distribution(package).requires or []:
+        req = Requirement(req_str)
+        # a core dep has no marker or one that holds without any extra. a marker that fails with
+        # the extra set belongs to another extra, python version or platform
+        if (
+            req.marker is None
+            or req.marker.evaluate({"extra": ""})
+            or not req.marker.evaluate({"extra": extra})
+        ):
+            continue
+        req.marker = None
+        reqs[canonicalize_name(req.name)] = req
+    return reqs

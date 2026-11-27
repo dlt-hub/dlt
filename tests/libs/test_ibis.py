@@ -1,4 +1,4 @@
-from typing import cast
+from typing import Optional, cast
 
 import pytest
 
@@ -13,8 +13,9 @@ import ibis.expr.types as ir
 import pandas as pd
 
 import dlt
-from dlt.common.libs.ibis import _DltBackend
+from dlt.common.libs.ibis import _DltBackend, _to_ibis_schema
 from dlt.common.libs.pyarrow import pyarrow as pa
+from dlt.common.schema.typing import TColumnSchema
 
 from tests.load.read_dataset_fixtures import preserve_module_environ_per_destination_config
 from tests.load.test_read_interfaces import populated_pipeline
@@ -57,6 +58,7 @@ def test_list_tables(populated_pipeline: dlt.Pipeline):
         "items",
         "double_items",
         "orderable_in_chain",
+        "daily_items",
         "_dlt_pipeline_state",
         "items__children",
     ]
@@ -71,7 +73,7 @@ def test_get_schema(populated_pipeline: dlt.Pipeline):
             "id": ibis.dtype("int64", nullable=True),
             "decimal": ibis.dtype("decimal", nullable=True),
             "other_decimal": ibis.dtype("decimal", nullable=True),
-            "created_at": ibis.dtype("timestamp", nullable=True),
+            "created_at": ibis.dtype("timestamp('UTC')", nullable=True),
             "_dlt_load_id": ibis.dtype("string", nullable=False),
             "_dlt_id": ibis.dtype("string", nullable=False),
         }
@@ -89,7 +91,7 @@ def test_get_bound_table(populated_pipeline: dlt.Pipeline):
             "id": ibis.dtype("int64", nullable=True),
             "decimal": ibis.dtype("decimal", nullable=True),
             "other_decimal": ibis.dtype("decimal", nullable=True),
-            "created_at": ibis.dtype("timestamp", nullable=True),
+            "created_at": ibis.dtype("timestamp('UTC')", nullable=True),
             "_dlt_load_id": ibis.dtype("string", nullable=False),
             "_dlt_id": ibis.dtype("string", nullable=False),
         }
@@ -161,6 +163,33 @@ def test_table_to_pyarrow(populated_pipeline: dlt.Pipeline):
         assert set(result.column_names) == set(expected_columns)
     finally:
         con.disconnect()
+
+
+def test_backend_to_pyarrow_keeps_tz_aware_timestamps(populated_pipeline: dlt.Pipeline) -> None:
+    dataset = populated_pipeline.dataset()
+    backend = _DltBackend.from_dataset(dataset)
+    table = backend.table("items").select("id", "created_at").order_by("id")
+
+    result = backend.to_pyarrow(table)
+
+    assert result.schema.field("created_at").type == pa.timestamp("us", tz="UTC")
+    expected = dataset.table("items").select("created_at").order_by("id").arrow()
+    assert result["created_at"].to_pylist() == expected["created_at"].to_pylist()
+
+
+@pytest.mark.parametrize(
+    "timezone,expected_dtype",
+    [(None, "timestamp('UTC')"), (True, "timestamp('UTC')"), (False, "timestamp")],
+    ids=["default", "tz-aware", "naive"],
+)
+def test_ibis_schema_timestamp_timezone(timezone: Optional[bool], expected_dtype: str) -> None:
+    column: TColumnSchema = {"name": "ts", "data_type": "timestamp", "nullable": True}
+    if timezone is not None:
+        column["timezone"] = timezone
+
+    ibis_schema = _to_ibis_schema({"name": "t", "columns": {"ts": column}})
+
+    assert ibis_schema["ts"] == ibis.dtype(expected_dtype)
 
 
 def test_raw_sql(populated_pipeline: dlt.Pipeline) -> None:

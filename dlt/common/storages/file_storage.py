@@ -380,3 +380,18 @@ class FileStorage:
                 return True
         except (gzip.BadGzipFile, OSError):
             return False
+
+    @staticmethod
+    def uncompressed_size(path: str) -> int:
+        """Size of the data in the file under `path`, read from the trailer of a gzipped file"""
+        size = os.path.getsize(path)
+        if size < 18:
+            return size
+        # unbuffered so a mounted bucket serves two tiny ranged reads, not two blocks
+        with open(path, "rb", buffering=0) as f:
+            if f.read(2) != b"\x1f\x8b":
+                return size
+            f.seek(-4, os.SEEK_END)
+            uncompressed = int.from_bytes(f.read(4), "little")
+        # the trailer stores the size modulo 4 GiB, a wrapped value is below the compressed size
+        return uncompressed if uncompressed >= size else size

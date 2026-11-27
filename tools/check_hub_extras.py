@@ -21,7 +21,7 @@ from dlt.common.runtime.run_context import ensure_plugin_version_match
 from dlt.version import __version__ as dlt_version, DLT_PKG_NAME
 
 # hub extras not version-coupled to dlt: shown for info, version match never enforced
-INFO_ONLY_PKGS = {"dlthub-client"}
+INFO_ONLY_PKGS = {"dlthub-client", "pydantic"}
 
 
 class HubExtraInfo(NamedTuple):

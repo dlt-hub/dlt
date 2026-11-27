@@ -11,7 +11,8 @@ WORKTREE="${1:?Usage: $0 <worktree-path>}"
 WORKTREE="$(cd "$WORKTREE" && pwd)"
 
 # find the main worktree (repo root) -- the first entry in `git worktree list`
-REPO_ROOT="$(git -C "$WORKTREE" worktree list --porcelain | head -1 | sed 's/^worktree //')"
+# sed drains the stream; `head` would SIGPIPE git on long listings under `pipefail`
+REPO_ROOT="$(git -C "$WORKTREE" worktree list --porcelain | sed -n '1s/^worktree //p')"
 if [ "$REPO_ROOT" = "$WORKTREE" ]; then
     # we ARE the main worktree, no separate repo root to copy from
     REPO_ROOT=""

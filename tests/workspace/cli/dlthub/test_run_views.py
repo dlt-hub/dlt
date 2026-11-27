@@ -1,4 +1,4 @@
-"""Unit tests for the unified run/serve banner, warnings, plan, and picker."""
+"""Unit tests for the unified run/serve banner, warnings, plan and picker."""
 
 from typing import Tuple
 
@@ -14,6 +14,7 @@ from dlt._workspace.deployment._run_views import (
 )
 from dlt._workspace.deployment.exceptions import AmbiguousJobSelector
 from dlt._workspace.deployment.typing import (
+    MANIFEST_ENGINE_VERSION,
     TEntryPoint,
     TExecuteSpec,
     TJobDefinition,
@@ -30,6 +31,7 @@ def _candidate(ref: str) -> Tuple[TJobDefinition, TTrigger]:
         "launcher": "dlt._workspace.deployment.launchers.job",
     }
     jd: TJobDefinition = {
+        "engine_version": MANIFEST_ENGINE_VERSION,
         "job_ref": TJobRef(ref),
         "entry_point": entry,
         "triggers": [TTrigger(f"manual:{ref}")],

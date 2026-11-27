@@ -5,8 +5,10 @@ for all dialects that had hardcoded behavior, type mapper visitor pattern,
 table adapter, error handler, and backward compat with type_mapper= param.
 """
 
+from datetime import date, datetime  # noqa: I251
 from typing import Optional, Set, Type
 from unittest.mock import patch
+from zoneinfo import ZoneInfo
 
 import pytest
 
@@ -24,6 +26,7 @@ from dlt.destinations.impl.sqlalchemy.dialect import (
     DialectCapabilities,
     MysqlDialectCapabilities,
     MssqlDialectCapabilities,
+    SqliteDialectCapabilities,
     TrinoDialectCapabilities,
     OracleDialectCapabilities,
     register_dialect_capabilities,
@@ -46,6 +49,28 @@ from tests.load.utils import (
 
 # mark all tests as essential, do not remove
 pytestmark = pytest.mark.essential
+
+
+@pytest.mark.parametrize(
+    "credentials,expected_timestamp",
+    [
+        ("sqlite:///:memory:", "'2024-01-02 03:04:05.123456'"),
+        ("mysql+pymysql://u:p@localhost/db", "'2024-01-02 03:04:05.123456'"),
+        ("postgresql://u:p@localhost/db", "'2024-01-02 04:04:05.123456+01:00'"),
+    ],
+    ids=["sqlite", "mysql", "postgresql"],
+)
+def test_escape_dialect_literal(credentials: str, expected_timestamp: str) -> None:
+    escape = dlt.destinations.sqlalchemy(credentials=credentials).capabilities().escape_literal
+    assert escape("it's") == "'it''s'"
+    assert escape(3) == "3"
+    assert escape(None) == "NULL"
+    assert escape(True).lower() in ("true", "1")
+    # sqlalchemy 1.4 cannot render a date, so the literal is the ISO string
+    assert escape(date(2024, 1, 2)) == "'2024-01-02'"
+    # 04:04 in Berlin is 03:04 UTC, the naive wall clock where the dialect holds no timezone
+    berlin = datetime(2024, 1, 2, 4, 4, 5, 123456, tzinfo=ZoneInfo("Europe/Berlin"))
+    assert escape(berlin) == expected_timestamp
 
 
 def test_register_and_lookup() -> None:
@@ -142,7 +167,9 @@ def test_factory_caps_sqlite() -> None:
     # sqlite dialect reports max_identifier_length = 9999
     assert caps.max_identifier_length == 9999
     assert caps.supports_native_boolean is False
-    assert type(caps.dialect_capabilities) is DialectCapabilities
+    assert type(caps.dialect_capabilities) is SqliteDialectCapabilities
+    # sqlite stores DATETIME as text without an offset
+    assert caps.supports_tz_aware_datetime is False
     assert issubclass(caps.type_mapper, SqlalchemyTypeMapper)
 
 
