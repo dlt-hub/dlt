@@ -73,6 +73,7 @@ class SFTPCredentials(CredentialsConfiguration):
 
     def to_fsspec_credentials(self) -> Dict[str, Any]:
         """Return a dict that can be passed to fsspec SFTP/SSHClient.connect method."""
+        import inspect
 
         credentials: Dict[str, Any] = {
             "port": self.sftp_port,
@@ -89,14 +90,28 @@ class SFTPCredentials(CredentialsConfiguration):
             "look_for_keys": self.sftp_look_for_keys,
             "compress": self.sftp_compress,
             "sock": self.sftp_sock,
-            "gss_auth": self.sftp_gss_auth,
-            "gss_kex": self.sftp_gss_kex,
-            "gss_deleg_creds": self.sftp_gss_deleg_creds,
-            "gss_host": self.sftp_gss_host,
-            "gss_trust_dns": self.sftp_gss_trust_dns,
             "disabled_algorithms": self.sftp_disabled_algorithms,
             "transport_factory": self.sftp_transport_factory,
             "auth_strategy": self.sftp_auth_strategy,
         }
+
+        if self.sftp_gss_auth or self.sftp_gss_kex:
+            from paramiko import SSHClient
+
+            if "gss_auth" not in inspect.signature(SSHClient.connect).parameters:
+                raise ValueError(
+                    "GSS-API authentication (sftp_gss_auth / sftp_gss_kex) is not supported with"
+                    " paramiko>=5.0.0, which removed GSSAPI support. Downgrade paramiko<5.0.0 or"
+                    " disable GSS-API."
+                )
+            credentials.update(
+                {
+                    "gss_auth": self.sftp_gss_auth,
+                    "gss_kex": self.sftp_gss_kex,
+                    "gss_deleg_creds": self.sftp_gss_deleg_creds,
+                    "gss_host": self.sftp_gss_host,
+                    "gss_trust_dns": self.sftp_gss_trust_dns,
+                }
+            )
 
         return credentials

@@ -536,3 +536,54 @@ def test_empty_mapping_skips_native_value_in_embedded_credentials(
             EmbeddedCredentialsConfiguration(), explicit_value={"credentials": {}}
         )
     assert py_ex.value.fields == ["credentials"]
+
+
+def test_sftp_credentials_to_fsspec_defaults() -> None:
+    from dlt.common.configuration.specs import SFTPCredentials
+
+    creds = SFTPCredentials(sftp_username="foo", sftp_password="bar")
+    fsspec_creds = creds.to_fsspec_credentials()
+
+    assert fsspec_creds["username"] == "foo"
+    assert fsspec_creds["password"] == "bar"
+    assert fsspec_creds["port"] == 22
+    for gss_key in ("gss_auth", "gss_kex", "gss_deleg_creds", "gss_host", "gss_trust_dns"):
+        assert gss_key not in fsspec_creds
+
+
+def test_sftp_credentials_gss_api_raises_on_paramiko_5() -> None:
+    from unittest.mock import patch
+    from dlt.common.configuration.specs import SFTPCredentials
+
+    pytest.importorskip("paramiko")
+
+    def _connect_v5(self: Any, hostname: str, port: int = 22) -> None:
+        pass
+
+    with patch("paramiko.SSHClient.connect", _connect_v5):
+        with pytest.raises(ValueError, match="paramiko>=5.0.0"):
+            SFTPCredentials(sftp_gss_auth=True).to_fsspec_credentials()
+        with pytest.raises(ValueError, match="paramiko>=5.0.0"):
+            SFTPCredentials(sftp_gss_kex=True).to_fsspec_credentials()
+
+
+def test_sftp_credentials_gss_api_passes_on_paramiko_legacy() -> None:
+    from unittest.mock import patch
+    from dlt.common.configuration.specs import SFTPCredentials
+
+    pytest.importorskip("paramiko")
+
+    def _connect_v4(self: Any, hostname: str, port: int = 22, gss_auth: bool = False) -> None:
+        pass
+
+    with patch("paramiko.SSHClient.connect", _connect_v4):
+        fsspec_creds = SFTPCredentials(
+            sftp_gss_auth=True,
+            sftp_gss_host="kdc.example.com",
+        ).to_fsspec_credentials()
+
+    assert fsspec_creds["gss_auth"] is True
+    assert fsspec_creds["gss_kex"] is False
+    assert fsspec_creds["gss_deleg_creds"] is True
+    assert fsspec_creds["gss_host"] == "kdc.example.com"
+    assert fsspec_creds["gss_trust_dns"] is True
