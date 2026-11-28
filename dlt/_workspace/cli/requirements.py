@@ -54,10 +54,9 @@ class SourceRequirements:
         """
         if not self.dlt_requirement:
             return True
-        # Lets always accept pre-releases
+        # accept pre-releases without mutating the specifier's policy
         spec = self.dlt_requirement.specifier
-        spec.prereleases = True
-        return self.current_dlt_version() in spec
+        return spec.contains(self.current_dlt_version(), prereleases=True)
 
     def compiled(self) -> List[str]:
         return [str(req) for req in self.parsed_requirements]
